@@ -1,0 +1,4 @@
+# Clippy thresholds for CI `-D warnings`. Keep intentional Fixed-scale
+# digit grouping (100_00) via workspace lint allow in Cargo.toml.
+too-many-arguments-threshold = 10
+type-complexity-threshold = 500

@@ -1,0 +1,39 @@
+[package]
+name = "marketfeed-adapter-binance"
+description = "Binance Spot + USD-M + Coin-M market-data adapters (deterministic SessionMachine)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Optional SIMD JSON for Spot / USD-M / Coin-M `decode_text` (C10). Default remains serde_json.
+# Enable only after latency profiles show parse bottleneck — see src/json.rs ponytail.
+simd-json = ["dep:simd-json"]
+
+[dependencies]
+bytes = { workspace = true }
+marketfeed-adapter-api = { workspace = true }
+marketfeed-book = { workspace = true }
+marketfeed-model = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+simd-json = { workspace = true, optional = true }
+
+[dev-dependencies]
+marketfeed-adapter-testkit = { workspace = true }
+marketfeed-dispatch = { workspace = true }
+marketfeed-engine = { path = "../../engine" }
+marketfeed-recording = { workspace = true }
+marketfeed-replay = { workspace = true }
+marketfeed-transport = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true
+
+[[bench]]
+name = "parse_fixtures"
+harness = false

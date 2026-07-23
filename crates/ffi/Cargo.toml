@@ -1,0 +1,21 @@
+[package]
+name = "marketfeed-ffi"
+description = "Minimal C ABI stub: version + Fixed parse (no full market-data API)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[dependencies]
+marketfeed-model = { workspace = true }
+
+# C ABI requires `unsafe`; workspace forbids it elsewhere.
+[lints.rust]
+unsafe_code = "allow"
+
+[lints.clippy]
+inconsistent_digit_grouping = "allow"

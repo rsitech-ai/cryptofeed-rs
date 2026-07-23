@@ -1,0 +1,9 @@
+   Compiling marketfeed-engine v0.1.0 (/Users/s1kor/dev/apps/cryptofeed-live-canary/crates/engine)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.68s
+     Running tests/live_drain.rs (target/debug/deps/live_drain-4b6ef6ea9da43353)
+
+running 1 test
+test live_loop_drains_dispatch_under_fail_engine ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

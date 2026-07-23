@@ -1,0 +1,44 @@
+[package]
+name = "marketfeed-private"
+description = "Private account streams (fixture SMs + optional live OKX/Bybit user-data)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Live authenticated OKX/Bybit WS via marketfeed-transport + HMAC signing.
+live = [
+    "dep:marketfeed-transport",
+    "dep:tokio",
+    "dep:hmac",
+    "dep:sha2",
+    "dep:base64",
+]
+
+[dependencies]
+base64 = { workspace = true, optional = true }
+bytes = { workspace = true }
+hmac = { workspace = true, optional = true }
+marketfeed-adapter-api = { workspace = true }
+marketfeed-model = { workspace = true }
+marketfeed-transport = { workspace = true, optional = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, optional = true }
+
+[dev-dependencies]
+marketfeed-transport = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+
+[[test]]
+name = "live_ignored"
+path = "tests/live_ignored.rs"
+required-features = ["live"]
+
+[lints]
+workspace = true

@@ -1,0 +1,19 @@
+[package]
+name = "marketfeed-transport"
+description = "Replaceable WebSocket and HTTP transport abstractions for marketfeed"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+futures-util = { workspace = true }
+reqwest = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+
+[lints]
+workspace = true

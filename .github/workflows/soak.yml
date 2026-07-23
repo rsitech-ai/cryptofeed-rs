@@ -1,0 +1,34 @@
+# Offline soak skeleton (spec §27.9 / §3.7).
+# Runs synthetic `marketfeed run` mini-soak (no exchange I/O).
+# Multi-day live soak remains an ops runbook sign-off.
+
+name: soak-skeleton
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_hint:
+        description: "Human duration hint for live soak (ops) — offline job uses SOAK_SECS"
+        required: false
+        default: "1h"
+      soak_secs:
+        description: "Offline synthetic hold seconds"
+        required: false
+        default: "5"
+
+jobs:
+  offline-synthetic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Offline synthetic soak
+        env:
+          SOAK_SECS: ${{ github.event.inputs.soak_secs || '5' }}
+          MARKETFEED_BIND_PORT: "19108"
+        run: |
+          echo "Duration hint (ops live soak): ${{ github.event.inputs.duration_hint }}"
+          echo "See docs/ops/soak_runbook.md"
+          chmod +x scripts/offline_daemon_e2e.sh
+          ./scripts/offline_daemon_e2e.sh

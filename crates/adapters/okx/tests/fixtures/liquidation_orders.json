@@ -1,0 +1,1 @@
+{"arg":{"channel":"liquidation-orders","instType":"SWAP"},"data":[{"details":[{"bkLoss":"0","bkPx":"23523.9","ccy":"","posSide":"short","side":"buy","sz":"0.01","ts":"1672738134824"}],"instFamily":"BTC-USDT","instId":"BTC-USDT-SWAP","instType":"SWAP","uly":"BTC-USDT"}]}

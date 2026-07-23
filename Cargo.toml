@@ -1,0 +1,125 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/model",
+    "crates/adapter-api",
+    "crates/adapter-testkit",
+    "crates/book",
+    "crates/dispatch",
+    "crates/sinks",
+    "crates/ffi",
+    "crates/transport",
+    "crates/recording",
+    "crates/replay",
+    "crates/engine",
+    "crates/private",
+    "crates/adapters/synthetic",
+    "crates/adapters/binance",
+    "crates/adapters/okx",
+    "crates/adapters/bybit",
+    "crates/adapters/kraken",
+    "crates/adapters/deribit",
+    "crates/adapters/bitstamp",
+    "crates/adapters/gemini",
+    "crates/adapters/coinbase",
+    "crates/adapters/bitfinex",
+    "crates/daemon",
+    "crates/facade",
+]
+default-members = [
+    "crates/model",
+    "crates/adapter-api",
+    "crates/adapter-testkit",
+    "crates/book",
+    "crates/dispatch",
+    "crates/sinks",
+    "crates/ffi",
+    "crates/transport",
+    "crates/recording",
+    "crates/replay",
+    "crates/engine",
+    "crates/private",
+    "crates/adapters/synthetic",
+    "crates/adapters/binance",
+    "crates/adapters/okx",
+    "crates/adapters/bybit",
+    "crates/adapters/kraken",
+    "crates/adapters/deribit",
+    "crates/adapters/bitstamp",
+    "crates/adapters/gemini",
+    "crates/adapters/coinbase",
+    "crates/adapters/bitfinex",
+    "crates/daemon",
+    "crates/facade",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+repository = "https://github.com/s1korrrr/cryptofeed-rs"
+rust-version = "1.85"
+
+[workspace.dependencies]
+bytes = "1"
+thiserror = "2"
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Optional hot-path JSON (feature-gated on adapters). Mutates input; internal unsafe.
+simd-json = { version = "=0.15.1", default-features = false, features = [
+    "serde_impl",
+    "runtime-detection",
+    "swar-number-parsing",
+] }
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls-webpki-roots",
+    "http2",
+] }
+tokio = { version = "1", default-features = false, features = [
+    "rt",
+    "macros",
+    "sync",
+    "time",
+    "net",
+    "io-util",
+] }
+# Spec baseline: rustls + hostname/cert verification; no insecure fallback.
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+marketfeed-model = { path = "crates/model" }
+marketfeed-adapter-api = { path = "crates/adapter-api" }
+marketfeed-adapter-testkit = { path = "crates/adapter-testkit" }
+marketfeed-book = { path = "crates/book" }
+marketfeed-dispatch = { path = "crates/dispatch" }
+marketfeed-sinks = { path = "crates/sinks" }
+marketfeed-transport = { path = "crates/transport" }
+marketfeed-recording = { path = "crates/recording" }
+marketfeed-replay = { path = "crates/replay" }
+marketfeed-engine = { path = "crates/engine" }
+marketfeed-private = { path = "crates/private" }
+marketfeed = { path = "crates/facade" }
+tracing = "0.1"
+# Private WS auth (OKX/Bybit HMAC); feature-gated on marketfeed-private `live`.
+hmac = { version = "0.12", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+base64 = { version = "0.22", default-features = false, features = ["alloc"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "unwind"
+
+# Operator host-specific release (spec §30.3). Fat LTO + single CGU.
+# `target-cpu=native` is *not* a Cargo profile key — pass via RUSTFLAGS
+# (see README). Non-portable; do not use for published/CI artifacts.
+[profile.host-opt]
+inherits = "release"
+lto = true
+codegen-units = 1
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Fixed price/qty test literals use scale-aware grouping (e.g. 100_00 == 100.00 @ scale 2).
+inconsistent_digit_grouping = "allow"

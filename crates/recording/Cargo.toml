@@ -1,0 +1,22 @@
+[package]
+name = "marketfeed-recording"
+description = "Raw frame (MFR1) and MFNE-JSON1 normalized event recording"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+marketfeed-adapter-api = { workspace = true }
+marketfeed-model = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

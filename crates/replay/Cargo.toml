@@ -1,0 +1,18 @@
+[package]
+name = "marketfeed-replay"
+description = "Deterministic raw-frame replay through SessionMachine adapters"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+marketfeed-adapter-api = { workspace = true }
+marketfeed-dispatch = { workspace = true }
+marketfeed-model = { workspace = true }
+marketfeed-recording = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

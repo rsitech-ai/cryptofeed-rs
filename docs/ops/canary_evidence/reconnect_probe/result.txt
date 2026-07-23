@@ -1,0 +1,11 @@
+utc_start: use log timestamps
+tip_base: e13ab87 (origin/main #50)
+branch: feat/andrzej_reconnect_probe
+binance: PASS live_binance_spot_reconnect_probe (~2.48s)
+okx: PASS live_okx_spot_reconnect_probe (~2.68s)
+probe: KillSwitchWebSocket one-shot transport Closed after Live;
+  asserts reconnects>=1, live_signal returns true, frames increase, graceful stop
+commands: |
+  cargo test -p marketfeed-adapter-binance --test live_ignored live_binance_spot_reconnect_probe -- --ignored --nocapture
+  cargo test -p marketfeed-adapter-okx --test live_ignored live_okx_spot_reconnect_probe -- --ignored --nocapture
+maturity: still alpha+ — scheduled canary = 0

@@ -1,0 +1,44 @@
+# Offline-only daemon config (synthetic memory venue).
+# Used by scripts/offline_daemon_e2e.sh and soak/canary skeletons.
+# No live exchange I/O.
+
+[engine]
+runtime_profile = "portable"
+shutdown_deadline_secs = 5
+
+[telemetry]
+log_format = "json"
+log_level = "info"
+bind = "127.0.0.1:19108"
+
+[readiness]
+require_running = true
+require_required_venues = true
+min_live_sessions = 1
+require_recording_healthy = false
+
+[recording.raw]
+enabled = false
+directory = "./raw"
+segment_size = "64MiB"
+segment_duration = "5m"
+queue_capacity = 1024
+overflow = "fail_engine"
+min_free_space = "0"
+
+# Optional probe sink (disabled by default). Uncomment to retain synthetic events.
+# [[sinks]]
+# type = "memory"
+# capacity = 64
+# overflow = "fail_engine"
+# [[sinks]]
+# type = "file"
+# path = "./offline-events.log"
+# capacity = 64
+# overflow = "fail_engine"
+
+[[venues]]
+id = "synthetic-demo"
+adapter = "synthetic"
+required = true
+transport = "memory"

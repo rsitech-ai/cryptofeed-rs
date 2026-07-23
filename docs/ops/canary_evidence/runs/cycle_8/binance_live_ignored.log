@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running tests/live_ignored.rs (target/debug/deps/live_ignored-d03519c484cc07bb)
+
+running 2 tests
+test live_binance_spot_reconnect_probe ... ok
+test live_binance_spot_trade_or_quote ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.02s
+

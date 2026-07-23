@@ -1,0 +1,225 @@
+# Example marketfeed daemon config (loopback metrics only).
+#
+# Offline CI path: keep only [[venues]] synthetic (required=true).
+# Live venues need network; leave required=false unless intentionally driving readiness.
+#
+# Hot reload (Unix): SIGHUP re-validates this file. Applies log_level + [readiness]
+# in-process; venues/sinks/recording/runtime_profile/bind require process restart.
+
+[engine]
+# portable (default) | latency (Linux pin_worker_to_core; see docs/ops/latency_runtime.md)
+runtime_profile = "portable"
+shutdown_deadline_secs = 20
+
+[telemetry]
+log_format = "json"
+log_level = "info"
+bind = "127.0.0.1:9108"
+
+[readiness]
+require_running = true
+require_required_venues = true
+min_live_sessions = 1
+require_recording_healthy = false
+
+[recording.raw]
+enabled = false
+directory = "./raw"
+segment_size = "256MiB"
+segment_duration = "15m"
+queue_capacity = 8192
+overflow = "fail_engine"
+min_free_space = "0"
+
+# Optional: replace null-drain with bounded sinks (always drains dispatch).
+# [[sinks]]
+# id = "probe"
+# type = "memory"
+# capacity = 1024
+# overflow = "drop_oldest"
+# [[sinks]]
+# type = "logging"
+# capacity = 64
+# overflow = "drop_newest"
+# [[sinks]]
+# type = "file"
+# path = "./events.log"
+# capacity = 1024
+# overflow = "fail_engine"
+# [[sinks]]
+# type = "protobuf-file"
+# path = "./events.mfpe"
+# capacity = 1024
+# overflow = "fail_engine"
+# [[sinks]]
+# type = "protobuf-file-bin"
+# path = "./events.mfpeb"
+# capacity = 1024
+# overflow = "fail_engine"
+# [[sinks]]
+# type = "udp"
+# address = "127.0.0.1:19090"
+# capacity = 1024
+# overflow = "drop_newest"
+# Kafka/NATS need daemon features `kafka` / `nats` (TCP clients; no rdkafka/async-nats).
+# [[sinks]]
+# type = "kafka"
+# address = "127.0.0.1:9092"
+# topic = "marketfeed"
+# capacity = 1024
+# overflow = "drop_newest"
+# [[sinks]]
+# type = "nats"
+# address = "127.0.0.1:4222"
+# subject = "marketfeed.events"
+# capacity = 1024
+# overflow = "drop_newest"
+
+# Reserved private user-data flags (credentials are env-only).
+# All daemon private sessions currently fail validation: Binance needs the
+# authenticated WS API migration; OKX/Bybit need a durable account sink,
+# readiness/liveness tracking, and reconnect supervision. No order placement.
+# [private.binance_spot]
+# enabled = false
+# [private.okx_spot]
+# enabled = false
+# [private.bybit_spot]
+# enabled = false
+
+[[venues]]
+id = "synthetic-demo"
+adapter = "synthetic"
+required = true
+
+[[venues]]
+id = "binance-spot"
+adapter = "binance"
+segment = "spot"
+required = false
+symbols = ["BTCUSDT", "ETHUSDT"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "binance-usdm"
+adapter = "binance"
+segment = "usdm"
+required = false
+symbols = ["BTCUSDT"]
+channels = ["trades", "quote", "funding", "open_interest", "liquidations"]
+
+[[venues]]
+id = "binance-coinm"
+adapter = "binance"
+segment = "coinm"
+required = false
+symbols = ["BTCUSD_PERP"]
+channels = ["trades", "mark", "funding"]
+
+[[venues]]
+id = "okx-spot"
+adapter = "okx"
+segment = "spot"
+required = false
+symbols = ["BTC-USDT"]
+channels = ["trades", "ticker", "l2"]
+
+[[venues]]
+id = "okx-swap"
+adapter = "okx"
+segment = "swap"
+required = false
+symbols = ["BTC-USDT-SWAP"]
+channels = ["trades", "ticker", "l2", "funding"]
+
+[[venues]]
+id = "okx-futures"
+adapter = "okx"
+segment = "futures"
+required = false
+symbols = ["BTC-USDT-250926"]
+channels = ["trades", "ticker", "l2"]
+
+[[venues]]
+id = "bybit-linear"
+adapter = "bybit"
+segment = "linear"
+required = false
+symbols = ["BTCUSDT"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "bybit-spot"
+adapter = "bybit"
+segment = "spot"
+required = false
+symbols = ["BTCUSDT"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "kraken-spot"
+adapter = "kraken"
+segment = "spot"
+required = false
+symbols = ["BTC/USD"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "deribit"
+adapter = "deribit"
+required = false
+symbols = ["BTC-PERPETUAL"]
+channels = ["trades", "ticker", "mark"]
+
+[[venues]]
+id = "bitstamp"
+adapter = "bitstamp"
+required = false
+symbols = ["btcusd"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "gemini"
+adapter = "gemini"
+required = false
+symbols = ["BTCUSD"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "coinbase-spot"
+adapter = "coinbase"
+segment = "spot"
+required = false
+symbols = ["BTC-USD"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "coinbase-adv"
+adapter = "coinbase"
+segment = "advanced"
+required = false
+symbols = ["BTC-USD"]
+channels = ["trades", "quote", "l2", "candles"]
+
+[[venues]]
+id = "coinbase-intl"
+adapter = "coinbase"
+segment = "intl"
+required = false
+symbols = ["BTC-PERP"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "bitfinex"
+adapter = "bitfinex"
+segment = "spot"
+required = false
+symbols = ["tBTCUSD"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "bitfinex-deriv"
+adapter = "bitfinex"
+segment = "deriv"
+required = false
+symbols = ["tBTCF0:USTF0"]
+channels = ["trades", "quote", "l2", "mark", "funding"]

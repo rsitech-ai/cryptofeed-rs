@@ -1,0 +1,177 @@
+// MarketEvent core types (mirrors crates/model/src/events.rs).
+// Schema version field on EventEnvelope is independent of this file's package.
+//
+// ponytail: hand-maintained stub for cross-language / protobuf-file sink design.
+// No prost-build, no generated Rust in-tree. See proto/README.md.
+
+syntax = "proto3";
+
+package marketfeed.v1;
+
+// Exact decimal: value = coefficient * 10^(-scale). Matches model::Fixed.
+message Fixed {
+  int64 coefficient_lo = 1; // low 64 bits of i128 coefficient
+  int64 coefficient_hi = 2; // high 64 bits (sign-extended for negative)
+  uint32 scale = 3;         // u8 in Rust; proto3 has no u8
+}
+
+message Price {
+  Fixed value = 1;
+}
+
+message Quantity {
+  Fixed value = 1;
+}
+
+message Rate {
+  Fixed value = 1;
+}
+
+// Nanoseconds since Unix epoch (wall clock). Matches model::TimestampNs.
+message TimestampNs {
+  int64 ns = 1;
+}
+
+message SequenceRange {
+  uint64 first = 1;
+  uint64 last = 2;
+}
+
+enum AggressorSide {
+  AGGRESSOR_SIDE_UNSPECIFIED = 0;
+  AGGRESSOR_SIDE_BUY = 1;
+  AGGRESSOR_SIDE_SELL = 2;
+  AGGRESSOR_SIDE_UNKNOWN = 3;
+}
+
+enum BookSide {
+  BOOK_SIDE_UNSPECIFIED = 0;
+  BOOK_SIDE_BID = 1;
+  BOOK_SIDE_ASK = 2;
+}
+
+enum BookOperation {
+  BOOK_OPERATION_UNSPECIFIED = 0;
+  BOOK_OPERATION_UPSERT = 1;
+  BOOK_OPERATION_DELETE = 2;
+}
+
+message Trade {
+  Price price = 1;
+  Quantity quantity = 2;
+  AggressorSide aggressor = 3;
+  optional string trade_id = 4; // model::SourceId
+}
+
+message Quote {
+  Price bid_price = 1;
+  optional Quantity bid_quantity = 2;
+  Price ask_price = 3;
+  optional Quantity ask_quantity = 4;
+}
+
+message BookLevel {
+  Price price = 1;
+  Quantity quantity = 2;
+}
+
+message BookChange {
+  BookSide side = 1;
+  BookOperation operation = 2;
+  Price price = 3;
+  optional Quantity quantity = 4;
+}
+
+message BookSnapshot {
+  repeated BookLevel bids = 1;
+  repeated BookLevel asks = 2;
+  optional uint32 depth = 3;
+  optional string checksum = 4; // model::SourceId
+}
+
+message BookDelta {
+  repeated BookChange changes = 1;
+  optional string checksum = 2;
+}
+
+message Candle {
+  Price open = 1;
+  Price high = 2;
+  Price low = 3;
+  Price close = 4;
+  Quantity volume = 5;
+  int64 interval_ns = 6;
+  TimestampNs start_ts = 7;
+}
+
+message PricePoint {
+  Price price = 1;
+}
+
+message Funding {
+  Rate rate = 1;
+  optional TimestampNs next_funding_ts = 2;
+}
+
+message OpenInterest {
+  Quantity quantity = 1;
+}
+
+message Liquidation {
+  Price price = 1;
+  Quantity quantity = 2;
+  AggressorSide side = 3;
+}
+
+message Statistics24h {
+  optional Price open = 1;
+  optional Price high = 2;
+  optional Price low = 3;
+  optional Price close = 4;
+  optional Quantity volume = 5;
+  optional Quantity quote_volume = 6;
+}
+
+message InstrumentUpdate {
+  // InstrumentStatus string form; keep free-form until status enum stabilizes.
+  string status = 1;
+}
+
+message VenueStatus {
+  string message = 1;
+}
+
+// Semantically distinct market-data payloads (model::MarketEvent).
+message MarketEvent {
+  oneof payload {
+    Trade trade = 1;
+    Quote quote = 2;
+    BookSnapshot book_snapshot = 3;
+    BookDelta book_delta = 4;
+    Candle candle = 5;
+    PricePoint mark_price = 6;
+    PricePoint index_price = 7;
+    Funding funding = 8;
+    OpenInterest open_interest = 9;
+    Liquidation liquidation = 10;
+    Statistics24h statistics_24h = 11;
+    InstrumentUpdate instrument_update = 12;
+    VenueStatus venue_status = 13;
+  }
+}
+
+// Envelope shared by every normalized market event (model::EventEnvelope).
+message EventEnvelope {
+  uint32 schema_version = 1; // u16 in Rust
+  uint32 venue_id = 2;       // VenueId(u16)
+  optional uint32 instrument_id = 3;
+  uint64 connection_id = 4;
+  uint64 session_id = 5;
+  uint64 frame_seq = 6;
+  uint32 event_index = 7; // u16 in Rust
+  optional TimestampNs exchange_ts = 8;
+  TimestampNs receive_ts = 9;
+  optional SequenceRange source_sequence = 10;
+  uint32 flags = 11; // EventFlags bitfield
+  MarketEvent payload = 12;
+}

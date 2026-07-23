@@ -1,0 +1,31 @@
+   Compiling tracing-core v0.1.36
+   Compiling tokio v1.53.1
+   Compiling digest v0.10.7
+   Compiling log v0.4.33
+   Compiling marketfeed-adapter-testkit v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/.worktrees/ops-w5-soak-canary/crates/adapter-testkit)
+   Compiling sha1 v0.10.7
+   Compiling tungstenite v0.26.2
+   Compiling tracing v0.1.44
+   Compiling marketfeed-sinks v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/.worktrees/ops-w5-soak-canary/crates/sinks)
+   Compiling tokio-util v0.7.19
+   Compiling tokio-rustls v0.26.4
+   Compiling tower v0.5.3
+   Compiling tokio-tungstenite v0.26.2
+   Compiling tower-http v0.6.11
+   Compiling h2 v0.4.15
+   Compiling hyper v1.11.0
+   Compiling hyper-util v0.1.20
+   Compiling hyper-rustls v0.27.9
+   Compiling reqwest v0.12.28
+   Compiling marketfeed-transport v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/.worktrees/ops-w5-soak-canary/crates/transport)
+   Compiling marketfeed-engine v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/.worktrees/ops-w5-soak-canary/crates/engine)
+   Compiling marketfeed-adapter-binance v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/.worktrees/ops-w5-soak-canary/crates/adapters/binance)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 15.15s
+     Running tests/live_ignored.rs (target/debug/deps/live_ignored-9124f3ba432cd621)
+
+running 2 tests
+test live_binance_spot_reconnect_probe ... ok
+test live_binance_spot_trade_or_quote ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.01s
+

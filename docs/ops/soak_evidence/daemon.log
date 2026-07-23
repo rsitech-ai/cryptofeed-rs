@@ -1,0 +1,13 @@
+{"timestamp":"2026-07-22T06:24:00.144254Z","level":"INFO","fields":{"message":"marketfeed daemon starting","config":"docs/ops/soak_evidence/config.live.toml","bind":"127.0.0.1:19278","venues":2,"recording":false},"target":"marketfeed"}
+{"timestamp":"2026-07-22T06:24:00.144451Z","level":"INFO","fields":{"message":"health endpoints listening","addr":"127.0.0.1:19278"},"target":"marketfeed"}
+{"timestamp":"2026-07-22T06:24:00.144484Z","level":"INFO","fields":{"message":"engine supervisor running","lifecycle":"running"},"target":"marketfeed_engine::supervisor"}
+{"timestamp":"2026-07-22T06:24:00.144498Z","level":"INFO","fields":{"message":"engine supervisor running","lifecycle":"running"},"target":"marketfeed_engine::supervisor"}
+{"timestamp":"2026-07-22T06:24:00.144709Z","level":"INFO","fields":{"message":"starting live venue session","id":"binance-spot","session":2,"adapter":"binance","symbols":"[\"BTCUSDT\"]","channels":"[\"trades\", \"quote\"]"},"target":"marketfeed_daemon::run"}
+{"timestamp":"2026-07-22T06:24:00.144710Z","level":"INFO","fields":{"message":"starting live venue session","id":"okx-spot","session":1,"adapter":"okx","symbols":"[\"BTC-USDT\"]","channels":"[\"trades\", \"ticker\"]"},"target":"marketfeed_daemon::run"}
+{"timestamp":"2026-07-22T06:55:05.591333Z","level":"INFO","fields":{"message":"shutdown signal received","deadline_secs":20},"target":"marketfeed"}
+{"timestamp":"2026-07-22T06:55:05.591433Z","level":"INFO","fields":{"message":"shutdown: signaling venue session stop","id":"binance-spot"},"target":"marketfeed_daemon::run"}
+{"timestamp":"2026-07-22T06:55:05.591455Z","level":"INFO","fields":{"message":"shutdown: signaling venue session stop","id":"okx-spot"},"target":"marketfeed_daemon::run"}
+{"timestamp":"2026-07-22T06:55:05.606322Z","level":"INFO","fields":{"message":"venue session stopped cleanly","id":"binance-spot"},"target":"marketfeed_daemon::run"}
+{"timestamp":"2026-07-22T06:55:05.725151Z","level":"INFO","fields":{"message":"venue session stopped cleanly","id":"okx-spot"},"target":"marketfeed_daemon::run"}
+{"timestamp":"2026-07-22T06:55:05.725262Z","level":"INFO","fields":{"message":"all venue tasks joined"},"target":"marketfeed"}
+{"timestamp":"2026-07-22T06:55:05.725282Z","level":"INFO","fields":{"message":"marketfeed daemon stopped"},"target":"marketfeed"}

@@ -1,0 +1,4 @@
+# Coinbase International signing test vectors use synthetic credentials.
+c23796b54fc245c1165caab5e4a14c557fd039c5:crates/adapters/coinbase/src/intl/credentials.rs:generic-api-key:101
+97f2e2616f0b4768bb12bf4336e36c72ce851c3b:crates/adapters/coinbase/src/intl/credentials.rs:generic-api-key:141
+97f2e2616f0b4768bb12bf4336e36c72ce851c3b:crates/adapters/coinbase/src/intl/credentials.rs:generic-api-key:147

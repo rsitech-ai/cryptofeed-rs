@@ -1,0 +1,1 @@
+{"arg":{"channel":"orders","instType":"SPOT","uid":"1"},"data":[{"instId":"BTC-USDT","ordId":"312269865356374016","clOrdId":"client-1","state":"partially_filled","px":"50000","sz":"0.10000000","accFillSz":"0.05000000","fillPx":"0.10264410","fillSz":"0.05000000","tradeId":"12345","fee":"-0.00000100","uTime":"1499405658658"}]}

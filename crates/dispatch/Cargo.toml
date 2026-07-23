@@ -1,0 +1,16 @@
+[package]
+name = "marketfeed-dispatch"
+description = "Bounded event dispatch queues with explicit OverflowPolicy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+marketfeed-adapter-api = { workspace = true }
+marketfeed-model = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

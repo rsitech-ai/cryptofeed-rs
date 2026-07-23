@@ -1,0 +1,15 @@
+[package]
+name = "marketfeed-adapter-testkit"
+description = "Shared offline assertions for adapter SessionMachine tests (§11.7)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+marketfeed-adapter-api = { workspace = true }
+marketfeed-model = { workspace = true }
+
+[lints]
+workspace = true
