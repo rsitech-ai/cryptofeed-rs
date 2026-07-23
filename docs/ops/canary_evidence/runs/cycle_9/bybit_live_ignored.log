@@ -1,0 +1,10 @@
+   Compiling marketfeed-adapter-bybit v0.1.0 (/Users/s1kor/dev/apps/cryptofeed-ops-w3/crates/adapters/bybit)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.31s
+     Running tests/live_ignored.rs (/Users/s1kor/dev/apps/cryptofeed-ops-w3/target/debug/deps/live_ignored-1c3be8f58bbd679b)
+
+running 1 test
+test live_bybit_linear_trade_or_quote ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.01s
+
+EXIT=0

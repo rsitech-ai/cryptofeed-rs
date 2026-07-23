@@ -1,0 +1,13 @@
+tip=233f676
+start=2026-07-22T15:14:57Z
+end=2026-07-22T15:17:35Z
+binance_ec=0
+okx_ec=0
+alpha_ec=0
+include_alpha=1
+reconnect_included=1
+private=SKIP (not run by this script)
+scheduled_canary=0
+maturity=alpha+ (no promotion; laptop ≠ scheduled)
+overall=PASS
+notes=scripts/laptop_canary.sh; NOT scheduled beta

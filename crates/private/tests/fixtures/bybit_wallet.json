@@ -1,0 +1,1 @@
+{"topic":"wallet","type":"snapshot","ts":1569749467250,"data":[{"accountType":"UNIFIED","coin":[{"coin":"BTC","walletBalance":"0.09905000","availableToWithdraw":"0.09905000","locked":"0.00000000"},{"coin":"USDT","walletBalance":"1050.00000000","availableToWithdraw":"1000.00000000","locked":"50.00000000"}]}]}

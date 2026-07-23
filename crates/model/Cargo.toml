@@ -1,0 +1,18 @@
+[package]
+name = "marketfeed-model"
+description = "Canonical domain model and exact fixed-point types for marketfeed"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = "1"
+
+[lints]
+workspace = true

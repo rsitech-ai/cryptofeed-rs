@@ -1,0 +1,17 @@
+[package]
+name = "marketfeed"
+description = "Public facade: thin re-exports of the embeddable marketfeed API (spec §19 / §7.1)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+marketfeed-adapter-api = { workspace = true }
+marketfeed-engine = { workspace = true }
+marketfeed-model = { workspace = true }
+marketfeed-sinks = { workspace = true }
+
+[lints]
+workspace = true

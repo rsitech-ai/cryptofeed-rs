@@ -1,0 +1,13 @@
+   Compiling marketfeed-adapter-deribit v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/crates/adapters/deribit)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.63s
+     Running tests/fixtures.rs (target/debug/deps/fixtures-f6e88a334587d5e3)
+
+running 5 tests
+test heartbeat_test_request_replies_with_public_test ... ok
+test chart_trades_candle_fixture_exact_fixed ... ok
+test liquidation_tagged_trade_emits_trade_and_liquidation ... ok
+test trade_ticker_and_heartbeat_fixtures ... ok
+test record_replay_deribit_trade_ticker_identical ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

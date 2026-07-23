@@ -1,0 +1,71 @@
+[package]
+name = "marketfeed-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0 OR MIT"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+marketfeed-model = { path = "../crates/model" }
+marketfeed-adapter-api = { path = "../crates/adapter-api" }
+marketfeed-adapter-binance = { path = "../crates/adapters/binance" }
+marketfeed-adapter-okx = { path = "../crates/adapters/okx" }
+marketfeed-adapter-bybit = { path = "../crates/adapters/bybit" }
+marketfeed-adapter-kraken = { path = "../crates/adapters/kraken" }
+marketfeed-adapter-deribit = { path = "../crates/adapters/deribit" }
+marketfeed-private = { path = "../crates/private" }
+marketfeed-recording = { path = "../crates/recording" }
+marketfeed-book = { path = "../crates/book" }
+
+[[bin]]
+name = "fixed_parse"
+path = "fuzz_targets/fixed_parse.rs"
+doc = false
+test = false
+bench = false
+
+[[bin]]
+name = "venue_decode"
+path = "fuzz_targets/venue_decode.rs"
+doc = false
+test = false
+bench = false
+
+[[bin]]
+name = "candle_decode"
+path = "fuzz_targets/candle_decode.rs"
+doc = false
+test = false
+bench = false
+
+[[bin]]
+name = "coinm_decode"
+path = "fuzz_targets/coinm_decode.rs"
+doc = false
+test = false
+bench = false
+
+[[bin]]
+name = "private_account"
+path = "fuzz_targets/private_account.rs"
+doc = false
+test = false
+bench = false
+
+[[bin]]
+name = "recording_reader"
+path = "fuzz_targets/recording_reader.rs"
+doc = false
+test = false
+bench = false
+
+[[bin]]
+name = "book_transition"
+path = "fuzz_targets/book_transition.rs"
+doc = false
+test = false
+bench = false

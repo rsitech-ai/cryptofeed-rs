@@ -1,0 +1,68 @@
+[package]
+name = "marketfeed-daemon"
+description = "Optional production daemon: config, health, metrics, tracing subscriber"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "marketfeed"
+path = "src/main.rs"
+doc = false
+
+[features]
+default = []
+# Forward optional broker TCP clients from marketfeed-sinks (no rdkafka/async-nats).
+kafka = ["marketfeed-sinks/kafka"]
+nats = ["marketfeed-sinks/nats"]
+
+[dependencies]
+bytes = { workspace = true }
+futures-util = { workspace = true }
+marketfeed-adapter-api = { workspace = true }
+marketfeed-adapter-binance = { path = "../adapters/binance" }
+marketfeed-adapter-bitstamp = { path = "../adapters/bitstamp" }
+marketfeed-adapter-bybit = { path = "../adapters/bybit" }
+marketfeed-adapter-coinbase = { path = "../adapters/coinbase" }
+marketfeed-adapter-bitfinex = { path = "../adapters/bitfinex" }
+marketfeed-adapter-deribit = { path = "../adapters/deribit" }
+marketfeed-adapter-gemini = { path = "../adapters/gemini" }
+marketfeed-adapter-kraken = { path = "../adapters/kraken" }
+marketfeed-adapter-okx = { path = "../adapters/okx" }
+marketfeed-adapter-synthetic = { path = "../adapters/synthetic" }
+marketfeed-dispatch = { workspace = true }
+marketfeed-engine = { path = "../engine" }
+marketfeed-model = { workspace = true }
+marketfeed-private = { path = "../private", features = ["live"] }
+marketfeed-recording = { workspace = true }
+marketfeed-sinks = { workspace = true }
+marketfeed-transport = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "signal",
+    "sync",
+    "time",
+    "io-util",
+] }
+toml = "0.8"
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = [
+    "rt-multi-thread",
+    "macros",
+    "net",
+    "io-util",
+    "time",
+] }
+
+[lints.rust]
+unsafe_code = "forbid"

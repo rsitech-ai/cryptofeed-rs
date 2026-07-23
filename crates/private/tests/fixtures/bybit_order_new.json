@@ -1,0 +1,1 @@
+{"topic":"order","type":"snapshot","ts":1499405658658,"data":[{"symbol":"BTCUSDT","orderId":"abc-order-1","orderLinkId":"client-1","orderStatus":"New","price":"50000","qty":"0.10000000","cumExecQty":"0","updatedTime":"1499405658658"}]}

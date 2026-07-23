@@ -1,0 +1,8 @@
+marketfeed (cryptofeed-rs)
+Copyright 2026 Rafał Sikora
+
+This product is dual-licensed under the Apache License, Version 2.0, and the MIT License.
+See LICENSE-APACHE and LICENSE-MIT for the full license texts.
+
+Third-party dependencies are licensed under their respective terms; see Cargo.lock
+and the output of `cargo deny list` / SBOM generation for attribution details.

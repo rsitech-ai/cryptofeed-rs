@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Ignore generated build output and separately registered Git worktrees"
+paths = [
+  '''^target/''',
+  '''^\.worktrees/''',
+]

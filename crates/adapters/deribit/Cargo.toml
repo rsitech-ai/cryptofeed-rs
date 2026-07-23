@@ -1,0 +1,33 @@
+[package]
+name = "marketfeed-adapter-deribit"
+description = "Deribit derivatives market-data adapter (deterministic SessionMachine)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[features]
+default = []
+# Optional SIMD JSON for `decode_text` (C10). Default remains serde_json.
+# Enable only after latency profiles show parse bottleneck — see src/json.rs ponytail.
+simd-json = ["dep:simd-json"]
+
+[dependencies]
+bytes = { workspace = true }
+marketfeed-adapter-api = { workspace = true }
+marketfeed-book = { workspace = true }
+marketfeed-model = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+simd-json = { workspace = true, optional = true }
+
+[dev-dependencies]
+marketfeed-dispatch = { workspace = true }
+marketfeed-engine = { path = "../../engine" }
+marketfeed-replay = { workspace = true }
+marketfeed-transport = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,17 @@
+[package]
+name = "marketfeed-adapter-api"
+description = "Deterministic exchange adapter contracts for marketfeed"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+marketfeed-model = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

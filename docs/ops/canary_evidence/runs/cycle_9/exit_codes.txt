@@ -1,0 +1,8 @@
+marketfeed-adapter-binance=0
+marketfeed-adapter-okx=0
+marketfeed-adapter-bybit=0
+marketfeed-adapter-kraken=0
+marketfeed-adapter-deribit=0
+marketfeed-adapter-coinbase=0
+marketfeed-adapter-bitstamp=0
+marketfeed-adapter-gemini=0

@@ -1,0 +1,82 @@
+# Tag release provenance: CycloneDX SBOM artifact + build provenance attestation.
+#
+# May fail to start when GitHub Actions billing / spending limits block the
+# runner — keep the workflow merged so provenance is ready when billing works.
+# See docs/runbooks/release_provenance.md (spec §29).
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: sbom (tag)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.91.0
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-sbom
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate CycloneDX SBOM
+        run: ./scripts/generate-sbom.sh
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketfeed-sbom-${{ github.ref_name }}
+          path: sbom/
+          if-no-files-found: error
+
+  # Real attestation (not stub). Job fails the release workflow when provenance
+  # cannot be published — do not add continue-on-error.
+  # Failure modes (expected / loud):
+  # - missing job permissions (id-token: write / attestations: write)
+  # - Actions billing/spending limit (workflow never starts)
+  # - private repo without Artifact Attestations entitlement (Enterprise Cloud)
+  # - download-artifact miss if sbom job failed
+  attest:
+    name: attest (tag)
+    needs: sbom
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      actions: read
+    steps:
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: marketfeed-sbom-${{ github.ref_name }}
+          path: sbom/
+
+      - name: Assert SBOM subjects exist
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(sbom/*)
+          if (( ${#files[@]} == 0 )); then
+            echo "::error::No SBOM files under sbom/ — cannot attest (sbom job artifact empty?)"
+            exit 1
+          fi
+          ls -la sbom/
+
+      - name: Attest SBOM build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: sbom/**

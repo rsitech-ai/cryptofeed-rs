@@ -1,0 +1,26 @@
+# Cycle 9 — laptop live canaries (public venues)
+
+| Field | Value |
+|---|---|
+| Start UTC | `2026-07-22T12:19:21Z` |
+| End UTC | `2026-07-22T12:23:06Z` |
+| Tip at run | `c6db619` (`origin/main` through #123) + this PR live_ignored additions |
+| Branch | `feat/andrzej_ops_evidence_w3_live` |
+| Host | darwin laptop, network allowed |
+| Private live | **SKIP** (no API keys) |
+| Scheduled canary | **0** (not claimed) |
+
+## Results (all EXIT=0)
+
+| Package | Tests | Result | Duration |
+|---|---|---|---:|
+| `marketfeed-adapter-binance` | trade/quote + reconnect | **PASS** | 15.00s |
+| `marketfeed-adapter-okx` | trade/quote + reconnect | **PASS** | 20.01s |
+| `marketfeed-adapter-bybit` | linear trade/quote | **PASS** | 15.01s |
+| `marketfeed-adapter-kraken` | spot + futures trade/ticker | **PASS** | 20.01s |
+| `marketfeed-adapter-deribit` | trade/ticker | **PASS** | 20.00s |
+| `marketfeed-adapter-coinbase` | spot trade/quote | **PASS** | 20.01s |
+| `marketfeed-adapter-bitstamp` | spot trade/quote | **PASS** | 20.01s |
+| `marketfeed-adapter-gemini` | spot trade/quote | **PASS** | 20.01s |
+
+**Maturity action:** **none** — remain `alpha+`. Laptop **9/9** ≠ scheduled §11.8 canary.

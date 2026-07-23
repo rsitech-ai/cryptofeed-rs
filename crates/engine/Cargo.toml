@@ -1,0 +1,40 @@
+[package]
+name = "marketfeed-engine"
+description = "Session supervision, inject/live runners, and recording tap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes = { workspace = true }
+marketfeed-adapter-api = { workspace = true }
+marketfeed-dispatch = { workspace = true }
+marketfeed-model = { workspace = true }
+marketfeed-recording = { workspace = true }
+marketfeed-replay = { workspace = true }
+marketfeed-sinks = { workspace = true }
+marketfeed-transport = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2"
+
+[features]
+default = []
+# Intent flag (spec §13.2). Portable results identical; Linux affinity is opt-in via pin_worker_to_core.
+latency-runtime = []
+
+[dev-dependencies]
+marketfeed-adapter-binance = { path = "../adapters/binance" }
+marketfeed-adapter-synthetic = { path = "../adapters/synthetic" }
+
+# Not workspace=true: must downgrade unsafe_code from forbid so affinity can allow it.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+inconsistent_digit_grouping = "allow"

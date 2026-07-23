@@ -1,0 +1,1 @@
+{"jsonrpc":"2.0","method":"subscription","params":{"channel":"book.BTC-PERPETUAL.100ms","data":{"timestamp":1554373962654,"instrument_name":"BTC-PERPETUAL","prev_change_id":297218,"change_id":297219,"bids":[["change",5041.9,15]],"asks":[["change",5042.6,35]]}}}

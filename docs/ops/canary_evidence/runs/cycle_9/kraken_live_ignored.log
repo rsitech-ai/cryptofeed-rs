@@ -1,0 +1,11 @@
+   Compiling marketfeed-adapter-kraken v0.1.0 (/Users/s1kor/dev/apps/cryptofeed-ops-w3/crates/adapters/kraken)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.90s
+     Running tests/live_ignored.rs (/Users/s1kor/dev/apps/cryptofeed-ops-w3/target/debug/deps/live_ignored-0deb1e19fa9c92c8)
+
+running 2 tests
+test live_kraken_spot_trade_or_quote ... ok
+test live_kraken_futures_trade_or_quote ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.01s
+
+EXIT=0
