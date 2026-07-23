@@ -1,1 +1,0 @@
-wrap-up: script edit mid-run interrupted post-soak SIGTERM path; RSS hold complete (~3571s of 3600s). Daemon gone via trap cleanup. NOT multi-day / NOT stable.

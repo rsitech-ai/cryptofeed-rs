@@ -18,7 +18,7 @@
 //! [`BybitSession`] emits `SessionAction::ScheduleTimer` on connect and reacts to
 //! `SessionInput::Timer` by sending `{"op":"ping"}` and rescheduling. Offline coverage:
 //! `tests/fixtures.rs::trade_and_quote_fixtures`, `tests/fixtures.rs::ping_timer_sends_ping`.
-//! Engine timer fulfillment landed in PR #10 (`feat/andrzej_engine_timers`, now on `main`).
+//! The engine fulfills these timer actions without embedding network I/O in the adapter.
 //!
 //! # Maturity
 //!

@@ -1,7 +1,0 @@
-{"timestamp":"2026-07-22T15:41:12.093263Z","level":"INFO","fields":{"message":"marketfeed daemon starting","config":"/var/folders/g6/mrhqfgk15_d2gjj52991r1jr0000gn/T/tmp.tfh9aIqmS1","bind":"127.0.0.1:19301","venues":1,"private_binance_spot":false,"private_okx_spot":false,"private_bybit_spot":false,"recording":false,"runtime_profile":"portable"},"target":"marketfeed"}
-{"timestamp":"2026-07-22T15:41:12.094106Z","level":"INFO","fields":{"message":"health endpoints listening","addr":"127.0.0.1:19301"},"target":"marketfeed"}
-{"timestamp":"2026-07-22T15:41:12.094431Z","level":"INFO","fields":{"message":"engine supervisor running","lifecycle":"running"},"target":"marketfeed_engine::supervisor"}
-{"timestamp":"2026-07-22T15:41:12.094906Z","level":"INFO","fields":{"message":"synthetic venue live (memory)","id":"synthetic-demo"},"target":"marketfeed_daemon::run"}
-{"timestamp":"2026-07-22T16:41:12.125490Z","level":"INFO","fields":{"message":"shutdown signal received","deadline_secs":5},"target":"marketfeed"}
-{"timestamp":"2026-07-22T16:41:12.125744Z","level":"INFO","fields":{"message":"all venue tasks joined"},"target":"marketfeed"}
-{"timestamp":"2026-07-22T16:41:12.125760Z","level":"INFO","fields":{"message":"marketfeed daemon stopped"},"target":"marketfeed"}

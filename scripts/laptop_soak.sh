@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Bounded laptop RSS soak (synthetic and/or live).
 #
-# Writes RSS CSV + metrics snapshots under docs/ops/soak_evidence/runs/ and
-# appends a short note to docs/ops/soak_results.md.
+# Writes RSS CSV + metrics snapshots under .local/evidence/soak/runs/.
+# Checked-in result summaries are updated deliberately after review.
 #
 # HONESTY:
 #   - Bounded duration only (default 30m; override via DURATION or SOAK_SECS).
 #   - This is NOT a multi-day live soak.
 #   - Does NOT unlock stable / Spec §3.7.
-#   - Does NOT overwrite historical soak_evidence/* root artifacts.
+#   - Does not write operator logs into the public source tree.
 #
 # Duration (pick one):
 #   DURATION=30m|1h|2h|4h|8h|90m|3600|7200  # presets + secs; 7200/2h = optional operator run
@@ -98,8 +98,7 @@ BIND_HOST="${MARKETFEED_BIND_HOST:-127.0.0.1}"
 BIND_PORT="${MARKETFEED_BIND_PORT:-19290}"
 ADDR="${BIND_HOST}:${BIND_PORT}"
 
-EVIDENCE_DIR="docs/ops/soak_evidence"
-RESULTS_MD="docs/ops/soak_results.md"
+EVIDENCE_DIR="${EVIDENCE_DIR:-.local/evidence/soak}"
 TIP="$(git rev-parse --short HEAD)"
 START_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 RUN_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -110,10 +109,7 @@ case "$MODE" in
     CONFIG="${MARKETFEED_OFFLINE_CONFIG:-crates/daemon/config.offline.toml}"
     ;;
   live)
-    CONFIG="${MARKETFEED_LIVE_CONFIG:-docs/ops/soak_evidence/config.live.toml}"
-    if [[ ! -f "$CONFIG" ]]; then
-      CONFIG="docs/ops/canary_evidence/config.live_binance_okx.toml"
-    fi
+    CONFIG="${MARKETFEED_LIVE_CONFIG:-crates/daemon/config.example.toml}"
     ;;
   *)
     echo "MODE must be synthetic or live (got: $MODE)" >&2
@@ -249,27 +245,6 @@ wait "$CHILD_PID"
 CHILD_PID=
 STOP_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "$STOP_UTC" >"${RUN_DIR}/stop_utc.txt"
-
-# Append honesty note to soak_results.md (do not clobber historical root evidence).
-if [[ -f "$RESULTS_MD" ]]; then
-  RSS_STATS="$(awk -F, 'NR>1 && $2+0==$2 { if(min==""||$2<min) min=$2; if($2>max) max=$2; n++ } END { printf "samples=%s min_kib=%s max_kib=%s", n+0, min+0, max+0 }' "$RSS_CSV")"
-  {
-    echo ""
-    echo "## ${START_UTC} — bounded ${MODE} soak via \`scripts/laptop_soak.sh\` (tip \`${TIP}\`)"
-    echo ""
-    echo "| Field | Value |"
-    echo "|---|---|"
-    echo "| Mode | \`${MODE}\` |"
-    echo "| Hold | **${SOAK_SECS}s** (\`${HOLD_LABEL}\`; RSS every ${RSS_INTERVAL_SECS}s) |"
-    echo "| UTC | \`${START_UTC}\` → \`${STOP_UTC}\` |"
-    echo "| Bind | \`${ADDR}\` |"
-    echo "| Evidence | [\`soak_evidence/runs/${MODE}_${RUN_STAMP}/\`](./soak_evidence/runs/${MODE}_${RUN_STAMP}/) |"
-    echo "| RSS | ${RSS_STATS} |"
-    echo "| Maturity | **not** multi-day; **not** stable |"
-    echo ""
-  } >>"$RESULTS_MD"
-  echo "appended note to ${RESULTS_MD}"
-fi
 
 echo "=== laptop_soak done mode=${MODE} secs=${SOAK_SECS} ==="
 echo "archived ${RUN_DIR}/"

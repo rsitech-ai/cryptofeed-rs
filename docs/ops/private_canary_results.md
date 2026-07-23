@@ -1,17 +1,23 @@
-# Private laptop canary results
+# Private canary summary
 
-**Status:** operator archive only — **not** scheduled canary, **not** beta  
+**Status:** not executed in the public release gate; no credentials were present
 **Runner:** [`scripts/laptop_private_canary.sh`](../../scripts/laptop_private_canary.sh)  
-**Evidence:** [`private_canary_evidence/runs/`](./private_canary_evidence/runs/)  
-**Secrets:** env / `.env` only (see [`.env.example`](../../.env.example)); never commit keys  
-**Orders:** **none** — authentication / idle-stream smokes only
-**Binance:** **blocked** — retired listen-key flow removed; authenticated WebSocket API migration pending
+**Local evidence location:** ignored `.local/evidence/private-canary/`
 
-| Scoreboard | Value |
+The private runner supports authentication and idle user-data smokes for OKX
+and Bybit Spot. It does not place orders. Missing credentials cause a clean
+skip, not a pass.
+
+Binance private user data remains blocked pending migration from the retired
+listen-key flow to the authenticated WebSocket API.
+
+| Gate | Result |
 |---|---|
-| Scheduled private canary | **0** |
-| Maturity action from this log | **none** (remain alpha) |
+| Scheduled private canary | 0 |
+| Credential-backed release evidence | Not available |
+| Order placement | Not implemented |
+| Maturity action | None; private paths remain alpha |
 
-Missing API keys → venue **SKIP** (script exits 0 when all venues skip).
-
----
+Credentials must be supplied through environment variables or a local ignored
+`.env` file. Never commit keys or include them in logs. See
+[`.env.example`](../../.env.example) and [`SECURITY.md`](../../SECURITY.md).

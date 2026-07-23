@@ -44,8 +44,8 @@ cargo +nightly fuzz run book_transition --fuzz-dir fuzz
 
 Ceiling: live disconnect / disk-full inject remain **OPS**. Offline disk-full
 unit: recording `FailEngine` + probe → `DiskFull`; spill WAL limit → fail-closed. C9 CI matrix
-YAML includes Windows + Linux aarch64 + `cargo doc` (remote runners may still
-be billing-blocked). Upgrade = one fuzz target per decoder listed in spec §27.5.
+YAML includes Windows + Linux aarch64 + `cargo doc`. Upgrade = one fuzz target
+per decoder listed in spec §27.5.
 
 ## Concurrency / overflow permutations
 
@@ -66,10 +66,7 @@ Ceiling documented for auditors: unit chaos ≠ §3.8 soak matrix.
 
 ## Licenses
 
-Workspace claims `Apache-2.0 OR MIT`. Text files:
-
-- `LICENSE-APACHE`
-- `LICENSE-MIT`
+The workspace is licensed under Apache-2.0. The full text is in [`LICENSE`](../../LICENSE).
 
 ## SBOM
 
@@ -81,8 +78,8 @@ cargo install cargo-cyclonedx --locked
 | Trigger | Workflow | Notes |
 |---|---|---|
 | PR / push `main` | `ci.yml` job `sbom` | Advisory (`continue-on-error`); artifact `marketfeed-sbom` |
-| Tag `v*` | `release.yml` job `sbom` | Artifact `marketfeed-sbom-<tag>`; may not run while Actions billing blocks jobs |
-| Tag `v*` | `release.yml` job `attest` (enabled, hard-fail) | YAML ready; publish blocked while Actions billing prevents job start; see [`release_provenance.md`](../runbooks/release_provenance.md) |
+| Tag `v*` | `release.yml` job `sbom` | Artifact `marketfeed-sbom-<tag>` |
+| Tag `v*` | `release.yml` job `attest` (enabled, hard-fail) | Publishes provenance when repository permissions support attestations; see [`release_provenance.md`](../runbooks/release_provenance.md) |
 
 Fallback if the Rust plugin is undesirable on the runner:
 
@@ -91,5 +88,5 @@ syft dir:. -o cyclonedx-json > sbom/marketfeed.cdx.json
 ```
 
 Ceiling: SBOM artifact + attest job **enabled** in YAML — no published signed
-provenance yet (spec §29); upgrade = unblock Actions billing, tag `v0.0.x-rc`,
-and archive `gh attestation verify` output per the provenance runbook.
+provenance yet (spec §29); upgrade = tag an alpha release and archive
+`gh attestation verify` output per the provenance runbook.

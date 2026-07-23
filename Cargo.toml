@@ -54,10 +54,12 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2024"
-license = "Apache-2.0 OR MIT"
-repository = "https://github.com/s1korrrr/cryptofeed-rs"
+authors = ["Rafal Sikora <info@rsitech.ai>"]
+license = "Apache-2.0"
+repository = "https://github.com/rsitech-ai/cryptofeed-rs"
+homepage = "https://rsitech.ai"
 rust-version = "1.85"
 
 [workspace.dependencies]

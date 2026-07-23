@@ -1,9 +1,0 @@
-   Compiling marketfeed-adapter-okx v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/crates/adapters/okx)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.75s
-     Running tests/live_ignored.rs (target/debug/deps/live_ignored-5695341e8d9516fa)
-
-running 1 test
-test live_okx_spot_reconnect_probe ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 2.68s
-

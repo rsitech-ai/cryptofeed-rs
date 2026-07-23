@@ -84,8 +84,8 @@ cargo bench -p marketfeed-adapter-binance --bench parse_fixtures --features simd
 |---|---|
 | **Smoke target (minimal)** | Both commands exit 0; each path prints three `ns/iter` lines (spot/usdm/coinm). Decode sanity fails loud if fixtures regress. |
 | **Comparison criterion (evidence only)** | On one host, record §24.1 fields (CPU, OS, rustc, build flags, profile, parser backend). Run each command ≥3 times; take median ns/iter per fixture. SIMD is a *candidate* for a latency binary only when median SIMD is ≥20% faster than median serde on **all three** fixtures **and** live/operator `parse_*` histograms still show JSON parse as the bottleneck. |
-| **Local regression helper (W4-P1c)** | `scripts/parse_fixtures_gate.sh` + `docs/ops/parse_fixtures_baseline.txt`. Runs the Instant harness `RUNS` times (default 3), takes median ns/iter per label, fails if any label is **>10%** slower than the baseline (`THRESHOLD_PCT`, default 10). Optional `--simd` / `--simd-vs-serde` also gates simd medians vs baseline and vs same-run serde medians. |
-| **Not a maturity / CI gate** | Local evidence only. No published SLO, no maturity unlock, no auto-enable from laptop noise. **Do not** wire into Actions while billing is blocked (OPS-A). Remote/CI timing assertion waits for pinned runners. |
+| **Local regression helper** | `scripts/parse_fixtures_gate.sh` + host-local `.local/evidence/parse_fixtures_baseline.txt`. Runs the Instant harness `RUNS` times (default 3), takes median ns/iter per label, fails if any label is **>10%** slower than the host baseline (`THRESHOLD_PCT`, default 10). Optional `--simd` / `--simd-vs-serde` also gates simd medians vs baseline and vs same-run serde medians. |
+| **Not a maturity / CI gate** | Local evidence only. No published SLO, no maturity unlock, no auto-enable from laptop noise. Remote/CI timing assertions wait for pinned runners. |
 | **Refresh baseline** | Absolute ns/iter are host-local. On a new machine: `./scripts/parse_fixtures_gate.sh --write-baseline` (add `--simd` if you gate SIMD labels). |
 | **Upgrade path** | `criterion` + pinned Linux runner when OPS needs a statistical / CI regression gate. |
 
@@ -96,7 +96,7 @@ cargo bench -p marketfeed-adapter-binance --bench parse_fixtures --features simd
 ./scripts/parse_fixtures_gate.sh --write-baseline
 ```
 
-CI job `simd-json` (YAML ready; Actions billing may block) runs
+CI job `simd-json` runs
 `cargo test -p <adapter> --features simd-json` for all public JSON adapters and
 one Binance `parse_fixtures` bench run (compile + print — timings **not** gated).
 

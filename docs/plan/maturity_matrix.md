@@ -1,7 +1,7 @@
 # Adapter maturity matrix
 
 **Spec SoT:** §11.8 in [`docs/spec/production_rust_multi_exchange_market_data_spec.md`](../spec/production_rust_multi_exchange_market_data_spec.md)  
-**Owners:** [`CODEOWNERS`](../../CODEOWNERS) (`@s1korrrr` default)  
+**Maintainer:** RSI Tech ([`CODEOWNERS`](../../CODEOWNERS))
 **Canary checklist:** [`docs/ops/canary_checklist.md`](../ops/canary_checklist.md)  
 **Laptop live evidence:** [`docs/ops/canary_results.md`](../ops/canary_results.md) (laptop **10/10**; scheduled **0**; reconnect **PASS** laptop — **not beta**)<br>
 **Laptop soak evidence:** [`docs/ops/soak_results.md`](../ops/soak_results.md) (15m all-public-segment + ~31m live binance+okx + synthetic, not stable)<br>
@@ -62,5 +62,5 @@ Spec vocabulary: **experimental | beta | stable**. Informal labels:
 ## Related
 
 - VenueIds: [`venue_ids.md`](./venue_ids.md)
-- Production drive: [`production_drive.md`](./production_drive.md)
-- Audit: [`audit_production_readiness.md`](./audit_production_readiness.md)
+- Channel coverage audit: [`venue_channel_audit.md`](./venue_channel_audit.md)
+- Runtime evidence: [`../ops/soak_results.md`](../ops/soak_results.md)

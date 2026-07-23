@@ -3,7 +3,7 @@
 **Role:** AUDITOR — per-exchange public channel surface vs Spec §2.1 + **full public MD available on each venue**  
 **Tip audited:** `origin/main` @ ≥ `e8e6a0c` (#218 tip; #215 env-auth MD; **W7-P0** closed)  
 **Date:** 2026-07-22  
-**SoT:** [`production_rust_multi_exchange_market_data_spec.md`](../spec/production_rust_multi_exchange_market_data_spec.md) §2.1 · [`maturity_matrix.md`](./maturity_matrix.md) · [`orchestrator_remaining.md`](./orchestrator_remaining.md) · [`venue_ids.md`](./venue_ids.md)  
+**SoT:** [`production_rust_multi_exchange_market_data_spec.md`](../spec/production_rust_multi_exchange_market_data_spec.md) §2.1 · [`maturity_matrix.md`](./maturity_matrix.md) · [`venue_ids.md`](./venue_ids.md)
 **Related:** Wave-2–6 boards · continuous-improvement track **W7** (this audit)
 
 ## Verdict
@@ -347,17 +347,17 @@ Exclude: **OPS-A…E**, §2.2 L3/options/private, AVAILABLE extras that do not m
 
 **P1 CODE:** none open — applicable channels on VenueIds **1–20** at **CODE plateau**.
 
-**Closed Wave-6:** W6-P0a–e, W6-P1a superseded by **#215**, W6-P1b, W6-P1c, W6-P2a/b — see [`orchestrator_wave6_venues.md`](./orchestrator_wave6_venues.md).
+Historical implementation waves closed the listed public channel gaps. This
+audit tracks the resulting current coverage, not internal branch orchestration.
 
 ## OPS maturity (excluded from CODE worker list)
 
 | Rank | ID | Work | Unlocks |
 |---:|---|---|---|
-| — | **OPS-A** | Unblock GitHub Actions billing | remote CI / canary / release jobs |
-| — | **OPS-B** | Scheduled live canary ≥7 for Spot pair (2+4) | **beta** |
-| — | **OPS-C** | Multi-day live soak + live chaos inject | **stable** path |
-| — | **OPS-D** | Publish tag attestation + SBOM | §3.9 |
-| — | **OPS-E** | Explicit “1.0 allowed” after ≥2 stable | production-ready claim |
+| — | **OPS-A** | Scheduled live canary ≥7 for Spot pair (2+4) | **beta** |
+| — | **OPS-B** | Multi-day live soak + live chaos inject | **stable** path |
+| — | **OPS-C** | Publish tag attestation + SBOM | §3.9 |
+| — | **OPS-D** | Explicit “1.0 allowed” after ≥2 stable | production-ready claim |
 
 ---
 
@@ -375,6 +375,5 @@ Exclude: **OPS-A…E**, §2.2 L3/options/private, AVAILABLE extras that do not m
 ## Related
 
 - Maturity: [`maturity_matrix.md`](./maturity_matrix.md)
-- Drive: [`production_drive.md`](./production_drive.md)
-- Remaining CODE: [`orchestrator_remaining.md`](./orchestrator_remaining.md)
-- Spec validation audit: [`audit_spec_validation.md`](./audit_spec_validation.md)
+- Venue IDs: [`venue_ids.md`](./venue_ids.md)
+- Runtime evidence: [`../ops/soak_results.md`](../ops/soak_results.md)

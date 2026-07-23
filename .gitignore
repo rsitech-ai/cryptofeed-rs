@@ -6,6 +6,8 @@
 .idea/
 .vscode/
 .cursor/
+.codex/
+.superpowers/
 *.pdb
 *.profraw
 *.profdata
@@ -19,4 +21,6 @@ fuzz/target/
 fuzz/corpus/
 fuzz/artifacts/
 /sbom/
+/dist/
+/.local/
 *.cdx.json
