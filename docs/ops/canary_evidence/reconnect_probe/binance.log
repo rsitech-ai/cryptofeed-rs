@@ -1,9 +1,0 @@
-   Compiling marketfeed-adapter-binance v0.1.0 (/Users/s1kor/dev/apps/cryptofeed/crates/adapters/binance)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.04s
-     Running tests/live_ignored.rs (target/debug/deps/live_ignored-e37ed4505ee54a1a)
-
-running 1 test
-test live_binance_spot_reconnect_probe ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 2.48s
-

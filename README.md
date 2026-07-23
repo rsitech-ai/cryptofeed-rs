@@ -1,95 +1,154 @@
-# marketfeed
+# cryptofeed-rs
 
-Rust-native multi-exchange market-data engine (library-first, optional daemon).
+Rust-native, library-first market-data ingestion for multiple cryptocurrency
+exchanges, with an optional `marketfeed` daemon.
 
-Authoritative design: [`docs/spec/production_rust_multi_exchange_market_data_spec.md`](docs/spec/production_rust_multi_exchange_market_data_spec.md).
+cryptofeed-rs normalizes public trades, quotes, order books, candles, statistics,
+and derivatives reference data into exact fixed-point domain events. Venue
+adapters are pure session state machines; networking, reconnects, bounded
+dispatch, recording, replay, health, and metrics are separate layers.
 
-## Workspace
+> [!WARNING]
+> This project is an **alpha prerelease**. Interfaces may change, venue behavior
+> is not yet backed by scheduled credentialed canaries, and the project is not
+> approved for unattended production use or trading.
 
-| Crate | Role |
+Maintained by [RSI Tech](https://rsitech.ai). Public and confidential project
+contact: [info@rsitech.ai](mailto:info@rsitech.ai).
+
+## Capabilities
+
+- Public market-data adapters for Binance, OKX, Bybit, Kraken, Deribit,
+  Bitstamp, Gemini, Coinbase, and Bitfinex across supported spot and derivatives
+  segments.
+- Exact fixed-point price and quantity representation.
+- Sequence-aware L2 order books with fail-closed validation and resynchronization.
+- Bounded queues with explicit overflow policies and observable drop counters.
+- Reconnect supervision with graceful cancellation and bounded shutdown.
+- Raw MFR1 recording, deterministic replay, normalized JSONL, and binary
+  protobuf-compatible output.
+- Optional file, UDP, Kafka, and NATS sinks; see
+  [`crates/sinks/README.md`](crates/sinks/README.md) for the current limits.
+- Daemon health endpoints (`/live`, `/ready`) and Prometheus-format `/metrics`.
+
+The authoritative architecture and behavior specification is
+[`docs/spec/production_rust_multi_exchange_market_data_spec.md`](docs/spec/production_rust_multi_exchange_market_data_spec.md).
+The current adapter matrix and operational gaps are recorded in
+[`docs/plan/maturity_matrix.md`](docs/plan/maturity_matrix.md).
+
+## Install
+
+### Download the alpha daemon
+
+The `v0.1.0-alpha.1` release provides a locally built and tested Apple Silicon
+macOS archive:
+
+- [Release page](https://github.com/rsitech-ai/cryptofeed-rs/releases/tag/v0.1.0-alpha.1)
+- [Direct archive download](https://github.com/rsitech-ai/cryptofeed-rs/releases/download/v0.1.0-alpha.1/marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin.tar.gz)
+- [Checksums](https://github.com/rsitech-ai/cryptofeed-rs/releases/download/v0.1.0-alpha.1/SHA256SUMS)
+
+Verify and run:
+
+```bash
+shasum -a 256 -c SHA256SUMS
+tar -xzf marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin.tar.gz
+./marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin/marketfeed version
+./marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin/marketfeed --help
+```
+
+The published binary is ad hoc linker-signed, not Developer ID signed, and not
+notarized. macOS may require an explicit local security decision before first
+launch. Build from source if that is unsuitable for your environment.
+
+### Build from source
+
+The workspace MSRV is Rust 1.85; the pinned development toolchain is in
+[`rust-toolchain.toml`](rust-toolchain.toml).
+
+```bash
+git clone https://github.com/rsitech-ai/cryptofeed-rs.git
+cd cryptofeed-rs
+cargo build --release -p marketfeed-daemon
+./target/release/marketfeed version
+```
+
+## Quick start
+
+Validate and run the offline synthetic configuration:
+
+```bash
+cargo run -p marketfeed-daemon -- validate --config crates/daemon/config.offline.toml
+cargo run -p marketfeed-daemon -- run --config crates/daemon/config.offline.toml
+```
+
+In another terminal:
+
+```bash
+curl --fail http://127.0.0.1:19090/live
+curl --fail http://127.0.0.1:19090/ready
+curl --fail http://127.0.0.1:19090/metrics
+```
+
+For live public sessions, start from
+[`crates/daemon/config.example.toml`](crates/daemon/config.example.toml) and
+enable only the venues and channels you need. Exchange APIs are unreliable;
+operators must monitor reconnects, book validity, drops, rate limits, and sink
+health.
+
+Private feeds use environment variables only. Never place credentials in TOML,
+logs, recordings, issues, or test fixtures. The private-account module does not
+place orders.
+
+## Workspace map
+
+| Area | Purpose |
 |---|---|
-| `marketfeed` | **Facade** (spec §19 / §7.1): thin re-exports — `Fixed`, events, `EngineControl`, key traits, common sinks |
-| `marketfeed-model` | Domain types, exact `Fixed`, events |
-| `marketfeed-adapter-api` | `SessionMachine` contracts |
-| `marketfeed-book` | L2 book + sync |
-| `marketfeed-dispatch` | Bounded queues + `OverflowPolicy` |
-| `marketfeed-sinks` | External `EventSink` (`MemorySink` / `LoggingSink` / `FileSink` / `ProtobufFileSink` / `ProtobufBinaryFileSink` / `UdpSink`; Kafka/NATS stubs return `Unsupported`); daemon `[[sinks]]` wires `memory|logging|file|protobuf-file|protobuf-file-bin` |
-| `marketfeed-ffi` | Minimal C ABI stub (`marketfeed_version`, `marketfeed_fixed_parse`); hand-written `include/marketfeed.h` |
-| `marketfeed-transport` | `MemoryWebSocket` + `TungsteniteWebSocket` (Rustls/webpki) |
-| `marketfeed-recording` / `marketfeed-replay` | Versioned raw MFR1 WebSocket/HTTP inputs + build/session/catalog metadata + deterministic replay |
-| `marketfeed-engine` | Session runner, supervisor, reconnect/backoff loop |
-| `marketfeed-private` | Phase 6 private-account (OKX/Bybit live user-data via `--features live`; Binance decoding scaffold is blocked pending authenticated WebSocket API migration) |
-| `marketfeed-adapter-synthetic` | Mock venue |
-| `marketfeed-adapter-binance` | Binance Spot + USD-M + Coin-M (trades/quote/L2/mark/funding/OI/liquidations; Coin-M also OI REST + `@forceOrder`) |
-| `marketfeed-adapter-okx` | OKX Spot/SWAP/Futures trades/tickers/books L2 + mark/index/funding |
-| `marketfeed-adapter-bybit` | Bybit linear/spot/inverse trades/quotes + L2 (`u` sync) |
-| `marketfeed-adapter-kraken` | Kraken Spot WS v2 trades + ticker quotes + `book` L2 (CRC32) + opt-in `ohlc` candles |
-| `marketfeed-adapter-deribit` | Deribit trades + ticker (quote/mark/index/funding/OI) + `book.*.100ms` L2 + opt-in `chart.trades` candles |
-| `marketfeed-daemon` | Optional binary `marketfeed`: validate/run/replay/inspect-recording, `/live` `/ready` `/metrics`, optional `[[sinks]]`, JSON tracing; private sessions fail closed pending a durable account sink/readiness/reconnect path |
+| `crates/model`, `book`, `dispatch` | Exact domain types, L2 state, bounded delivery |
+| `crates/adapter-api`, `adapters/*` | Network-free adapter contracts and venue protocols |
+| `crates/transport`, `engine` | Rustls transport, supervision, reconnects, lifecycle |
+| `crates/recording`, `replay` | Versioned capture and deterministic replay |
+| `crates/sinks` | Memory, logging, file, UDP, Kafka, and NATS delivery |
+| `crates/daemon` | CLI, configuration, health, metrics, and orchestration |
+| `crates/facade`, `ffi` | Embedding surface and minimal C ABI |
 
-## Develop
+## Validation
+
+Run the release-quality local gate:
 
 ```bash
-cargo test --workspace
-cargo run -p marketfeed-daemon -- validate --config crates/daemon/config.example.toml
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace --all-targets --all-features
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps
+cargo deny check
+./scripts/check-oss-readiness.sh
 ```
 
-### Host-opt profile (optional, non-portable)
+Live tests perform real network I/O and are ignored by default. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md), the
+[`canary checklist`](docs/ops/canary_checklist.md), and the
+[`soak runbook`](docs/ops/soak_runbook.md) before running them.
 
-Workspace profile `host-opt` inherits `release` with fat LTO and `codegen-units = 1`
-(spec §30.3). Public/CI binaries stay on portable `release`. For a host-specific
-binary, operators pass `target-cpu=native` via `RUSTFLAGS` (not a Cargo profile key):
+The latest checked-in evidence is a 15-minute laptop run across every usable
+public venue-segment: 22 concurrent WebSocket sessions, 1,187,432 frames,
+1,260,589 normalized events, zero parse failures, zero sequence gaps, zero
+drops, and clean shutdown. This is short-run evidence, not a stability or
+production-readiness claim. See [`docs/ops/soak_results.md`](docs/ops/soak_results.md).
 
-```bash
-RUSTFLAGS="-C target-cpu=native" cargo build -p marketfeed-daemon --profile host-opt
-```
+## Project policy
 
-**Caveats:** non-portable across CPUs; fat LTO is slower to link; do not ship as the
-default release artifact. Same tests/schema as portable release.
-
-PR-quality local checks (fmt, clippy `-D warnings`, tests, `cargo deny`): see [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
-Ops runbooks: [`docs/runbooks/`](docs/runbooks/).
-
-Live smokes (network; ignored by default):
-
-```bash
-cargo test -p marketfeed-adapter-binance --test live_ignored -- --ignored --nocapture
-cargo test -p marketfeed-adapter-bybit --test live_ignored -- --ignored --nocapture
-cargo test -p marketfeed-adapter-kraken --test live_ignored -- --ignored --nocapture
-cargo test -p marketfeed-adapter-deribit --test live_ignored -- --ignored --nocapture
-# Private OKX/Bybit (venue credentials; never commit .env — see .env.example):
-cargo test -p marketfeed-private --features live --test live_ignored -- --ignored --nocapture
-```
+- [Contributing](CONTRIBUTING.md)
+- [Governance](GOVERNANCE.md)
+- [Support](SUPPORT.md)
+- [Security](SECURITY.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Release process](RELEASING.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 
-Dual-licensed under [Apache-2.0](LICENSE-APACHE) **OR** [MIT](LICENSE-MIT), at your option.
+Copyright 2026 Rafal Sikora.
 
-See [NOTICE](NOTICE) for copyright attribution and [SECURITY.md](SECURITY.md) for vulnerability reporting.
-
-## Fuzz / supply chain
-
-- libFuzzer targets (nightly): `fuzz/` — see [`docs/plan/chaos_supply_chain.md`](docs/plan/chaos_supply_chain.md).
-- SBOM: `./scripts/generate-sbom.sh` (`cargo-cyclonedx`, or `syft` fallback); tag workflow `.github/workflows/release.yml` uploads the artifact (see `CHANGELOG.md`).
-
-## Status
-
-**Not beta / not stable.** Binance Spot + OKX Spot are informal **alpha+** (beta-ready offline); other venues remain **alpha**.
-Scheduled live canary + soak remain **OPS** — see the honesty bar in
-[`docs/plan/maturity_matrix.md`](docs/plan/maturity_matrix.md), [`docs/ops/canary_checklist.md`](docs/ops/canary_checklist.md) and default review owner in
-[`CODEOWNERS`](CODEOWNERS).
-
-| Family | Status |
-|---|---|
-| Binance Spot | **alpha+** — fixtures + corpus + close-out docs; not beta |
-| Binance USD-M | **alpha** — fixtures + OI timer; not beta |
-| OKX Spot | **alpha+** — fixtures + corpus + close-out docs; not beta |
-| OKX SWAP / Futures | **alpha** — fixtures; not beta |
-| Bybit linear / spot / inverse | **alpha** — fixtures + L2 `u`; not beta |
-| Kraken Spot | **alpha** — trades/quotes/L2 CRC32 + corpus; not beta |
-| Deribit | **alpha** — trades/ticker/L2 `change_id` + corpus; not beta |
-
-Candles (Binance Spot + OKX Spot native klines): [`docs/adr/0001-candles-deferred.md`](docs/adr/0001-candles-deferred.md).
-Daemon wires config→sessions (synthetic memory offline; live venues optional).
-Offline: `cargo test --workspace`. Live smokes: see above (`#[ignore]`).
+Licensed under the [Apache License, Version 2.0](LICENSE). See
+[`NOTICE`](NOTICE) for attribution. Unless explicitly stated otherwise,
+contributions submitted to this repository are licensed under the same terms.

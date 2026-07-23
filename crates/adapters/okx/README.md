@@ -96,7 +96,7 @@ Enable only after parse latency profiles show need — see
 
 ## Owner
 
-Default review owner: `@s1korrrr` ([`CODEOWNERS`](../../../CODEOWNERS)).
+Public maintainer: RSI Tech ([`CODEOWNERS`](../../../CODEOWNERS)).
 
 ## Limitations
 

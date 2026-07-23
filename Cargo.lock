@@ -642,7 +642,7 @@ checksum = "112b39cec0b298b6c1999fee3e31427f74f676e4cb9879ed1a121b43661a4154"
 
 [[package]]
 name = "marketfeed"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-adapter-api",
  "marketfeed-engine",
@@ -652,7 +652,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-api"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-model",
@@ -662,7 +662,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-binance"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -682,7 +682,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-bitfinex"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -698,7 +698,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-bitstamp"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -715,7 +715,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-bybit"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -733,7 +733,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-coinbase"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "base64",
  "bytes",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-deribit"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -773,7 +773,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-gemini"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -790,7 +790,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-kraken"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-okx"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -826,7 +826,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-synthetic"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -836,7 +836,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-adapter-testkit"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-adapter-api",
  "marketfeed-model",
@@ -844,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-book"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-model",
  "thiserror",
@@ -852,7 +852,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-daemon"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "futures-util",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-dispatch"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-adapter-api",
  "marketfeed-model",
@@ -894,7 +894,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-engine"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "libc",
@@ -914,14 +914,14 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-ffi"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-model",
 ]
 
 [[package]]
 name = "marketfeed-model"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "proptest",
  "serde",
@@ -930,7 +930,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-private"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "base64",
  "bytes",
@@ -947,7 +947,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-recording"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "marketfeed-adapter-api",
@@ -960,7 +960,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-replay"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-adapter-api",
  "marketfeed-dispatch",
@@ -971,7 +971,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-sinks"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-adapter-api",
  "marketfeed-dispatch",
@@ -986,7 +986,7 @@ dependencies = [
 
 [[package]]
 name = "marketfeed-transport"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "bytes",
  "futures-util",

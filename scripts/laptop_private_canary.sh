@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Laptop private user-data canary (OKX / Bybit Spot).
 #
-# Archives docs/ops/private_canary_evidence/runs/cycle_N/ and appends a note to
-# docs/ops/private_canary_results.md when at least one venue ran.
+# Archives local evidence under .local/evidence/private-canary/runs/cycle_N/.
+# Checked-in result summaries are updated deliberately after review.
 #
 # HONESTY:
 #   - Library live_ignored only — no order placement.
@@ -26,8 +26,7 @@ INCLUDE_EXTENDED="${INCLUDE_EXTENDED:-0}"
 INCLUDE_REAUTH="${INCLUDE_REAUTH:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 AUTO_SOURCE_ENV="${AUTO_SOURCE_ENV:-1}"
-EVIDENCE_ROOT="docs/ops/private_canary_evidence/runs"
-RESULTS_MD="docs/ops/private_canary_results.md"
+EVIDENCE_ROOT="${EVIDENCE_ROOT:-.local/evidence/private-canary/runs}"
 TIP="$(git rev-parse --short HEAD)"
 START_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -170,38 +169,6 @@ fi
   echo "overall=${OVERALL}"
   echo "notes=scripts/laptop_private_canary.sh; secrets env-only"
 } >"${OUT}/result.txt"
-
-if [[ "$OVERALL" != "SKIP" && -f "$RESULTS_MD" ]]; then
-  RESULTS_MD="$RESULTS_MD" CYCLE="$CYCLE" TIP="$TIP" START_UTC="$START_UTC" END_UTC="$END_UTC" \
-    OVERALL="$OVERALL" BINANCE_STATUS="$BINANCE_STATUS" OKX_STATUS="$OKX_STATUS" \
-    BYBIT_STATUS="$BYBIT_STATUS" python3 <<'PY'
-import os, pathlib
-
-path = pathlib.Path(os.environ["RESULTS_MD"])
-note = f"""## {os.environ["START_UTC"]} — private cycle {os.environ["CYCLE"]} (tip `{os.environ["TIP"]}`)
-
-| Field | Value |
-|---|---|
-| UTC window | `{os.environ["START_UTC"]}` → `{os.environ["END_UTC"]}` |
-| Evidence | [`private_canary_evidence/runs/cycle_{os.environ["CYCLE"]}/`](./private_canary_evidence/runs/cycle_{os.environ["CYCLE"]}/) |
-| Binance / OKX / Bybit | `{os.environ["BINANCE_STATUS"]}` / `{os.environ["OKX_STATUS"]}` / `{os.environ["BYBIT_STATUS"]}` |
-| Overall | **{os.environ["OVERALL"]}** |
-| Scheduled canary | **0** (not beta) |
-| Maturity action | **none** — remain alpha |
-| Orders | **none** (authentication / idle stream only) |
-
-"""
-text = path.read_text() if path.exists() else ""
-anchor = "\n---\n\n## "
-idx = text.find(anchor)
-if idx != -1:
-    text = text[: idx + len("\n---\n\n")] + note + text[idx + len("\n---\n\n") :]
-else:
-    text = text.rstrip() + "\n\n" + note
-path.write_text(text)
-print(f"updated {path} with private cycle {os.environ['CYCLE']}")
-PY
-fi
 
 echo "=== laptop_private_canary done overall=${OVERALL} cycle=${CYCLE} ==="
 echo "archived ${OUT}/"

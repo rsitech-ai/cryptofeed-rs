@@ -269,8 +269,7 @@ marketfeed/
 ├── rustfmt.toml
 ├── clippy.toml
 ├── deny.toml
-├── LICENSE-APACHE
-├── LICENSE-MIT
+├── LICENSE
 ├── README.md
 ├── SECURITY.md
 ├── CONTRIBUTING.md
@@ -2323,12 +2322,10 @@ Linux GNU builds are the primary production tier until other targets pass equiva
 
 ### 31.1 License
 
-Recommended license:
+Project license: Apache License 2.0.
 
-- Apache License 2.0 **OR**
-- MIT License
-
-This is conventional in the Rust ecosystem, permits commercial use, and gives contributors a clear inbound licensing model.
+This permits commercial use, provides an explicit patent grant, and gives
+contributors a clear inbound licensing model.
 
 Every source file SHOULD use SPDX identifiers where practical.
 

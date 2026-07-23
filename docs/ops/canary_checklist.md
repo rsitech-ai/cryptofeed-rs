@@ -2,11 +2,11 @@
 
 **Status:** checklist only — **does not** claim beta  
 **Maturity after offline close-out:** `alpha+` / "beta-ready offline"  
-**Owner:** `@s1korrrr` ([`CODEOWNERS`](../../CODEOWNERS))  
+**Owner:** RSI Tech ([`CODEOWNERS`](../../CODEOWNERS))
 **Automation skeleton:** [`.github/workflows/canary.yml`](../../.github/workflows/canary.yml) (offline synthetic today)  
-**Laptop runner:** [`scripts/laptop_canary.sh`](../../scripts/laptop_canary.sh) — archives `canary_evidence/runs/cycle_N/`; **not** scheduled beta  
+**Laptop runner:** [`scripts/laptop_canary.sh`](../../scripts/laptop_canary.sh) — archives ignored `.local/evidence/canary/runs/cycle_N/`; **not** scheduled beta
 **Private laptop runner (optional):** [`scripts/laptop_private_canary.sh`](../../scripts/laptop_private_canary.sh) — Binance/OKX/Bybit auth smokes; skips missing keys; **no orders**; **not** beta  
-**Results archive:** [`canary_results.md`](./canary_results.md) (laptop consecutive **9/9**; scheduled **0**; reconnect **PASS** laptop — **not** a maturity promotion)
+**Results summary:** [`canary_results.md`](./canary_results.md) (laptop consecutive **10/10**; scheduled **0**; reconnect **PASS** laptop — **not** a maturity promotion)
 
 Live canary + multi-day soak remain **OPS**. Completing this checklist is what
 promotes a venue from **alpha+** to **beta** (§11.8). Until then, READMEs and the

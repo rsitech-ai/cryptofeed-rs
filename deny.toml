@@ -1,7 +1,7 @@
 # Supply-chain baseline for marketfeed (licenses, advisories, sources).
-# Spec: docs/spec §28 / §29. Ponytail: multiple-versions is warn-only until
-# transitive graphs converge (getrandom/syn/webpki-roots churn); upgrade to
-# deny + skip when a release gate needs a single-version lock.
+# Spec: docs/spec §28 / §29. Duplicate versions fail by default. Explicit,
+# version-pinned transitive exceptions keep the release gate quiet and become
+# unnecessary-skip warnings when upstream graphs converge.
 # wildcards: cargo-deny treats `{ workspace = true }` / path deps as wildcards;
 # keep allow and ban real `*` crates.io pins in review.
 
@@ -37,13 +37,19 @@ exceptions = []
 ignore = true
 
 [bans]
-multiple-versions = "warn"
+multiple-versions = "deny"
 wildcards = "allow"
 highlight = "all"
 deny = [
     { crate = "openssl", use-instead = "rustls" },
     { crate = "openssl-sys", use-instead = "rustls" },
     { crate = "native-tls", use-instead = "rustls" },
+]
+skip = [
+    { crate = "getrandom@0.2.17", reason = "ring and proptest currently require incompatible getrandom major versions" },
+    { crate = "hashbrown@0.15.5", reason = "simd-json currently requires hashbrown 0.15 while the remaining graph uses 0.17" },
+    { crate = "syn@2.0.119", reason = "transitive procedural macro dependencies currently span syn 2 and syn 3" },
+    { crate = "webpki-roots@0.26.11", reason = "tokio-tungstenite 0.26 and reqwest 0.12 currently resolve different webpki-roots majors" },
 ]
 
 [sources]

@@ -1,7 +1,4 @@
 # Tag release provenance: CycloneDX SBOM artifact + build provenance attestation.
-#
-# May fail to start when GitHub Actions billing / spending limits block the
-# runner — keep the workflow merged so provenance is ready when billing works.
 # See docs/runbooks/release_provenance.md (spec §29).
 
 name: Release
@@ -46,7 +43,6 @@ jobs:
   # cannot be published — do not add continue-on-error.
   # Failure modes (expected / loud):
   # - missing job permissions (id-token: write / attestations: write)
-  # - Actions billing/spending limit (workflow never starts)
   # - private repo without Artifact Attestations entitlement (Enterprise Cloud)
   # - download-artifact miss if sbom job failed
   attest:

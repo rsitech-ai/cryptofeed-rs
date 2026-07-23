@@ -5,7 +5,6 @@
 **Spec:** §21.4 MAY hot reload  
 **Package:** W4-P1b / R29 (#146)  
 **Code:** `crates/daemon/src/reload.rs`, `crates/daemon/src/main.rs`  
-**Plan:** [`docs/plan/orchestrator_wave4.md`](../plan/orchestrator_wave4.md)
 
 ## Decision
 

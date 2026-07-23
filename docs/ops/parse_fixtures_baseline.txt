@@ -1,9 +1,0 @@
-# Local §24.2 parse_fixtures baseline (ns/iter medians).
-# Evidence only — not an SLO, not a maturity/CI gate (billing/OPS-A).
-# Refresh: ./scripts/parse_fixtures_gate.sh --write-baseline [--simd]
-# threshold_pct=10 runs=3
-# recorded_utc=2026-07-22T13:55:57Z tip=84d3c54
-# host=Darwin 27.0.0 arm64 rustc=rustc 1.91.0 (f8297e351 2025-10-28)
-binance_spot_l2_snapshot serde	1396
-binance_usdm_l2_snapshot serde	1135
-binance_coinm_l2_snapshot serde	1123

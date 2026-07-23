@@ -3,7 +3,7 @@ name = "marketfeed-fuzz"
 version = "0.0.0"
 edition = "2024"
 publish = false
-license = "Apache-2.0 OR MIT"
+license = "Apache-2.0"
 
 [package.metadata]
 cargo-fuzz = true

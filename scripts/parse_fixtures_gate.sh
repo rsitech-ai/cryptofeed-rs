@@ -20,7 +20,7 @@
 #   ./scripts/parse_fixtures_gate.sh --self-check
 #   RUNS=5 THRESHOLD_PCT=10 ./scripts/parse_fixtures_gate.sh
 #
-# Baseline: docs/ops/parse_fixtures_baseline.txt
+# Baseline: .local/evidence/parse_fixtures_baseline.txt
 # Refresh on a new host (absolute ns/iter are host-local):
 #   ./scripts/parse_fixtures_gate.sh --write-baseline
 #
@@ -30,7 +30,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-BASELINE_PATH="${BASELINE_PATH:-docs/ops/parse_fixtures_baseline.txt}"
+BASELINE_PATH="${BASELINE_PATH:-.local/evidence/parse_fixtures_baseline.txt}"
 RUNS="${RUNS:-3}"
 THRESHOLD_PCT="${THRESHOLD_PCT:-10}"
 WRITE_BASELINE=0
@@ -197,6 +197,7 @@ echo "medians (ns/iter):" >&2
 sed 's/^/  /' "$MEDIAN_FILE" >&2
 
 if [[ "$WRITE_BASELINE" -eq 1 ]]; then
+  mkdir -p "$(dirname "$BASELINE_PATH")"
   {
     echo "# Local §24.2 parse_fixtures baseline (ns/iter medians)."
     echo "# Evidence only — not an SLO, not a maturity/CI gate (billing/OPS-A)."

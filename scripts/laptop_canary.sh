@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Laptop live canary runner (Binance Spot + OKX Spot).
 #
-# Archives a new docs/ops/canary_evidence/runs/cycle_N/ and appends a note to
-# docs/ops/canary_results.md.
+# Archives local evidence under .local/evidence/canary/runs/cycle_N/.
+# Checked-in result summaries are updated deliberately after review.
 #
 # HONESTY:
 #   - This is a laptop / operator burst tool.
@@ -22,8 +22,7 @@ cd "$ROOT"
 INCLUDE_RECONNECT="${INCLUDE_RECONNECT:-1}"
 INCLUDE_ALPHA="${INCLUDE_ALPHA:-0}"  # VenueIds 13–18 + 20; still alpha, not beta
 DRY_RUN="${DRY_RUN:-0}"
-EVIDENCE_ROOT="docs/ops/canary_evidence/runs"
-RESULTS_MD="docs/ops/canary_results.md"
+EVIDENCE_ROOT="${EVIDENCE_ROOT:-.local/evidence/canary/runs}"
 TIP="$(git rev-parse --short HEAD)"
 START_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -127,47 +126,6 @@ fi
   echo "overall=${OVERALL}"
   echo "notes=scripts/laptop_canary.sh; NOT scheduled beta"
 } >"${OUT}/result.txt"
-
-# Scoreboard: bump laptop counter only on PASS (leave scheduled=0).
-if [[ "$OVERALL" == "PASS" ]] && [[ -f "$RESULTS_MD" ]]; then
-  # ponytail: python scoreboard bump; ceiling = laptop counter only, not scheduled.
-  RESULTS_MD="$RESULTS_MD" CYCLE="$CYCLE" TIP="$TIP" START_UTC="$START_UTC" END_UTC="$END_UTC" python3 <<'PY'
-import os, pathlib, re
-
-path = pathlib.Path(os.environ["RESULTS_MD"])
-cycle = os.environ["CYCLE"]
-tip = os.environ["TIP"]
-start = os.environ["START_UTC"]
-end = os.environ["END_UTC"]
-text = path.read_text()
-m = re.search(
-    r"(\| Laptop consecutive `live_ignored` archives \(Binance Spot \+ OKX Spot\) \| \*\*)(\d+)/(\d+)(\*\*)",
-    text,
-)
-if m:
-    n = int(m.group(3)) + 1
-    text = text[: m.start()] + f"{m.group(1)}{n}/{n}{m.group(4)}" + text[m.end() :]
-    text = re.sub(r"(runs 1–)\d+(; same-day)", rf"\g<1>{n}; same-day", text, count=1)
-note = f"""## {start} — run {cycle} (laptop via `scripts/laptop_canary.sh`, tip `{tip}`)
-
-| Field | Value |
-|---|---|
-| UTC window | `{start}` → `{end}` |
-| Evidence | [`canary_evidence/runs/cycle_{cycle}/`](./canary_evidence/runs/cycle_{cycle}/) |
-| Scheduled canary | **0** (this script is **not** scheduled beta) |
-| Maturity action | **none** — remain `alpha+` |
-
-"""
-anchor = "\n---\n\n## "
-idx = text.find(anchor)
-if idx != -1:
-    text = text[: idx + len("\n---\n\n")] + note + text[idx + len("\n---\n\n") :]
-else:
-    text = text.rstrip() + "\n\n" + note
-path.write_text(text)
-print(f"updated {path} scoreboard + run {cycle} note")
-PY
-fi
 
 echo "=== laptop_canary done overall=${OVERALL} cycle=${CYCLE} ==="
 echo "archived ${OUT}/"
