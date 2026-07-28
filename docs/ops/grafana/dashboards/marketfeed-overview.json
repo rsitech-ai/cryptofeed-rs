@@ -1,0 +1,303 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "doc",
+      "includeVars": false,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Ops scrape notes",
+      "tooltip": "",
+      "type": "link",
+      "url": "../README.md"
+    }
+  ],
+  "panels": [
+    {
+      "title": "Process",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "title": "Up",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_up", "legendFormat": "up", "refId": "A" }]
+    },
+    {
+      "id": 3,
+      "title": "Ready",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "orange", "text": "NOT READY" }, "1": { "color": "green", "text": "READY" } }, "type": "value" }
+          ]
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_ready", "legendFormat": "ready", "refId": "A" }]
+    },
+    {
+      "id": 4,
+      "title": "Live sessions",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_live_sessions", "legendFormat": "live", "refId": "A" }]
+    },
+    {
+      "id": 5,
+      "title": "Venues configured",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_venues_configured", "legendFormat": "venues", "refId": "A" }]
+    },
+    {
+      "id": 6,
+      "title": "Disk pressure",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "green", "text": "OK" }, "1": { "color": "red", "text": "PRESSURE" } }, "type": "value" }
+          ]
+        },
+        "overrides": []
+      },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_disk_pressure", "legendFormat": "disk", "refId": "A" }]
+    },
+    {
+      "id": 7,
+      "title": "Shutdown draining",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_shutdown_draining", "legendFormat": "draining", "refId": "A" }]
+    },
+    {
+      "id": 8,
+      "title": "Recording healthy",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_recording_healthy", "legendFormat": "rec", "refId": "A" }]
+    },
+    {
+      "id": 9,
+      "title": "HTTP requests",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [{ "expr": "marketfeed_http_requests_total", "legendFormat": "http", "refId": "A" }]
+    },
+    {
+      "title": "Venue health",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 10,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "title": "Venue live",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "min": 0, "max": 1 }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "marketfeed_venue_live", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "id": 12,
+      "title": "Reconnects / s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "rate(marketfeed_venue_reconnects_total[1m])", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "id": 13,
+      "title": "Events dropped / s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "rate(marketfeed_venue_events_dropped_total[1m])", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "id": 14,
+      "title": "Book invalidations / s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "rate(marketfeed_venue_book_invalidations_total[1m])", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "id": 15,
+      "title": "Valid books",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "marketfeed_venue_valid_books", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "id": 16,
+      "title": "Sequence gaps / s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "rate(marketfeed_venue_sequence_gaps_total[1m])", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "title": "Throughput & queues",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "id": 17,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 18,
+      "title": "Events dispatched / s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "rate(marketfeed_venue_events_dispatched_total[1m])", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "id": 19,
+      "title": "Frames received / s",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{ "expr": "rate(marketfeed_venue_frames_received_total[1m])", "legendFormat": "{{id}}", "refId": "A" }]
+    },
+    {
+      "id": 20,
+      "title": "Batch queue occupancy",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "marketfeed_venue_queue_occupancy", "legendFormat": "occ {{id}}", "refId": "A" },
+        { "expr": "marketfeed_venue_batch_queue_capacity", "legendFormat": "cap {{id}}", "refId": "B" }
+      ]
+    },
+    {
+      "id": 21,
+      "title": "Recording queue / drops",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "marketfeed_recording_queue_len", "legendFormat": "queue", "refId": "A" },
+        { "expr": "rate(marketfeed_recording_frames_dropped_total[1m])", "legendFormat": "drops/s", "refId": "B" }
+      ]
+    },
+    {
+      "title": "Latency",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 39 },
+      "id": 22,
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 23,
+      "title": "Frame→event latency p99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "unit": "s",
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum by (le, id) (rate(marketfeed_venue_frame_to_event_latency_seconds_bucket[5m])))",
+        "legendFormat": "{{id}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "id": 24,
+      "title": "Parse duration p99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "unit": "s",
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "expr": "histogram_quantile(0.99, sum by (le, id) (rate(marketfeed_venue_parse_duration_seconds_bucket[5m])))",
+        "legendFormat": "{{id}}",
+        "refId": "A"
+      }]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["marketfeed", "cryptofeed-rs"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Datasource",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Marketfeed Overview",
+  "uid": "marketfeed-overview",
+  "version": 1
+}
