@@ -33,8 +33,8 @@ overflow = "fail_engine"   # or drop_oldest under explicit lossy policy
 min_free_space = "20GiB"
 ```
 
-## Verification
+## Related
 
-- `marketfeed_disk_pressure 0`
-- New segments appear under the recording directory
-- Optional: `marketfeed inspect-recording --input <segment>`
+- Metrics dashboards: [`docs/ops/grafana/README.md`](../ops/grafana/README.md)
+- Disk pressure: this runbook
+- Slow sinks / drops: [`slow_sink.md`](./slow_sink.md)
