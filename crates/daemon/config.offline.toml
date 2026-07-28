@@ -10,6 +10,10 @@ shutdown_deadline_secs = 5
 log_format = "json"
 log_level = "info"
 bind = "127.0.0.1:19108"
+# View API / SPA (feature ui-api / ui): share bind or set a second loopback port.
+ui_bind = "127.0.0.1:19109"
+ui_tape_capacity = 256
+ui_tape_max_per_sec = 50
 
 [readiness]
 require_running = true

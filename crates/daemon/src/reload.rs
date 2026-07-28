@@ -75,6 +75,13 @@ pub fn classify_reload(
     if new.telemetry.bind != base.telemetry.bind {
         plan.restart_required.push("telemetry.bind");
     }
+    if new.telemetry.ui_bind != base.telemetry.ui_bind
+        || new.telemetry.ui_tape_capacity != base.telemetry.ui_tape_capacity
+        || new.telemetry.ui_tape_max_per_sec != base.telemetry.ui_tape_max_per_sec
+        || new.telemetry.ui_static_dir != base.telemetry.ui_static_dir
+    {
+        plan.restart_required.push("telemetry.ui");
+    }
     if new.recording != base.recording {
         plan.restart_required.push("recording");
     }

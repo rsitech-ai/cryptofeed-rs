@@ -8,6 +8,7 @@ homepage.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+build = "build.rs"
 
 [[bin]]
 name = "marketfeed"
@@ -19,6 +20,10 @@ default = []
 # Forward optional broker TCP clients from marketfeed-sinks (no rdkafka/async-nats).
 kafka = ["marketfeed-sinks/kafka"]
 nats = ["marketfeed-sinks/nats"]
+# Loopback JSON view API (`/v1/status`, books, tape).
+ui-api = ["dep:marketfeed-book"]
+# View API + embedded SPA (build `ui/` first; see docs/ops/ui.md).
+ui = ["ui-api"]
 
 [dependencies]
 bytes = { workspace = true }
@@ -34,6 +39,7 @@ marketfeed-adapter-gemini = { path = "../adapters/gemini" }
 marketfeed-adapter-kraken = { path = "../adapters/kraken" }
 marketfeed-adapter-okx = { path = "../adapters/okx" }
 marketfeed-adapter-synthetic = { path = "../adapters/synthetic" }
+marketfeed-book = { workspace = true, optional = true }
 marketfeed-dispatch = { workspace = true }
 marketfeed-engine = { path = "../engine" }
 marketfeed-model = { workspace = true }

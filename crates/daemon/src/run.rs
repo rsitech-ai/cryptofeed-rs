@@ -35,8 +35,9 @@ use marketfeed_adapter_okx::{
 use marketfeed_adapter_synthetic::{SYNTHETIC_VENUE_ID, SyntheticFactory};
 use marketfeed_engine::{EngineSupervisor, SessionRunnerConfig};
 use marketfeed_model::{
-    AssetCode, CatalogVersion, CatalogView, Fixed, InstrumentDefinition, InstrumentId,
-    InstrumentKey, InstrumentKind, InstrumentStatus, OverflowPolicy, SessionId, VenueCode, VenueId,
+    AssetCode, CatalogVersion, CatalogView, Fixed, FrameStamp, InstrumentDefinition, InstrumentId,
+    InstrumentKey, InstrumentKind, InstrumentStatus, OverflowPolicy, SessionId, TimestampNs,
+    VenueCode, VenueId,
 };
 use marketfeed_transport::{
     MemoryWebSocket, ReqwestHttpTransport, TungsteniteWebSocket, WebSocketSpec,
@@ -47,6 +48,24 @@ use crate::config::{TransportMode, VenueConfig, VenueKind};
 use crate::sinks::SharedDaemonSinks;
 use crate::state::DaemonState;
 use crate::subscriptions::expand_concrete_subscriptions;
+
+fn shared_sinks(state: &DaemonState) -> SharedDaemonSinks {
+    #[cfg(feature = "ui-api")]
+    {
+        SharedDaemonSinks::with_view(Arc::clone(&state.sinks), state.view.clone())
+    }
+    #[cfg(not(feature = "ui-api"))]
+    {
+        SharedDaemonSinks::new(Arc::clone(&state.sinks))
+    }
+}
+
+#[cfg(feature = "ui-api")]
+fn register_view_venue(state: &DaemonState, venue_id: VenueId, venue: &VenueConfig) {
+    if let Some(view) = &state.view {
+        view.register_venue(venue_id, &venue.id, &venue.symbols);
+    }
+}
 
 static NEXT_SESSION: AtomicU64 = AtomicU64::new(1);
 
@@ -94,7 +113,7 @@ pub fn spawn_venues(
             continue;
         };
         let state = Arc::clone(&state);
-        let shutdown = shutdown.clone();
+        let mut shutdown = shutdown.clone();
         state
             .active_public_venue_tasks
             .fetch_add(1, Ordering::AcqRel);
@@ -102,11 +121,35 @@ pub fn spawn_venues(
             let _active_task = ActivePublicVenueTask {
                 state: Arc::clone(&state),
             };
-            let result = run_venue(Arc::clone(&state), venue, flag, stop, shutdown).await;
-            if let Err(e) = &result {
-                tracing::error!(error = %e, "venue session exited");
+            let required = venue.required;
+            let venue_id = venue.id.clone();
+            let result = run_venue(Arc::clone(&state), venue, flag, stop, shutdown.clone()).await;
+            match result {
+                Ok(()) => Ok(()),
+                Err(e) if !required => {
+                    // Optional venues must not tear down the process. Keep the
+                    // task parked until coordinated shutdown so the supervisor
+                    // does not treat an early join as a fatal runtime exit.
+                    tracing::error!(
+                        id = %venue_id,
+                        error = %e,
+                        "optional venue session failed; continuing without it"
+                    );
+                    loop {
+                        if *shutdown.borrow() {
+                            break;
+                        }
+                        if shutdown.changed().await.is_err() {
+                            break;
+                        }
+                    }
+                    Ok(())
+                }
+                Err(e) => {
+                    tracing::error!(id = %venue_id, error = %e, "venue session exited");
+                    Err(e)
+                }
             }
-            result
         }));
     }
     handles
@@ -640,6 +683,8 @@ async fn run_synthetic_memory(
 
     let mut supervisor = EngineSupervisor::new();
     supervisor.mark_running();
+    #[cfg(feature = "ui-api")]
+    register_view_venue(state, SYNTHETIC_VENUE_ID, venue);
     supervisor
         .insert_session(
             machine,
@@ -661,6 +706,10 @@ async fn run_synthetic_memory(
     let mut ws = MemoryWebSocket::new();
     ws.push_text(b"SUB BTC-USD".to_vec());
     ws.push_text(b"BOOK_SNAP 1 BID 100.00:1.000 ASK 101.00:1.000".to_vec());
+    // Seed a few tape rows so /v1/tape is non-empty as soon as ready.
+    ws.push_text(b"TRADE 2 100.50 0.010 BUY t-seed-1".to_vec());
+    ws.push_text(b"QUOTE 100.00 101.00 1.000 1.000".to_vec());
+    ws.push_text(b"TRADE 3 100.25 0.020 SELL t-seed-2".to_vec());
 
     supervisor
         .drain_memory_ws(
@@ -678,7 +727,7 @@ async fn run_synthetic_memory(
     // Forward into configured sinks, or drop when none (FailEngine-safe drain).
     {
         let runner = supervisor.session_mut(session).map_err(|e| e.to_string())?;
-        let mut shared = SharedDaemonSinks::new(Arc::clone(&state.sinks));
+        let mut shared = shared_sinks(state);
         runner
             .consume_dispatch(Some(&mut shared))
             .map_err(|e| e.to_string())?;
@@ -689,9 +738,80 @@ async fn run_synthetic_memory(
     }
     tracing::info!(id = %venue.id, "synthetic venue live (memory)");
 
-    while !*shutdown.borrow() && !stop_flag.load(Ordering::Relaxed) {
-        if shutdown.changed().await.is_err() {
-            break;
+    // Keep emitting synthetic trades/quotes so offline UI tape/books stay alive.
+    let mut tick: u64 = 4;
+    let mut mono_ns: u64 = 100;
+    let mut interval = tokio::time::interval(Duration::from_millis(200));
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    loop {
+        tokio::select! {
+            _ = shutdown.changed() => {
+                if *shutdown.borrow() {
+                    break;
+                }
+            }
+            _ = interval.tick() => {
+                if stop_flag.load(Ordering::Relaxed) || *shutdown.borrow() {
+                    break;
+                }
+                let seq = tick;
+                tick = tick.saturating_add(1);
+                mono_ns = mono_ns.saturating_add(1);
+                let side = if seq % 2 == 0 { "BUY" } else { "SELL" };
+                let px = if seq % 2 == 0 { "100.50" } else { "100.25" };
+                let trade = format!("TRADE {seq} {px} 0.001 {side} t-{seq}");
+                let quote = format!(
+                    "QUOTE 100.00 101.00 {:.3} {:.3}",
+                    1.0 + (seq % 5) as f64 * 0.1,
+                    1.0 + ((seq + 2) % 5) as f64 * 0.1
+                );
+                let stamp = FrameStamp {
+                    receive_ts: TimestampNs(mono_ns as i64),
+                    mono_ns,
+                };
+                {
+                    let runner = supervisor.session_mut(session).map_err(|e| e.to_string())?;
+                    let mut trade_bytes = trade.into_bytes();
+                    runner
+                        .on_text_frame(&mut trade_bytes, stamp)
+                        .map_err(|e| e.to_string())?;
+                    mono_ns = mono_ns.saturating_add(1);
+                    let stamp2 = FrameStamp {
+                        receive_ts: TimestampNs(mono_ns as i64),
+                        mono_ns,
+                    };
+                    let mut quote_bytes = quote.into_bytes();
+                    runner
+                        .on_text_frame(&mut quote_bytes, stamp2)
+                        .map_err(|e| e.to_string())?;
+                    let mut shared = shared_sinks(state);
+                    runner
+                        .consume_dispatch(Some(&mut shared))
+                        .map_err(|e| e.to_string())?;
+                }
+                // Occasional book refresh so depth ladder stays non-stale.
+                if seq % 10 == 0 {
+                    let snap = format!(
+                        "BOOK_SNAP {seq} BID 100.00:{:.3},99.50:0.500 ASK 101.00:{:.3},101.50:0.500",
+                        1.0 + (seq % 3) as f64 * 0.25,
+                        1.0 + ((seq + 1) % 3) as f64 * 0.25
+                    );
+                    mono_ns = mono_ns.saturating_add(1);
+                    let stamp = FrameStamp {
+                        receive_ts: TimestampNs(mono_ns as i64),
+                        mono_ns,
+                    };
+                    let runner = supervisor.session_mut(session).map_err(|e| e.to_string())?;
+                    let mut bytes = snap.into_bytes();
+                    runner
+                        .on_text_frame(&mut bytes, stamp)
+                        .map_err(|e| e.to_string())?;
+                    let mut shared = shared_sinks(state);
+                    runner
+                        .consume_dispatch(Some(&mut shared))
+                        .map_err(|e| e.to_string())?;
+                }
+            }
         }
     }
     stop_flag.store(true, Ordering::Relaxed);
@@ -699,13 +819,13 @@ async fn run_synthetic_memory(
     supervisor.begin_shutdown().map_err(|e| e.to_string())?;
     {
         let runner = supervisor.session_mut(session).map_err(|e| e.to_string())?;
-        let mut shared = SharedDaemonSinks::new(Arc::clone(&state.sinks));
+        let mut shared = shared_sinks(state);
         runner
             .consume_dispatch(Some(&mut shared))
             .map_err(|e| e.to_string())?;
     }
     {
-        let mut shared = SharedDaemonSinks::new(Arc::clone(&state.sinks));
+        let mut shared = shared_sinks(state);
         supervisor
             .finish_shutdown_to(Some(&mut shared))
             .map_err(|e| e.to_string())?;
@@ -888,6 +1008,8 @@ async fn run_live_ws_session(
 ) -> Result<(), String> {
     let mut supervisor = EngineSupervisor::new();
     supervisor.mark_running();
+    #[cfg(feature = "ui-api")]
+    register_view_venue(state, venue_id, venue);
     supervisor
         .insert_session(
             machine,
@@ -926,7 +1048,7 @@ async fn run_live_ws_session(
 
     // Always forward: empty DaemonSinks is a null-sink (drops; FailEngine-safe).
     // Concrete SharedDaemonSinks (not dyn) so the live loop stays Send.
-    let mut shared = SharedDaemonSinks::new(Arc::clone(&state.sinks));
+    let mut shared = shared_sinks(state);
     let run = supervisor.run_session_loop_to(
         session,
         &mut ws,

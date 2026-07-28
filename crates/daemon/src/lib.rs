@@ -12,6 +12,8 @@ pub mod run;
 pub mod sinks;
 pub mod state;
 pub(crate) mod subscriptions;
+#[cfg(feature = "ui-api")]
+pub mod view;
 
 pub use config::{ConfigError, DaemonConfig};
 pub use http::serve;
@@ -20,3 +22,5 @@ pub use reload::{ReloadPlan, ReloadableConfig, classify_reload, plan_reload_from
 pub use run::spawn_venues;
 pub use sinks::DaemonSinks;
 pub use state::{DaemonState, evaluate_readiness};
+#[cfg(feature = "ui-api")]
+pub use view::serve_view;

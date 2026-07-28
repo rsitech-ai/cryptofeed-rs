@@ -30,3 +30,8 @@
 - `marketfeed_up 1` and `marketfeed_ready 1`
 - Required venues show `marketfeed_venue_live{id="..."} 1`
 - If recording enabled: `marketfeed_recording_healthy 1` and no sustained `marketfeed_disk_pressure 1`
+
+## Dashboards
+
+Prometheus scrape + Grafana: [`docs/ops/grafana/README.md`](../ops/grafana/README.md).
+Alerts: reconnect storm, not ready, drops, book invalidations, disk pressure.

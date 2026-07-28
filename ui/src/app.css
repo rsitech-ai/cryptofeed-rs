@@ -1,0 +1,51 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0d10;
+  --panel: #12151a;
+  --border: #1e2430;
+  --text: #d7dde8;
+  --muted: #7a8496;
+  --bid: #3dd68c;
+  --bid-dim: rgba(61, 214, 140, 0.18);
+  --ask: #f07178;
+  --ask-dim: rgba(240, 113, 120, 0.18);
+  --accent: #e6b450;
+  --live: #3dd68c;
+  --down: #f07178;
+  --mono: "IBM Plex Mono", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  background: radial-gradient(1200px 600px at 10% -10%, #151a22 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: var(--sans);
+}
+
+button,
+select {
+  font: inherit;
+  color: inherit;
+  background: #181c24;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  padding: 0.35rem 0.55rem;
+}
+
+button:hover,
+select:hover {
+  border-color: #2c3648;
+}
+
+button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}

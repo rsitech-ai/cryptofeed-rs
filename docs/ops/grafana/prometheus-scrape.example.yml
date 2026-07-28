@@ -1,0 +1,26 @@
+# Example Prometheus scrape config for marketfeed-daemon.
+# Merge into prometheus.yml (or a scrape config include).
+#
+# Daemon default: telemetry.bind = "127.0.0.1:9108"
+# Offline example (config.offline.toml): 127.0.0.1:19108
+#
+# Labels used by the daemon: metric name + optional `id` (venue config id).
+# There are no `symbol` / `instrument` Prometheus labels by design.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: marketfeed
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - 127.0.0.1:9108
+        labels:
+          service: marketfeed
+    # Optional: scrape interval override for denser local soaks
+    # scrape_interval: 5s

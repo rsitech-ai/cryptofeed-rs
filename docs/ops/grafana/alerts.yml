@@ -1,0 +1,60 @@
+# Prometheus alerting rules for marketfeed-daemon.
+# Metric names match crates/daemon/src/state.rs exposition.
+#
+# Runbooks:
+#   docs/runbooks/restart.md
+#   docs/runbooks/slow_sink.md
+#   docs/runbooks/disk_full.md
+
+groups:
+  - name: marketfeed
+    rules:
+      - alert: MarketfeedNotReady
+        expr: marketfeed_up == 1 and marketfeed_ready == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "marketfeed not ready"
+          description: "Process is up but readiness policy is not satisfied for 2m."
+          runbook_url: "../runbooks/restart.md"
+
+      - alert: MarketfeedReconnectStorm
+        expr: sum by (id) (rate(marketfeed_venue_reconnects_total[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "marketfeed reconnect storm ({{ $labels.id }})"
+          description: "Venue {{ $labels.id }} reconnect rate > 0.2/s over 5m."
+          runbook_url: "../runbooks/restart.md"
+
+      - alert: MarketfeedEventsDropped
+        expr: sum by (id) (rate(marketfeed_venue_events_dropped_total[5m])) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "marketfeed events dropped ({{ $labels.id }})"
+          description: "Venue {{ $labels.id }} is dropping dispatched events."
+          runbook_url: "../runbooks/slow_sink.md"
+
+      - alert: MarketfeedBookInvalidations
+        expr: sum by (id) (rate(marketfeed_venue_book_invalidations_total[5m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "marketfeed book invalidations ({{ $labels.id }})"
+          description: "Venue {{ $labels.id }} book invalidation rate > 0 over 5m."
+          runbook_url: "../runbooks/restart.md"
+
+      - alert: MarketfeedDiskPressure
+        expr: marketfeed_disk_pressure == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "marketfeed disk pressure"
+          description: "Recording free space is below configured min_free_space."
+          runbook_url: "../runbooks/disk_full.md"

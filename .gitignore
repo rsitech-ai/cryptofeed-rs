@@ -24,3 +24,4 @@ fuzz/artifacts/
 /dist/
 /.local/
 *.cdx.json
+.tools/
