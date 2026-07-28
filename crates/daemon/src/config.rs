@@ -255,6 +255,19 @@ pub struct TelemetryConfig {
     pub log_level: String,
     #[serde(default = "default_bind")]
     pub bind: String,
+    /// Optional loopback bind for `/v1/*` (+ SPA with feature `ui`).
+    /// When unset, view routes share `bind` (feature `ui-api` / `ui` only).
+    #[serde(default)]
+    pub ui_bind: Option<String>,
+    /// Per-instrument tape ring capacity (feature `ui-api`).
+    #[serde(default = "default_ui_tape_capacity")]
+    pub ui_tape_capacity: u32,
+    /// Soft cap on tape appends per second per instrument (0 = unlimited).
+    #[serde(default = "default_ui_tape_max_per_sec")]
+    pub ui_tape_max_per_sec: u32,
+    /// Optional filesystem SPA root (feature `ui`); overrides embedded assets.
+    #[serde(default)]
+    pub ui_static_dir: Option<String>,
 }
 
 fn default_log_format() -> String {
@@ -266,6 +279,12 @@ fn default_log_level() -> String {
 fn default_bind() -> String {
     "127.0.0.1:9108".into()
 }
+fn default_ui_tape_capacity() -> u32 {
+    256
+}
+fn default_ui_tape_max_per_sec() -> u32 {
+    50
+}
 
 impl Default for TelemetryConfig {
     fn default() -> Self {
@@ -273,6 +292,10 @@ impl Default for TelemetryConfig {
             log_format: default_log_format(),
             log_level: default_log_level(),
             bind: default_bind(),
+            ui_bind: None,
+            ui_tape_capacity: default_ui_tape_capacity(),
+            ui_tape_max_per_sec: default_ui_tape_max_per_sec(),
+            ui_static_dir: None,
         }
     }
 }
@@ -815,6 +838,15 @@ impl DaemonConfig {
             .map_err(|e| ConfigError::Validation(format!("telemetry.bind: {e}")))
     }
 
+    pub fn ui_bind_addr(&self) -> Result<Option<SocketAddr>, ConfigError> {
+        match &self.telemetry.ui_bind {
+            None => Ok(None),
+            Some(raw) => SocketAddr::from_str(raw)
+                .map(Some)
+                .map_err(|e| ConfigError::Validation(format!("telemetry.ui_bind: {e}"))),
+        }
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
         if !KNOWN_PROFILES.contains(&self.engine.runtime_profile.as_str()) {
             return Err(ConfigError::Validation(format!(
@@ -841,6 +873,28 @@ impl DaemonConfig {
         if !addr.ip().is_loopback() {
             return Err(ConfigError::Validation(
                 "telemetry.bind must be loopback (insecure remote binding rejected)".into(),
+            ));
+        }
+        if let Some(ui) = self.ui_bind_addr()? {
+            if !ui.ip().is_loopback() {
+                return Err(ConfigError::Validation(
+                    "telemetry.ui_bind must be loopback (insecure remote binding rejected)".into(),
+                ));
+            }
+        }
+        if self.telemetry.ui_tape_capacity == 0 {
+            return Err(ConfigError::Validation(
+                "telemetry.ui_tape_capacity must be > 0".into(),
+            ));
+        }
+        if self.telemetry.ui_tape_capacity > 10_000 {
+            return Err(ConfigError::Validation(
+                "telemetry.ui_tape_capacity must be <= 10000".into(),
+            ));
+        }
+        if self.telemetry.ui_tape_max_per_sec > 10_000 {
+            return Err(ConfigError::Validation(
+                "telemetry.ui_tape_max_per_sec must be <= 10000".into(),
             ));
         }
         if self.recording.raw.enabled {
@@ -1763,6 +1817,33 @@ bind = \"0.0.0.0:9108\"
     }
 
     #[test]
+    fn rejects_non_loopback_ui_bind() {
+        let err = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            ui_bind = "0.0.0.0:9109"
+            "#,
+        )
+        .unwrap_err();
+        assert!(matches!(err, ConfigError::Validation(_)));
+        assert!(err.to_string().contains("ui_bind"));
+    }
+
+    #[test]
+    fn rejects_unbounded_ui_tape_capacity() {
+        let err = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            ui_tape_capacity = 10001
+            "#,
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("ui_tape_capacity"));
+    }
+
+    #[test]
     fn rejects_unknown_adapter_and_impossible_readiness() {
         assert!(
             DaemonConfig::from_toml_str(
@@ -1828,7 +1909,7 @@ bind = \"0.0.0.0:9108\"
             id = "okx-futures"
             adapter = "okx"
             segment = "futures"
-            symbols = ["BTC-USDT-250926"]
+            symbols = ["BTC-USD-260925"]
             channels = ["trades", "l2"]
             [[venues]]
             id = "bybit-linear"
