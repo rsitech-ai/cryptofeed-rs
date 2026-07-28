@@ -204,16 +204,47 @@ fn load_static(state: &DaemonState, path: &str) -> Option<(&'static str, Vec<u8>
         p if p.starts_with('/') => &p[1..],
         _ => return None,
     };
-    if rel.contains("..") || rel.starts_with('/') {
+    if !is_safe_static_rel(rel) {
         return None;
     }
     if let Some(dir) = state.config.telemetry.ui_static_dir.as_deref() {
-        let full = std::path::Path::new(dir).join(rel);
-        if let Ok(bytes) = std::fs::read(&full) {
+        if let Some(bytes) = read_static_under_root(dir, rel) {
             return Some((content_type(rel), bytes));
         }
     }
     embedded_asset(rel)
+}
+
+/// Reject path escapes before joining onto `ui_static_dir`.
+#[cfg(feature = "ui")]
+fn is_safe_static_rel(rel: &str) -> bool {
+    if rel.is_empty() || rel.starts_with('/') || rel.starts_with('\\') {
+        return false;
+    }
+    if rel.contains('\0') || rel.contains("..") || rel.contains('\\') {
+        return false;
+    }
+    use std::path::{Component, Path};
+    !Path::new(rel).components().any(|c| {
+        matches!(
+            c,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    })
+}
+
+/// Read `rel` only when the resolved path stays under `root` (symlink-safe).
+#[cfg(feature = "ui")]
+fn read_static_under_root(root: &str, rel: &str) -> Option<Vec<u8>> {
+    use std::path::Path;
+    let root = Path::new(root);
+    let candidate = root.join(rel);
+    let root_canon = root.canonicalize().ok()?;
+    let file_canon = candidate.canonicalize().ok()?;
+    if !file_canon.starts_with(&root_canon) {
+        return None;
+    }
+    std::fs::read(file_canon).ok()
 }
 
 #[cfg(feature = "ui")]
@@ -392,5 +423,61 @@ mod tests {
         assert_eq!(st, 200, "{body}");
         assert!(body.contains("\"live\":true"), "{body}");
         assert!(body.contains("\"ready\":true"), "{body}");
+    }
+
+    #[cfg(feature = "ui")]
+    #[test]
+    fn rejects_unsafe_static_rel_paths() {
+        assert!(is_safe_static_rel("index.html"));
+        assert!(is_safe_static_rel("assets/app.js"));
+        assert!(!is_safe_static_rel("../etc/passwd"));
+        assert!(!is_safe_static_rel("assets/../../etc/passwd"));
+        assert!(!is_safe_static_rel("/etc/passwd"));
+        assert!(!is_safe_static_rel("assets\\app.js"));
+        assert!(!is_safe_static_rel(""));
+    }
+
+    #[cfg(feature = "ui")]
+    #[test]
+    fn static_root_read_stays_under_dir() {
+        let dir = tempfile_dir();
+        std::fs::write(dir.join("ok.js"), b"ok").unwrap();
+        std::fs::write(dir.join("secret.txt"), b"secret").unwrap();
+        let outside = dir.parent().unwrap().join("outside.txt");
+        std::fs::write(&outside, b"leak").unwrap();
+
+        let root = dir.to_str().unwrap();
+        assert_eq!(
+            read_static_under_root(root, "ok.js").as_deref(),
+            Some(b"ok".as_slice())
+        );
+        assert!(read_static_under_root(root, "../outside.txt").is_none());
+        // Symlink escape (when the OS allows creating one).
+        let link = dir.join("escape.js");
+        #[cfg(unix)]
+        {
+            let _ = std::fs::remove_file(&link);
+            if std::os::unix::fs::symlink(&outside, &link).is_ok() {
+                assert!(
+                    read_static_under_root(root, "escape.js").is_none(),
+                    "symlink escape must be rejected"
+                );
+            }
+        }
+        let _ = outside;
+    }
+
+    #[cfg(feature = "ui")]
+    fn tempfile_dir() -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "marketfeed-ui-static-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
     }
 }
