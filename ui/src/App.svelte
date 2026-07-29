@@ -1491,7 +1491,8 @@
   @media (max-width: 1100px) {
     .workspace {
       grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
-      grid-template-rows: 1fr 40vh;
+      grid-template-rows: minmax(220px, 1fr) minmax(160px, 40%);
+      overflow-y: auto;
     }
     .col-right {
       grid-column: 1 / -1;
@@ -1500,17 +1501,21 @@
       border-top: 1px solid var(--border);
     }
     .markets-pane, .trades-pane { flex: 1; }
-    .analytics-dock.open { max-height: 45vh; }
+    .analytics-dock.open { max-height: 32vh; }
     .dock-hint { display: none; }
-    .of-chart-stack { grid-template-columns: 1fr; grid-template-rows: 1fr minmax(180px, 38%); }
-    .of-dom-side { border-left: none; border-top: 1px solid var(--border); }
+    .of-chart-stack { grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); }
   }
 
   @media (max-width: 720px) {
     .workspace {
       grid-template-columns: 1fr;
-      grid-template-rows: 45vh 40vh auto;
+      grid-template-rows: minmax(300px, 45vh) minmax(300px, 40vh) minmax(320px, 50vh);
     }
     .col-right { flex-direction: column; max-height: 50vh; }
+    .of-chart-stack {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(180px, 1fr) minmax(120px, 38%);
+    }
+    .of-dom-side { border-left: none; border-top: 1px solid var(--border); }
   }
 </style>
