@@ -905,7 +905,7 @@ impl SessionMachine for BinanceCoinmSession {
                 let mut params = Vec::new();
                 for s in &self.cfg.symbols {
                     let lower = s.to_ascii_lowercase();
-                    params.push(format!("{lower}@aggTrade"));
+                    params.push(format!("{lower}@trade"));
                     params.push(format!("{lower}@bookTicker"));
                     params.push(format!("{lower}@ticker"));
                     params.push(format!("{lower}@markPrice@1s"));

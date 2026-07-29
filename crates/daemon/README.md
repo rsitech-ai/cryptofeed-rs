@@ -8,6 +8,12 @@ inbound-frame counts. Adapter-driven deterministic replay is provided by the
 `marketfeed-replay` library and engine integration tests; the daemon command
 does not yet execute the full adapter state machine.
 
+Optional features:
+- `ui-api` — loopback JSON view plane (`/v1/status`, `/v1/books`, `/v1/tape`)
+- `ui` — `ui-api` + embedded SPA from `ui/dist` (see [`docs/ops/ui.md`](../../docs/ops/ui.md))
+
+Ops dashboards: [`docs/ops/grafana/README.md`](../../docs/ops/grafana/README.md).
+
 ## Config
 
 See [`config.example.toml`](./config.example.toml) and [`config.offline.toml`](./config.offline.toml).
@@ -15,6 +21,10 @@ See [`config.example.toml`](./config.example.toml) and [`config.offline.toml`](.
 ```bash
 cargo run -p marketfeed-daemon -- validate --config crates/daemon/config.example.toml
 cargo run -p marketfeed-daemon -- run --config crates/daemon/config.offline.toml
+
+# View API + SPA (offline synthetic)
+cargo run -p marketfeed-daemon --features ui -- run --config crates/daemon/config.offline.toml
+# then open http://127.0.0.1:19109/
 ```
 
 ### Sink isolation and readiness

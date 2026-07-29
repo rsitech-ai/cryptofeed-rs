@@ -867,6 +867,7 @@ dependencies = [
  "marketfeed-adapter-kraken",
  "marketfeed-adapter-okx",
  "marketfeed-adapter-synthetic",
+ "marketfeed-book",
  "marketfeed-dispatch",
  "marketfeed-engine",
  "marketfeed-model",

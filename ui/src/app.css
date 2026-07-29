@@ -1,0 +1,69 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0e11;
+  --panel: #12161c;
+  --panel-2: #0f1318;
+  --border: #1e2329;
+  --text: #eaecef;
+  --text-dim: #b7bdc6;
+  --muted: #848e9c;
+  --bid: #02c076;
+  --ask: #f6465d;
+  --bid-depth: rgba(2, 192, 118, 0.14);
+  --ask-depth: rgba(246, 70, 93, 0.14);
+  --accent: #f0b90b;
+  --mono: "IBM Plex Mono", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* comfortable density (default) */
+  --header-pad: 0.4rem 0.75rem;
+  --header-h: 56px;
+  --panel-pad: 0.4rem 0.5rem;
+  --row-pad: 0.05rem 0.5rem;
+  --row-font: 0.72rem;
+}
+
+.terminal.density-compact {
+  --header-pad: 0.25rem 0.5rem;
+  --header-h: 44px;
+  --panel-pad: 0.25rem 0.35rem;
+  --row-pad: 0.02rem 0.35rem;
+  --row-font: 0.65rem;
+  font-size: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2b3139;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}

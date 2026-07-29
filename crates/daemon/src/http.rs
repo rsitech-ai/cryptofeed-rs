@@ -1,4 +1,4 @@
-//! Minimal HTTP/1.1 server for `/live`, `/ready`, `/metrics`.
+//! Minimal HTTP/1.1 server for `/live`, `/ready`, `/metrics` (+ `/v1/*` with `ui-api`).
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -33,7 +33,7 @@ pub async fn serve(listener: TcpListener, state: Arc<DaemonState>) -> std::io::R
 }
 
 async fn handle_conn(mut stream: TcpStream, state: Arc<DaemonState>) -> std::io::Result<()> {
-    let mut buf = vec![0u8; 4096];
+    let mut buf = vec![0u8; 8192];
     let n = timeout(IO_TIMEOUT, stream.read(&mut buf))
         .await
         .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "health read timeout"))??;
@@ -41,8 +41,23 @@ async fn handle_conn(mut stream: TcpStream, state: Arc<DaemonState>) -> std::io:
         return Ok(());
     }
     let req = String::from_utf8_lossy(&buf[..n]);
-    let path = parse_path(&req).unwrap_or("/");
+    let path = request_path(&req).unwrap_or("/");
     state.http_requests.fetch_add(1, Ordering::Relaxed);
+
+    #[cfg(feature = "ui-api")]
+    if path.starts_with("/v1/") || path == "/" || path.starts_with("/assets/") {
+        // When ui_bind is unset (or equals bind), view routes share this listener.
+        let ui_separate = state
+            .config
+            .telemetry
+            .ui_bind
+            .as_ref()
+            .map(|b| b != &state.config.telemetry.bind)
+            .unwrap_or(false);
+        if !ui_separate {
+            return crate::view::handle_view_conn_with_prefix(stream, state, &buf[..n]).await;
+        }
+    }
 
     let (status, content_type, body) = match path {
         "/live" => {
@@ -77,13 +92,10 @@ async fn handle_conn(mut stream: TcpStream, state: Arc<DaemonState>) -> std::io:
     Ok(())
 }
 
-fn parse_path(req: &str) -> Option<&str> {
+fn request_path(req: &str) -> Option<&str> {
     let line = req.lines().next()?;
     let mut parts = line.split_whitespace();
-    let method = parts.next()?;
-    if method != "GET" && method != "HEAD" {
-        return None;
-    }
+    parts.next()?; // method
     let target = parts.next()?;
     Some(target.split('?').next().unwrap_or(target))
 }

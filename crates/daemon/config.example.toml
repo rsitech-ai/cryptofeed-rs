@@ -15,6 +15,12 @@ shutdown_deadline_secs = 20
 log_format = "json"
 log_level = "info"
 bind = "127.0.0.1:9108"
+# Optional loopback view API / SPA (requires `--features ui-api` or `ui`).
+# When unset, /v1/* shares `bind` if the feature is compiled in.
+# ui_bind = "127.0.0.1:9109"
+# ui_tape_capacity = 256
+# ui_tape_max_per_sec = 50
+# ui_static_dir = "./ui/dist"
 
 [readiness]
 require_running = true
@@ -146,7 +152,9 @@ id = "okx-futures"
 adapter = "okx"
 segment = "futures"
 required = false
-symbols = ["BTC-USDT-250926"]
+# OKX discontinued BTC/ETH USDT-margined expiry futures (final expiry 2026-06-26).
+# Coin-margined BTC-USD dated futures remain listed; roll this symbol as contracts expire.
+symbols = ["BTC-USD-260925"]
 channels = ["trades", "ticker", "l2"]
 
 [[venues]]
@@ -200,7 +208,9 @@ adapter = "coinbase"
 segment = "spot"
 required = false
 symbols = ["BTC-USD"]
-channels = ["trades", "quote", "l2"]
+# L2 on Exchange Classic requires COINBASE_EXCHANGE_API_KEY / _SECRET / _PASSPHRASE.
+# Keep trades/quote anonymous by default so unattended example runs stay public-only.
+channels = ["trades", "quote"]
 
 [[venues]]
 id = "coinbase-adv"

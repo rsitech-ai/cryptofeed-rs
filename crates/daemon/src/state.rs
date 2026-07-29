@@ -13,6 +13,8 @@ use marketfeed_recording::{
 use crate::config::{DaemonConfig, ReadinessConfig};
 use crate::reload::ReloadableConfig;
 use crate::sinks::DaemonSinks;
+#[cfg(feature = "ui-api")]
+use crate::view::ViewPlane;
 
 fn prometheus_label_value(value: &str) -> String {
     value
@@ -55,6 +57,9 @@ pub struct DaemonState {
     pub shutdown_draining: AtomicBool,
     pub http_requests: AtomicU64,
     pub started_unix_secs: u64,
+    /// Optional view plane (feature `ui-api`): books + tape for `/v1/*`.
+    #[cfg(feature = "ui-api")]
+    pub view: Option<Arc<ViewPlane>>,
 }
 
 impl DaemonState {
@@ -102,6 +107,8 @@ impl DaemonState {
             .map(|d| d.as_secs())
             .unwrap_or(0);
         let reloadable = ReloadableConfig::from_daemon(&config);
+        #[cfg(feature = "ui-api")]
+        let view = Some(Arc::new(ViewPlane::from_daemon_config(&config)));
         Ok(Arc::new(Self {
             config,
             reloadable: Mutex::new(reloadable),
@@ -123,6 +130,8 @@ impl DaemonState {
             shutdown_draining: AtomicBool::new(false),
             http_requests: AtomicU64::new(0),
             started_unix_secs,
+            #[cfg(feature = "ui-api")]
+            view,
         }))
     }
 

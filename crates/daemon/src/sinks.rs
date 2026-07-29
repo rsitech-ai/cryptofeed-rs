@@ -9,6 +9,8 @@ use std::thread::JoinHandle;
 use marketfeed_adapter_api::EventBatch;
 use marketfeed_dispatch::PushOutcome;
 use marketfeed_model::SystemEvent;
+#[cfg(feature = "ui-api")]
+use marketfeed_model::VenueId;
 use marketfeed_sinks::{
     EventSink, FileSink, LoggingSink, MemorySink, ProtobufBinaryFileSink, ProtobufFileSink,
     SinkError, SpillWalConfig, SpillWalSink, UdpSink,
@@ -20,6 +22,8 @@ use marketfeed_sinks::KafkaSink;
 use marketfeed_sinks::NatsSink;
 
 use crate::config::{DaemonConfig, SinkKind};
+#[cfg(feature = "ui-api")]
+use crate::view::{SharedViewPlane, ViewPlane};
 
 fn merge_outcome(aggregate: &mut PushOutcome, next: PushOutcome) {
     match (&mut *aggregate, next) {
@@ -847,21 +851,49 @@ impl EventSink for DaemonSinks {
 
 /// `EventSink` that locks shared daemon sinks per push (venues share one set).
 #[derive(Debug, Clone)]
-pub struct SharedDaemonSinks(pub Arc<Mutex<DaemonSinks>>);
+pub struct SharedDaemonSinks {
+    pub sinks: Arc<Mutex<DaemonSinks>>,
+    #[cfg(feature = "ui-api")]
+    view: Option<SharedViewPlane>,
+}
 
 impl SharedDaemonSinks {
     pub fn new(inner: Arc<Mutex<DaemonSinks>>) -> Self {
-        Self(inner)
+        Self {
+            sinks: inner,
+            #[cfg(feature = "ui-api")]
+            view: None,
+        }
+    }
+
+    #[cfg(feature = "ui-api")]
+    pub fn with_view(
+        inner: Arc<Mutex<DaemonSinks>>,
+        view: Option<Arc<ViewPlane>>,
+        venue: VenueId,
+    ) -> Self {
+        Self {
+            sinks: inner,
+            view: view.map(|view| SharedViewPlane::for_venue(view, venue)),
+        }
     }
 }
 
 impl EventSink for SharedDaemonSinks {
     fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, SinkError> {
-        self.0.lock().expect("sinks lock").push_batch(batch)
+        #[cfg(feature = "ui-api")]
+        if let Some(view) = &mut self.view {
+            let _ = view.push_batch(batch.clone())?;
+        }
+        self.sinks.lock().expect("sinks lock").push_batch(batch)
     }
 
     fn push_system(&mut self, event: SystemEvent) -> Result<PushOutcome, SinkError> {
-        self.0.lock().expect("sinks lock").push_system(event)
+        #[cfg(feature = "ui-api")]
+        if let Some(view) = &mut self.view {
+            let _ = view.push_system(event.clone())?;
+        }
+        self.sinks.lock().expect("sinks lock").push_system(event)
     }
 }
 

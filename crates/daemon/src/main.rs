@@ -362,6 +362,7 @@ async fn main() {
             tracing::info!(
                 config = %path.display(),
                 bind = %cfg.telemetry.bind,
+                ui_bind = ?cfg.telemetry.ui_bind,
                 venues = cfg.venues.len(),
                 private_binance_spot = cfg.private.binance_spot.enabled,
                 private_okx_spot = cfg.private.okx_spot.enabled,
@@ -393,6 +394,30 @@ async fn main() {
                 }
             });
 
+            #[cfg(feature = "ui-api")]
+            {
+                if let Some(ui_addr) = cfg.ui_bind_addr().expect("validated ui_bind") {
+                    if ui_addr != addr {
+                        let ui_listener = TcpListener::bind(ui_addr).await.unwrap_or_else(|e| {
+                            tracing::error!(error = %e, %ui_addr, "ui_bind failed");
+                            std::process::exit(1);
+                        });
+                        tracing::info!(%ui_addr, "view API listening");
+                        let ui_state = Arc::clone(&state);
+                        tokio::spawn(async move {
+                            if let Err(e) =
+                                marketfeed_daemon::serve_view(ui_listener, ui_state).await
+                            {
+                                tracing::error!(error = %e, "view server exited");
+                            }
+                        });
+                    } else {
+                        tracing::info!(%addr, "view API sharing telemetry.bind");
+                    }
+                } else {
+                    tracing::info!(%addr, "view API enabled on telemetry.bind (/v1/*)");
+                }
+            }
             // §21.4: SIGHUP re-validates TOML; applies log_level/readiness; else restart required.
             let reload_state = Arc::clone(&state);
             let reload_path = path.clone();

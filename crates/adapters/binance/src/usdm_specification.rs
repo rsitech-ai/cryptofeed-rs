@@ -76,7 +76,8 @@ pub fn combined_stream_url(
 ) -> String {
     let mut streams = Vec::new();
     for s in symbols_lower {
-        streams.push(format!("{s}@aggTrade"));
+        // Binance USD-M `@aggTrade` is currently silent on fstream; `@trade` is live.
+        streams.push(format!("{s}@trade"));
         streams.push(format!("{s}@bookTicker"));
         streams.push(format!("{s}@ticker"));
         streams.push(format!("{s}@markPrice@1s"));

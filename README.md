@@ -37,6 +37,9 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
   `.proto` schema is not compiled and has no generated-stub or breaking-change
   CI gate yet.
 - Daemon health endpoints (`/live`, `/ready`) and Prometheus-format `/metrics`.
+- Optional loopback view API + SPA (`--features ui`): see
+  [`docs/ops/ui.md`](docs/ops/ui.md). Grafana/Prometheus ops:
+  [`docs/ops/grafana/README.md`](docs/ops/grafana/README.md).
 
 The authoritative architecture and behavior specification is
 [`docs/spec/production_rust_multi_exchange_market_data_spec.md`](docs/spec/production_rust_multi_exchange_market_data_spec.md).
