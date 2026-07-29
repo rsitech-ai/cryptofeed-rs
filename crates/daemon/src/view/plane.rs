@@ -334,6 +334,8 @@ pub struct ViewPlane {
     inner: Mutex<ViewInner>,
     batches_seen: AtomicU64,
     tape_dropped: AtomicU64,
+    /// Venue context for the direct `EventSink` implementation.
+    sink_venue: Option<VenueId>,
 }
 
 impl ViewPlane {
@@ -343,6 +345,7 @@ impl ViewPlane {
             inner: Mutex::new(ViewInner::default()),
             batches_seen: AtomicU64::new(0),
             tape_dropped: AtomicU64::new(0),
+            sink_venue: None,
         }
     }
 
@@ -410,13 +413,15 @@ impl ViewPlane {
                 .unwrap_or(false);
             let m = state.venue_metrics.get(&v.id);
             let venue_id = inner.venue_ids.get(&v.id).copied();
-            let (tape_trades, tape_trades_dropped, tape_quotes, tape_quotes_dropped) =
-                venue_id
-                    .map(|vid| inner.venue_tape_stats(vid))
-                    .unwrap_or((0, 0, 0, 0));
-            let last_event_ts_ns = venue_id.and_then(|vid| inner.venue_last_event_ts.get(&vid).copied());
-            let last_trade_ts_ns = venue_id.and_then(|vid| inner.venue_last_trade_ts.get(&vid).copied());
-            let last_quote_ts_ns = venue_id.and_then(|vid| inner.venue_last_quote_ts.get(&vid).copied());
+            let (tape_trades, tape_trades_dropped, tape_quotes, tape_quotes_dropped) = venue_id
+                .map(|vid| inner.venue_tape_stats(vid))
+                .unwrap_or((0, 0, 0, 0));
+            let last_event_ts_ns =
+                venue_id.and_then(|vid| inner.venue_last_event_ts.get(&vid).copied());
+            let last_trade_ts_ns =
+                venue_id.and_then(|vid| inner.venue_last_trade_ts.get(&vid).copied());
+            let last_quote_ts_ns =
+                venue_id.and_then(|vid| inner.venue_last_quote_ts.get(&vid).copied());
             let feed_lag_ms = last_event_ts_ns.and_then(|ts| {
                 if ts > 0 && now_ns >= ts {
                     Some(((now_ns - ts) / 1_000_000) as u64)
@@ -440,7 +445,9 @@ impl ViewPlane {
                 book_invalidations: m
                     .map(|x| x.book_invalidations.load(Ordering::Relaxed))
                     .unwrap_or(0),
-                valid_books: m.map(|x| x.valid_books.load(Ordering::Relaxed)).unwrap_or(0),
+                valid_books: m
+                    .map(|x| x.valid_books.load(Ordering::Relaxed))
+                    .unwrap_or(0),
                 queue_occupancy: m
                     .map(|x| x.batch_queue_occupancy.load(Ordering::Relaxed))
                     .unwrap_or(0),
@@ -604,8 +611,13 @@ impl ViewPlane {
         })
     }
 
-    fn ingest_batch(&self, batch: &EventBatch) {
+    fn ingest_batch(&self, batch: &EventBatch) -> Option<VenueId> {
         self.batches_seen.fetch_add(1, Ordering::Relaxed);
+        let sink_venue = batch
+            .events
+            .first()
+            .map(|event| event.venue)
+            .filter(|venue| batch.events.iter().all(|event| event.venue == *venue));
         let mut inner = self.inner.lock().expect("view lock");
         for ev in &batch.events {
             let venue_id = ev.venue;
@@ -628,9 +640,7 @@ impl ViewPlane {
                 .or_insert(venue_id);
 
             let receive_ts = ev.receive_ts.0;
-            inner
-                .venue_last_event_ts
-                .insert(venue_id, receive_ts);
+            inner.venue_last_event_ts.insert(venue_id, receive_ts);
 
             match &ev.payload {
                 MarketEvent::BookSnapshot(snap) => {
@@ -664,9 +674,12 @@ impl ViewPlane {
                         exchange_ts_ns: ev.exchange_ts.map(|t| t.0),
                         receive_ts_ns: receive_ts,
                     };
-                    let ring = inner.tapes.entry((venue_id, instrument)).or_insert_with(|| {
-                        InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
-                    });
+                    let ring = inner
+                        .tapes
+                        .entry((venue_id, instrument))
+                        .or_insert_with(|| {
+                            InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
+                        });
                     let dropped = ring.push_trade(entry);
                     if dropped > 0 {
                         self.tape_dropped.fetch_add(dropped, Ordering::Relaxed);
@@ -689,9 +702,12 @@ impl ViewPlane {
                         exchange_ts_ns: ev.exchange_ts.map(|t| t.0),
                         receive_ts_ns: receive_ts,
                     };
-                    let ring = inner.tapes.entry((venue_id, instrument)).or_insert_with(|| {
-                        InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
-                    });
+                    let ring = inner
+                        .tapes
+                        .entry((venue_id, instrument))
+                        .or_insert_with(|| {
+                            InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
+                        });
                     let dropped = ring.push_quote(entry);
                     if dropped > 0 {
                         self.tape_dropped.fetch_add(dropped, Ordering::Relaxed);
@@ -700,6 +716,19 @@ impl ViewPlane {
                 _ => {}
             }
         }
+        sink_venue
+    }
+
+    fn ingest_system(&self, sink_venue: Option<VenueId>, event: &SystemEvent) {
+        let (Some(venue), SystemEvent::BookInvalidated { instrument, .. }) = (sink_venue, event)
+        else {
+            return;
+        };
+        self.inner
+            .lock()
+            .expect("view lock")
+            .books
+            .remove(&(venue, *instrument));
     }
 }
 
@@ -726,32 +755,42 @@ impl ViewInner {
 
 impl EventSink for ViewPlane {
     fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, SinkError> {
-        self.ingest_batch(&batch);
+        if let Some(venue) = self.ingest_batch(&batch) {
+            self.sink_venue = Some(venue);
+        }
         Ok(PushOutcome::Accepted)
     }
 
-    fn push_system(&mut self, _event: SystemEvent) -> Result<PushOutcome, SinkError> {
+    fn push_system(&mut self, event: SystemEvent) -> Result<PushOutcome, SinkError> {
+        self.ingest_system(self.sink_venue, &event);
         Ok(PushOutcome::Accepted)
     }
 }
 
 /// Shared `Arc` wrapper so venues can fan-out without owning the plane.
 #[derive(Debug, Clone)]
-pub struct SharedViewPlane(pub std::sync::Arc<ViewPlane>);
+pub struct SharedViewPlane(pub std::sync::Arc<ViewPlane>, Option<VenueId>);
 
 impl SharedViewPlane {
     pub fn new(inner: std::sync::Arc<ViewPlane>) -> Self {
-        Self(inner)
+        Self(inner, None)
+    }
+
+    pub fn for_venue(inner: std::sync::Arc<ViewPlane>, venue: VenueId) -> Self {
+        Self(inner, Some(venue))
     }
 }
 
 impl EventSink for SharedViewPlane {
     fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, SinkError> {
-        self.0.ingest_batch(&batch);
+        if let Some(venue) = self.0.ingest_batch(&batch) {
+            self.1 = Some(venue);
+        }
         Ok(PushOutcome::Accepted)
     }
 
-    fn push_system(&mut self, _event: SystemEvent) -> Result<PushOutcome, SinkError> {
+    fn push_system(&mut self, event: SystemEvent) -> Result<PushOutcome, SinkError> {
+        self.0.ingest_system(self.1, &event);
         Ok(PushOutcome::Accepted)
     }
 }
@@ -799,10 +838,7 @@ fn format_fixed(f: Fixed) -> String {
 fn notional_fixed(price: Fixed, qty: Fixed) -> Option<Fixed> {
     let scale = price.scale.checked_add(qty.scale)?;
     let coefficient = price.coefficient.checked_mul(qty.coefficient)?;
-    Some(Fixed {
-        coefficient,
-        scale,
-    })
+    Some(Fixed { coefficient, scale })
 }
 
 #[cfg(test)]
@@ -890,6 +926,39 @@ mod tests {
         }
     }
 
+    fn book_batch(venue: VenueId, instrument: InstrumentId, bid: &str, ask: &str) -> EventBatch {
+        let snap = BookSnapshot {
+            bids: vec![BookLevel {
+                price: Price(Fixed::parse_str(bid).unwrap()),
+                quantity: Quantity(Fixed::parse_str("1.5").unwrap()),
+            }],
+            asks: vec![BookLevel {
+                price: Price(Fixed::parse_str(ask).unwrap()),
+                quantity: Quantity(Fixed::parse_str("2.0").unwrap()),
+            }],
+            depth: Some(50),
+            checksum: None,
+        };
+        EventBatch {
+            session: SessionId(1),
+            frame_seq: 1,
+            events: vec![EventEnvelope {
+                schema_version: 1,
+                venue,
+                instrument: Some(instrument),
+                connection: ConnectionId(1),
+                session: SessionId(1),
+                frame_seq: 1,
+                event_index: 0,
+                exchange_ts: None,
+                receive_ts: TimestampNs(1),
+                source_sequence: None,
+                flags: EventFlags::default(),
+                payload: MarketEvent::BookSnapshot(snap),
+            }],
+        }
+    }
+
     #[test]
     fn quote_flood_does_not_evict_trades() {
         let plane = ViewPlane::new(ViewPlaneConfig {
@@ -904,18 +973,15 @@ mod tests {
         for i in 0..20 {
             let bid = format!("{}", 99 + i);
             let ask = format!("{}", 101 + i);
-            sink.push_batch(quote_batch(
-                VenueId(7),
-                InstrumentId(1),
-                &bid,
-                &ask,
-            ))
-            .unwrap();
+            sink.push_batch(quote_batch(VenueId(7), InstrumentId(1), &bid, &ask))
+                .unwrap();
         }
         let trades = plane.tape_filtered("syn", InstrumentId(1), 10, Some("trade"));
         assert_eq!(trades.len(), 1);
         match &trades[0] {
-            TapeEntry::Trade { price, quantity, .. } => {
+            TapeEntry::Trade {
+                price, quantity, ..
+            } => {
                 assert_eq!(price, "100");
                 assert_eq!(quantity, "0.5");
             }
@@ -929,42 +995,63 @@ mod tests {
     fn book_snapshot_from_events() {
         let plane = ViewPlane::new(ViewPlaneConfig::default());
         plane.register_venue(VenueId(1), "syn", &["BTC-USD".into()]);
-        let snap = BookSnapshot {
-            bids: vec![BookLevel {
-                price: Price(Fixed::parse_str("100.00").unwrap()),
-                quantity: Quantity(Fixed::parse_str("1.5").unwrap()),
-            }],
-            asks: vec![BookLevel {
-                price: Price(Fixed::parse_str("101.00").unwrap()),
-                quantity: Quantity(Fixed::parse_str("2.0").unwrap()),
-            }],
-            depth: Some(50),
-            checksum: None,
-        };
-        let batch = EventBatch {
-            session: SessionId(1),
-            frame_seq: 1,
-            events: vec![EventEnvelope {
-                schema_version: 1,
-                venue: VenueId(1),
-                instrument: Some(InstrumentId(1)),
-                connection: ConnectionId(1),
-                session: SessionId(1),
-                frame_seq: 1,
-                event_index: 0,
-                exchange_ts: None,
-                receive_ts: TimestampNs(1),
-                source_sequence: None,
-                flags: EventFlags::default(),
-                payload: MarketEvent::BookSnapshot(snap),
-            }],
-        };
         let mut sink = SharedViewPlane::new(std::sync::Arc::new(plane));
-        sink.push_batch(batch).unwrap();
-        let view = sink.0.book_snapshot("syn", InstrumentId(1), Some(1)).unwrap();
+        sink.push_batch(book_batch(VenueId(1), InstrumentId(1), "100.00", "101.00"))
+            .unwrap();
+        let view = sink
+            .0
+            .book_snapshot("syn", InstrumentId(1), Some(1))
+            .unwrap();
         assert_eq!(view.bids.len(), 1);
         assert_eq!(view.asks[0].price, "101.00");
         assert_eq!(view.symbol.as_deref(), Some("BTC-USD"));
+    }
+
+    #[test]
+    fn direct_sink_book_invalidation_removes_only_current_venue_instrument() {
+        let mut plane = ViewPlane::new(ViewPlaneConfig::default());
+        plane.register_venue(VenueId(1), "one", &["BTC-USD".into()]);
+        plane.register_venue(VenueId(2), "two", &["BTC-USD".into()]);
+        plane
+            .push_batch(book_batch(VenueId(2), InstrumentId(1), "200", "201"))
+            .unwrap();
+        plane
+            .push_batch(book_batch(VenueId(1), InstrumentId(1), "100", "101"))
+            .unwrap();
+
+        plane
+            .push_system(SystemEvent::BookInvalidated {
+                instrument: InstrumentId(1),
+                reason: "sequence gap".into(),
+            })
+            .unwrap();
+
+        assert!(plane.book_snapshot("one", InstrumentId(1), None).is_none());
+        assert!(plane.book_snapshot("two", InstrumentId(1), None).is_some());
+    }
+
+    #[test]
+    fn shared_sink_book_invalidation_removes_only_current_venue_instrument() {
+        let plane = std::sync::Arc::new(ViewPlane::new(ViewPlaneConfig::default()));
+        plane.register_venue(VenueId(1), "one", &["BTC-USD".into()]);
+        plane.register_venue(VenueId(2), "two", &["BTC-USD".into()]);
+        let mut one = SharedViewPlane::for_venue(std::sync::Arc::clone(&plane), VenueId(1));
+        let mut two = SharedViewPlane::for_venue(std::sync::Arc::clone(&plane), VenueId(2));
+        one.push_batch(book_batch(VenueId(1), InstrumentId(1), "100", "101"))
+            .unwrap();
+        two.push_batch(book_batch(VenueId(2), InstrumentId(1), "200", "201"))
+            .unwrap();
+
+        let mut fresh_one = SharedViewPlane::for_venue(std::sync::Arc::clone(&plane), VenueId(1));
+        fresh_one
+            .push_system(SystemEvent::BookInvalidated {
+                instrument: InstrumentId(1),
+                reason: "checksum".into(),
+            })
+            .unwrap();
+
+        assert!(plane.book_snapshot("one", InstrumentId(1), None).is_none());
+        assert!(plane.book_snapshot("two", InstrumentId(1), None).is_some());
     }
 
     #[test]

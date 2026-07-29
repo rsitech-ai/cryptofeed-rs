@@ -4,6 +4,9 @@
 
 name: soak-skeleton
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -20,15 +23,20 @@ jobs:
   offline-synthetic:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal
       - name: Offline synthetic soak
         env:
+          DURATION_HINT: ${{ github.event.inputs.duration_hint }}
           SOAK_SECS: ${{ github.event.inputs.soak_secs || '5' }}
           MARKETFEED_BIND_PORT: "19108"
         run: |
-          echo "Duration hint (ops live soak): ${{ github.event.inputs.duration_hint }}"
+          set -euo pipefail
+          [[ "$SOAK_SECS" =~ ^[0-9]+$ ]]
+          (( SOAK_SECS >= 1 && SOAK_SECS <= 3600 ))
+          printf 'Duration hint (ops live soak): %s\n' "$DURATION_HINT"
           echo "See docs/ops/soak_runbook.md"
-          chmod +x scripts/offline_daemon_e2e.sh
           ./scripts/offline_daemon_e2e.sh

@@ -35,6 +35,7 @@
     spreadBpsFromBook,
   } from './lib/pulse.js';
   import { createPaintGate } from './lib/paint.js';
+  import { Book404Gate, isCurrentMarket } from './lib/contracts.js';
   import HeaderBar from './components/HeaderBar.svelte';
   import OrderBook from './components/OrderBook.svelte';
   import PriceChart from './components/PriceChart.svelte';
@@ -129,8 +130,9 @@
   /** Accumulated focus trades for Order Flow vol/CVD/VAP (SSE batches alone are too short). */
   /** @type {Map<string, object>} */
   let focusTapeRing = new Map();
-  /** Venues that answered /v1/books with 404 — skip further book polls. */
-  let bookUnsupported = new Set();
+  /** Temporary venue+symbol 404 backoff; successful responses clear it. */
+  const book404Gate = new Book404Gate();
+  let focusGeneration = 0;
   /** @type {object|null} */
   let pendingFocusBook = null;
   /** @type {object[]|null} */
@@ -198,6 +200,8 @@
     },
     onFocus: (f) => {
       if (replayMode || !f) return;
+      const expected = mapped.some((m) => m.venue === f.venue && m.symbol === f.symbol);
+      if (!expected) return;
       if (f.book) applyFocusBook(f.venue, f.symbol, f.book);
       if (f.tape?.length) {
         applyFocusTape(f.venue, f.symbol, f.tape);
@@ -313,15 +317,23 @@
   let lastHeatBookAt = 0;
   async function refreshHeatBook() {
     if (chartMode !== 'orderflow' || !selectedVenue || !selectedSymbol || replayMode) return;
+    const requestVenue = selectedVenue;
+    const requestSymbol = selectedSymbol;
+    const requestGeneration = focusGeneration;
     const now = Date.now();
     if (now - lastHeatBookAt < 350) return;
     lastHeatBookAt = now;
     try {
       const data = await fetchJson(
-        bookQuery(selectedVenue, selectedSymbol, HEAT_BOOK_DEPTH),
+        bookQuery(requestVenue, requestSymbol, HEAT_BOOK_DEPTH),
       );
-      if (data) {
-        applyFocusBook(selectedVenue, selectedSymbol, data);
+      if (
+        data &&
+        requestGeneration === focusGeneration &&
+        isCurrentMarket(requestVenue, requestSymbol, selectedVenue, selectedSymbol)
+      ) {
+        book404Gate.clear(requestVenue, requestSymbol);
+        applyFocusBook(requestVenue, requestSymbol, data);
       }
     } catch {
       /* keep last good depth ring */
@@ -446,7 +458,7 @@
       };
     }
     status = s;
-    if (s?.grafana_url && !grafanaUrl) grafanaUrl = s.grafana_url;
+    if (s?.grafana_base_url && !grafanaUrl) grafanaUrl = s.grafana_base_url;
   }
 
   function persist(patch) {
@@ -497,7 +509,7 @@
     const a = createAlert(
       'info',
       `Pulse spike ${score != null ? score.toFixed(0) : '?'}`,
-      `${selectedAsset} multi-venue activity heat`,
+      `${selectedAsset} multi-venue activity heat · in-app/webhook only`,
     );
     alerts = [...alerts, a];
     fireAlert(a, {
@@ -550,7 +562,10 @@
 
   async function fireAlert(alert, payload) {
     if (webhookUrl) await sendWebhook(webhookUrl, { ...payload, alert });
-    await testDaemonAlert(payload);
+    const delivery = await testDaemonAlert(payload);
+    if (!delivery.ok && !delivery.skipped) {
+      error = `Alert delivery failed${delivery.status ? ` (${delivery.status})` : ''}`;
+    }
   }
 
   function dismissAlert(id) {
@@ -602,6 +617,7 @@
     pulseHistory = [];
     pulseAlertActive = false;
     venueBookSnaps = new Map();
+    book404Gate.clearAll();
     resetFocusSeries(true);
   }
 
@@ -609,6 +625,7 @@
     const key = `${selectedVenue}|${selectedSymbol}`;
     if (!force && key === focusKey) return;
     focusKey = key;
+    focusGeneration += 1;
     candleBuilder.reset();
     candles = [];
     volumeBars = [];
@@ -798,20 +815,32 @@
     // SSE focus already delivers books — skip redundant poll to cut double-apply flicker.
     // Order Flow still refreshes deep L2 via refreshHeatBook.
     if (streamMode === 'sse' && stream.focusFresh(1200) && chartMode !== 'orderflow') return;
+    const requestVenue = selectedVenue;
+    const requestSymbol = selectedSymbol;
+    const requestGeneration = focusGeneration;
+    if (book404Gate.isSuppressed(requestVenue, requestSymbol)) return;
     try {
       const depth = chartMode === 'orderflow' ? Math.max(bookDepth, HEAT_BOOK_DEPTH) : bookDepth;
-      const data = await fetchJson(bookQuery(selectedVenue, selectedSymbol, depth));
-      applyFocusBook(selectedVenue, selectedSymbol, data);
+      const data = await fetchJson(bookQuery(requestVenue, requestSymbol, depth));
+      if (
+        requestGeneration !== focusGeneration ||
+        !isCurrentMarket(requestVenue, requestSymbol, selectedVenue, selectedSymbol)
+      ) return;
+      book404Gate.clear(requestVenue, requestSymbol);
+      applyFocusBook(requestVenue, requestSymbol, data);
       const b = Number(data?.bids?.[0]?.price);
       const a = Number(data?.asks?.[0]?.price);
       if (Number.isFinite(b) && Number.isFinite(a)) {
         const midPx = (b + a) / 2;
         candleBuilder.touchPrice(midPx);
-        tracker.touch(selectedVenue, midPx);
+        tracker.touch(requestVenue, midPx);
         syncCandleView();
         syncLineView();
       }
-    } catch {
+    } catch (e) {
+      if (String(e?.message || e).includes('→ 404')) {
+        book404Gate.suppress(requestVenue, requestSymbol);
+      }
       // Keep last good book — never blank the panel on transient 404/errors.
     }
   }
@@ -821,14 +850,21 @@
     // When SSE is actively delivering focus tape, skip redundant poll to cut load —
     // but always poll if focus is stale (broken SSE used to starve the tape).
     if (streamMode === 'sse' && stream.focusFresh(1200)) return;
+    const requestVenue = selectedVenue;
+    const requestSymbol = selectedSymbol;
+    const requestGeneration = focusGeneration;
     try {
       const lim = chartMode === 'orderflow' ? Math.max(tapeLimit, 400) : tapeLimit;
-      const data = await fetchJson(tapeQuery(selectedVenue, selectedSymbol, lim, 'trade'));
+      const data = await fetchJson(tapeQuery(requestVenue, requestSymbol, lim, 'trade'));
+      if (
+        requestGeneration !== focusGeneration ||
+        !isCurrentMarket(requestVenue, requestSymbol, selectedVenue, selectedSymbol)
+      ) return;
       const entries = data.entries || [];
-      updateFreshness(selectedVenue, selectedSymbol, entries);
+      updateFreshness(requestVenue, requestSymbol, entries);
       const prev = candleBuilder.lastPrice;
-      applyFocusTape(selectedVenue, selectedSymbol, entries);
-      tracker.ingest(selectedVenue, entries);
+      applyFocusTape(requestVenue, requestSymbol, entries);
+      tracker.ingest(requestVenue, entries);
       syncLineView();
       if (candleBuilder.lastPrice != null && prev != null) {
         if (candleBuilder.lastPrice > prev) priceDir = 1;
@@ -863,7 +899,7 @@
             const isFocus = t.venue === selectedVenue && t.symbol === selectedSymbol;
             const sv = statusVenues.find((v) => v.id === t.venue);
             const bookOk =
-              !bookUnsupported.has(t.venue) &&
+              !book404Gate.isSuppressed(t.venue, t.symbol) &&
               (sv?.book_available !== false || isFocus || venueBooks.has(`${t.venue}|${t.symbol}`));
             const tasks = [];
             if (!(isFocus && sseFresh)) {
@@ -878,10 +914,11 @@
                 fetch(`${bookQuery(t.venue, t.symbol, Math.min(10, bookDepth))}`)
                   .then(async (res) => {
                     if (res.status === 404) {
-                      bookUnsupported.add(t.venue);
+                      book404Gate.suppress(t.venue, t.symbol);
                       return null;
                     }
                     if (!res.ok) return null;
+                    book404Gate.clear(t.venue, t.symbol);
                     return res.json();
                   })
                   .catch(() => null),
@@ -890,10 +927,19 @@
               tasks.push(Promise.resolve(null));
             }
             const [tapeData, bookData] = await Promise.all(tasks);
+            const stillMapped = mapped.some(
+              (m) => m.venue === t.venue && m.symbol === t.symbol,
+            );
+            if (!stillMapped) return;
             if (tapeData?.entries) {
               tracker.ingest(t.venue, tapeData.entries);
               updateFreshness(t.venue, t.symbol, tapeData.entries);
-              if (isFocus) applyFocusTape(t.venue, t.symbol, tapeData.entries);
+              if (
+                isFocus &&
+                isCurrentMarket(t.venue, t.symbol, selectedVenue, selectedSymbol)
+              ) {
+                applyFocusTape(t.venue, t.symbol, tapeData.entries);
+              }
             }
             if (bookData) {
               applyFocusBook(t.venue, t.symbol, bookData);

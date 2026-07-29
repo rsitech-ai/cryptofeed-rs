@@ -1,5 +1,5 @@
-# Tag release provenance: CycloneDX SBOM artifact + build provenance attestation.
-# See docs/runbooks/release_provenance.md (spec §29).
+# Exact-tag release verification, reproducible packages, SBOM, and attestations.
+# Publication to a GitHub Release remains a separate approval-gated action.
 
 name: Release
 
@@ -11,68 +11,144 @@ on:
 permissions:
   contents: read
 
+env:
+  CARGO_TERM_COLOR: always
+  RUSTUP_TOOLCHAIN: "1.91.0"
+
 jobs:
-  sbom:
-    name: sbom (tag)
-    runs-on: ubuntu-latest
+  verify:
+    name: release gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: 1.91.0
+          fetch-depth: 0
+          persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: release-sbom
+      - name: Install pinned Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" \
+            --profile minimal \
+            --component rustfmt,clippy \
+            --no-self-update
+          rustc --version --verbose
 
-      - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx --locked
+      - name: Install pinned cargo-deny
+        run: cargo install cargo-deny --locked --version 0.20.2
 
-      - name: Generate CycloneDX SBOM
-        run: ./scripts/generate-sbom.sh
+      - name: Verify tag and release gates
+        run: |
+          set -euo pipefail
+          version="$(
+            awk '
+              $0 == "[workspace.package]" { inside = 1; next }
+              /^\[/ { inside = 0 }
+              inside && /^version = / {
+                gsub(/"/, "", $3)
+                print $3
+                exit
+              }
+            ' Cargo.toml
+          )"
+          test "$GITHUB_REF_NAME" = "v${version}"
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
+          cargo test --locked --workspace --all-targets --all-features
+          RUSTDOCFLAGS="-D warnings" \
+            cargo doc --locked --workspace --all-features --no-deps
+          cargo deny check
+          ./scripts/check-oss-readiness.sh
 
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: marketfeed-sbom-${{ github.ref_name }}
-          path: sbom/
-          if-no-files-found: error
-
-  # Real attestation (not stub). Job fails the release workflow when provenance
-  # cannot be published — do not add continue-on-error.
-  # Failure modes (expected / loud):
-  # - missing job permissions (id-token: write / attestations: write)
-  # - private repo without Artifact Attestations entitlement (Enterprise Cloud)
-  # - download-artifact miss if sbom job failed
-  attest:
-    name: attest (tag)
-    needs: sbom
-    runs-on: ubuntu-latest
+  package-and-attest:
+    name: package and attest (${{ matrix.target }})
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
     permissions:
       contents: read
       id-token: write
       attestations: write
-      actions: read
+      artifact-metadata: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - os: macos-15
+            target: aarch64-apple-darwin
     steps:
-      - name: Download SBOM artifact
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          name: marketfeed-sbom-${{ github.ref_name }}
-          path: sbom/
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Assert SBOM subjects exist
+      - name: Install pinned Rust and SBOM tooling
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          files=(sbom/*)
-          if (( ${#files[@]} == 0 )); then
-            echo "::error::No SBOM files under sbom/ — cannot attest (sbom job artifact empty?)"
-            exit 1
-          fi
-          ls -la sbom/
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" \
+            --profile minimal \
+            --no-self-update
+          cargo install cargo-cyclonedx --locked --version 0.5.9
+          actual_target="$(rustc -vV | awk '/^host: / { print $2 }')"
+          test "$actual_target" = "${{ matrix.target }}"
 
-      - name: Attest SBOM build provenance
-        uses: actions/attest-build-provenance@v2
+      - name: Build twice and prove reproducibility
+        run: |
+          set -euo pipefail
+          for run in first second; do
+            CARGO_TARGET_DIR="$RUNNER_TEMP/${run}/target" \
+              DIST_DIR="$RUNNER_TEMP/${run}/dist" \
+              ./scripts/package-release.sh
+          done
+
+          cmp \
+            "$RUNNER_TEMP/first/target/release/marketfeed" \
+            "$RUNNER_TEMP/second/target/release/marketfeed"
+          cmp "$RUNNER_TEMP/first/dist/"*.tar.gz \
+            "$RUNNER_TEMP/second/dist/"*.tar.gz
+          cmp "$RUNNER_TEMP/first/dist/"*.cdx.json \
+            "$RUNNER_TEMP/second/dist/"*.cdx.json
+          cmp "$RUNNER_TEMP/first/dist/"SHA256SUMS-* \
+            "$RUNNER_TEMP/second/dist/"SHA256SUMS-*
+          cmp "$RUNNER_TEMP/first/dist/"EVIDENCE-MANIFEST-*.txt \
+            "$RUNNER_TEMP/second/dist/"EVIDENCE-MANIFEST-*.txt
+
+          mkdir -p dist
+          cp "$RUNNER_TEMP/first/dist/"* dist/
+          cp "$RUNNER_TEMP/first/target/release/marketfeed" \
+            "dist/marketfeed-${{ matrix.target }}"
+
+          extract_dir="$RUNNER_TEMP/extract"
+          mkdir -p "$extract_dir"
+          tar -xzf dist/*.tar.gz -C "$extract_dir"
+          shopt -s nullglob
+          binaries=("$extract_dir"/marketfeed-*/marketfeed)
+          test "${#binaries[@]}" -eq 1
+          "${binaries[0]}" version
+          "${binaries[0]}" --help >/dev/null
+
+      - name: Attest release provenance
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
-          subject-path: sbom/**
+          subject-path: dist/*
+
+      - name: Bind SBOM to the released binary
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: dist/marketfeed-${{ matrix.target }}
+          sbom-path: dist/marketfeed-${{ github.ref_name }}-${{ matrix.target }}.cdx.json
+
+      - name: Preserve exact release subjects
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: marketfeed-${{ github.ref_name }}-${{ matrix.target }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 90

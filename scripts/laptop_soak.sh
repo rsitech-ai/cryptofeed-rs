@@ -154,7 +154,7 @@ awk -v host="$BIND_HOST" -v port="$BIND_PORT" '
 cp "$TMP_CFG" "${RUN_DIR}/config.runtime.toml"
 
 echo "starting marketfeed-daemon mode=${MODE}"
-cargo run -q -p marketfeed-daemon -- run --config "$TMP_CFG" \
+cargo run --locked -q -p marketfeed-daemon -- run --config "$TMP_CFG" \
   >"${RUN_DIR}/daemon.log" 2>&1 &
 CHILD_PID=$!
 

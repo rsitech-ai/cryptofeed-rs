@@ -381,6 +381,13 @@ fn default_segment_duration() -> String {
 fn default_queue_capacity() -> usize {
     8192
 }
+const MAX_DAEMON_QUEUE_CAPACITY: usize = 1_048_576;
+const MAX_DAEMON_SINKS: usize = 64;
+/// Process-wide cap for eagerly reserved queue slots. Every sink owns one
+/// worker mailbox plus the concrete sink's batch and system queues.
+const MAX_DAEMON_EAGER_QUEUE_SLOTS: usize = 1_048_576;
+const EAGER_QUEUES_PER_SINK: usize = 3;
+const EAGER_QUEUES_FOR_RECORDING: usize = 2;
 fn default_overflow() -> String {
     "fail_engine".into()
 }
@@ -431,6 +438,9 @@ pub struct SinkConfig {
     /// Optional label (diagnostics only).
     #[serde(default)]
     pub id: Option<String>,
+    /// When true, readiness fails after this sink worker becomes unhealthy.
+    #[serde(default)]
+    pub required: bool,
     #[serde(rename = "type")]
     pub sink_type: String,
     /// Required when `type = "file"` / `protobuf-file` / `protobuf-file-bin` / `spill-wal`.
@@ -924,13 +934,93 @@ impl DaemonConfig {
                     "recording.raw.queue_capacity must be > 0".into(),
                 ));
             }
+            if self.recording.raw.queue_capacity > MAX_DAEMON_QUEUE_CAPACITY {
+                return Err(ConfigError::Validation(format!(
+                    "recording.raw.queue_capacity must be <= {MAX_DAEMON_QUEUE_CAPACITY}"
+                )));
+            }
         }
+        if self.sinks.len() > MAX_DAEMON_SINKS {
+            return Err(ConfigError::Validation(format!(
+                "sinks must contain at most {MAX_DAEMON_SINKS} entries"
+            )));
+        }
+        let mut eager_queue_slots = if self.recording.raw.enabled {
+            self.recording
+                .raw
+                .queue_capacity
+                .checked_mul(EAGER_QUEUES_FOR_RECORDING)
+                .ok_or_else(|| {
+                    ConfigError::Validation(
+                        "recording.raw.queue_capacity overflows eager queue slot accounting".into(),
+                    )
+                })?
+        } else {
+            0
+        };
+        if eager_queue_slots > MAX_DAEMON_EAGER_QUEUE_SLOTS {
+            return Err(ConfigError::Validation(format!(
+                "recording and sinks reserve {eager_queue_slots} eager queue slots; maximum is {MAX_DAEMON_EAGER_QUEUE_SLOTS}"
+            )));
+        }
+        let mut sink_ids = HashSet::with_capacity(self.sinks.len());
         for (i, sink) in self.sinks.iter().enumerate() {
+            if let Some(id) = sink.id.as_deref() {
+                if id.trim().is_empty() {
+                    return Err(ConfigError::Validation(format!(
+                        "sinks[{i}].id must be non-empty when provided"
+                    )));
+                }
+                if id.trim() != id {
+                    return Err(ConfigError::Validation(format!(
+                        "sinks[{i}].id must not contain leading or trailing whitespace: {id:?}"
+                    )));
+                }
+                if id.contains('\0') {
+                    return Err(ConfigError::Validation(format!(
+                        "sinks[{i}].id must not contain NUL"
+                    )));
+                }
+                if !sink_ids.insert(id) {
+                    return Err(ConfigError::Validation(format!("duplicate sink id {id:?}")));
+                }
+            }
+            if sink.required && sink.id.is_none() {
+                return Err(ConfigError::Validation(format!(
+                    "sinks[{i}] required sink must have an explicit id"
+                )));
+            }
             let kind = sink.kind()?;
-            let _ = sink.overflow_policy()?;
+            let policy = sink.overflow_policy()?;
+            if sink.required && policy != OverflowPolicy::FailEngine {
+                return Err(ConfigError::Validation(format!(
+                    "sinks[{i}] required sink must use overflow=fail_engine (got {policy:?})"
+                )));
+            }
             if sink.capacity == 0 {
                 return Err(ConfigError::Validation(format!(
                     "sinks[{i}].capacity must be > 0"
+                )));
+            }
+            if sink.capacity > MAX_DAEMON_QUEUE_CAPACITY {
+                return Err(ConfigError::Validation(format!(
+                    "sinks[{i}].capacity must be <= {MAX_DAEMON_QUEUE_CAPACITY}"
+                )));
+            }
+            let sink_slots = sink
+                .capacity
+                .checked_mul(EAGER_QUEUES_PER_SINK)
+                .ok_or_else(|| {
+                    ConfigError::Validation(format!(
+                        "sinks[{i}].capacity overflows eager queue slot accounting"
+                    ))
+                })?;
+            eager_queue_slots = eager_queue_slots.checked_add(sink_slots).ok_or_else(|| {
+                ConfigError::Validation("aggregate eager queue slot accounting overflowed".into())
+            })?;
+            if eager_queue_slots > MAX_DAEMON_EAGER_QUEUE_SLOTS {
+                return Err(ConfigError::Validation(format!(
+                    "recording and sinks reserve {eager_queue_slots} eager queue slots; maximum is {MAX_DAEMON_EAGER_QUEUE_SLOTS}"
                 )));
             }
             if kind == SinkKind::File
@@ -948,6 +1038,9 @@ impl DaemonConfig {
                         "sinks[{i}].overflow must be spill_to_disk for type=spill-wal (got {policy:?})"
                     )));
                 }
+                return Err(ConfigError::Validation(format!(
+                    "sinks[{i}] type=spill-wal is not a standalone delivery sink: its in-memory prefix has no recovery consumer; attach WAL recovery to a real sink before enabling it in the daemon"
+                )));
             }
             if kind == SinkKind::Udp {
                 let _ = sink.udp_address()?;
@@ -1367,6 +1460,95 @@ mod tests {
     }
 
     #[test]
+    fn rejects_empty_or_duplicate_sink_ids() {
+        let empty = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [[sinks]]
+            id = " "
+            type = "memory"
+            "#,
+        )
+        .unwrap_err();
+        assert!(empty.to_string().contains("id must be non-empty"));
+
+        let duplicate = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [[sinks]]
+            id = "primary"
+            type = "memory"
+            [[sinks]]
+            id = "primary"
+            type = "logging"
+            "#,
+        )
+        .unwrap_err();
+        assert!(duplicate.to_string().contains("duplicate sink id"));
+    }
+
+    #[test]
+    fn sink_required_defaults_false_and_can_be_enabled() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [[sinks]]
+            id = "primary"
+            type = "memory"
+            required = true
+            "#,
+        )
+        .unwrap();
+        assert!(cfg.sinks[0].required);
+
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [[sinks]]
+            type = "memory"
+            "#,
+        )
+        .unwrap();
+        assert!(!cfg.sinks[0].required);
+    }
+
+    #[test]
+    fn required_sink_needs_stable_id_and_fail_engine_policy() {
+        let missing_id = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [[sinks]]
+            type = "memory"
+            required = true
+            overflow = "fail_engine"
+            "#,
+        )
+        .unwrap_err();
+        assert!(missing_id.to_string().contains("required sink"));
+        assert!(missing_id.to_string().contains("explicit id"));
+
+        let dropping = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [[sinks]]
+            id = "primary"
+            type = "memory"
+            required = true
+            overflow = "drop_newest"
+            "#,
+        )
+        .unwrap_err();
+        assert!(dropping.to_string().contains("required sink"));
+        assert!(dropping.to_string().contains("fail_engine"));
+    }
+
+    #[test]
     fn rejects_udp_sink_without_address() {
         assert!(
             DaemonConfig::from_toml_str(
@@ -1385,8 +1567,8 @@ mod tests {
     }
 
     #[test]
-    fn accepts_spill_wal_sink() {
-        let cfg = DaemonConfig::from_toml_str(
+    fn rejects_standalone_spill_wal_sink() {
+        let error = DaemonConfig::from_toml_str(
             r#"
             [telemetry]
             bind = "127.0.0.1:9108"
@@ -1401,14 +1583,9 @@ mod tests {
             adapter = "synthetic"
         "#,
         )
-        .unwrap();
-        assert_eq!(cfg.sinks[0].kind().unwrap(), SinkKind::SpillWal);
-        assert_eq!(cfg.sinks[0].file_path().unwrap(), "./spill.wal");
-        assert_eq!(cfg.sinks[0].wal_limit_bytes().unwrap(), 64 * 1024 * 1024);
-        assert_eq!(
-            cfg.sinks[0].overflow_policy().unwrap(),
-            OverflowPolicy::SpillToDisk
-        );
+        .unwrap_err();
+        assert!(error.to_string().contains("not a standalone delivery sink"));
+        assert!(error.to_string().contains("recovery consumer"));
     }
 
     #[test]
@@ -1497,6 +1674,87 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn rejects_unbounded_queue_capacities_and_nul_sink_ids() {
+        for (name, body, expected) in [
+            (
+                "recording queue",
+                r#"
+                [telemetry]
+                bind = "127.0.0.1:9108"
+                [recording.raw]
+                enabled = true
+                queue_capacity = 1048577
+                "#,
+                "recording.raw.queue_capacity must be <=",
+            ),
+            (
+                "sink queue",
+                r#"
+                [telemetry]
+                bind = "127.0.0.1:9108"
+                [[sinks]]
+                type = "memory"
+                capacity = 1048577
+                "#,
+                "sinks[0].capacity must be <=",
+            ),
+            (
+                "sink thread name",
+                r#"
+                [telemetry]
+                bind = "127.0.0.1:9108"
+                [[sinks]]
+                id = "bad\u0000id"
+                type = "memory"
+                "#,
+                "must not contain NUL",
+            ),
+        ] {
+            let error = DaemonConfig::from_toml_str(body)
+                .expect_err("unbounded allocations and invalid thread names must be rejected");
+            assert!(error.to_string().contains(expected), "{name}: {error}");
+        }
+    }
+
+    #[test]
+    fn rejects_excessive_sink_count_and_aggregate_queue_reservations() {
+        let mut too_many_sinks = "[telemetry]\nbind = \"127.0.0.1:9108\"\n".to_owned();
+        for _ in 0..=MAX_DAEMON_SINKS {
+            too_many_sinks.push_str("[[sinks]]\ntype = \"memory\"\ncapacity = 1\n");
+        }
+        let error = DaemonConfig::from_toml_str(&too_many_sinks)
+            .expect_err("sink worker count must be bounded");
+        assert!(error.to_string().contains("at most 64 entries"), "{error}");
+
+        let error = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [[sinks]]
+            type = "memory"
+            capacity = 200000
+            [[sinks]]
+            type = "memory"
+            capacity = 200000
+            "#,
+        )
+        .expect_err("aggregate eager queue reservations must be bounded");
+        assert!(error.to_string().contains("eager queue slots"), "{error}");
+
+        let error = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [recording.raw]
+            enabled = true
+            queue_capacity = 600000
+            "#,
+        )
+        .expect_err("both recording queues must count toward the aggregate reservation");
+        assert!(error.to_string().contains("eager queue slots"), "{error}");
     }
 
     #[test]

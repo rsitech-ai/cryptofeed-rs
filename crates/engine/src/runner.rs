@@ -203,9 +203,15 @@ impl SessionRunner {
 
     pub fn request_stop(&mut self) {
         self.stop_requested = true;
+        self.invalidate_live_readiness();
         if let Some(s) = &self.cfg.stop_signal {
             s.store(true, Ordering::Relaxed);
         }
+    }
+
+    pub(crate) fn invalidate_live_readiness(&self) {
+        self.set_live_signal(false);
+        self.metrics.clear_valid_books_for_session(self.cfg.session);
     }
 
     pub fn new(
@@ -271,7 +277,7 @@ impl SessionRunner {
         now: TimestampNs,
     ) -> Result<(), EngineError> {
         self.lifecycle = SessionLifecycle::Draining;
-        self.set_live_signal(false);
+        self.invalidate_live_readiness();
         self.timers.clear();
         self.actions.clear();
         self.machine.on_input(
@@ -559,7 +565,7 @@ impl SessionRunner {
         now: TimestampNs,
     ) -> Result<(), EngineError> {
         self.lifecycle = SessionLifecycle::Backoff;
-        self.set_live_signal(false);
+        self.invalidate_live_readiness();
         self.timers.clear();
         self.actions.clear();
         self.machine.on_input(
@@ -651,7 +657,8 @@ impl SessionRunner {
 
     pub fn push_system(&mut self, ev: SystemEvent) -> Result<(), EngineError> {
         self.trace_system_event(&ev);
-        self.metrics.observe_system(&ev);
+        self.metrics
+            .observe_system_for_session(self.cfg.session, &ev);
         let outcome = self.dispatch.push_system(ev.clone())?;
         match outcome {
             PushOutcome::Accepted => self.push_mirror_system(ev),
@@ -676,6 +683,7 @@ impl SessionRunner {
         now: TimestampNs,
     ) -> Result<(), EngineError> {
         self.lifecycle = SessionLifecycle::Degraded;
+        self.set_live_signal(false);
         self.emit_venue_status(message, now)
     }
 
@@ -921,7 +929,8 @@ impl SessionRunner {
                 }
                 SessionAction::EmitSystem(ev) => {
                     self.trace_system_event(&ev);
-                    self.metrics.observe_system(&ev);
+                    self.metrics
+                        .observe_system_for_session(self.cfg.session, &ev);
                     let result = match self.dispatch.push_system(ev.clone()) {
                         Ok(PushOutcome::Accepted) => self.push_mirror_system(ev),
                         Ok(PushOutcome::DroppedNewest) => {
@@ -1003,17 +1012,20 @@ impl SessionRunner {
                 }
                 SessionAction::MarkDegraded => {
                     self.lifecycle = SessionLifecycle::Degraded;
+                    self.set_live_signal(false);
                     self.push_mirror_action(SessionAction::MarkDegraded)?;
                     self.emit_venue_status("degraded", now)?;
                 }
                 SessionAction::Reconnect(_) => {
                     self.reconnect_requested = true;
                     self.lifecycle = SessionLifecycle::Backoff;
+                    self.invalidate_live_readiness();
                     self.metrics.record_reconnect();
                     self.push_mirror_action(action)?;
                 }
                 SessionAction::StopSession(_) => {
                     self.stop_requested = true;
+                    self.invalidate_live_readiness();
                     self.push_mirror_action(action)?;
                 }
                 other => {
@@ -1209,7 +1221,9 @@ mod tests {
         ActionBuffer, AdapterError, EventBatch, SessionAction, SessionCommand, SessionInput,
         SessionMachine, SubscriptionWireAction,
     };
-    use marketfeed_model::{FrameStamp, OverflowPolicy, SessionId, SystemEvent, TimestampNs};
+    use marketfeed_model::{
+        FrameStamp, InstrumentId, OverflowPolicy, SessionId, SystemEvent, TimestampNs,
+    };
     use marketfeed_recording::{
         FrameOpcode as RecordedOpcode, RawSegmentReader, decode_subscription_command,
     };
@@ -1244,6 +1258,7 @@ mod tests {
     }
 
     struct DynamicSubscriptionMachine;
+    struct LiveBookThenReconnect;
 
     impl SessionMachine for EmitSystem {
         fn on_input(
@@ -1277,6 +1292,25 @@ mod tests {
                 )),
                 _ => Err(AdapterError::UnsupportedCapability("test command".into())),
             }
+        }
+    }
+
+    impl SessionMachine for LiveBookThenReconnect {
+        fn on_input(
+            &mut self,
+            input: SessionInput<'_>,
+            output: &mut ActionBuffer,
+        ) -> Result<(), AdapterError> {
+            if matches!(input, SessionInput::TextFrame { .. }) {
+                output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
+                    instrument: InstrumentId(7),
+                }));
+                output.push(SessionAction::MarkLive);
+                output.push(SessionAction::Reconnect(
+                    marketfeed_adapter_api::ReconnectReason::Control,
+                ));
+            }
+            Ok(())
         }
     }
 
@@ -1358,6 +1392,29 @@ mod tests {
             runner.metrics.checksum_mismatches.load(Ordering::Relaxed),
             1
         );
+    }
+
+    #[test]
+    fn reconnect_action_invalidates_live_books_immediately() {
+        let live = Arc::new(AtomicBool::new(false));
+        let mut runner = SessionRunner::new(
+            Box::new(LiveBookThenReconnect),
+            SessionRunnerConfig {
+                session: SessionId(1),
+                live_signal: Some(Arc::clone(&live)),
+                dispatch_capacity: 8,
+                record: false,
+                ..SessionRunnerConfig::default()
+            },
+        )
+        .unwrap();
+
+        let mut bytes = b"x".to_vec();
+        runner.on_text_frame(&mut bytes, stamp()).unwrap();
+
+        assert!(runner.reconnect_requested);
+        assert!(!live.load(Ordering::Relaxed));
+        assert_eq!(runner.metrics.valid_books.load(Ordering::Relaxed), 0);
     }
 
     #[test]

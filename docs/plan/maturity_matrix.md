@@ -24,7 +24,8 @@ Spec vocabulary: **experimental | beta | stable**. Informal labels:
 - Laptop synthetic soak is **not** stable (needs multi-day live soak).
 - **Beta** requires discovery + primary channels + replay corpus + **scheduled live canary** + documented limits (§11.8).
 - **Stable** requires soak + ops ownership beyond this matrix.
-- This document does **not** claim beta or stable for any venue until scheduled canary + multi-day soak evidence exists (**OPS**).
+- This document does **not** claim beta until the scheduled-canary gate passes,
+  or stable until the separate multi-day soak and operations gates pass.
 - Calling a venue `alpha+` / "beta-ready offline" means the **code + docs package** for P2 close-out is done; live promotion is still blocked.
 
 ## Matrix
@@ -49,7 +50,7 @@ Spec vocabulary: **experimental | beta | stable**. Informal labels:
 | 16 | `coinbase-spot` | spot | T, Q, L2 (env-auth), Candles (REST), Statistics24h | **alpha** | strict Exchange HMAC signing; signed subscribe/reconnect fixtures; subscription ack + snapshot/delta/replay corpus; REST candles timer; laptop public T/Q `live_ignored` once | credential-backed L2 canary, scheduled canary, soak |
 | 17 | `bitfinex` | spot | T, Q, L2, Candles, Statistics24h | **alpha** | fixtures + WS v2 trades/ticker Stats24h/book + WS candles + L2 book corpus + R6 status/catalog | live canary, soak |
 | 18 | `coinbase-adv` | spot | T, Q, L2, Candles (REST public market), status, Statistics24h | **alpha** | fixtures + Advanced Trade public `market_trades`/`ticker` Stats24h/`level2` + `status` → InstrumentUpdate + REST candles + heartbeats + Adv L2 corpus + catalog `--live` + laptop `live_ignored` | scheduled canary, soak |
-| 19 | `coinbase-intl` | derivatives | — | **SKIP** | W2-R10: INTX MD WS requires HMAC subscribe (`CBINTLMD`); REST instruments/quote only — no clean public T/Q/L2 SessionMachine | re-open only with auth MD scope or public feed |
+| 19 | `coinbase-intl` | derivatives | T, Q, L2 (env-auth), status, catalog | **alpha** | HMAC subscribe/reconnect fixtures + INTX T/Q/L2 corpus + session-global sequence-gap invalidation + daemon `segment=intl` + REST catalog discovery | credential-backed canary, scheduled canary, soak |
 
 | 20 | `bitfinex-deriv` | linear+inverse | T, Q, L2, Candles (WS), mark, index, funding, OI, Stats24h, liq | **alpha** | fixtures + REST `status/deriv` + WS `liq:global` + L2 corpus + catalog `--live` + `session_config_from_catalog` + R6 status + `INCLUDE_ALPHA` canary (#210); daemon `segment=deriv` | live canary, soak |
 

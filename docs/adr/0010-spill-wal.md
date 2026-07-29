@@ -1,6 +1,6 @@
 # ADR 0010: SpillWalSink for SpillToDisk
 
-**Status:** Accepted  
+**Status:** Amended
 **Date:** 2026-07-22  
 **Spec:** §17.5–17.6  
 **Package:** R11 (#100)  
@@ -21,10 +21,12 @@ only the final append is torn, and rejects malformed complete records.
 Checkpointing writes and syncs a same-directory replacement before an atomic
 rename and directory sync.
 
-Daemon wires `[[sinks]] type = "spill-wal"` and fails startup if the file
-contains unacknowledged recovery records. Recovery is therefore explicit:
-consume `pop_recovered()` in append order and call `checkpoint_recovery()`;
-the daemon never silently discards or skips a recovery prefix.
+The library exposes this WAL primitive, but the daemon rejects standalone
+`[[sinks]] type = "spill-wal"`. The primitive retains an in-memory prefix and
+only writes overflow records, so using it as a terminal daemon sink would leave
+that prefix without a delivery or recovery consumer. Daemon integration may be
+restored only as a wrapper around a real sink with explicit ordered recovery:
+consume `pop_recovered()` and checkpoint only after downstream acknowledgement.
 
 ## Why
 
@@ -37,6 +39,8 @@ the daemon never silently discards or skips a recovery prefix.
   actionable quarantine/migration guidance rather than interpreting them as
   complete events.
 - Recovery is at-least-once: a crash before checkpoint may replay records.
+- Standalone daemon configuration fails validation until downstream
+  acknowledgement and recovery ownership exist.
 - A torn final append is truncated to the last validated record. Corruption in
   a complete record fails closed.
 - Disk-full / WAL-cap behavior must keep readiness / fail policy coherent with

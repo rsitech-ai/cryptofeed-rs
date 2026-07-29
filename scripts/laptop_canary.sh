@@ -62,7 +62,7 @@ run_pkg() {
   mkdir -p "$OUT"
   echo "--- cargo test -p ${pkg} --test live_ignored $* ---"
   set +e
-  cargo test -p "$pkg" --test live_ignored -- --ignored --nocapture "$@" \
+  cargo test --locked -p "$pkg" --test live_ignored -- --ignored --nocapture "$@" \
     > >(tee "${OUT}/${log}") 2>&1
   local ec=$?
   set -e

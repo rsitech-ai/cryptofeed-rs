@@ -71,15 +71,15 @@ The workspace is licensed under Apache-2.0. The full text is in [`LICENSE`](../.
 ## SBOM
 
 ```bash
-cargo install cargo-cyclonedx --locked
+cargo install cargo-cyclonedx --locked --version 0.5.9
 ./scripts/generate-sbom.sh
 ```
 
 | Trigger | Workflow | Notes |
 |---|---|---|
-| PR / push `main` | `ci.yml` job `sbom` | Advisory (`continue-on-error`); artifact `marketfeed-sbom` |
-| Tag `v*` | `release.yml` job `sbom` | Artifact `marketfeed-sbom-<tag>` |
-| Tag `v*` | `release.yml` job `attest` (enabled, hard-fail) | Publishes provenance when repository permissions support attestations; see [`release_provenance.md`](../runbooks/release_provenance.md) |
+| PR / push `main` | `ci.yml` job `sbom` | Required; artifact `marketfeed-sbom` |
+| Tag `v*` | `release.yml` job `package-and-attest` | Target-qualified package, SBOM, checksums, evidence manifest, and binary |
+| Tag `v*` | `release.yml` steps using `actions/attest` (enabled, hard-fail) | Publishes provenance and binds the SBOM when repository permissions support attestations; see [`release_provenance.md`](../runbooks/release_provenance.md) |
 
 Fallback if the Rust plugin is undesirable on the runner:
 
@@ -87,6 +87,6 @@ Fallback if the Rust plugin is undesirable on the runner:
 syft dir:. -o cyclonedx-json > sbom/marketfeed.cdx.json
 ```
 
-Ceiling: SBOM artifact + attest job **enabled** in YAML — no published signed
+Ceiling: package artifacts + attestation steps **enabled** in YAML — no published signed
 provenance yet (spec §29); upgrade = tag an alpha release and archive
 `gh attestation verify` output per the provenance runbook.

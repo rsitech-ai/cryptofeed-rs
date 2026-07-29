@@ -39,4 +39,16 @@ describe('LiveFlagGate', () => {
     assert.equal(g.stabilize('v', true, t0 + 130), false);
     assert.equal(g.stabilize('v', true, t0 + 250), true);
   });
+
+  it('cancels a stale flip candidate when the raw state recovers', () => {
+    const g = new LiveFlagGate({ showHoldMs: 100, clearHoldMs: 100 });
+    const t0 = 2_000_000;
+    assert.equal(g.stabilize('v', true, t0), true);
+    assert.equal(g.stabilize('v', false, t0 + 10), true);
+    assert.equal(g.stabilize('v', true, t0 + 80), true);
+    // A new false blip starts a fresh hold; it must not reuse t0+10.
+    assert.equal(g.stabilize('v', false, t0 + 90), true);
+    assert.equal(g.stabilize('v', false, t0 + 150), true);
+    assert.equal(g.stabilize('v', false, t0 + 200), false);
+  });
 });

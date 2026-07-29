@@ -20,6 +20,8 @@
 
 1. **Temporary:** lower subscription load (fewer symbols/channels) via config + restart.
 2. **Capacity:** raise `recording.raw.queue_capacity` only if memory headroom exists.
+   The daemon enforces a process-wide limit of 1,048,576 eagerly reserved queue
+   slots across recording and all sink mailboxes/batch/system queues.
 3. **Policy:** if lossy recording is acceptable, set `overflow = "drop_oldest"` (never claim lossless afterward).
 4. **Storage:** move `directory` to a faster volume; shrink `segment_size` to reduce fsync batches.
 5. **Shutdown:** increase `engine.shutdown_deadline_secs` so drains complete under backlog.

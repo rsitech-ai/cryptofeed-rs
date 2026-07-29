@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "identity": {
+    "slug": "cryptofeed-rs",
+    "name": "cryptofeed-rs",
+    "repository": "rsitech-ai/cryptofeed-rs"
+  },
+  "positioning": {
+    "oneLine": "Rust-native, library-first market-data ingestion for multiple cryptocurrency exchanges.",
+    "description": "An alpha Rust market-data engine that normalizes public spot and derivatives feeds into exact fixed-point events, with bounded dispatch, recording, replay primitives, and an optional daemon.",
+    "category": "Market data infrastructure"
+  },
+  "lifecycle": {
+    "stage": "public-preview",
+    "version": "0.1.0-alpha.1"
+  },
+  "platforms": [
+    "macOS"
+  ],
+  "languages": [
+    "Rust"
+  ],
+  "links": {
+    "repository": "https://github.com/rsitech-ai/cryptofeed-rs",
+    "documentation": "https://github.com/rsitech-ai/cryptofeed-rs/blob/main/docs/spec/production_rust_multi_exchange_market_data_spec.md",
+    "release": "https://github.com/rsitech-ai/cryptofeed-rs/releases/tag/v0.1.0-alpha.1",
+    "download": "https://github.com/rsitech-ai/cryptofeed-rs/releases/download/v0.1.0-alpha.1/marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin.tar.gz",
+    "appStore": null
+  },
+  "media": {
+    "cardImage": "docs/assets/project-card.svg",
+    "screenshots": []
+  },
+  "openSource": {
+    "license": "Apache-2.0",
+    "readme": "README.md",
+    "contributing": "CONTRIBUTING.md",
+    "security": "SECURITY.md",
+    "support": "SUPPORT.md",
+    "codeOfConduct": "CODE_OF_CONDUCT.md"
+  },
+  "capabilities": [
+    {
+      "claim": "Normalizes public spot and derivatives market data across multiple exchange families.",
+      "evidence": [
+        "README.md",
+        "docs/plan/venue_channel_audit.md",
+        "docs/plan/maturity_matrix.md"
+      ]
+    },
+    {
+      "claim": "Uses exact fixed-point values and sequence-aware fail-closed L2 books.",
+      "evidence": [
+        "crates/model/src/fixed.rs",
+        "crates/book/src/sync.rs",
+        "crates/engine/tests/record_replay.rs"
+      ]
+    },
+    {
+      "claim": "Provides bounded dispatch with explicit overflow behavior and observable failure events.",
+      "evidence": [
+        "crates/dispatch/src/queue.rs",
+        "crates/engine/tests/chaos_harness.rs",
+        "docs/plan/chaos_supply_chain.md"
+      ]
+    },
+    {
+      "claim": "Supports versioned raw recording and deterministic adapter-level replay.",
+      "evidence": [
+        "docs/adr/0005-mfr1-recording.md",
+        "crates/recording/src/reader.rs",
+        "crates/replay/src/runner.rs",
+        "crates/engine/tests/record_replay.rs"
+      ]
+    },
+    {
+      "claim": "Includes an optional daemon with configuration validation, health, readiness, and Prometheus-format metrics.",
+      "evidence": [
+        "crates/daemon/README.md",
+        "crates/daemon/tests/synthetic_ready.rs",
+        "crates/daemon/tests/marketfeed_run_e2e.rs"
+      ]
+    }
+  ],
+  "limitations": [
+    "Alpha public preview; no adapter is beta or stable and the project is not approved for unattended production use.",
+    "Scheduled live canaries remain at zero and existing live evidence is laptop-based.",
+    "The checked-in all-public-segment soak is 15 minutes, not a multi-day production or stable-adapter soak.",
+    "The downloadable binary is Apple Silicon macOS only, ad hoc signed, and not notarized.",
+    "The daemon replay command currently validates and scans raw recordings; adapter-level deterministic replay is provided by the replay library.",
+    "Instrument discovery is currently one-shot; engine-owned catalog refresh and versioning are not implemented.",
+    "The protobuf schema is not a build input, generated stubs are absent, and protobuf breaking-change checks are not in CI.",
+    "Kafka and NATS sinks are experimental minimal TCP implementations without production broker integration proof.",
+    "Standalone daemon spill-WAL configuration is rejected until it is attached to a real downstream sink with ordered recovery and acknowledgement.",
+    "Private feeds remain alpha; Binance private data is blocked, and the engine does not place orders.",
+    "Published release provenance attestation is not confirmed by checked-in verification evidence."
+  ],
+  "safetyBoundaries": [
+    "Does not execute strategies, place orders, manage positions, or perform portfolio risk management.",
+    "Credentials are accepted only through environment variables and must not appear in configuration, logs, recordings, issues, or fixtures.",
+    "Private payload recording is disabled by default.",
+    "The project must not be represented as beta, stable, 1.0, or production-ready without the specification's promotion evidence."
+  ]
+}

@@ -10,6 +10,7 @@
   } from 'lightweight-charts';
   import { TIMEFRAMES } from '../lib/series.js';
   import { fmtPrice, fmtPct, fmtUsd, fmtCount, fmtTradesPerMin } from '../lib/format.js';
+  import { createRangeActivity, wireVisibleLogicalRangeSync } from '../lib/chartSync.js';
 
   let {
     series = [],
@@ -62,10 +63,15 @@
   let volumeSeries = null;
   let bpsLineSeries = null;
   let markersApi = null;
+  let markerSeries = null;
   let fitKey = '';
   let userInteracted = false;
   let showSettings = $state(false);
-  let syncing = false;
+  const rangeActivity = createRangeActivity();
+  /** @type {Array<() => void>} */
+  let syncDisposers = [];
+  let chartInteractionDisposer = null;
+  let bpsInteractionDisposer = null;
   let volMarginsOn = null;
   let lastScrollAt = 0;
   let chartPaintRaf = 0;
@@ -99,23 +105,27 @@
     handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
   };
 
-  function syncCharts(source, target) {
-    if (!source || !target || syncing) return;
-    syncing = true;
-    try {
-      const range = source.timeScale().getVisibleLogicalRange();
-      if (range) target.timeScale().setVisibleLogicalRange(range);
-    } finally {
-      syncing = false;
-    }
+  function unwireSync() {
+    for (const dispose of syncDisposers.splice(0)) dispose();
   }
 
-  function wireSync(primary, secondary) {
-    primary.timeScale().subscribeVisibleLogicalRangeChange(() => syncCharts(primary, secondary));
-    primary.subscribeCrosshairMove((param) => {
-      if (!param.time) return;
-      secondary.setCrosshairPosition(param.seriesData?.values()?.next()?.value?.value ?? 0, param.time, bpsLineSeries || volumeSeries);
-    });
+  function observeUserRange(target) {
+    const timeScale = target.timeScale();
+    const onVisibleLogicalRangeChange = () => {
+      if (rangeActivity.isUserDriven()) userInteracted = true;
+    };
+    timeScale.subscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
+    return () => {
+      timeScale.unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
+    };
+  }
+
+  function clearMarkers() {
+    if (markersApi) {
+      try { markersApi.setMarkers([]); } catch { /* series may already be gone */ }
+    }
+    markersApi = null;
+    markerSeries = null;
   }
 
   onMount(() => {
@@ -128,6 +138,15 @@
   });
 
   function destroyCharts() {
+    if (chartPaintRaf) cancelAnimationFrame(chartPaintRaf);
+    chartPaintRaf = 0;
+    pendingChart = null;
+    unwireSync();
+    bpsInteractionDisposer?.();
+    bpsInteractionDisposer = null;
+    chartInteractionDisposer?.();
+    chartInteractionDisposer = null;
+    clearMarkers();
     bpsChart?.remove();
     bpsChart = null;
     chart?.remove();
@@ -136,7 +155,6 @@
     candleSeries = null;
     volumeSeries = null;
     bpsLineSeries = null;
-    markersApi = null;
     volMarginsOn = null;
     fitKey = '';
   }
@@ -160,15 +178,16 @@
         entireTextOnly: true,
       },
     });
-    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
-      userInteracted = true;
-    });
+    chartInteractionDisposer = observeUserRange(chart);
     ready = true;
   });
 
   $effect(() => {
     if (!ready || chartMode !== 'lines' || !showBpsPane) {
       if (bpsChart) {
+        unwireSync();
+        bpsInteractionDisposer?.();
+        bpsInteractionDisposer = null;
         bpsChart.remove();
         bpsChart = null;
         bpsLineSeries = null;
@@ -189,8 +208,11 @@
       lineWidth: 1,
       priceFormat: { type: 'custom', formatter: (v) => v.toFixed(2) + ' bps', minMove: 0.01 },
     });
-    wireSync(chart, bpsChart);
-    wireSync(bpsChart, chart);
+    syncDisposers = [
+      wireVisibleLogicalRangeSync(chart, bpsChart, rangeActivity.syncGuard),
+      wireVisibleLogicalRangeSync(bpsChart, chart, rangeActivity.syncGuard),
+    ];
+    bpsInteractionDisposer = observeUserRange(bpsChart);
   });
 
   function ensureCandleSeries() {
@@ -229,6 +251,7 @@
 
   function clearLines() {
     for (const s of lineSeries.values()) {
+      if (markerSeries === s) clearMarkers();
       try { chart?.removeSeries(s); } catch { /* ignore */ }
     }
     lineSeries.clear();
@@ -236,9 +259,9 @@
 
   function clearCandles() {
     if (candleSeries && chart) {
+      if (markerSeries === candleSeries) clearMarkers();
       try { chart.removeSeries(candleSeries); } catch { /* ignore */ }
       candleSeries = null;
-      markersApi = null;
     }
   }
 
@@ -268,13 +291,24 @@
 
   function setHighlight(primarySeries, sec) {
     if (!primarySeries || sec == null || !Number.isFinite(sec)) {
-      if (markersApi) { try { markersApi.setMarkers([]); } catch { /* ignore */ } }
+      clearMarkers();
       return;
     }
+    if (markerSeries && markerSeries !== primarySeries) clearMarkers();
     if (!markersApi) {
-      try { markersApi = createSeriesMarkers(primarySeries, []); } catch { markersApi = null; return; }
+      try {
+        markersApi = createSeriesMarkers(primarySeries, []);
+        markerSeries = primarySeries;
+      } catch {
+        clearMarkers();
+        return;
+      }
     }
-    markersApi.setMarkers([{ time: sec, position: 'aboveBar', color: '#f0b90b', shape: 'arrowDown', text: 'trade' }]);
+    try {
+      markersApi.setMarkers([{ time: sec, position: 'aboveBar', color: '#f0b90b', shape: 'arrowDown', text: 'trade' }]);
+    } catch {
+      clearMarkers();
+    }
   }
 
   function paintChart() {
@@ -305,7 +339,9 @@
 
       for (const id of [...lineSeries.keys()]) {
         if (!want.has(id)) {
-          try { chart.removeSeries(lineSeries.get(id)); } catch { /* ignore */ }
+          const removed = lineSeries.get(id);
+          if (markerSeries === removed) clearMarkers();
+          try { chart.removeSeries(removed); } catch { /* ignore */ }
           lineSeries.delete(id);
         }
       }
@@ -357,16 +393,20 @@
       fitKey = key;
       userInteracted = false;
       requestAnimationFrame(() => {
-        chart?.timeScale().fitContent();
-        bpsChart?.timeScale().fitContent();
+        rangeActivity.runProgrammatic(() => {
+          chart?.timeScale().fitContent();
+          bpsChart?.timeScale().fitContent();
+        });
       });
     } else if (!userInteracted) {
       // Throttle scroll-to-realtime — every-tick scroll causes visible jank.
       const now = performance.now();
       if (now - lastScrollAt > 400) {
         lastScrollAt = now;
-        chart.timeScale().scrollToRealTime();
-        bpsChart?.timeScale().scrollToRealTime();
+        rangeActivity.runProgrammatic(() => {
+          chart.timeScale().scrollToRealTime();
+          bpsChart?.timeScale().scrollToRealTime();
+        });
       }
     }
   }

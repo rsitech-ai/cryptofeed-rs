@@ -62,8 +62,13 @@ export class MultiVenueTracker {
     const st = this.venues.get(venue);
     if (!st) return 0;
     let added = 0;
-    for (const e of entries || []) {
+    // Daemon tape snapshots are newest-first; derive baseline/last in event
+    // order rather than HTTP response order.
+    const chronological = [...(entries || [])].sort(compareTapeTime);
+    let needsChronologicalRebuild = false;
+    for (const e of chronological) {
       const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
+      const orderNs = Number(e.exchange_ts_ns ?? e.receive_ts_ns);
       if (sec == null) continue;
 
       if (e.kind === 'trade') {
@@ -73,14 +78,18 @@ export class MultiVenueTracker {
         const price = Number(e.price);
         const qty = Number(e.quantity);
         if (!Number.isFinite(price) || price <= 0) continue;
-        applyPrice(st, sec, price, this.intervalSec);
+        if (Number.isFinite(orderNs) && st.lastSampleNs != null && orderNs < st.lastSampleNs) {
+          needsChronologicalRebuild = true;
+        }
+        applyPrice(st, sec, price, this.intervalSec, true, orderNs);
         if (Number.isFinite(qty) && qty > 0) {
           const notional = price * qty;
           st.tradeVolume += qty;
           st.tradeNotional += notional;
           st.tradeCount += 1;
-          st.firstTradeSec = st.firstTradeSec ?? sec;
-          st.lastTradeSec = sec;
+          st.firstTradeSec =
+            st.firstTradeSec == null ? sec : Math.min(st.firstTradeSec, sec);
+          st.lastTradeSec = st.lastTradeSec == null ? sec : Math.max(st.lastTradeSec, sec);
           const bucket = Math.floor(sec / this.intervalSec) * this.intervalSec;
           st.volBuckets.set(bucket, (st.volBuckets.get(bucket) || 0) + notional);
           st.tradeBuckets.set(bucket, (st.tradeBuckets.get(bucket) || 0) + 1);
@@ -94,10 +103,14 @@ export class MultiVenueTracker {
         const key = `q|${e.receive_ts_ns}|${mid}`;
         if (st.seen.has(key)) continue;
         st.seen.add(key);
-        applyPrice(st, sec, mid, this.intervalSec);
+        if (Number.isFinite(orderNs) && st.lastSampleNs != null && orderNs < st.lastSampleNs) {
+          needsChronologicalRebuild = true;
+        }
+        applyPrice(st, sec, mid, this.intervalSec, true, orderNs);
         added += 1;
       }
     }
+    if (needsChronologicalRebuild) rebuildVenue(st, this.intervalSec);
     trimSeen(st);
     return added;
   }
@@ -107,7 +120,7 @@ export class MultiVenueTracker {
     if (!st) return;
     const n = Number(price);
     if (!Number.isFinite(n) || n <= 0) return;
-    applyPrice(st, sec, n, this.intervalSec);
+    applyPrice(st, sec, n, this.intervalSec, true, sec * 1e9);
   }
 
   /**
@@ -263,6 +276,15 @@ export class MultiVenueTracker {
   }
 }
 
+function compareTapeTime(a, b) {
+  const at = Number(a?.exchange_ts_ns ?? a?.receive_ts_ns);
+  const bt = Number(b?.exchange_ts_ns ?? b?.receive_ts_ns);
+  if (!Number.isFinite(at) && !Number.isFinite(bt)) return 0;
+  if (!Number.isFinite(at)) return -1;
+  if (!Number.isFinite(bt)) return 1;
+  return at - bt;
+}
+
 /**
  * @typedef {{
  *   venue: string,
@@ -302,6 +324,7 @@ function newVenueState(venue, symbol, color) {
     firstTradeSec: null,
     lastTradeSec: null,
     samples: [],
+    lastSampleNs: null,
   };
 }
 
@@ -310,13 +333,14 @@ function tradeKey(t) {
   return `t|${t.venue}|${t.receive_ts_ns}|${t.price}|${t.quantity}`;
 }
 
-function applyPrice(st, sec, price, intervalSec, recordSample = true) {
+function applyPrice(st, sec, price, intervalSec, recordSample = true, orderNs = sec * 1e9) {
   const bucket = Math.floor(sec / intervalSec) * intervalSec;
   st.buckets.set(bucket, price);
   if (st.baseline == null) st.baseline = price;
   st.lastPrice = price;
   if (recordSample) {
-    st.samples.push({ sec, price });
+    st.samples.push({ sec, price, orderNs });
+    if (Number.isFinite(orderNs)) st.lastSampleNs = orderNs;
     if (st.samples.length > 20000) {
       st.samples = st.samples.slice(-12000);
     }
@@ -330,11 +354,16 @@ function volumeSeries(st) {
 }
 
 function rebuildVenue(st, intervalSec) {
-  const samples = st.samples;
+  const samples = [...st.samples].sort((a, b) => (a.orderNs || 0) - (b.orderNs || 0));
+  st.samples = samples;
   st.buckets.clear();
   st.baseline = null;
   st.lastPrice = null;
-  for (const s of samples) applyPrice(st, s.sec, s.price, intervalSec, false);
+  st.lastSampleNs = null;
+  for (const s of samples) {
+    applyPrice(st, s.sec, s.price, intervalSec, false, s.orderNs);
+    if (Number.isFinite(s.orderNs)) st.lastSampleNs = s.orderNs;
+  }
 }
 
 function trimSeen(st) {

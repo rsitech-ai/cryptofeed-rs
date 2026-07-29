@@ -1,14 +1,16 @@
 //! Best-effort replay file listing and JSONL/MFNE tape read (loopback only).
 
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Component, Path, PathBuf};
 
-use marketfeed_recording::{read_length_prefixed_json, read_normalized_jsonl};
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::config::DaemonConfig;
 
 const DEFAULT_REPLAY_DIR: &str = ".local/live-ui/raw";
+const MAX_REPLAY_RECORD_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ReplayFileInfo {
@@ -92,7 +94,6 @@ pub fn read_replay_entries(
 ) -> ReplayEntriesResponse {
     let limit = limit.clamp(1, 500);
     let root = replay_root(config);
-    let directory = root.to_string_lossy().into_owned();
     let path = match resolve_replay_file(&root, file) {
         Ok(p) => p,
         Err(msg) => {
@@ -106,21 +107,8 @@ pub fn read_replay_entries(
             };
         }
     };
-    let bytes = match std::fs::read(&path) {
-        Ok(b) => b,
-        Err(e) => {
-            return ReplayEntriesResponse {
-                file: file.to_string(),
-                offset,
-                limit,
-                total: 0,
-                entries: Vec::new(),
-                error: Some(format!("read {}: {e}", path.display())),
-            };
-        }
-    };
-    let records = match parse_replay_bytes(&bytes, file) {
-        Ok(r) => r,
+    let (total, entries) = match scan_replay_file(&path, file, offset, limit) {
+        Ok(result) => result,
         Err(msg) => {
             return ReplayEntriesResponse {
                 file: file.to_string(),
@@ -132,14 +120,6 @@ pub fn read_replay_entries(
             };
         }
     };
-    let total = records.len() as u64;
-    let start = (offset as usize).min(records.len());
-    let end = start.saturating_add(limit as usize).min(records.len());
-    let entries: Vec<Value> = records[start..end]
-        .iter()
-        .filter_map(envelope_to_tape_entry)
-        .collect();
-    let _ = directory;
     ReplayEntriesResponse {
         file: file.to_string(),
         offset,
@@ -150,12 +130,132 @@ pub fn read_replay_entries(
     }
 }
 
-fn parse_replay_bytes(bytes: &[u8], file: &str) -> Result<Vec<Value>, String> {
+fn scan_replay_file(
+    path: &Path,
+    file: &str,
+    offset: u64,
+    limit: u64,
+) -> Result<(u64, Vec<Value>), String> {
+    let input = File::open(path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    let mut reader = BufReader::new(input);
     if file.ends_with(".mfne") {
-        read_length_prefixed_json(bytes).map_err(|e| format!("parse mfne: {e}"))
+        scan_length_prefixed(&mut reader, offset, limit)
     } else {
-        read_normalized_jsonl(bytes).map_err(|e| format!("parse jsonl: {e}"))
+        scan_jsonl(&mut reader, offset, limit)
     }
+}
+
+fn scan_jsonl<R: BufRead>(
+    reader: &mut R,
+    offset: u64,
+    limit: u64,
+) -> Result<(u64, Vec<Value>), String> {
+    let mut record = Vec::new();
+    let mut total = 0u64;
+    let mut entries = Vec::with_capacity(limit as usize);
+    loop {
+        let read = read_bounded_line(reader, &mut record, MAX_REPLAY_RECORD_BYTES)?;
+        if read == 0 {
+            break;
+        }
+        let line = trim_ascii_whitespace(&record);
+        if line.is_empty() {
+            continue;
+        }
+        let value: Value = serde_json::from_slice(line)
+            .map_err(|e| format!("parse jsonl record {}: {e}", total.saturating_add(1)))?;
+        collect_page_entry(&mut entries, &value, total, offset, limit);
+        total = total.saturating_add(1);
+    }
+    Ok((total, entries))
+}
+
+fn scan_length_prefixed<R: Read>(
+    reader: &mut R,
+    offset: u64,
+    limit: u64,
+) -> Result<(u64, Vec<Value>), String> {
+    let mut total = 0u64;
+    let mut entries = Vec::with_capacity(limit as usize);
+    loop {
+        let mut length = [0u8; 4];
+        match reader.read(&mut length[..1]) {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(e) => return Err(format!("read mfne length: {e}")),
+        }
+        reader
+            .read_exact(&mut length[1..])
+            .map_err(|e| format!("truncated mfne length prefix: {e}"))?;
+        let record_len = u32::from_le_bytes(length) as usize;
+        if record_len > MAX_REPLAY_RECORD_BYTES {
+            return Err(format!(
+                "replay record exceeds {MAX_REPLAY_RECORD_BYTES} bytes"
+            ));
+        }
+        let mut record = vec![0u8; record_len];
+        reader
+            .read_exact(&mut record)
+            .map_err(|e| format!("truncated mfne record body: {e}"))?;
+        let value: Value = serde_json::from_slice(&record)
+            .map_err(|e| format!("parse mfne record {}: {e}", total.saturating_add(1)))?;
+        collect_page_entry(&mut entries, &value, total, offset, limit);
+        total = total.saturating_add(1);
+    }
+    Ok((total, entries))
+}
+
+fn collect_page_entry(
+    entries: &mut Vec<Value>,
+    envelope: &Value,
+    index: u64,
+    offset: u64,
+    limit: u64,
+) {
+    if index >= offset && index < offset.saturating_add(limit) {
+        if let Some(entry) = envelope_to_tape_entry(envelope) {
+            entries.push(entry);
+        }
+    }
+}
+
+fn read_bounded_line<R: BufRead>(
+    reader: &mut R,
+    record: &mut Vec<u8>,
+    max_len: usize,
+) -> Result<usize, String> {
+    record.clear();
+    loop {
+        let available = reader
+            .fill_buf()
+            .map_err(|e| format!("read replay record: {e}"))?;
+        if available.is_empty() {
+            return Ok(record.len());
+        }
+        let take = available
+            .iter()
+            .position(|byte| *byte == b'\n')
+            .map_or(available.len(), |position| position + 1);
+        if record.len().saturating_add(take) > max_len {
+            return Err(format!("replay record exceeds {max_len} bytes"));
+        }
+        record.extend_from_slice(&available[..take]);
+        let found_delimiter = available.get(take.saturating_sub(1)) == Some(&b'\n');
+        reader.consume(take);
+        if found_delimiter {
+            return Ok(record.len());
+        }
+    }
+}
+
+fn trim_ascii_whitespace(mut bytes: &[u8]) -> &[u8] {
+    while bytes.first().is_some_and(u8::is_ascii_whitespace) {
+        bytes = &bytes[1..];
+    }
+    while bytes.last().is_some_and(u8::is_ascii_whitespace) {
+        bytes = &bytes[..bytes.len() - 1];
+    }
+    bytes
 }
 
 /// Resolve `file` under `root`; reject path traversal.
@@ -164,10 +264,12 @@ fn resolve_replay_file(root: &Path, file: &str) -> Result<PathBuf, String> {
         return Err("invalid file name".into());
     }
     let rel = Path::new(file);
-    if rel
-        .components()
-        .any(|c| matches!(c, Component::RootDir | Component::Prefix(_) | Component::ParentDir))
-    {
+    if rel.components().any(|c| {
+        matches!(
+            c,
+            Component::RootDir | Component::Prefix(_) | Component::ParentDir
+        )
+    }) {
         return Err("invalid file path".into());
     }
     let candidate = root.join(rel);
@@ -235,10 +337,7 @@ fn fixed_json_to_string(v: &Value) -> Option<String> {
         .unwrap_or(0);
     let scale = inner.get("scale")?.as_u64()? as u8;
     let coefficient = (i128::from(hi) << 64) | i128::from(lo as u64);
-    Some(format_fixed(marketfeed_model::Fixed {
-        coefficient,
-        scale,
-    }))
+    Some(format_fixed(marketfeed_model::Fixed { coefficient, scale }))
 }
 
 fn format_fixed(f: marketfeed_model::Fixed) -> String {
@@ -272,13 +371,13 @@ fn notional_from_strings(price: &str, qty: &str) -> Option<String> {
     fixed_mul(p, q).map(format_fixed)
 }
 
-fn fixed_mul(a: marketfeed_model::Fixed, b: marketfeed_model::Fixed) -> Option<marketfeed_model::Fixed> {
+fn fixed_mul(
+    a: marketfeed_model::Fixed,
+    b: marketfeed_model::Fixed,
+) -> Option<marketfeed_model::Fixed> {
     let scale = a.scale.checked_add(b.scale)?;
     let coefficient = a.coefficient.checked_mul(b.coefficient)?;
-    Some(marketfeed_model::Fixed {
-        coefficient,
-        scale,
-    })
+    Some(marketfeed_model::Fixed { coefficient, scale })
 }
 
 #[cfg(test)]
@@ -295,15 +394,15 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
+        let replay_dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
         let cfg = DaemonConfig::from_toml_str(&format!(
             r#"
             [telemetry]
             bind = "127.0.0.1:9108"
-            replay_dir = "{}"
+            replay_dir = {replay_dir_toml}
             [readiness]
             require_required_venues = false
-            "#,
-            dir.display()
+            "#
         ))
         .unwrap();
         let resp = list_replay_files(&cfg).unwrap();
@@ -315,5 +414,43 @@ mod tests {
         let root = std::env::temp_dir();
         assert!(resolve_replay_file(&root, "../etc/passwd").is_err());
         assert!(resolve_replay_file(&root, "/etc/passwd").is_err());
+    }
+
+    #[test]
+    fn replay_rejects_a_record_larger_than_the_bounded_reader_limit() {
+        let dir = std::env::temp_dir().join(format!(
+            "marketfeed-replay-bounded-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("oversized.jsonl");
+        std::fs::write(&file, vec![b' '; 8 * 1024 * 1024 + 1]).unwrap();
+        let replay_dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
+        let cfg = DaemonConfig::from_toml_str(&format!(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            replay_dir = {replay_dir_toml}
+            [readiness]
+            require_required_venues = false
+            "#
+        ))
+        .unwrap();
+
+        let response = read_replay_entries(&cfg, "oversized.jsonl", 0, 100);
+
+        assert!(
+            response
+                .error
+                .as_deref()
+                .is_some_and(|error| error.contains("record exceeds")),
+            "{response:?}"
+        );
+        let _ = std::fs::remove_file(file);
+        let _ = std::fs::remove_dir(dir);
     }
 }

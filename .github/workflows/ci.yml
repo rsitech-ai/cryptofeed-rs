@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -18,24 +21,23 @@ jobs:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: 1.91.0
-          components: rustfmt
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal --component rustfmt
       - run: cargo fmt --all -- --check
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: 1.91.0
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal --component clippy
+      - run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 
   test:
     name: test (${{ matrix.os }})
@@ -46,12 +48,13 @@ jobs:
         # Primary matrix: Linux x86_64, macOS, Windows, Linux aarch64 (hosted arm).
         os: [ubuntu-latest, macos-latest, windows-latest, ubuntu-24.04-arm]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: 1.91.0
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace --all-targets --all-features
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: rustup toolchain install 1.91.0 --profile minimal
+      - run: cargo test --locked --workspace --all-targets --all-features
 
   # Optional C10 feature matrix: adapter crates with `--features simd-json`.
   # Local parity: the same cargo lines are documented in latency_runtime.md.
@@ -68,79 +71,84 @@ jobs:
           - marketfeed-adapter-kraken
           - marketfeed-adapter-deribit
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: 1.91.0
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: simd-json-${{ matrix.crate }}
-      - run: cargo test -p ${{ matrix.crate }} --features simd-json
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal
+      - run: cargo test --locked -p ${{ matrix.crate }} --features simd-json
       # Evidence tool compile-check only (Binance harness); do not gate on timings.
       - name: parse_fixtures bench (compile + one run)
         if: matrix.crate == 'marketfeed-adapter-binance'
         run: |
-          cargo bench -p marketfeed-adapter-binance --bench parse_fixtures
-          cargo bench -p marketfeed-adapter-binance --bench parse_fixtures --features simd-json
+          cargo bench --locked -p marketfeed-adapter-binance --bench parse_fixtures
+          cargo bench --locked -p marketfeed-adapter-binance --bench parse_fixtures --features simd-json
 
   docs:
     name: docs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: 1.91.0
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: docs
-      - run: cargo doc --workspace --all-features --no-deps
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal
+      - run: cargo doc --locked --workspace --all-features --no-deps
         env:
           RUSTDOCFLAGS: -D warnings
+
+  ffi-header:
+    name: C header and ABI exports
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal
+      - run: bash scripts/tests/ffi-header_test.sh
 
   msrv:
     name: msrv (1.85)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: "1.85"
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: msrv-1.85
+          persist-credentials: false
+      - name: Install MSRV toolchain
+        run: rustup toolchain install 1.85 --profile minimal
       # ponytail: MSRV = compile+lib tests only; full --workspace --all-targets stays on pin toolchain.
-      - run: cargo test --workspace --lib
+      - run: cargo +1.85 test --locked --workspace --lib
 
   deny:
     name: cargo-deny
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          command: check
+          persist-credentials: false
+      - name: Install pinned cargo-deny
+        run: cargo install cargo-deny --locked --version 0.20.2
+      - run: cargo deny check
 
-  # Advisory: do not block merge on SBOM tooling flakiness.
   sbom:
-    name: sbom (advisory)
+    name: sbom
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          toolchain: 1.91.0
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: sbom
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx --locked
+        run: cargo install cargo-cyclonedx --locked --version 0.5.9
+      - name: Test CycloneDX SBOM generation
+        run: bash scripts/tests/generate-sbom_test.sh
       - name: Generate CycloneDX SBOM
         run: ./scripts/generate-sbom.sh
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: marketfeed-sbom
-          path: sbom/
-          if-no-files-found: warn
+          path: sbom/marketfeed.cdx.json
+          if-no-files-found: error

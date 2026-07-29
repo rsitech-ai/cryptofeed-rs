@@ -62,8 +62,11 @@ if echo "$SSE_HEAD" | grep -q 'data:'; then ok "SSE /v1/stream emits data"; else
 STATUS=$(curl_json /v1/status)
 echo "$STATUS" >"$OUT_DIR/smoke-status.json"
 # Enriched status fields
-python3 -c 'import json,sys; d=json.load(sys.stdin); assert "grafana_base_url" in d or d.get("grafana_base_url") is None; assert "alert_webhook_configured" in d; v=d["venues"][0]; assert "feed_lag_ms" in v; assert "tape_trades" in v' <<<"$STATUS" \
-  && ok "status enrichment keys present" || bad "status enrichment keys missing"
+if python3 -c 'import json,sys; d=json.load(sys.stdin); assert "grafana_base_url" not in d or isinstance(d["grafana_base_url"], str) and d["grafana_base_url"]; assert "alert_webhook_configured" in d; v=d["venues"][0]; assert "feed_lag_ms" in v; assert "tape_trades" in v' <<<"$STATUS"; then
+  ok "status enrichment contract valid"
+else
+  bad "status enrichment contract invalid"
+fi
 
 LIVE_VENUES=$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(1 for v in d.get("venues",[]) if v.get("live")))' <<<"$STATUS")
 TOTAL_VENUES=$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("venues",[])))' <<<"$STATUS")
