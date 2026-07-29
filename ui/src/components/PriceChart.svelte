@@ -583,11 +583,11 @@
   .live-dot { font-size: 0.5rem; }
   .live-dot.ok { color: var(--bid); }
   .live-dot.bad { color: var(--ask); }
-  .px { font-weight: 600; }
-  .pct { color: var(--muted); }
+  .px { font-weight: 600; min-width: 5.5rem; text-align: right; font-variant-numeric: tabular-nums; }
+  .pct { color: var(--muted); min-width: 4.2rem; text-align: right; font-variant-numeric: tabular-nums; }
   .pct.up { color: var(--bid); }
   .pct.down { color: var(--ask); }
-  .vol { color: var(--muted); font-size: 0.6rem; }
+  .vol { color: var(--muted); font-size: 0.6rem; min-width: 5.5rem; font-variant-numeric: tabular-nums; }
 
   .chart-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .chart-host { flex: 1; min-height: 0; position: relative; }

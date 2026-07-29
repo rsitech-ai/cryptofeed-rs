@@ -9,6 +9,7 @@
  *   onError?: (err: Error) => void,
  *   onConnect?: () => void,
  *   onDisconnect?: () => void,
+ *   onReconnecting?: () => void,
  * }} StreamHandlers
  */
 
@@ -69,6 +70,9 @@ export class StreamClient {
     this.available = null; // null = unknown, true/false after probe
     /** Last focus apply time (ms) — SPA uses this to avoid double-skipping polls. */
     this.lastFocusAt = 0;
+    /** Intentional teardown — suppress disconnect/reconnect chip flip. */
+    this._silentClose = false;
+    this.reconnectCount = 0;
   }
 
   /**
@@ -122,7 +126,7 @@ export class StreamClient {
    * @param {{ asset?: string, venue?: string, symbol?: string, venues?: string[] }} opts
    */
   connect(opts = {}) {
-    this.disconnect();
+    this.disconnect({ silent: true });
     const q = new URLSearchParams();
     // Prefer explicit focus venue/symbol so SSE tracks the selected market,
     // not just the first asset match in daemon config order.
@@ -144,16 +148,27 @@ export class StreamClient {
     }
 
     this.es.onopen = () => {
+      const was = this.connected;
       this.connected = true;
       this.available = true;
-      this.handlers.onConnect?.();
+      if (!was) this.handlers.onConnect?.();
+      else this.reconnectCount += 1;
     };
 
     this.es.onerror = () => {
-      if (this.connected) {
-        this.connected = false;
-        this.handlers.onDisconnect?.();
+      // EventSource auto-reconnects while CONNECTING. Only tear the UX down when
+      // the socket is permanently CLOSED (or we intentionally closed it).
+      if (this._silentClose) return;
+      const state = this.es?.readyState;
+      if (state === EventSource.CLOSED) {
+        if (this.connected) {
+          this.connected = false;
+          this.handlers.onDisconnect?.();
+        }
+        return;
       }
+      // Transient blip — keep streamMode as SSE; optional soft signal.
+      this.handlers.onReconnecting?.();
     };
 
     const handle = (raw) => {
@@ -197,14 +212,38 @@ export class StreamClient {
    * @param {number} [maxAgeMs]
    */
   focusFresh(maxAgeMs = 1500) {
-    return this.connected && this.lastFocusAt > 0 && Date.now() - this.lastFocusAt < maxAgeMs;
+    // Keep treating focus as fresh during brief EventSource CONNECTING blips so
+    // poll fallback does not race and clear panels.
+    const esOk =
+      this.es &&
+      (this.es.readyState === EventSource.OPEN || this.es.readyState === EventSource.CONNECTING);
+    return (
+      (!!this.connected || !!esOk) &&
+      this.lastFocusAt > 0 &&
+      Date.now() - this.lastFocusAt < maxAgeMs
+    );
   }
 
-  disconnect() {
+  /**
+   * @param {{ silent?: boolean }} [opts]
+   */
+  disconnect(opts = {}) {
+    const silent = !!opts.silent;
+    this._silentClose = silent;
     if (this.es) {
-      this.es.close();
+      try {
+        this.es.onerror = null;
+        this.es.onopen = null;
+        this.es.onmessage = null;
+        this.es.close();
+      } catch {
+        /* ignore */
+      }
       this.es = null;
     }
+    const was = this.connected;
     this.connected = false;
+    this._silentClose = false;
+    if (was && !silent) this.handlers.onDisconnect?.();
   }
 }

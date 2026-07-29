@@ -4,7 +4,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { dispatchStreamMessage } from './stream.js';
+import { dispatchStreamMessage, StreamClient } from './stream.js';
 
 describe('dispatchStreamMessage', () => {
   it('applies combined focus payload from daemon SSE', () => {
@@ -43,5 +43,23 @@ describe('dispatchStreamMessage', () => {
     );
     assert.equal(book?.v, 'okx');
     assert.ok(book?.b);
+  });
+});
+
+describe('StreamClient disconnect silent', () => {
+  it('silent disconnect does not fire onDisconnect', () => {
+    let disconnects = 0;
+    const s = new StreamClient({
+      onDisconnect: () => {
+        disconnects += 1;
+      },
+    });
+    s.connected = true;
+    s.disconnect({ silent: true });
+    assert.equal(disconnects, 0);
+    assert.equal(s.connected, false);
+    s.connected = true;
+    s.disconnect();
+    assert.equal(disconnects, 1);
   });
 });

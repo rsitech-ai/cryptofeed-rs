@@ -36,6 +36,7 @@
     density = 'comfortable',
     grafanaUrl = '',
     streamMode = 'poll',
+    streamReconnecting = false,
     onStatsMode = () => {},
     onSessionPreset = () => {},
     onDensity = () => {},
@@ -78,7 +79,11 @@
     <div class="pair-meta">
       <span class="venue-chip" class:live={venueLive} title="Book / tape focus venue">{venue || '—'}</span>
       <span class="muted mono">{symbol}</span>
-      <span class="stream-chip" title="Data transport">{streamMode === 'sse' ? 'SSE' : 'poll'}</span>
+      <span
+        class="stream-chip"
+        class:soft={streamReconnecting && streamMode === 'sse'}
+        title={streamReconnecting ? 'SSE reconnecting (UI stays mounted)' : 'Data transport'}
+      >{streamMode === 'sse' ? 'SSE' : 'poll'}</span>
       <span class="coming-soon" title="Not implemented">Funding · OI · Liq</span>
     </div>
   </div>
@@ -266,6 +271,13 @@
     color: var(--muted);
     border: 1px solid var(--border);
     padding: 0.02rem 0.25rem;
+    min-width: 2.4rem;
+    text-align: center;
+  }
+
+  .stream-chip.soft {
+    opacity: 0.75;
+    border-style: dashed;
   }
 
   .coming-soon {
