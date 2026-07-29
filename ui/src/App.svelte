@@ -45,10 +45,9 @@
   import DiscrepancyPanel from './components/DiscrepancyPanel.svelte';
   import AlertToast from './components/AlertToast.svelte';
   import ReplayScrubber from './components/ReplayScrubber.svelte';
-  import OrderFlowPanel from './components/OrderFlowPanel.svelte';
   import OrderFlowHeatmap from './components/OrderFlowHeatmap.svelte';
   import DomLadder from './components/DomLadder.svelte';
-  import PulsePanel from './components/PulsePanel.svelte';
+  import FlowPulseDock from './components/FlowPulseDock.svelte';
 
   const initial = loadSettings();
 
@@ -85,7 +84,7 @@
   let tapeMinUsd = $state(initial.tapeMinUsd || 0);
   let tapeSideFilter = $state(initial.tapeSideFilter || 'all');
   let tapeAggregatePrints = $state(initial.tapeAggregatePrints || false);
-  let analyticsTab = $state(initial.analyticsTab || 'orderflow');
+  let analyticsTab = $state(normalizeDockTab(initial.analyticsTab) || 'both');
   let analyticsOpen = $state(initial.analyticsOpen !== false);
   let largeTradeUsd = $state(initial.largeTradeUsd ?? 25000);
   let pulseSpikeThreshold = $state(initial.pulseSpikeThreshold ?? 72);
@@ -314,6 +313,18 @@
 
   /** Deep L2 poll for Order Flow even when SSE focus is fresh (walls need depth). */
   const HEAT_BOOK_DEPTH = 50;
+
+  /** Normalize dock section ids (`orderflow` legacy → `flow`). */
+  function normalizeDockTab(tab) {
+    if (tab === 'orderflow' || tab === 'flow') return 'flow';
+    if (tab === 'pulse' || tab === 'both' || tab === 'hidden') return tab;
+    return 'both';
+  }
+
+  /** Active Flow & Pulse section when dock is open. */
+  let dockSection = $derived(
+    analyticsOpen && analyticsTab !== 'hidden' ? normalizeDockTab(analyticsTab) : 'both',
+  );
   let lastHeatBookAt = 0;
   async function refreshHeatBook() {
     if (chartMode !== 'orderflow' || !selectedVenue || !selectedSymbol || replayMode) return;
@@ -757,11 +768,11 @@
   function setChartMode(m) {
     chartMode = m;
     const patch = { chartMode: m };
-    // Order Flow mode keeps the Order Flow analytics dock visible/populated.
+    // Order Flow chart keeps the unified Flow & Pulse dock open (Both section).
     if (m === 'orderflow') {
-      analyticsTab = 'orderflow';
+      analyticsTab = 'both';
       analyticsOpen = true;
-      patch.analyticsTab = 'orderflow';
+      patch.analyticsTab = 'both';
       patch.analyticsOpen = true;
     }
     persist(patch);
@@ -1011,15 +1022,15 @@
     }
     if (ev.key === 'f' || ev.key === 'F') {
       ev.preventDefault();
-      analyticsOpen = true;
-      analyticsTab = 'orderflow';
-      persist({ analyticsOpen: true, analyticsTab: 'orderflow' });
+      setAnalyticsTab('flow');
     }
     if (ev.key === 'p' || ev.key === 'P') {
       ev.preventDefault();
-      analyticsOpen = true;
-      analyticsTab = 'pulse';
-      persist({ analyticsOpen: true, analyticsTab: 'pulse' });
+      setAnalyticsTab('pulse');
+    }
+    if (ev.key === 'b' || ev.key === 'B') {
+      ev.preventDefault();
+      setAnalyticsTab('both');
     }
     if (ev.key === 'Escape' && analyticsOpen) {
       analyticsOpen = false;
@@ -1038,16 +1049,17 @@
       persist({ analyticsOpen: false, analyticsTab: 'hidden' });
       return;
     }
+    const next = normalizeDockTab(tab);
     analyticsOpen = true;
-    analyticsTab = tab;
-    persist({ analyticsOpen: true, analyticsTab: tab });
+    analyticsTab = next;
+    persist({ analyticsOpen: true, analyticsTab: next });
   }
 
   function toggleAnalyticsDock() {
-    if (analyticsOpen) {
+    if (analyticsOpen && analyticsTab !== 'hidden') {
       setAnalyticsTab('hidden');
     } else {
-      setAnalyticsTab(analyticsTab === 'hidden' ? 'orderflow' : analyticsTab);
+      setAnalyticsTab(analyticsTab === 'hidden' ? 'both' : normalizeDockTab(analyticsTab));
     }
   }
 
@@ -1334,55 +1346,42 @@
   </div>
 
   <div class="analytics-dock" class:open={analyticsOpen && analyticsTab !== 'hidden'}>
-    <div class="dock-tabs">
-      <button
-        type="button"
-        class:active={analyticsOpen && analyticsTab === 'orderflow'}
-        onclick={() => setAnalyticsTab('orderflow')}
-        title="Order Flow (F)"
-      >Order Flow</button>
-      <button
-        type="button"
-        class:active={analyticsOpen && analyticsTab === 'pulse'}
-        onclick={() => setAnalyticsTab('pulse')}
-        title="Market Pulse (P)"
-      >Pulse</button>
-      <span class="dock-hint">F order flow · P pulse · Esc close</span>
-      <button type="button" class="dock-toggle" onclick={toggleAnalyticsDock}>
-        {analyticsOpen && analyticsTab !== 'hidden' ? '▾ Hide' : '▴ Show'}
-      </button>
-    </div>
-    {#if analyticsOpen && analyticsTab !== 'hidden'}
+    {#if !(analyticsOpen && analyticsTab !== 'hidden')}
+      <div class="dock-tabs collapsed">
+        <span class="dock-title">Flow &amp; Pulse</span>
+        <span class="dock-hint">F / B / P · Esc</span>
+        <button type="button" class="dock-toggle" onclick={toggleAnalyticsDock}>▴ Show</button>
+      </div>
+    {:else}
       <div class="dock-body">
-        {#if analyticsTab === 'orderflow'}
-          <OrderFlowPanel
-            {book}
-            {tape}
-            depth={Math.max(bookDepth, 32)}
-            {lastPrice}
-            windowSec={ofViewSec ?? sessionSec}
-            largeUsd={largeTradeUsd}
-            {imbalanceHistory}
-            tickOpt={ofTick}
-            onLargeUsd={(n) => { largeTradeUsd = n; persist({ largeTradeUsd: n }); }}
-            onDepth={setBookDepth}
-          />
-        {:else if analyticsTab === 'pulse'}
-          <PulsePanel
-            {pulse}
-            history={pulseHistory}
-            alertActive={pulseAlertActive}
-            spikeThreshold={pulseSpikeThreshold}
-            asset={selectedAsset}
-            focusVenue={selectedVenue}
-            metricFilter={pulseMetricFilter}
-            onSpikeThreshold={(n) => { pulseSpikeThreshold = n; persist({ pulseSpikeThreshold: n }); }}
-            onChipClick={(v, s) => { if (v && s) selectMarket(v, s); }}
-            onMetricClick={(m) => {
-              pulseMetricFilter = pulseMetricFilter === m ? '' : m;
-            }}
-          />
-        {/if}
+        <FlowPulseDock
+          section={dockSection === 'hidden' ? 'both' : dockSection}
+          {book}
+          {tape}
+          depth={Math.max(bookDepth, 32)}
+          {lastPrice}
+          windowSec={ofViewSec ?? sessionSec}
+          largeUsd={largeTradeUsd}
+          {imbalanceHistory}
+          tickOpt={ofTick}
+          showLadder={chartMode !== 'orderflow'}
+          {pulse}
+          history={pulseHistory}
+          alertActive={pulseAlertActive}
+          spikeThreshold={pulseSpikeThreshold}
+          asset={selectedAsset}
+          focusVenue={selectedVenue}
+          metricFilter={pulseMetricFilter}
+          onLargeUsd={(n) => { largeTradeUsd = n; persist({ largeTradeUsd: n }); }}
+          onDepth={setBookDepth}
+          onSpikeThreshold={(n) => { pulseSpikeThreshold = n; persist({ pulseSpikeThreshold: n }); }}
+          onChipClick={(v, s) => { if (v && s) selectMarket(v, s); }}
+          onMetricClick={(m) => {
+            pulseMetricFilter = pulseMetricFilter === m ? '' : m;
+          }}
+          onSection={(s) => setAnalyticsTab(s)}
+          onToggle={toggleAnalyticsDock}
+        />
       </div>
     {/if}
   </div>
@@ -1460,7 +1459,20 @@
     flex-shrink: 0;
     background: var(--panel);
   }
-  .dock-tabs button {
+  .dock-title {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.02em;
+  }
+  .dock-hint {
+    margin-left: 0.5rem;
+    font-size: 0.55rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .dock-toggle {
+    margin-left: auto;
     background: transparent;
     border: 1px solid transparent;
     color: var(--muted);
@@ -1470,18 +1482,7 @@
     cursor: pointer;
     border-radius: 2px;
   }
-  .dock-tabs button:hover { color: var(--text); background: var(--panel-2); }
-  .dock-tabs button.active {
-    color: var(--accent);
-    border-color: rgba(240, 185, 11, 0.35);
-  }
-  .dock-hint {
-    margin-left: 0.5rem;
-    font-size: 0.55rem;
-    color: var(--muted);
-    font-family: var(--mono);
-  }
-  .dock-toggle { margin-left: auto !important; }
+  .dock-toggle:hover { color: var(--text); background: var(--panel-2); }
   .dock-body {
     flex: 1;
     min-height: 0;

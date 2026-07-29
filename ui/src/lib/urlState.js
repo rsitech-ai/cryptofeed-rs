@@ -57,7 +57,8 @@ export function parseUrlState() {
   if (grafana) out.grafanaUrl = grafana;
 
   const tab = p.get('tab');
-  if (tab === 'orderflow' || tab === 'pulse' || tab === 'hidden') out.analyticsTab = tab;
+  if (tab === 'orderflow' || tab === 'flow') out.analyticsTab = 'flow';
+  else if (tab === 'pulse' || tab === 'both' || tab === 'hidden') out.analyticsTab = tab;
 
   const dock = p.get('dock');
   if (dock === '0' || dock === 'false') out.analyticsOpen = false;
