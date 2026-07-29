@@ -14,6 +14,21 @@
   --accent: #f0b90b;
   --mono: "IBM Plex Mono", "JetBrains Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace;
   --sans: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* comfortable density (default) */
+  --header-pad: 0.4rem 0.75rem;
+  --header-h: 56px;
+  --panel-pad: 0.4rem 0.5rem;
+  --row-pad: 0.05rem 0.5rem;
+  --row-font: 0.72rem;
+}
+
+.terminal.density-compact {
+  --header-pad: 0.25rem 0.5rem;
+  --header-h: 44px;
+  --panel-pad: 0.25rem 0.35rem;
+  --row-pad: 0.02rem 0.35rem;
+  --row-font: 0.65rem;
+  font-size: 12px;
 }
 
 * {
