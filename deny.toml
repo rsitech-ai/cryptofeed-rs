@@ -47,6 +47,7 @@ deny = [
 ]
 skip = [
     { crate = "getrandom@0.2.17", reason = "ring and proptest currently require incompatible getrandom major versions" },
+    { crate = "getrandom@0.4.3", reason = "tempfile 3.27 requires getrandom 0.4 while rand and tungstenite remain on getrandom 0.3" },
     { crate = "hashbrown@0.15.5", reason = "simd-json currently requires hashbrown 0.15 while the remaining graph uses 0.17" },
     { crate = "syn@2.0.119", reason = "transitive procedural macro dependencies currently span syn 2 and syn 3" },
     { crate = "webpki-roots@0.26.11", reason = "tokio-tungstenite 0.26 and reqwest 0.12 currently resolve different webpki-roots majors" },

@@ -161,10 +161,10 @@ impl<T: EventSink + Send + 'static> SinkWorker<T> {
                             worker_mailbox.finish_item(false);
                         }
                         Err(error) => {
-                            worker_health.healthy.store(false, Ordering::Release);
-                            worker_health.errors.fetch_add(1, Ordering::Relaxed);
                             *worker_health.last_error.lock().expect("sink error lock") =
                                 Some(error.to_string());
+                            worker_health.errors.fetch_add(1, Ordering::Relaxed);
+                            worker_health.healthy.store(false, Ordering::Release);
                             tracing::error!(sink_id = %worker_id, %error, "sink worker failed");
                             let discarded = worker_mailbox.finish_item(true);
                             worker_health
