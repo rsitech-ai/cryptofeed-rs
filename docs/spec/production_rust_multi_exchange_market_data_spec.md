@@ -930,17 +930,20 @@ The test kit MUST provide reusable assertions for:
 
 - Instrument discovery works.
 - Primary public channels work.
-- Replay corpus and live canary exist.
+- Deterministic replay corpus exists.
 - Known limitations are documented.
 - No unresolved known book-corruption issue.
+- Every claimed beta channel has at least seven consecutive, calendar-spaced
+  scheduled live-canary passes.
 
 **Stable**
 
 - Complete capability matrix.
 - Sequence and checksum rules documented.
 - Scheduled live canaries cover all stable channels.
-- Long-running soak tests pass.
+- A continuous Linux live soak of at least seven days passes.
 - Operational dashboards and runbook exist.
+- A named adapter owner and operations owner exist.
 - No high-severity correctness defect is open.
 - Backward compatibility is maintained for the adapter’s public configuration.
 
@@ -1664,10 +1667,10 @@ channels = ["trades", "quote", "funding", "open_interest", "liquidations"]
 [[sinks]]
 id = "local-events"
 type = "protobuf-file"
-directory = "/var/lib/marketfeed/events"
-queue_capacity = 16384
-overflow = "spill_to_disk"
-wal_limit = "100GiB"
+required = true
+path = "/var/lib/marketfeed/events.mfpe"
+capacity = 16384
+overflow = "fail_engine"
 ```
 
 ### 21.3 Validation
@@ -2357,8 +2360,11 @@ Initial governance:
 
 ### 31.4 Branding and independence
 
-- Do not use the name “Cryptofeed” for the new project.
-- Select a distinctive name after checking crates.io, GitHub, package registries, domains, and trademarks.
+- The public alpha currently uses `cryptofeed-rs`; this is a preview name, not
+  evidence of affiliation with any similarly named project.
+- Before beta, the owner MUST either select a distinctive name after checking
+  crates.io, GitHub, package registries, domains, and trademarks, or record a
+  reviewed naming/provenance decision that explicitly approves the current name.
 - State clearly that the project is independent.
 - Implement integrations from venue specifications and original fixtures.
 - Do not copy source, tests, documentation text, or branding from Cryptofeed.
@@ -2582,7 +2588,7 @@ The following decisions are fixed by this specification:
 | ADR-010 | Protobuf is the stable cross-language event schema |
 | ADR-011 | Structured logs and Prometheus metrics are baseline; OTel is optional |
 | ADR-012 | Own code forbids unsafe by default |
-| ADR-013 | Dual Apache-2.0/MIT is recommended |
+| ADR-013 | Apache-2.0 is the sole project license |
 | ADR-014 | Dynamic native plugin ABI is not part of version 1 |
 | ADR-015 | Linux is the primary production tier |
 

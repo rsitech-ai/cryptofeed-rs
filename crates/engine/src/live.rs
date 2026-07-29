@@ -239,6 +239,36 @@ pub async fn run_session_with_reconnect_to<
     spec: &WebSocketSpec,
     policy: ReconnectPolicy,
     max_reconnects: u32,
+    sink: Option<&mut S>,
+) -> Result<(), EngineError> {
+    let result = run_session_with_reconnect_to_inner(
+        runner,
+        transport,
+        http,
+        spec,
+        policy,
+        max_reconnects,
+        sink,
+    )
+    .await;
+    if result.is_err() {
+        runner.invalidate_live_readiness();
+        runner.lifecycle = SessionLifecycle::Stopped;
+    }
+    result
+}
+
+async fn run_session_with_reconnect_to_inner<
+    T: WebSocketTransport,
+    H: HttpTransport,
+    S: EventSink + ?Sized,
+>(
+    runner: &mut SessionRunner,
+    transport: &mut T,
+    http: &H,
+    spec: &WebSocketSpec,
+    policy: ReconnectPolicy,
+    max_reconnects: u32,
     mut sink: Option<&mut S>,
 ) -> Result<(), EngineError> {
     let mut reconnect = ReconnectState::new(policy);

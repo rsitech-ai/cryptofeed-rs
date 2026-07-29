@@ -144,6 +144,15 @@ mod tests {
     }
 
     #[test]
+    fn fixed_layout_matches_public_c_header() {
+        assert_eq!(std::mem::size_of::<MfFixed>(), 24);
+        assert_eq!(std::mem::align_of::<MfFixed>(), 8);
+        assert_eq!(std::mem::offset_of!(MfFixed, coefficient_lo), 0);
+        assert_eq!(std::mem::offset_of!(MfFixed, coefficient_hi), 8);
+        assert_eq!(std::mem::offset_of!(MfFixed, scale), 16);
+    }
+
+    #[test]
     fn parse_ok_and_roundtrip() {
         let bytes = b"123.45";
         let mut out = MfFixed::default();

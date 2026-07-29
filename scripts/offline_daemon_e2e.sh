@@ -33,7 +33,7 @@ awk -v host="$BIND_HOST" -v port="$BIND_PORT" '
 ' "$CONFIG" >"$TMP_CFG"
 
 echo "starting marketfeed run (offline) config=$TMP_CFG bind=$ADDR soak=${SOAK_SECS}s"
-cargo run -q -p marketfeed-daemon -- run --config "$TMP_CFG" &
+cargo run --locked -q -p marketfeed-daemon -- run --config "$TMP_CFG" &
 CHILD_PID=$!
 
 http_code() {
@@ -62,8 +62,8 @@ while true; do
 done
 
 metrics="$(curl -sS --max-time 2 "http://${ADDR}/metrics" || true)"
-echo "$metrics" | grep -q 'marketfeed_ready 1'
-echo "$metrics" | grep -q 'marketfeed_live_sessions 1'
+grep -q 'marketfeed_ready 1' <<<"$metrics"
+grep -q 'marketfeed_live_sessions 1' <<<"$metrics"
 echo "metrics gate ok"
 
 rss_kb() {

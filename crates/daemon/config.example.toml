@@ -35,6 +35,7 @@ min_free_space = "0"
 # [[sinks]]
 # id = "probe"
 # type = "memory"
+# required = false
 # capacity = 1024
 # overflow = "drop_oldest"
 # [[sinks]]
@@ -42,7 +43,9 @@ min_free_space = "0"
 # capacity = 64
 # overflow = "drop_newest"
 # [[sinks]]
+# id = "primary-file"
 # type = "file"
+# required = true
 # path = "./events.log"
 # capacity = 1024
 # overflow = "fail_engine"
@@ -61,6 +64,13 @@ min_free_space = "0"
 # address = "127.0.0.1:19090"
 # capacity = 1024
 # overflow = "drop_newest"
+#
+# Every configured sink has an isolated bounded FIFO and worker. `id` values,
+# when supplied, must be unique. A failed `required = true` sink makes /ready
+# return 503; optional sink failures remain visible in marketfeed_sink_* metrics.
+# At most 64 sinks are accepted. Recording plus sink mailboxes and their batch/
+# system queues may reserve at most 1,048,576 eager queue slots process-wide.
+# Standalone type="spill-wal" is rejected because it has no recovery consumer.
 # Kafka/NATS need daemon features `kafka` / `nats` (TCP clients; no rdkafka/async-nats).
 # [[sinks]]
 # type = "kafka"

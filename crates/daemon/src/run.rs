@@ -152,7 +152,6 @@ async fn run_recording(
         }
     }
 
-    state.shutdown_draining.store(true, Ordering::Relaxed);
     let deadline =
         Instant::now() + Duration::from_secs(state.config.engine.shutdown_deadline_secs.max(1));
     while state.active_public_venue_tasks.load(Ordering::Acquire) > 0 {
@@ -180,7 +179,6 @@ async fn run_recording(
         }
     };
     update_recording_metrics(&state, &pipeline)?;
-    state.shutdown_draining.store(false, Ordering::Relaxed);
     if let Some(error) = drain_error {
         return Err(format!("recording drain failed: {error}"));
     }

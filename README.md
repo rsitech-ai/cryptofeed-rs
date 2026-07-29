@@ -8,6 +8,9 @@ and derivatives reference data into exact fixed-point domain events. Venue
 adapters are pure session state machines; networking, reconnects, bounded
 dispatch, recording, replay, health, and metrics are separate layers.
 
+This is an independent RSI Tech implementation. It is not affiliated with or
+endorsed by any similarly named project.
+
 > [!WARNING]
 > This project is an **alpha prerelease**. Interfaces may change, venue behavior
 > is not yet backed by scheduled credentialed canaries, and the project is not
@@ -25,10 +28,14 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
 - Sequence-aware L2 order books with fail-closed validation and resynchronization.
 - Bounded queues with explicit overflow policies and observable drop counters.
 - Reconnect supervision with graceful cancellation and bounded shutdown.
-- Raw MFR1 recording, deterministic replay, normalized JSONL, and binary
-  protobuf-compatible output.
-- Optional file, UDP, Kafka, and NATS sinks; see
+- Raw MFR1 recording, deterministic adapter-level replay, normalized JSONL, and
+  binary protobuf-compatible output.
+- Optional file and UDP sinks plus experimental minimal Kafka and NATS TCP
+  sinks; see
   [`crates/sinks/README.md`](crates/sinks/README.md) for the current limits.
+- Protobuf-compatible MFPE-PB1 output uses a hand-maintained encoder; the
+  `.proto` schema is not compiled and has no generated-stub or breaking-change
+  CI gate yet.
 - Daemon health endpoints (`/live`, `/ready`) and Prometheus-format `/metrics`.
 
 The authoritative architecture and behavior specification is
@@ -45,12 +52,13 @@ macOS archive:
 
 - [Release page](https://github.com/rsitech-ai/cryptofeed-rs/releases/tag/v0.1.0-alpha.1)
 - [Direct archive download](https://github.com/rsitech-ai/cryptofeed-rs/releases/download/v0.1.0-alpha.1/marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin.tar.gz)
+- [CycloneDX SBOM](https://github.com/rsitech-ai/cryptofeed-rs/releases/download/v0.1.0-alpha.1/marketfeed-v0.1.0-alpha.1.cdx.json)
 - [Checksums](https://github.com/rsitech-ai/cryptofeed-rs/releases/download/v0.1.0-alpha.1/SHA256SUMS)
 
 Verify and run:
 
 ```bash
-shasum -a 256 -c SHA256SUMS
+shasum -a 256 -c SHA256SUMS  # archive and SBOM must both be present
 tar -xzf marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin.tar.gz
 ./marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin/marketfeed version
 ./marketfeed-v0.1.0-alpha.1-aarch64-apple-darwin/marketfeed --help
@@ -84,9 +92,9 @@ cargo run -p marketfeed-daemon -- run --config crates/daemon/config.offline.toml
 In another terminal:
 
 ```bash
-curl --fail http://127.0.0.1:19090/live
-curl --fail http://127.0.0.1:19090/ready
-curl --fail http://127.0.0.1:19090/metrics
+curl --fail http://127.0.0.1:19108/live
+curl --fail http://127.0.0.1:19108/ready
+curl --fail http://127.0.0.1:19108/metrics
 ```
 
 For live public sessions, start from

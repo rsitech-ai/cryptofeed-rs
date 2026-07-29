@@ -3,6 +3,11 @@
 Optional production binary `marketfeed`: validate / run / replay / inspect-recording,
 loopback `/live` `/ready` `/metrics`, optional `[[sinks]]`, JSON/text tracing.
 
+The current `replay` command validates and scans a raw recording and reports
+inbound-frame counts. Adapter-driven deterministic replay is provided by the
+`marketfeed-replay` library and engine integration tests; the daemon command
+does not yet execute the full adapter state machine.
+
 ## Config
 
 See [`config.example.toml`](./config.example.toml) and [`config.offline.toml`](./config.offline.toml).
@@ -11,6 +16,25 @@ See [`config.example.toml`](./config.example.toml) and [`config.offline.toml`](.
 cargo run -p marketfeed-daemon -- validate --config crates/daemon/config.example.toml
 cargo run -p marketfeed-daemon -- run --config crates/daemon/config.offline.toml
 ```
+
+### Sink isolation and readiness
+
+Each `[[sinks]]` entry owns a bounded FIFO and a dedicated worker, so slow disk
+or network I/O does not hold the process-wide venue fan-out lock. Give
+operational sinks a stable, unique `id`. Set `required = true` when sink failure
+must make `/ready` return `503`; otherwise failures remain isolated but visible
+through the labeled `marketfeed_sink_*` metrics. Shutdown waits for queued and
+in-flight sink work within the configured deadline plus the coordinator margin.
+Configuration validation limits the daemon to 64 sinks and caps the aggregate
+recording/mailbox/batch/system reservation at 1,048,576 eager queue slots.
+Readiness also fails immediately during shutdown or recording disk pressure,
+and a required L2 venue is not ready until every configured symbol has a
+distinct valid book.
+
+The daemon rejects standalone `type = "spill-wal"` configurations. The WAL
+library remains available, but daemon use needs a real downstream sink plus an
+explicit recovery/checkpoint consumer; accepting it as a terminal sink would
+leave its in-memory prefix without a durable consumer.
 
 ### Authenticated Coinbase Exchange L2
 
