@@ -12,8 +12,9 @@ export const DEFAULTS = {
   showVolume: true,
   bookDepth: 16,
   tapeLimit: 120,
-  pollFocusMs: 120,
-  pollMultiMs: 220,
+  // Focus poll is a fallback when SSE is stale; keep modest to avoid DOM thrash.
+  pollFocusMs: 180,
+  pollMultiMs: 280,
   hiddenVenues: [],
   pinnedVenues: [],
   marketsGroup: 'asset', // asset | venue | all

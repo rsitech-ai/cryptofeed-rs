@@ -66,6 +66,11 @@
   let userInteracted = false;
   let showSettings = $state(false);
   let syncing = false;
+  let volMarginsOn = null;
+  let lastScrollAt = 0;
+  let chartPaintRaf = 0;
+  /** @type {object|null} pending chart payload for coalesced paint */
+  let pendingChart = null;
 
   const chartOpts = {
     layout: {
@@ -114,7 +119,38 @@
   }
 
   onMount(() => {
-    if (toolbarOnly || !host) return;
+    return () => {
+      ready = false;
+      if (chartPaintRaf) cancelAnimationFrame(chartPaintRaf);
+      chartPaintRaf = 0;
+      destroyCharts();
+    };
+  });
+
+  function destroyCharts() {
+    bpsChart?.remove();
+    bpsChart = null;
+    chart?.remove();
+    chart = null;
+    lineSeries.clear();
+    candleSeries = null;
+    volumeSeries = null;
+    bpsLineSeries = null;
+    markersApi = null;
+    volMarginsOn = null;
+    fitKey = '';
+  }
+
+  // Create/destroy chart when toolbarOnly toggles (single App instance).
+  $effect(() => {
+    if (toolbarOnly) {
+      if (chart) {
+        ready = false;
+        destroyCharts();
+      }
+      return;
+    }
+    if (!host || chart) return;
     chart = createChart(host, {
       ...chartOpts,
       autoSize: true,
@@ -124,24 +160,10 @@
         entireTextOnly: true,
       },
     });
-
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       userInteracted = true;
     });
-
     ready = true;
-    return () => {
-      ready = false;
-      bpsChart?.remove();
-      bpsChart = null;
-      chart?.remove();
-      chart = null;
-      lineSeries.clear();
-      candleSeries = null;
-      volumeSeries = null;
-      bpsLineSeries = null;
-      markersApi = null;
-    };
   });
 
   $effect(() => {
@@ -230,11 +252,17 @@
   function applyVolumeData(bars) {
     if (!showVolume) {
       clearVolume();
-      chart?.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.08 } } });
+      if (volMarginsOn !== false) {
+        chart?.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.08 } } });
+        volMarginsOn = false;
+      }
       return;
     }
     ensureVolumeSeries();
-    chart.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.28 } } });
+    if (volMarginsOn !== true) {
+      chart.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.28 } } });
+      volMarginsOn = true;
+    }
     volumeSeries.setData(bars || []);
   }
 
@@ -249,28 +277,30 @@
     markersApi.setMarkers([{ time: sec, position: 'aboveBar', color: '#f0b90b', shape: 'arrowDown', text: 'trade' }]);
   }
 
-  $effect(() => {
+  function paintChart() {
     if (!ready || !chart) return;
 
-    const mode = chartMode;
-    const pmode = priceMode;
-    const tf = timeframe;
-    const a = asset;
-    const volOn = showVolume;
+    const mode = pendingChart?.mode ?? chartMode;
+    const pmode = pendingChart?.pmode ?? priceMode;
+    const tf = pendingChart?.tf ?? timeframe;
+    const a = pendingChart?.a ?? asset;
+    const volOn = pendingChart?.volOn ?? showVolume;
+    const rows = pendingChart?.rows ?? series;
+    const candleRows = pendingChart?.candles ?? candles;
+    const volBarsIn = pendingChart?.volumeBars ?? volumeBars;
+    const bps = pendingChart?.bps ?? bpsHistory;
+    const hl = pendingChart?.hl ?? highlightSec;
     const key = `${mode}|${pmode}|${tf}|${a}|${volOn}`;
     const needRefit = key !== fitKey;
-    const hl = highlightSec;
-    const bps = bpsHistory;
 
     if (mode === 'candles') {
       clearLines();
       ensureCandleSeries();
-      candleSeries.setData(candles.length ? candles.map((x) => ({ time: x.time, open: x.open, high: x.high, low: x.low, close: x.close })) : []);
-      applyVolumeData(volumeBars);
+      candleSeries.setData(candleRows.length ? candleRows.map((x) => ({ time: x.time, open: x.open, high: x.high, low: x.low, close: x.close })) : []);
+      applyVolumeData(volBarsIn);
       setHighlight(candleSeries, hl);
-    } else {
+    } else if (mode === 'lines') {
       clearCandles();
-      const rows = series;
       const want = new Set(rows.map((r) => r.venue));
 
       for (const id of [...lineSeries.keys()]) {
@@ -310,7 +340,7 @@
         if (row.venue === focusVenue && row.data?.length) primary = s;
       }
 
-      let bars = volumeBars;
+      let bars = volBarsIn;
       if (!bars?.length) {
         const focus = rows.find((r) => r.venue === focusVenue);
         bars = focus?.volumeData?.length ? focus.volumeData : mergeVolume(rows.filter((r) => !r.hidden));
@@ -331,8 +361,38 @@
         bpsChart?.timeScale().fitContent();
       });
     } else if (!userInteracted) {
-      chart.timeScale().scrollToRealTime();
-      bpsChart?.timeScale().scrollToRealTime();
+      // Throttle scroll-to-realtime — every-tick scroll causes visible jank.
+      const now = performance.now();
+      if (now - lastScrollAt > 400) {
+        lastScrollAt = now;
+        chart.timeScale().scrollToRealTime();
+        bpsChart?.timeScale().scrollToRealTime();
+      }
+    }
+  }
+
+  $effect(() => {
+    if (!ready || !chart || toolbarOnly) return;
+    // Capture reactive deps; coalesce paints via rAF.
+    pendingChart = {
+      mode: chartMode,
+      pmode: priceMode,
+      tf: timeframe,
+      a: asset,
+      volOn: showVolume,
+      rows: series,
+      candles,
+      volumeBars,
+      bps: bpsHistory,
+      hl: highlightSec,
+    };
+    highlightVenues;
+    focusVenue;
+    if (!chartPaintRaf) {
+      chartPaintRaf = requestAnimationFrame(() => {
+        chartPaintRaf = 0;
+        paintChart();
+      });
     }
   });
 
@@ -408,7 +468,7 @@
   {#if !toolbarOnly}
     {#if chartMode === 'lines'}
       <div class="legend">
-        {#each series as row}
+        {#each series as row (row.venue)}
           <button
             type="button"
             class="leg"

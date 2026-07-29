@@ -21,20 +21,22 @@
     const asks = levels.asks.map((l) => {
       const qty = Number(l.quantity) || 0;
       askCum += qty;
-      return { ...l, qty, total: askCum };
+      return { ...l, qty, total: askCum, key: String(l.price) };
     });
     let bidCum = 0;
     const bids = levels.bids.map((l) => {
       const qty = Number(l.quantity) || 0;
       bidCum += qty;
-      return { ...l, qty, total: bidCum };
+      return { ...l, qty, total: bidCum, key: String(l.price) };
     });
+    // Precompute reverse for asks display (best ask at bottom) — stable keys.
+    const asksDesc = [...asks].reverse();
     const maxTotal = Math.max(
       asks.length ? asks[asks.length - 1].total : 0,
       bids.length ? bids[bids.length - 1].total : 0,
       1e-12,
     );
-    return { asks, bids, maxTotal, askCum, bidCum };
+    return { asks, asksDesc, bids, maxTotal, askCum, bidCum };
   });
 
   let pressure = $derived.by(() => {
@@ -72,7 +74,7 @@
   </div>
 
   <div class="asks">
-    {#each [...withTotals.asks].reverse() as lvl}
+    {#each withTotals.asksDesc as lvl (lvl.key)}
       <div class="row ask">
         <div class="depth" style={`width:${barPct(lvl.total, withTotals.maxTotal)}`}></div>
         <span class="px">{fmtPrice(lvl.price, 2)}</span>
@@ -101,7 +103,7 @@
   </div>
 
   <div class="bids">
-    {#each withTotals.bids as lvl}
+    {#each withTotals.bids as lvl (lvl.key)}
       <div class="row bid">
         <div class="depth" style={`width:${barPct(lvl.total, withTotals.maxTotal)}`}></div>
         <span class="px">{fmtPrice(lvl.price, 2)}</span>
@@ -222,6 +224,7 @@
     right: 0;
     bottom: 0;
     pointer-events: none;
+    /* No width transition — fights rapid book updates and causes flicker */
   }
 
   .ask .depth {

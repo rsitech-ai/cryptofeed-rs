@@ -126,7 +126,7 @@
   </div>
 
   <div class="chips" aria-label="Per-venue activity heat">
-    {#each chips as c}
+    {#each chips as c (c.venue + '|' + (c.symbol || ''))}
       <button
         type="button"
         class="chip"
@@ -310,7 +310,7 @@
     left: 0; top: 0; bottom: 0;
     background: color-mix(in srgb, var(--vc) 32%, transparent);
     pointer-events: none;
-    transition: width 0.25s ease;
+    /* Instant heat bar — transition fights 10Hz pulse updates */
   }
   .vname {
     position: relative;
