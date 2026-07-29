@@ -939,16 +939,16 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
+        let replay_dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
         let cfg = DaemonConfig::from_toml_str(&format!(
             r#"
             [telemetry]
             bind = "127.0.0.1:0"
             ui_bind = "127.0.0.1:0"
-            replay_dir = "{}"
+            replay_dir = {replay_dir_toml}
             [readiness]
             require_required_venues = false
-            "#,
-            dir.display()
+            "#
         ))
         .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

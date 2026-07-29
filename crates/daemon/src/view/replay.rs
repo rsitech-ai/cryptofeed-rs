@@ -394,15 +394,15 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
+        let replay_dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
         let cfg = DaemonConfig::from_toml_str(&format!(
             r#"
             [telemetry]
             bind = "127.0.0.1:9108"
-            replay_dir = "{}"
+            replay_dir = {replay_dir_toml}
             [readiness]
             require_required_venues = false
-            "#,
-            dir.display()
+            "#
         ))
         .unwrap();
         let resp = list_replay_files(&cfg).unwrap();
@@ -429,15 +429,15 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("oversized.jsonl");
         std::fs::write(&file, vec![b' '; 8 * 1024 * 1024 + 1]).unwrap();
+        let replay_dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
         let cfg = DaemonConfig::from_toml_str(&format!(
             r#"
             [telemetry]
             bind = "127.0.0.1:9108"
-            replay_dir = "{}"
+            replay_dir = {replay_dir_toml}
             [readiness]
             require_required_venues = false
-            "#,
-            dir.display()
+            "#
         ))
         .unwrap();
 

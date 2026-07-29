@@ -129,7 +129,7 @@ async fn synthetic_recording_drains_on_shutdown() {
     let dir = std::env::temp_dir().join(format!("marketfeed-synth-rec-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let dir_s = dir.display().to_string();
+    let dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
 
     let cfg = DaemonConfig::from_toml_str(&format!(
         r#"
@@ -144,7 +144,7 @@ async fn synthetic_recording_drains_on_shutdown() {
         require_recording_healthy = true
         [recording.raw]
         enabled = true
-        directory = "{dir_s}"
+        directory = {dir_toml}
         segment_size = "1MiB"
         segment_duration = "1m"
         queue_capacity = 64

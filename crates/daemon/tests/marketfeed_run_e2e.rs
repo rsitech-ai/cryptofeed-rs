@@ -57,6 +57,8 @@ fn marketfeed_run_synthetic_ready_then_sigterm_drains() {
     ));
     std::fs::create_dir_all(&tmp).unwrap();
     let cfg_path: PathBuf = tmp.join("config.toml");
+    let raw_dir_toml =
+        toml::Value::String(tmp.join("raw").to_string_lossy().into_owned()).to_string();
     let cfg = format!(
         r#"
 [engine]
@@ -76,7 +78,7 @@ require_recording_healthy = false
 
 [recording.raw]
 enabled = false
-directory = "{dir}/raw"
+directory = {raw_dir_toml}
 segment_size = "1MiB"
 segment_duration = "1m"
 queue_capacity = 64
@@ -89,8 +91,7 @@ adapter = "synthetic"
 required = true
 transport = "memory"
 "#,
-        port = port,
-        dir = tmp.display()
+        port = port
     );
     std::fs::write(&cfg_path, cfg).unwrap();
 

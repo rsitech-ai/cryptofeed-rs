@@ -955,20 +955,21 @@ mod tests {
         let parent_file = dir.join("not-a-directory");
         std::fs::write(&parent_file, b"x").unwrap();
         let sink_path = parent_file.join("events.log");
+        let sink_path_toml =
+            toml::Value::String(sink_path.to_string_lossy().into_owned()).to_string();
         let cfg = DaemonConfig::from_toml_str(&format!(
             r#"
             [telemetry]
             bind = "127.0.0.1:0"
             [[sinks]]
             type = "file"
-            path = "{}"
+            path = {sink_path_toml}
             capacity = 8
             overflow = "fail_engine"
             [[venues]]
             id = "synthetic-demo"
             adapter = "synthetic"
-            "#,
-            sink_path.display()
+            "#
         ))
         .unwrap();
 
