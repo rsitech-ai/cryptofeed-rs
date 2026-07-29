@@ -4,14 +4,14 @@
 
 use std::env;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+#[cfg(unix)]
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use marketfeed_daemon::cli::{format_benchmark, format_catalog, format_catalog_live, format_plan};
-use marketfeed_daemon::{
-    DaemonConfig, DaemonState, classify_reload, serve, spawn_private_sessions, spawn_venues,
-};
+use marketfeed_daemon::{DaemonConfig, DaemonState, serve, spawn_private_sessions, spawn_venues};
 use marketfeed_recording::RawSegmentReader;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -102,6 +102,7 @@ fn install_tracing(cfg: &DaemonConfig) -> reload::Handle<EnvFilter, tracing_subs
     handle
 }
 
+#[cfg(unix)]
 fn apply_reload_plan(
     state: &DaemonState,
     plan: &marketfeed_daemon::ReloadPlan,
@@ -131,6 +132,7 @@ fn apply_reload_plan(
     }
 }
 
+#[cfg(unix)]
 fn handle_config_reload(
     path: &Path,
     state: &DaemonState,
@@ -148,7 +150,7 @@ fn handle_config_reload(
         }
     };
     let applied = state.reloadable.lock().expect("reloadable lock").clone();
-    let plan = classify_reload(&state.config, &applied, &new);
+    let plan = marketfeed_daemon::classify_reload(&state.config, &applied, &new);
     apply_reload_plan(state, &plan, filter);
 }
 
