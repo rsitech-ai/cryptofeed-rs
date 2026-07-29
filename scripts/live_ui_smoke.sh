@@ -35,10 +35,14 @@ code=$(http_code /)
 if [[ "$code" == "200" ]]; then ok "SPA / → 200"; else bad "SPA / → $code"; fi
 
 # --- Core endpoints ---
-for path in /v1/status /v1/instruments /live /ready /v1/replay/files; do
+for path in /v1/status /v1/instruments /live /ready /v1/replay/files /metrics; do
   code=$(http_code "$path")
   if [[ "$code" == "200" ]]; then ok "$path → 200"; else bad "$path → $code"; fi
 done
+
+# Replay read without file → 400 (documented contract)
+REPLAY_CODE=$(http_code "/v1/replay")
+if [[ "$REPLAY_CODE" == "400" ]]; then ok "/v1/replay missing file → 400"; else bad "/v1/replay → $REPLAY_CODE (want 400)"; fi
 
 # Alerts test (POST)
 ALERT_CODE=$(curl -sS -o /tmp/live_ui_alert.json -w '%{http_code}' --max-time 5 \
@@ -46,6 +50,10 @@ ALERT_CODE=$(curl -sS -o /tmp/live_ui_alert.json -w '%{http_code}' --max-time 5 
   -d '{"kind":"discrepancy","bps":9,"message":"smoke"}' \
   "${BASE}/v1/alerts/test" || echo 000)
 if [[ "$ALERT_CODE" == "200" ]]; then ok "POST /v1/alerts/test → 200"; else bad "POST /v1/alerts/test → $ALERT_CODE"; fi
+
+# SSE availability probe (SPA uses HEAD before EventSource)
+SSE_PROBE=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 -I -H 'accept: text/event-stream' "${BASE}/v1/stream?probe=1" || echo 000)
+if [[ "$SSE_PROBE" == "200" ]]; then ok "HEAD /v1/stream probe → 200"; else bad "HEAD /v1/stream probe → $SSE_PROBE"; fi
 
 # SSE stream headers (short read)
 SSE_HEAD=$(curl -sS -N --max-time 2 -H 'accept: text/event-stream' "${BASE}/v1/stream?asset=BTC" 2>/dev/null | head -c 200 || true)
@@ -161,7 +169,12 @@ for venue, symbol in samples:
     elif entries:
         warn(f"trade notional missing {venue} (older daemon?)")
 
+    # PR #4 critical venues: must have real (nonzero) trades, not empty/zero prints.
+    critical = venue in ("binance-usdm", "bybit-spot")
     if not entries:
+        if critical:
+            bad(f"critical tape empty {venue}")
+            continue
         mq = urllib.parse.urlencode({"venue": venue, "symbol": symbol, "limit": 50})
         mixed = get(f"/v1/tape?{mq}")
         if mixed.get("entries"):
@@ -169,6 +182,16 @@ for venue, symbol in samples:
         else:
             bad(f"tape empty (trade+mixed) {venue}")
         continue
+    if critical:
+        try:
+            px = float(entries[0].get("price") or 0)
+            qty = float(entries[0].get("quantity") or 0)
+        except (TypeError, ValueError):
+            px = qty = 0.0
+        if px > 0 and qty > 0:
+            ok(f"critical nonzero trade {venue} px={px} qty={qty}")
+        else:
+            bad(f"critical zero trade {venue} px={entries[0].get('price')} qty={entries[0].get('quantity')}")
 
     ts = [int(e["receive_ts_ns"]) for e in entries if e.get("receive_ts_ns") is not None]
     if len(ts) >= 2 and all(ts[i] >= ts[i+1] for i in range(len(ts)-1)):

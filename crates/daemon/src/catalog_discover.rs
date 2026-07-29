@@ -93,7 +93,8 @@ async fn execute_http<H: HttpTransport>(
         headers: spec.headers,
         body: spec.body,
         timeout_ms: 10_000,
-        max_body_bytes: 16 * 1024 * 1024,
+        // Binance spot exchangeInfo is ~17MB and growing; 16MiB truncated discovery.
+        max_body_bytes: 32 * 1024 * 1024,
     };
     let resp = http.request(req).await.map_err(|e| e.to_string())?;
     Ok(AdapterHttpResponse {

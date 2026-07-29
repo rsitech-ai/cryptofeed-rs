@@ -75,6 +75,22 @@ pub async fn handle_view_conn_with_prefix(
 
     let (method, path, query) = parse_request(&req).unwrap_or(("GET", "/", ""));
 
+    // SPA probes availability with HEAD before opening EventSource; answer 200
+    // with SSE content-type (no body) so the panel prefers SSE over poll.
+    if method == "HEAD" && path == "/v1/stream" {
+        let resp = "HTTP/1.1 200 OK\r\n\
+content-type: text/event-stream\r\n\
+cache-control: no-store\r\n\
+access-control-allow-origin: *\r\n\
+content-length: 0\r\n\
+connection: close\r\n\r\n";
+        timeout(IO_TIMEOUT, stream.write_all(resp.as_bytes()))
+            .await
+            .map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::TimedOut, "view write timeout")
+            })??;
+        return Ok(());
+    }
     if method == "GET" && path == "/v1/stream" {
         return handle_sse_stream(stream, &state, query).await;
     }
@@ -927,6 +943,38 @@ mod tests {
         .await;
         assert_eq!(st, 200, "{body}");
         assert!(body.contains("\"forwarded\":true"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn sse_stream_head_probe_returns_200() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            [readiness]
+            require_required_venues = false
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, state).await;
+        });
+
+        let mut stream = TcpStream::connect(&addr).await.unwrap();
+        let req = "HEAD /v1/stream?probe=1 HTTP/1.1\r\nhost: localhost\r\n\r\n";
+        stream.write_all(req.as_bytes()).await.unwrap();
+        let mut buf = vec![0u8; 1024];
+        let n = timeout(Duration::from_secs(2), stream.read(&mut buf))
+            .await
+            .expect("read timeout")
+            .expect("read");
+        let text = String::from_utf8_lossy(&buf[..n]);
+        assert!(text.contains("200 OK"), "{text}");
+        assert!(text.contains("text/event-stream"), "{text}");
     }
 
     #[tokio::test]
