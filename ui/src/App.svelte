@@ -10,7 +10,13 @@
   import { DiscrepancyTracker } from './lib/discrepancy.js';
   import { StreamClient } from './lib/stream.js';
   import { createAlert, sendWebhook, testDaemonAlert } from './lib/alerts.js';
-  import { marketQuality, lastTapeSec, isQuotesOnly } from './lib/quality.js';
+  import {
+    marketQuality,
+    lastTapeSec,
+    isQuotesOnly,
+    QualityBadgeGate,
+    LiveFlagGate,
+  } from './lib/quality.js';
   import { nsToSec } from './lib/format.js';
   import {
     bookPressure,
@@ -93,7 +99,12 @@
   let bpsAlertActive = $state(false);
   let alerts = $state([]);
   let streamMode = $state('poll');
+  /** Soft reconnect hint — does not tear down main UI. */
+  let streamReconnecting = $state(false);
   let replayMode = $state(false);
+  const badgeGate = new QualityBadgeGate();
+  const liveGate = new LiveFlagGate();
+  let streamDisconnectTimer = 0;
   let venueTapeFreshness = $state(new Map());
   let venueBooks = $state(new Map());
   /** @type {Map<string, object>} */
@@ -106,6 +117,8 @@
   let lastPulseAlertAt = 0;
   let pulseMetricFilter = $state('');
   let lastDepthSampleAt = 0;
+  /** Venues that answered /v1/books with 404 — skip further book polls. */
+  let bookUnsupported = new Set();
   /** @type {object|null} */
   let pendingFocusBook = null;
   /** @type {object[]|null} */
@@ -182,11 +195,31 @@
       }
     },
     onStatus: (s) => {
-      status = s;
-      if (s?.grafana_url && !grafanaUrl) grafanaUrl = s.grafana_url;
+      applyStatus(s);
     },
-    onConnect: () => { streamMode = 'sse'; },
-    onDisconnect: () => { streamMode = 'poll'; },
+    onConnect: () => {
+      if (streamDisconnectTimer) {
+        clearTimeout(streamDisconnectTimer);
+        streamDisconnectTimer = 0;
+      }
+      streamReconnecting = false;
+      streamMode = 'sse';
+    },
+    onDisconnect: () => {
+      // Debounce poll fallback so brief EventSource blips never flip the chip / remount UX.
+      streamReconnecting = true;
+      if (streamDisconnectTimer) clearTimeout(streamDisconnectTimer);
+      streamDisconnectTimer = setTimeout(() => {
+        streamDisconnectTimer = 0;
+        if (!stream.connected) {
+          streamMode = 'poll';
+          streamReconnecting = false;
+        }
+      }, 2800);
+    },
+    onReconnecting: () => {
+      streamReconnecting = true;
+    },
   });
 
   function applyFocusBook(venue, symbol, data) {
@@ -273,23 +306,32 @@
       const fresh = venueTapeFreshness.get(`${row.venue}|${row.symbol}`);
       const hasBook = venueBooks.has(`${row.venue}|${row.symbol}`) || (row.venue === selectedVenue && !!book);
       const qo = isQuotesOnly(sv);
-      m.set(`${row.venue}|${row.symbol}`, marketQuality(row, sv, fresh, hasBook, qo));
+      const key = `${row.venue}|${row.symbol}`;
+      const raw = marketQuality(row, sv, fresh, hasBook, qo);
+      const badges = badgeGate.stabilize(key, raw.badges);
+      m.set(key, { ...raw, badges });
     }
     return m;
   });
 
   let venueHealth = $derived(
-    (status?.venues || []).map((v) => ({
-      venue: v.id,
-      reconnects: v.reconnects ?? v.reconnect_count ?? 0,
-      gaps: v.gaps ?? v.sequence_gaps ?? 0,
-      invalidations: v.book_invalidations ?? v.invalidations ?? 0,
-      lagMs: v.feed_lag_ms ?? v.lag_ms ?? null,
-      bad:
-        (v.reconnects ?? v.reconnect_count ?? 0) > 0 ||
-        (v.gaps ?? v.sequence_gaps ?? 0) > 0 ||
-        (v.feed_lag_ms ?? v.lag_ms ?? 0) > 2000,
-    })),
+    (status?.venues || []).map((v) => {
+      const lagMs = v.feed_lag_ms ?? v.lag_ms ?? null;
+      const reconnects = v.reconnects ?? v.reconnect_count ?? 0;
+      const gaps = v.gaps ?? v.sequence_gaps ?? 0;
+      const invalidations = v.book_invalidations ?? v.invalidations ?? 0;
+      // Avoid permanent "bad" from cumulative reconnect counter — only flag
+      // sustained lag / active gap pressure so the health strip doesn't thrash.
+      const bad = gaps > 2 || invalidations > 2 || (lagMs != null && lagMs > 4000);
+      return {
+        venue: v.id,
+        reconnects,
+        gaps,
+        invalidations,
+        lagMs: lagMs != null ? Math.round(lagMs / 50) * 50 : null,
+        bad,
+      };
+    }),
   );
 
   let multiTradesPerMin = $derived(
@@ -322,6 +364,22 @@
       windowSec: sessionSec,
     });
   });
+
+  function applyStatus(s) {
+    if (!s) return;
+    // Stabilize per-venue live flags before publishing so Markets/legend don't blink.
+    if (Array.isArray(s.venues)) {
+      s = {
+        ...s,
+        venues: s.venues.map((v) => ({
+          ...v,
+          live: liveGate.stabilize(v.id, !!v.live),
+        })),
+      };
+    }
+    status = s;
+    if (s?.grafana_url && !grafanaUrl) grafanaUrl = s.grafana_url;
+  }
 
   function persist(patch) {
     const next = saveSettings(patch);
@@ -597,8 +655,11 @@
   }
 
   function reconnectStream() {
-    stream.disconnect();
-    if (replayMode) return;
+    if (replayMode) {
+      stream.disconnect({ silent: true });
+      return;
+    }
+    // Silent close avoids SSE→poll chip flip while swapping focus params.
     stream.connect({
       asset: selectedAsset,
       venue: selectedVenue || undefined,
@@ -628,13 +689,10 @@
   }
 
   async function refreshStatus() {
-    status = await fetchJson('/v1/status');
+    const next = await fetchJson('/v1/status');
     connected = true;
-    if (status?.grafana_url && !grafanaUrl) {
-      grafanaUrl = status.grafana_url;
-      persist({ grafanaUrl: grafanaUrl });
-    }
-    const v = (status.venues || []).find((x) => x.id === selectedVenue);
+    applyStatus(next);
+    const v = (status?.venues || []).find((x) => x.id === selectedVenue);
     if (v) {
       const now = performance.now();
       if (lastEvents != null && lastEventsAt > 0) {
@@ -683,7 +741,7 @@
         syncLineView();
       }
     } catch {
-      book = null;
+      // Keep last good book — never blank the panel on transient 404/errors.
     }
   }
 
@@ -705,7 +763,7 @@
         else if (candleBuilder.lastPrice < prev) priceDir = -1;
       }
     } catch {
-      tape = [];
+      // Keep last good tape.
     }
   }
 
@@ -726,19 +784,38 @@
       // Always poll multi-venue books. Skip focus tape only when SSE focus is fresh;
       // never skip other venues (pulse + markets workspace depend on them).
       const sseFresh = streamMode === 'sse' && stream.focusFresh(1500);
+      const statusVenues = status?.venues || [];
       await Promise.all(
         batch.map(async (t) => {
           try {
             const isFocus = t.venue === selectedVenue && t.symbol === selectedSymbol;
-            const tasks = [
-              fetchJson(bookQuery(t.venue, t.symbol, Math.min(10, bookDepth))).catch(() => null),
-            ];
+            const sv = statusVenues.find((v) => v.id === t.venue);
+            const bookOk =
+              !bookUnsupported.has(t.venue) &&
+              (sv?.book_available !== false || isFocus || venueBooks.has(`${t.venue}|${t.symbol}`));
+            const tasks = [];
             if (!(isFocus && sseFresh)) {
-              tasks.unshift(
+              tasks.push(
                 fetchJson(tapeQuery(t.venue, t.symbol, Math.min(80, tapeLimit), 'trade')).catch(() => null),
               );
             } else {
-              tasks.unshift(Promise.resolve(null));
+              tasks.push(Promise.resolve(null));
+            }
+            if (bookOk) {
+              tasks.push(
+                fetch(`${bookQuery(t.venue, t.symbol, Math.min(10, bookDepth))}`)
+                  .then(async (res) => {
+                    if (res.status === 404) {
+                      bookUnsupported.add(t.venue);
+                      return null;
+                    }
+                    if (!res.ok) return null;
+                    return res.json();
+                  })
+                  .catch(() => null),
+              );
+            } else {
+              tasks.push(Promise.resolve(null));
             }
             const [tapeData, bookData] = await Promise.all(tasks);
             if (tapeData?.entries) {
@@ -784,7 +861,7 @@
   function handleReplayMode(on) {
     replayMode = on;
     if (on) {
-      stream.disconnect();
+      stream.disconnect({ silent: true });
       if (focusTimer) clearInterval(focusTimer);
       if (multiTimer) clearInterval(multiTimer);
     } else {
@@ -912,11 +989,12 @@
       clearInterval(mid);
       if (focusTimer) clearInterval(focusTimer);
       if (multiTimer) clearInterval(multiTimer);
+      if (streamDisconnectTimer) clearTimeout(streamDisconnectTimer);
       bookPaint.dispose();
       tapePaint.dispose();
       linePaint.dispose();
       snapsPaint.dispose();
-      stream.disconnect();
+      stream.disconnect({ silent: true });
     };
   });
 
@@ -988,6 +1066,7 @@
     {density}
     {grafanaUrl}
     {streamMode}
+    streamReconnecting={streamReconnecting}
     onStatsMode={(m) => (statsMode = m)}
     onSessionPreset={(id) => { sessionPreset = id; persist({ sessionPreset: id }); syncLineView(); syncCandleView(); }}
     onDensity={toggleDensity}
@@ -1183,7 +1262,7 @@
     onPosition={() => {}}
   />
 
-  <StatusBar {status} {error} {connected} {streamMode} {venueHealth} />
+  <StatusBar {status} {error} {connected} {streamMode} streamReconnecting={streamReconnecting} {venueHealth} />
 </div>
 
 <style>

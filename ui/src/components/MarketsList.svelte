@@ -121,8 +121,8 @@
   });
 
   function sortRows(rows) {
+    // Stable order — do NOT sort by live (live/stale flips were reordering rows).
     return [...rows].sort((a, b) => {
-      if (a.live !== b.live) return a.live ? -1 : 1;
       if (a.asset === selectedAsset && b.asset !== selectedAsset) return -1;
       if (b.asset === selectedAsset && a.asset !== selectedAsset) return 1;
       return (
@@ -305,9 +305,11 @@
             <span class="chip" class:ok={r.live} class:bad={!r.live} title={r.live ? 'live' : 'offline'}>
               {r.live ? '●' : '○'}
             </span>
-            {#each (qualityMap.get(r.venue + '|' + r.symbol)?.badges || []) as badge}
-              <span class="badge" class:warn={badge === 'stale' || badge === 'lag'} title={badge}>{badge}</span>
-            {/each}
+            <span class="badges">
+              {#each (qualityMap.get(r.venue + '|' + r.symbol)?.badges || []) as badge}
+                <span class="badge" class:warn={badge === 'stale' || badge === 'lag'} title={badge}>{badge}</span>
+              {/each}
+            </span>
           </button>
         {:else}
           <div class="empty">no markets</div>
@@ -617,11 +619,22 @@
     border: 1px solid var(--border);
     padding: 0 0.15rem;
     line-height: 1.2;
+    min-width: 2.4rem;
+    text-align: center;
+    /* Avoid layout jump when STALE/LAG mount — opacity only when empty slot unused */
   }
 
   .badge.warn {
     color: #fb923c;
     border-color: rgba(251, 146, 60, 0.4);
+  }
+
+  .badges {
+    display: inline-flex;
+    gap: 0.12rem;
+    min-width: 5.2rem;
+    justify-content: flex-start;
+    align-items: center;
   }
 
   .watchlists {
