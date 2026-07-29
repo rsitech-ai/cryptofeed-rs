@@ -161,6 +161,77 @@ impl TapeRing {
     }
 }
 
+/// Per-instrument dual rings so quote floods cannot evict trades (and vice versa).
+#[derive(Debug)]
+struct InstrumentTape {
+    trades: TapeRing,
+    quotes: TapeRing,
+}
+
+impl InstrumentTape {
+    fn new(capacity: usize, max_per_sec: u32) -> Self {
+        Self {
+            trades: TapeRing::new(capacity, max_per_sec),
+            quotes: TapeRing::new(capacity, max_per_sec),
+        }
+    }
+
+    fn push_trade(&mut self, entry: TapeEntry) -> u64 {
+        let before = self.trades.dropped;
+        self.trades.push(entry);
+        self.trades.dropped.saturating_sub(before)
+    }
+
+    fn push_quote(&mut self, entry: TapeEntry) -> u64 {
+        let before = self.quotes.dropped;
+        self.quotes.push(entry);
+        self.quotes.dropped.saturating_sub(before)
+    }
+
+    /// Newest-first snapshot. `kind` filters to `"trade"` / `"quote"`; `None` merges both.
+    fn snapshot(&self, limit: usize, kind: Option<&str>) -> Vec<TapeEntry> {
+        let limit = limit.max(1);
+        match kind {
+            Some("trade") | Some("trades") => self.trades.snapshot(limit),
+            Some("quote") | Some("quotes") => self.quotes.snapshot(limit),
+            _ => merge_newest(
+                self.trades.snapshot(limit),
+                self.quotes.snapshot(limit),
+                limit,
+            ),
+        }
+    }
+}
+
+fn tape_receive_ts(entry: &TapeEntry) -> i64 {
+    match entry {
+        TapeEntry::Trade { receive_ts_ns, .. } => *receive_ts_ns,
+        TapeEntry::Quote { receive_ts_ns, .. } => *receive_ts_ns,
+    }
+}
+
+fn merge_newest(a: Vec<TapeEntry>, b: Vec<TapeEntry>, limit: usize) -> Vec<TapeEntry> {
+    let mut i = 0;
+    let mut j = 0;
+    let mut out = Vec::with_capacity(limit.min(a.len() + b.len()));
+    while out.len() < limit && (i < a.len() || j < b.len()) {
+        let take_a = match (a.get(i), b.get(j)) {
+            (Some(ea), Some(eb)) => tape_receive_ts(ea) >= tape_receive_ts(eb),
+            (Some(_), None) => true,
+            (None, Some(_)) => false,
+            (None, None) => break,
+        };
+        if take_a {
+            out.push(a[i].clone());
+            i += 1;
+        } else {
+            out.push(b[j].clone());
+            j += 1;
+        }
+    }
+    out
+}
+
 #[derive(Debug)]
 struct LiveBook {
     book: OrderBook,
@@ -216,7 +287,7 @@ struct ViewInner {
     /// (config venue id, instrument) → native symbol
     symbols: HashMap<(String, u32), String>,
     books: HashMap<(VenueId, InstrumentId), LiveBook>,
-    tapes: HashMap<(VenueId, InstrumentId), TapeRing>,
+    tapes: HashMap<(VenueId, InstrumentId), InstrumentTape>,
 }
 
 /// Shared view plane: EventSink fan-in + HTTP query surface.
@@ -411,6 +482,17 @@ impl ViewPlane {
         instrument: InstrumentId,
         limit: usize,
     ) -> Vec<TapeEntry> {
+        self.tape_filtered(venue_config_id, instrument, limit, None)
+    }
+
+    /// Optional `kind` filter: `"trade"` / `"quote"` / `None` (merged newest-first).
+    pub fn tape_filtered(
+        &self,
+        venue_config_id: &str,
+        instrument: InstrumentId,
+        limit: usize,
+        kind: Option<&str>,
+    ) -> Vec<TapeEntry> {
         let inner = self.inner.lock().expect("view lock");
         let Some(venue_id) = inner.venue_ids.get(venue_config_id).copied() else {
             return Vec::new();
@@ -418,7 +500,7 @@ impl ViewPlane {
         inner
             .tapes
             .get(&(venue_id, instrument))
-            .map(|t| t.snapshot(limit.max(1)))
+            .map(|t| t.snapshot(limit.max(1), kind))
             .unwrap_or_default()
     }
 
@@ -480,13 +562,11 @@ impl ViewPlane {
                         receive_ts_ns: ev.receive_ts.0,
                     };
                     let ring = inner.tapes.entry((venue_id, instrument)).or_insert_with(|| {
-                        TapeRing::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
+                        InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
                     });
-                    let before = ring.dropped;
-                    ring.push(entry);
-                    if ring.dropped > before {
-                        self.tape_dropped
-                            .fetch_add(ring.dropped - before, Ordering::Relaxed);
+                    let dropped = ring.push_trade(entry);
+                    if dropped > 0 {
+                        self.tape_dropped.fetch_add(dropped, Ordering::Relaxed);
                     }
                 }
                 MarketEvent::Quote(q) => {
@@ -506,13 +586,11 @@ impl ViewPlane {
                         receive_ts_ns: ev.receive_ts.0,
                     };
                     let ring = inner.tapes.entry((venue_id, instrument)).or_insert_with(|| {
-                        TapeRing::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
+                        InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
                     });
-                    let before = ring.dropped;
-                    ring.push(entry);
-                    if ring.dropped > before {
-                        self.tape_dropped
-                            .fetch_add(ring.dropped - before, Ordering::Relaxed);
+                    let dropped = ring.push_quote(entry);
+                    if dropped > 0 {
+                        self.tape_dropped.fetch_add(dropped, Ordering::Relaxed);
                     }
                 }
                 _ => {}
@@ -649,6 +727,68 @@ mod tests {
             TapeEntry::Trade { price, .. } => assert_eq!(price, "102"),
             _ => panic!("expected trade"),
         }
+    }
+
+    fn quote_batch(venue: VenueId, instrument: InstrumentId, bid: &str, ask: &str) -> EventBatch {
+        use marketfeed_model::Quote;
+        EventBatch {
+            session: SessionId(1),
+            frame_seq: 1,
+            events: vec![EventEnvelope {
+                schema_version: 1,
+                venue,
+                instrument: Some(instrument),
+                connection: ConnectionId(1),
+                session: SessionId(1),
+                frame_seq: 1,
+                event_index: 0,
+                exchange_ts: Some(TimestampNs(1)),
+                receive_ts: TimestampNs(2),
+                source_sequence: None,
+                flags: EventFlags::default(),
+                payload: MarketEvent::Quote(Quote {
+                    bid_price: Price(Fixed::parse_str(bid).unwrap()),
+                    bid_quantity: Some(Quantity(Fixed::parse_str("1").unwrap())),
+                    ask_price: Price(Fixed::parse_str(ask).unwrap()),
+                    ask_quantity: Some(Quantity(Fixed::parse_str("1").unwrap())),
+                }),
+            }],
+        }
+    }
+
+    #[test]
+    fn quote_flood_does_not_evict_trades() {
+        let plane = ViewPlane::new(ViewPlaneConfig {
+            tape_capacity: 2,
+            tape_max_per_sec: 0,
+        });
+        plane.register_venue(VenueId(7), "syn", &["BTC-USD".into()]);
+        let mut sink = SharedViewPlane::new(std::sync::Arc::new(plane));
+        let plane = std::sync::Arc::clone(&sink.0);
+        sink.push_batch(trade_batch(VenueId(7), InstrumentId(1), "100", "0.5"))
+            .unwrap();
+        for i in 0..20 {
+            let bid = format!("{}", 99 + i);
+            let ask = format!("{}", 101 + i);
+            sink.push_batch(quote_batch(
+                VenueId(7),
+                InstrumentId(1),
+                &bid,
+                &ask,
+            ))
+            .unwrap();
+        }
+        let trades = plane.tape_filtered("syn", InstrumentId(1), 10, Some("trade"));
+        assert_eq!(trades.len(), 1);
+        match &trades[0] {
+            TapeEntry::Trade { price, quantity, .. } => {
+                assert_eq!(price, "100");
+                assert_eq!(quantity, "0.5");
+            }
+            _ => panic!("expected trade"),
+        }
+        let quotes = plane.tape_filtered("syn", InstrumentId(1), 10, Some("quote"));
+        assert_eq!(quotes.len(), 2);
     }
 
     #[test]
