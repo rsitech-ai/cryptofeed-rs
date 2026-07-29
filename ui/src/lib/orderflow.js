@@ -799,8 +799,9 @@ export function computePriceWindow(history, opts = {}) {
   const tickHalf = tick * minTicks;
   const minHalf = focus * (minBps / 10000);
   const maxHalf = focus * (maxBps / 10000);
-  let half = Math.max(bookHalf, tickHalf, minHalf, tick * 4);
-  half = Math.min(half, Math.max(maxHalf, bookHalf, tickHalf));
+  const floorHalf = Math.max(bookHalf, minHalf, tick * 4);
+  const capHalf = Math.max(maxHalf, bookHalf, tick * 4);
+  let half = Math.min(Math.max(floorHalf, tickHalf), capHalf);
   half *= zoom;
 
   // Keep focus centered; never collapse to zero span.
