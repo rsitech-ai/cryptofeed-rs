@@ -30,6 +30,13 @@ export const DEFAULTS = {
   tapeMinUsd: 0,
   tapeSideFilter: 'all', // all | buy | sell
   tapeAggregatePrints: false,
+  /** Analytics dock: orderflow | pulse | hidden */
+  analyticsTab: 'orderflow',
+  analyticsOpen: true,
+  /** Large trade / sweep highlight threshold (USD notional). */
+  largeTradeUsd: 25000,
+  /** Pulse spike alert threshold (0–100 score). */
+  pulseSpikeThreshold: 72,
 };
 
 /**
@@ -118,6 +125,17 @@ function mergeParsed(parsed) {
     tapeSideFilter: ['all', 'buy', 'sell'].includes(parsed?.tapeSideFilter)
       ? parsed.tapeSideFilter
       : DEFAULTS.tapeSideFilter,
+    analyticsTab: ['orderflow', 'pulse', 'hidden'].includes(parsed?.analyticsTab)
+      ? parsed.analyticsTab
+      : DEFAULTS.analyticsTab,
+    analyticsOpen: parsed?.analyticsOpen !== false,
+    largeTradeUsd: clampNum(parsed?.largeTradeUsd, 0, 1e9, DEFAULTS.largeTradeUsd),
+    pulseSpikeThreshold: clampNum(
+      parsed?.pulseSpikeThreshold,
+      10,
+      100,
+      DEFAULTS.pulseSpikeThreshold,
+    ),
   };
 }
 
