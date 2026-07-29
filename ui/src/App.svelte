@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { bookQuery, fetchJson, tapeQuery } from './lib/api.js';
-  import { assetCoverage, listAssets, mapAssetToVenues } from './lib/assets.js';
+  import { assetCoverage, colorForVenue, listAssets, mapAssetToVenues } from './lib/assets.js';
   import { CandleBuilder } from './lib/ohlcv.js';
   import { MultiVenueTracker, TIMEFRAMES } from './lib/series.js';
   import { loadSettings, saveSettings, saveWatchlist } from './lib/settings.js';
@@ -12,6 +12,14 @@
   import { createAlert, sendWebhook, testDaemonAlert } from './lib/alerts.js';
   import { marketQuality, lastTapeSec, isQuotesOnly } from './lib/quality.js';
   import { nsToSec } from './lib/format.js';
+  import { bookPressure, pushImbalanceHistory } from './lib/orderflow.js';
+  import {
+    bookImbalanceFromSnap,
+    computePulse,
+    pulseSpike,
+    pushPulseHistory,
+    spreadBpsFromBook,
+  } from './lib/pulse.js';
   import HeaderBar from './components/HeaderBar.svelte';
   import OrderBook from './components/OrderBook.svelte';
   import PriceChart from './components/PriceChart.svelte';
@@ -21,6 +29,8 @@
   import DiscrepancyPanel from './components/DiscrepancyPanel.svelte';
   import AlertToast from './components/AlertToast.svelte';
   import ReplayScrubber from './components/ReplayScrubber.svelte';
+  import OrderFlowPanel from './components/OrderFlowPanel.svelte';
+  import PulsePanel from './components/PulsePanel.svelte';
 
   const initial = loadSettings();
 
@@ -57,6 +67,10 @@
   let tapeMinUsd = $state(initial.tapeMinUsd || 0);
   let tapeSideFilter = $state(initial.tapeSideFilter || 'all');
   let tapeAggregatePrints = $state(initial.tapeAggregatePrints || false);
+  let analyticsTab = $state(initial.analyticsTab || 'orderflow');
+  let analyticsOpen = $state(initial.analyticsOpen !== false);
+  let largeTradeUsd = $state(initial.largeTradeUsd ?? 25000);
+  let pulseSpikeThreshold = $state(initial.pulseSpikeThreshold ?? 72);
 
   let lineSeries = $state([]);
   let discrepancy = $state(null);
@@ -69,6 +83,12 @@
   let replayMode = $state(false);
   let venueTapeFreshness = $state(new Map());
   let venueBooks = $state(new Map());
+  /** @type {Map<string, object>} */
+  let venueBookSnaps = $state(new Map());
+  let imbalanceHistory = $state([]);
+  let pulseHistory = $state([]);
+  let pulseAlertActive = $state(false);
+  let lastPulseAlertAt = 0;
 
   let candles = $state([]);
   let volumeBars = $state([]);
@@ -105,7 +125,13 @@
       if (replayMode) return;
       venueBooks.set(`${venue}|${symbol}`, true);
       venueBooks = venueBooks;
-      if (venue === selectedVenue && symbol === selectedSymbol) book = data;
+      venueBookSnaps.set(`${venue}|${symbol}`, data);
+      venueBookSnaps = venueBookSnaps;
+      if (venue === selectedVenue && symbol === selectedSymbol) {
+        book = data;
+        const pressure = bookPressure(data, bookDepth);
+        imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
+      }
     },
     onStatus: (s) => {
       status = s;
@@ -184,6 +210,33 @@
     multiAggregate.trades > 0 ? (multiAggregate.trades / sessionSec) * 60 : null,
   );
 
+  let pulse = $derived.by(() => {
+    const venues = (lineSeries || []).map((s, i) => {
+      const snap = venueBookSnaps.get(`${s.venue}|${s.symbol}`);
+      const focusSnap =
+        s.venue === selectedVenue && s.symbol === selectedSymbol ? book : null;
+      const b = snap || focusSnap;
+      const winNotional = Number(s.windowNotional) || 0;
+      const winTrades = Number(s.windowTrades) || 0;
+      const usdPerMin = sessionSec > 0 ? (winNotional / sessionSec) * 60 : 0;
+      return {
+        venue: s.venue,
+        symbol: s.symbol,
+        live: s.live,
+        color: s.color || colorForVenue(s.venue, i),
+        tradesPerMin: s.tradesPerMin ?? (sessionSec > 0 ? (winTrades / sessionSec) * 60 : 0),
+        usdPerMin,
+        spreadBps: spreadBpsFromBook(b),
+        imbalancePct: bookImbalanceFromSnap(b, Math.min(10, bookDepth)),
+        last: s.last ?? null,
+      };
+    });
+    return computePulse(venues, {
+      crossBps: discrepancy?.bps ?? null,
+      windowSec: sessionSec,
+    });
+  });
+
   function persist(patch) {
     const next = saveSettings(patch);
     syncUrl(next);
@@ -197,6 +250,43 @@
     discTracker.push(snap.discrepancy, snap.series);
     bpsHistory = discTracker.points();
     checkBpsAlert();
+    syncPulseHistory();
+  }
+
+  function syncPulseHistory() {
+    // pulse is derived; sample current score into history (throttled by callers).
+    const p = pulse;
+    if (!p || p.score == null) return;
+    const last = pulseHistory[pulseHistory.length - 1];
+    if (last && Date.now() - last.t < 1500) return;
+    pulseHistory = pushPulseHistory(pulseHistory, {
+      score: p.score,
+      tradesPerMin: p.tradesPerMin,
+      usdPerMin: p.usdPerMin,
+    });
+    checkPulseAlert();
+  }
+
+  function checkPulseAlert() {
+    const hit = pulseSpike(pulseHistory, pulseSpikeThreshold);
+    pulseAlertActive = hit;
+    if (!hit) return;
+    if (Date.now() - lastPulseAlertAt < 45000) return;
+    lastPulseAlertAt = Date.now();
+    const score = pulseHistory[pulseHistory.length - 1]?.score;
+    const a = createAlert(
+      'info',
+      `Pulse spike ${score != null ? score.toFixed(0) : '?'}`,
+      `${selectedAsset} multi-venue activity heat`,
+    );
+    alerts = [...alerts, a];
+    fireAlert(a, {
+      type: 'pulse',
+      kind: 'pulse',
+      asset: selectedAsset,
+      score,
+      threshold: pulseSpikeThreshold,
+    });
   }
 
   function syncCandleView() {
@@ -289,6 +379,9 @@
     discrepancy = null;
     bpsHistory = [];
     multiAggregate = { volume: 0, notional: 0, trades: 0 };
+    pulseHistory = [];
+    pulseAlertActive = false;
+    venueBookSnaps = new Map();
     resetFocusSeries(true);
   }
 
@@ -313,6 +406,7 @@
     tape = [];
     highlightSec = null;
     selectedTradeId = null;
+    imbalanceHistory = [];
   }
 
   function applyTimeframe(id) {
@@ -450,6 +544,10 @@
       book = await fetchJson(bookQuery(selectedVenue, selectedSymbol, bookDepth));
       venueBooks.set(`${selectedVenue}|${selectedSymbol}`, true);
       venueBooks = venueBooks;
+      venueBookSnaps.set(`${selectedVenue}|${selectedSymbol}`, book);
+      venueBookSnaps = venueBookSnaps;
+      const pressure = bookPressure(book, bookDepth);
+      imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
       const b = Number(book?.bids?.[0]?.price);
       const a = Number(book?.asks?.[0]?.price);
       if (Number.isFinite(b) && Number.isFinite(a)) {
@@ -485,7 +583,7 @@
   }
 
   async function tickMulti() {
-    if (replayMode || multiBusy || streamMode === 'sse') return;
+    if (replayMode || multiBusy) return;
     const targets = mapped.filter((m) => m.live || m.live == null);
     if (!targets.length) return;
     multiBusy = true;
@@ -498,12 +596,32 @@
       for (let i = 0; i < Math.min(batchSize, targets.length); i++) {
         batch.push(targets[(start + i) % targets.length]);
       }
+      // Under SSE, tape is pushed for focus — still poll tape+books for other venues (pulse).
+      const needTape = streamMode !== 'sse';
       await Promise.all(
         batch.map(async (t) => {
           try {
-            const data = await fetchJson(tapeQuery(t.venue, t.symbol, Math.min(80, tapeLimit)));
-            tracker.ingest(t.venue, data.entries || []);
-            updateFreshness(t.venue, t.symbol, data.entries || []);
+            const tasks = [
+              fetchJson(bookQuery(t.venue, t.symbol, Math.min(10, bookDepth))).catch(() => null),
+            ];
+            if (needTape || t.venue !== selectedVenue) {
+              tasks.unshift(
+                fetchJson(tapeQuery(t.venue, t.symbol, Math.min(80, tapeLimit))).catch(() => null),
+              );
+            } else {
+              tasks.unshift(Promise.resolve(null));
+            }
+            const [tapeData, bookData] = await Promise.all(tasks);
+            if (tapeData?.entries) {
+              tracker.ingest(t.venue, tapeData.entries);
+              updateFreshness(t.venue, t.symbol, tapeData.entries);
+            }
+            if (bookData) {
+              venueBooks.set(`${t.venue}|${t.symbol}`, true);
+              venueBookSnaps.set(`${t.venue}|${t.symbol}`, bookData);
+              venueBooks = venueBooks;
+              venueBookSnaps = venueBookSnaps;
+            }
           } catch {
             /* empty venue */
           }
@@ -569,9 +687,45 @@
       ev.preventDefault();
       marketSearchRef?.focus();
     }
+    if (ev.key === 'f' || ev.key === 'F') {
+      ev.preventDefault();
+      analyticsOpen = true;
+      analyticsTab = 'orderflow';
+      persist({ analyticsOpen: true, analyticsTab: 'orderflow' });
+    }
+    if (ev.key === 'p' || ev.key === 'P') {
+      ev.preventDefault();
+      analyticsOpen = true;
+      analyticsTab = 'pulse';
+      persist({ analyticsOpen: true, analyticsTab: 'pulse' });
+    }
+    if (ev.key === 'Escape' && analyticsOpen) {
+      analyticsOpen = false;
+      persist({ analyticsOpen: false });
+    }
     const idx = Number(ev.key);
     if (idx >= 1 && idx <= TIMEFRAMES.length) {
       applyTimeframe(TIMEFRAMES[idx - 1].id);
+    }
+  }
+
+  function setAnalyticsTab(tab) {
+    if (tab === 'hidden') {
+      analyticsOpen = false;
+      analyticsTab = 'hidden';
+      persist({ analyticsOpen: false, analyticsTab: 'hidden' });
+      return;
+    }
+    analyticsOpen = true;
+    analyticsTab = tab;
+    persist({ analyticsOpen: true, analyticsTab: tab });
+  }
+
+  function toggleAnalyticsDock() {
+    if (analyticsOpen) {
+      setAnalyticsTab('hidden');
+    } else {
+      setAnalyticsTab(analyticsTab === 'hidden' ? 'orderflow' : analyticsTab);
     }
   }
 
@@ -782,6 +936,54 @@
     </aside>
   </div>
 
+  <div class="analytics-dock" class:open={analyticsOpen && analyticsTab !== 'hidden'}>
+    <div class="dock-tabs">
+      <button
+        type="button"
+        class:active={analyticsOpen && analyticsTab === 'orderflow'}
+        onclick={() => setAnalyticsTab('orderflow')}
+        title="Order Flow (F)"
+      >Order Flow</button>
+      <button
+        type="button"
+        class:active={analyticsOpen && analyticsTab === 'pulse'}
+        onclick={() => setAnalyticsTab('pulse')}
+        title="Market Pulse (P)"
+      >Pulse</button>
+      <span class="dock-hint">F order flow · P pulse · Esc close</span>
+      <button type="button" class="dock-toggle" onclick={toggleAnalyticsDock}>
+        {analyticsOpen && analyticsTab !== 'hidden' ? '▾ Hide' : '▴ Show'}
+      </button>
+    </div>
+    {#if analyticsOpen && analyticsTab !== 'hidden'}
+      <div class="dock-body">
+        {#if analyticsTab === 'orderflow'}
+          <OrderFlowPanel
+            {book}
+            {tape}
+            depth={bookDepth}
+            {lastPrice}
+            windowSec={sessionSec}
+            largeUsd={largeTradeUsd}
+            {imbalanceHistory}
+            onLargeUsd={(n) => { largeTradeUsd = n; persist({ largeTradeUsd: n }); }}
+            onDepth={setBookDepth}
+          />
+        {:else if analyticsTab === 'pulse'}
+          <PulsePanel
+            {pulse}
+            history={pulseHistory}
+            alertActive={pulseAlertActive}
+            spikeThreshold={pulseSpikeThreshold}
+            asset={selectedAsset}
+            onSpikeThreshold={(n) => { pulseSpikeThreshold = n; persist({ pulseSpikeThreshold: n }); }}
+            onChipClick={(v, s) => { if (v && s) selectMarket(v, s); }}
+          />
+        {/if}
+      </div>
+    {/if}
+  </div>
+
   <ReplayScrubber
     {replayMode}
     onReplayMode={handleReplayMode}
@@ -821,6 +1023,52 @@
   .markets-pane { flex: 0 0 48%; min-height: 0; }
   .trades-pane { flex: 1; min-height: 0; }
 
+  .analytics-dock {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    background: var(--panel-2);
+    display: flex;
+    flex-direction: column;
+    max-height: 38vh;
+  }
+  .analytics-dock.open { min-height: 220px; }
+  .dock-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.2rem 0.45rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--panel);
+  }
+  .dock-tabs button {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    padding: 0.15rem 0.45rem;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .dock-tabs button:hover { color: var(--text); background: var(--panel-2); }
+  .dock-tabs button.active {
+    color: var(--accent);
+    border-color: rgba(240, 185, 11, 0.35);
+  }
+  .dock-hint {
+    margin-left: 0.5rem;
+    font-size: 0.55rem;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
+  .dock-toggle { margin-left: auto !important; }
+  .dock-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   @media (max-width: 1100px) {
     .workspace {
       grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
@@ -833,6 +1081,8 @@
       border-top: 1px solid var(--border);
     }
     .markets-pane, .trades-pane { flex: 1; }
+    .analytics-dock.open { max-height: 45vh; }
+    .dock-hint { display: none; }
   }
 
   @media (max-width: 720px) {
