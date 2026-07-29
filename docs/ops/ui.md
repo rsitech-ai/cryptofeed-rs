@@ -133,15 +133,17 @@ Poll endpoints remain available for clients that do not use SSE.
 - Depth chart, time & sales filters, multi-pane synced crosshair.
 - Session presets (1m/5m/1h), keyboard shortcuts (`/` search, `1`–`5` TF), density toggle.
 - Health strip + data-quality badges; Grafana link-out; replay scrubber (best-effort).
-- **Order Flow chart mode** (`mode=orderflow`, tab next to Lines/Candles): Bookmap-style
-  **L2 liquidity heatmap** (ring buffer of `/v1/books` samples) + **volume bubbles**
-  (buy/sell split from aggressor tape) + volume subplot. Honest label: reconstructed from
-  L2 snapshots + trades — **not MBO**. Side panel keeps CVD / VAP / ladder stats.
-- **Order Flow** bottom dock (focus instrument): depth ladder with per-level imbalance %,
-  bid/ask USD pressure + imbalance sparkline, CVD (aggressor buy+/sell−, USD-normalized),
-  buy/sell histogram, large-trade / sweep / absorption **heuristics** (honest labels),
-  trade-aggregated VAP (not MBO footprint). Keys: `F` open, `Esc` hide.
-  URL/localStorage: `tab=orderflow`, `largeUsd=…`, `dock=0|1`.
+- **Order Flow chart mode** (`mode=orderflow`, tab next to Lines/Candles): desk-style
+  **L2+tape reconstruction** (honest — **not MBO**):
+  - Multi-layer canvas: liquidity heatmap (sampled `/v1/books`), buy/sell volume bubbles,
+    mid/BBO lines, trade-aggregated **VAP** sidebar, **CVD** strip, volume bars.
+  - Professional **DOM ladder** beside heat: bid size | price | ask size with size bars,
+    cumulative USD, per-level imbalance %; keyed rows + paint gates (no flicker).
+  - Controls (URL + localStorage): `ofTick`, `ofHeat`, `ofBubble`, `ofLayers`, plus session window.
+  - Hover tooltips with resting size + print delta; **no L2** badge when book missing.
+  - Paint: offscreen blit, EMA y-scale, ~9 Hz heat gate (see flicker paint-gate branch).
+- **Order Flow** bottom dock (focus instrument): DomLadder + CVD / VAP / heuristics.
+  Keys: `F` open, `Esc` hide. URL: `tab=orderflow`, `largeUsd=…`, `dock=0|1`.
 - **Market Pulse** dock (multi-venue asset): trades/min, USD/min, cross Δ bps, median spread,
   book imbalance, clickable per-venue heat chips (focus book/tape/orderflow), clickable
   metrics to sort/highlight, pulse-score sparkline + optional spike alert
