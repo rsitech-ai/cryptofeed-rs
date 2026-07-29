@@ -86,36 +86,32 @@ async fn synthetic_view_books_and_tape() {
 
     // Seeded book + continuous ticks should yield a book quickly.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
-    let mut book_body = String::new();
-    loop {
+    let book_body = loop {
         let (st, body) =
             http_get(&addr, "/v1/books?venue=synthetic-demo&symbol=BTC-USD&depth=5").await;
         if st == 200 && body.contains("\"bids\"") && body.contains("100.00") {
-            book_body = body;
-            break;
+            break body;
         }
         if tokio::time::Instant::now() > deadline {
             panic!("book unavailable: status={st} body={body}");
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
-    }
+    };
     assert!(book_body.contains("\"asks\""), "{book_body}");
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
-    let mut tape_body = String::new();
-    loop {
+    let tape_body = loop {
         let (st, body) =
             http_get(&addr, "/v1/tape?venue=synthetic-demo&symbol=BTC-USD&limit=20").await;
         assert_eq!(st, 200, "{body}");
         if body.contains("\"kind\":\"trade\"") {
-            tape_body = body;
-            break;
+            break body;
         }
         if tokio::time::Instant::now() > deadline {
             panic!("tape empty: {body}");
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
-    }
+    };
     assert!(
         tape_body.contains("\"price\"") && tape_body.contains("entries"),
         "{tape_body}"
