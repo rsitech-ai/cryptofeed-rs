@@ -142,15 +142,15 @@ Poll endpoints remain available for clients that do not use SSE.
   - Controls (URL + localStorage): `ofTick`, `ofHeat`, `ofBubble`, `ofLayers`, plus session window.
   - Hover tooltips with resting size + print delta; **no L2** badge when book missing.
   - Paint: offscreen blit, EMA y-scale, ~9 Hz heat gate (see flicker paint-gate branch).
-- **Order Flow** bottom dock (focus instrument): DomLadder + CVD / VAP / heuristics.
-  Keys: `F` open, `Esc` hide. URL: `tab=orderflow`, `largeUsd=…`, `dock=0|1`.
-- **Market Pulse** dock (multi-venue asset): trades/min, USD/min, cross Δ bps, median spread,
-  book imbalance, clickable per-venue heat chips (focus book/tape/orderflow), clickable
-  metrics to sort/highlight, pulse-score sparkline + optional spike alert.
-  Pulse alerts use the in-app toast and, when configured in the SPA, a direct
-  browser webhook; the daemon endpoint accepts discrepancy and lag alerts only.
-  Key: `P`.
-  URL: `tab=pulse`, `pulseAlert=72`.
+- **Flow & Pulse** bottom dock (single panel): focus-instrument depth/CVD/VAP +
+  multi-venue pulse heat chips + large-print flags in one Binance/Bookmap-style bar.
+  Internal sections: **Both** (default), **Flow**, **Pulse**. Chart Order Flow mode
+  keeps the DOM ladder beside the heatmap (dock skips duplicate ladder).
+  Keys: `F` flow, `B` both, `P` pulse, `Esc` hide. URL: `tab=both|flow|pulse`,
+  `largeUsd=…`, `pulseAlert=72`, `dock=0|1` (`tab=orderflow` still accepted as flow).
+  Venue chips focus book/tape; pulse metrics sort chips; pulse-score sparkline + spike toast.
+  Pulse alerts use the in-app toast and optional SPA webhook; daemon alert kinds remain
+  discrepancy/lag only.
 
 ## Venue feed notes
 

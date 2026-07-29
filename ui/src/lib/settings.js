@@ -31,8 +31,8 @@ export const DEFAULTS = {
   tapeMinUsd: 0,
   tapeSideFilter: 'all', // all | buy | sell
   tapeAggregatePrints: false,
-  /** Analytics dock: orderflow | pulse | hidden */
-  analyticsTab: 'orderflow',
+  /** Analytics dock section: both | flow | pulse | hidden (`orderflow` accepted as flow). */
+  analyticsTab: 'both',
   analyticsOpen: true,
   /** Large trade / sweep highlight threshold (USD notional). */
   largeTradeUsd: 25000,
@@ -143,9 +143,7 @@ function mergeParsed(parsed) {
     tapeSideFilter: ['all', 'buy', 'sell'].includes(parsed?.tapeSideFilter)
       ? parsed.tapeSideFilter
       : DEFAULTS.tapeSideFilter,
-    analyticsTab: ['orderflow', 'pulse', 'hidden'].includes(parsed?.analyticsTab)
-      ? parsed.analyticsTab
-      : DEFAULTS.analyticsTab,
+    analyticsTab: normalizeAnalyticsTab(parsed?.analyticsTab),
     analyticsOpen: parsed?.analyticsOpen !== false,
     largeTradeUsd: clampNum(parsed?.largeTradeUsd, 0, 1e9, DEFAULTS.largeTradeUsd),
     pulseSpikeThreshold: clampNum(
@@ -177,6 +175,13 @@ function normalizeArrays(urlPatch, base) {
   if (Array.isArray(urlPatch.hiddenVenues)) out.hiddenVenues = urlPatch.hiddenVenues;
   if (Array.isArray(urlPatch.pinnedVenues)) out.pinnedVenues = urlPatch.pinnedVenues;
   return out;
+}
+
+/** @param {unknown} tab */
+function normalizeAnalyticsTab(tab) {
+  if (tab === 'orderflow' || tab === 'flow') return 'flow';
+  if (tab === 'pulse' || tab === 'both' || tab === 'hidden') return tab;
+  return DEFAULTS.analyticsTab;
 }
 
 function clampInt(v, min, max, fallback) {
