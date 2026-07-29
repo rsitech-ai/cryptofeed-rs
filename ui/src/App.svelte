@@ -20,6 +20,8 @@
   import { nsToSec } from './lib/format.js';
   import {
     bookPressure,
+    clampPriceZoom,
+    clampViewSec,
     pushDepthHistory,
     pushImbalanceHistory,
     resolveTick,
@@ -92,6 +94,11 @@
   let ofLayers = $state(
     initial.ofLayers ?? 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
   );
+  let ofPriceZoom = $state(clampPriceZoom(initial.ofPriceZoom, 1));
+  let ofViewSec = $state(
+    initial.ofViewSec == null ? null : clampViewSec(initial.ofViewSec, sessionWindowSec(initial.sessionPreset || '5m')),
+  );
+  let ofFollowLive = $state(initial.ofFollowLive !== false);
 
   let lineSeries = $state([]);
   let discrepancy = $state(null);
@@ -119,6 +126,9 @@
   let lastPulseAlertAt = 0;
   let pulseMetricFilter = $state('');
   let lastDepthSampleAt = 0;
+  /** Accumulated focus trades for Order Flow vol/CVD/VAP (SSE batches alone are too short). */
+  /** @type {Map<string, object>} */
+  let focusTapeRing = new Map();
   /** Venues that answered /v1/books with 404 — skip further book polls. */
   let bookUnsupported = new Set();
   /** @type {object|null} */
@@ -243,9 +253,43 @@
 
   function applyFocusTape(venue, symbol, entries) {
     if (venue === selectedVenue && symbol === selectedSymbol) {
-      pendingFocusTape = entries || [];
+      pendingFocusTape = mergeFocusTape(entries || []);
       tapePaint.schedule();
     }
+  }
+
+  /**
+   * Merge SSE/poll tape batches into a session ring so OF vol/CVD/VAP span the window.
+   * @param {object[]} entries
+   */
+  function mergeFocusTape(entries) {
+    for (const e of entries || []) {
+      if (!e || e.kind !== 'trade') continue;
+      const id =
+        e.trade_id != null
+          ? `t:${e.trade_id}`
+          : `f:${e.exchange_ts_ns}|${e.price}|${e.quantity}|${e.aggressor || ''}`;
+      focusTapeRing.set(id, e);
+    }
+    const keepSec = Math.max(sessionSec || 300, 120) + 60;
+    const cutoff = Math.floor(Date.now() / 1000) - keepSec;
+    for (const [k, e] of focusTapeRing) {
+      const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
+      if (sec != null && sec < cutoff) focusTapeRing.delete(k);
+    }
+    if (focusTapeRing.size > 5000) {
+      const sorted = [...focusTapeRing.entries()].sort(
+        (a, b) =>
+          (Number(a[1].exchange_ts_ns ?? a[1].receive_ts_ns) || 0) -
+          (Number(b[1].exchange_ts_ns ?? b[1].receive_ts_ns) || 0),
+      );
+      for (const [k] of sorted.slice(0, sorted.length - 5000)) focusTapeRing.delete(k);
+    }
+    return [...focusTapeRing.values()].sort(
+      (a, b) =>
+        (Number(b.exchange_ts_ns ?? b.receive_ts_ns) || 0) -
+        (Number(a.exchange_ts_ns ?? a.receive_ts_ns) || 0),
+    );
   }
 
   function sampleDepth(data) {
@@ -260,7 +304,8 @@
       // Prefer deep L2 walls (SSE now sends ~48; poll path uses heatBookDepth).
       maxLevels: Math.min(64, Math.max(48, bookDepth * 3)),
     });
-    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 360);
+    // ~5–6m of history at ~200ms so 5m session heat/vol/CVD stay continuous.
+    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 1800, { gapMs: 400 });
   }
 
   /** Deep L2 poll for Order Flow even when SSE focus is fresh (walls need depth). */
@@ -583,6 +628,7 @@
     selectedTradeId = null;
     imbalanceHistory = [];
     depthHistory = [];
+    focusTapeRing = new Map();
     lastDepthSampleAt = 0;
     pendingFocusBook = null;
     pendingFocusTape = null;
@@ -694,11 +740,11 @@
   function setChartMode(m) {
     chartMode = m;
     const patch = { chartMode: m };
-    // Heatmap already embeds CVD/VAP side panel — flip dock to Pulse for multi-venue heat.
-    if (m === 'orderflow' && analyticsTab === 'orderflow') {
-      analyticsTab = 'pulse';
+    // Order Flow mode keeps the Order Flow analytics dock visible/populated.
+    if (m === 'orderflow') {
+      analyticsTab = 'orderflow';
       analyticsOpen = true;
-      patch.analyticsTab = 'pulse';
+      patch.analyticsTab = 'orderflow';
       patch.analyticsOpen = true;
     }
     persist(patch);
@@ -776,7 +822,8 @@
     // but always poll if focus is stale (broken SSE used to starve the tape).
     if (streamMode === 'sse' && stream.focusFresh(1200)) return;
     try {
-      const data = await fetchJson(tapeQuery(selectedVenue, selectedSymbol, tapeLimit, 'trade'));
+      const lim = chartMode === 'orderflow' ? Math.max(tapeLimit, 400) : tapeLimit;
+      const data = await fetchJson(tapeQuery(selectedVenue, selectedSymbol, lim, 'trade'));
       const entries = data.entries || [];
       updateFreshness(selectedVenue, selectedSymbol, entries);
       const prev = candleBuilder.lastPrice;
@@ -1044,12 +1091,23 @@
     if (patch.ofHeat != null) ofHeat = Number(patch.ofHeat);
     if (patch.ofBubbleMinUsd != null) ofBubbleMinUsd = Number(patch.ofBubbleMinUsd);
     if (patch.ofLayers != null) ofLayers = String(patch.ofLayers);
+    if (patch.ofPriceZoom != null) ofPriceZoom = clampPriceZoom(patch.ofPriceZoom, ofPriceZoom);
+    if (patch.ofViewSec !== undefined) {
+      ofViewSec =
+        patch.ofViewSec == null || patch.ofViewSec === ''
+          ? null
+          : clampViewSec(patch.ofViewSec, sessionSec);
+    }
+    if (patch.ofFollowLive != null) ofFollowLive = !!patch.ofFollowLive;
     if (tickChanged) depthHistory = [];
     persist({
       ofTick,
       ofHeat,
       ofBubbleMinUsd,
       ofLayers,
+      ofPriceZoom,
+      ofViewSec,
+      ofFollowLive,
     });
   }
   let venueLive = $derived(!!(status?.venues || []).find((v) => v.id === selectedVenue)?.live);
@@ -1161,7 +1219,7 @@
             <OrderFlowHeatmap
               {depthHistory}
               {tape}
-              windowSec={sessionSec}
+              windowSec={ofViewSec ?? sessionSec}
               venue={selectedVenue}
               symbol={selectedSymbol}
               {lastPrice}
@@ -1171,13 +1229,15 @@
               {ofBubbleMinUsd}
               {ofLayers}
               {largeTradeUsd}
+              priceZoom={ofPriceZoom}
+              followLive={ofFollowLive}
               onSettings={patchOfSettings}
             />
           </div>
           <div class="of-dom-side">
             <DomLadder
               {book}
-              depth={bookDepth}
+              depth={Math.max(bookDepth, 32)}
               tickOpt={ofTick}
               {lastPrice}
               onDepth={setBookDepth}
@@ -1252,9 +1312,9 @@
           <OrderFlowPanel
             {book}
             {tape}
-            depth={bookDepth}
+            depth={Math.max(bookDepth, 32)}
             {lastPrice}
-            windowSec={sessionSec}
+            windowSec={ofViewSec ?? sessionSec}
             largeUsd={largeTradeUsd}
             {imbalanceHistory}
             tickOpt={ofTick}

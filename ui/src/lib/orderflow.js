@@ -155,6 +155,12 @@ export function volumeAtPrice(tape, opts = {}) {
     } else if (sign < 0) {
       b.sellQty += qty;
       b.sellUsd += usd;
+    } else {
+      // Untagged aggressor — still contribute so VAP/dock aren't empty.
+      b.buyQty += qty / 2;
+      b.buyUsd += usd / 2;
+      b.sellQty += qty / 2;
+      b.sellUsd += usd / 2;
     }
     buckets.set(key, b);
   }
@@ -510,14 +516,65 @@ export function sampleBookDepth(book, opts = {}) {
 
 /**
  * Push a depth sample into a bounded ring (oldest dropped).
+ * Brief SSE/poll gaps are filled with hold-last columns so the heat field
+ * stays continuous instead of showing vertical black stripes.
  * @param {Array<object>} history
  * @param {object|null} sample
  * @param {number} [max]
+ * @param {{ gapMs?: number, maxFill?: number, maxGapMs?: number }} [opts]
  */
-export function pushDepthHistory(history, sample, max = 240) {
+export function pushDepthHistory(history, sample, max = 240, opts = {}) {
   if (!sample) return history || [];
-  const next = [...(history || []), sample];
+  const gapMs = opts.gapMs ?? 420;
+  const maxFill = opts.maxFill ?? 16;
+  const maxGapMs = opts.maxGapMs ?? 10000;
+  const next = [...(history || [])];
+  if (next.length) {
+    const last = next[next.length - 1];
+    const dt = Number(sample.t) - Number(last.t);
+    if (Number.isFinite(dt) && dt > gapMs && dt < maxGapMs) {
+      const steps = Math.min(maxFill, Math.floor(dt / gapMs));
+      for (let i = 1; i < steps; i++) {
+        next.push({
+          ...last,
+          t: last.t + i * gapMs,
+          holdLast: true,
+        });
+      }
+    }
+  }
+  next.push(sample);
   return next.length > max ? next.slice(next.length - max) : next;
+}
+
+/**
+ * Densify depth history onto a fixed time grid with hold-last so brief
+ * SSE/poll gaps never punch vertical black stripes into the heat field.
+ * @param {Array<object>} history
+ * @param {{ bucketMs?: number, tMin?: number, tMax?: number, maxCols?: number }} [opts]
+ */
+export function densifyDepthHistory(history, opts = {}) {
+  const samples = (history || []).filter((s) => s && (s.bids?.size || s.asks?.size || s.holdLast));
+  if (samples.length < 1) return [];
+  const bucketMs = Math.max(80, opts.bucketMs ?? 250);
+  const tMax = opts.tMax ?? samples[samples.length - 1].t;
+  const tMin = opts.tMin ?? samples[0].t;
+  const maxCols = Math.max(8, opts.maxCols ?? 480);
+  const span = Math.max(bucketMs, tMax - tMin);
+  const cols = Math.min(maxCols, Math.max(2, Math.ceil(span / bucketMs) + 1));
+  /** @type {Array<object>} */
+  const out = [];
+  let si = 0;
+  let last = samples[0];
+  for (let c = 0; c < cols; c++) {
+    const t = tMin + (c / Math.max(1, cols - 1)) * span;
+    while (si < samples.length && samples[si].t <= t) {
+      last = samples[si];
+      si++;
+    }
+    out.push({ ...last, t });
+  }
+  return out;
 }
 
 /**
@@ -621,23 +678,31 @@ export function volumeBarsFromTape(tape, opts = {}) {
  */
 export function heatmapColor(intensity) {
   const t = Math.max(0, Math.min(1, intensity));
-  // Keep faint liquidity visible (was fully transparent below 0.01 → empty canvas).
-  if (t < 0.02) return [12, 28, 48, Math.round(t * 900)];
+  // Bookmap-like zero→dark-blue baseline (never pure black void).
+  if (t < 0.02) {
+    const u = t / 0.02;
+    return [14 + u * 10, 36 + u * 20, 72 + u * 40, Math.round(160 + u * 60)];
+  }
   // piecewise: blue → cyan → yellow → orange → red
   if (t < 0.25) {
     const u = t / 0.25;
-    return [10 + u * 20, 40 + u * 140, 120 + u * 80, Math.round(70 + u * 110)];
+    return [16 + u * 20, 50 + u * 130, 130 + u * 70, Math.round(180 + u * 50)];
   }
   if (t < 0.5) {
     const u = (t - 0.25) / 0.25;
-    return [30 + u * 180, 180 + u * 40, 200 - u * 160, Math.round(180 + u * 40)];
+    return [30 + u * 180, 180 + u * 40, 200 - u * 160, Math.round(200 + u * 35)];
   }
   if (t < 0.75) {
     const u = (t - 0.5) / 0.25;
-    return [210 + u * 30, 220 - u * 80, 40 - u * 20, 235];
+    return [210 + u * 30, 220 - u * 80, 40 - u * 20, 240];
   }
   const u = (t - 0.75) / 0.25;
   return [240, 140 - u * 90, 20 + u * 30, 255];
+}
+
+/** Solid dark-blue field RGBA used when a heat cell has zero resting size. */
+export function heatmapBaselineRgba() {
+  return [22, 52, 96, 255];
 }
 
 /**
@@ -671,6 +736,7 @@ export function priceAxisPadPx(price, dpr = 1) {
  *   padFrac?: number,
  *   minBps?: number,
  *   maxBps?: number,
+ *   zoom?: number,
  * }} [opts]
  * @returns {{ priceMin: number, priceMax: number, mid: number, tick: number, wallLo: number|null, wallHi: number|null }|null}
  */
@@ -691,11 +757,15 @@ export function computePriceWindow(history, opts = {}) {
       : latest?.tick > 0
         ? latest.tick
         : 0.1;
-  const lookback = Math.max(1, opts.lookback ?? 64);
+  // Prefer recent walls so drifting lookback doesn't inflate a huge empty Y void.
+  const lookback = Math.max(1, opts.lookback ?? 14);
   const minTicks = Math.max(8, opts.minTicks ?? 48);
-  const padFrac = opts.padFrac ?? 0.2;
+  const padFrac = opts.padFrac ?? 0.18;
   const minBps = opts.minBps ?? 0.8;
-  const maxBps = opts.maxBps ?? 12;
+  const maxBps = opts.maxBps ?? 8;
+  const zoom = opts.zoom != null && Number.isFinite(Number(opts.zoom)) && Number(opts.zoom) > 0
+    ? Number(opts.zoom)
+    : 1;
 
   const slice = samples.slice(-lookback);
   let wallLo = Infinity;
@@ -731,6 +801,7 @@ export function computePriceWindow(history, opts = {}) {
   const maxHalf = focus * (maxBps / 10000);
   let half = Math.max(bookHalf, tickHalf, minHalf, tick * 4);
   half = Math.min(half, Math.max(maxHalf, bookHalf, tickHalf));
+  half *= zoom;
 
   // Keep focus centered; never collapse to zero span.
   if (!(half > 0)) half = Math.max(tick * minTicks, focus * 1e-4);
@@ -743,6 +814,29 @@ export function computePriceWindow(history, opts = {}) {
     wallLo: Number.isFinite(wallLo) ? wallLo : null,
     wallHi: Number.isFinite(wallHi) ? wallHi : null,
   };
+}
+
+/**
+ * Clamp Order Flow price-zoom multiplier (1 = auto book window).
+ * <1 zooms in, >1 zooms out.
+ * @param {unknown} v
+ * @param {number} [fallback]
+ */
+export function clampPriceZoom(v, fallback = 1) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(6, Math.max(0.25, n));
+}
+
+/**
+ * Clamp visible time window for Order Flow (seconds).
+ * @param {unknown} v
+ * @param {number} [fallback]
+ */
+export function clampViewSec(v, fallback = 300) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(3600, Math.max(15, Math.round(n)));
 }
 
 /**
@@ -1004,12 +1098,15 @@ export function cobColumn(sample, opts = {}) {
 
 /**
  * Build a dense heatmap grid from depth history for canvas blit.
+ * Fills the full visible Y range (nearest/interpolated inside the book,
+ * soft falloff outside) and hold-last empty columns to avoid black gaps.
  * @param {Array<object>} history samples from sampleBookDepth
  * @param {{
  *   priceMin?: number|null,
  *   priceMax?: number|null,
  *   rows?: number,
  *   cols?: number,
+ *   fillNearest?: boolean,
  * }} [opts]
  * @returns {{
  *   grid: Float32Array,
@@ -1024,12 +1121,15 @@ export function cobColumn(sample, opts = {}) {
  * }|null}
  */
 export function buildHeatmapGrid(history, opts = {}) {
-  const samples = (history || []).filter((s) => s && (s.bids?.size || s.asks?.size));
+  const samples = (history || []).filter(
+    (s) => s && (s.bids?.size || s.asks?.size || s.holdLast),
+  );
   if (samples.length < 2) return null;
 
   const rows = Math.max(16, Math.min(160, opts.rows ?? 80));
   const cols = Math.min(samples.length, opts.cols ?? samples.length);
   const slice = samples.slice(samples.length - cols);
+  const fillNearest = opts.fillNearest !== false;
 
   let priceMin = opts.priceMin;
   let priceMax = opts.priceMax;
@@ -1037,11 +1137,11 @@ export function buildHeatmapGrid(history, opts = {}) {
     let lo = Infinity;
     let hi = -Infinity;
     for (const s of slice) {
-      for (const px of s.bids.keys()) {
+      for (const px of s.bids?.keys?.() || []) {
         if (px < lo) lo = px;
         if (px > hi) hi = px;
       }
-      for (const px of s.asks.keys()) {
+      for (const px of s.asks?.keys?.() || []) {
         if (px < lo) lo = px;
         if (px > hi) hi = px;
       }
@@ -1062,12 +1162,60 @@ export function buildHeatmapGrid(history, opts = {}) {
 
   for (let c = 0; c < cols; c++) {
     const s = slice[c];
-    const fill = (map) => {
-      for (const [px, usd] of map) {
+    /** @type {Array<[number, number]>} */
+    const levels = [];
+    for (const [px, usd] of s.bids || []) {
+      if (Number.isFinite(px) && usd > 0) levels.push([px, usd]);
+    }
+    for (const [px, usd] of s.asks || []) {
+      if (Number.isFinite(px) && usd > 0) levels.push([px, usd]);
+    }
+    levels.sort((a, b) => a[0] - b[0]);
+
+    if (!levels.length) {
+      if (c > 0) {
+        for (let r = 0; r < rows; r++) {
+          const v = grid[r * cols + (c - 1)];
+          grid[r * cols + c] = v;
+          if (v > maxVal) maxVal = v;
+        }
+      }
+      continue;
+    }
+
+    if (fillNearest) {
+      const bookLo = levels[0][0];
+      const bookHi = levels[levels.length - 1][0];
+      // Wide falloff so resting size paints across the full visible Y — Bookmap field, not a strip.
+      const falloff = Math.max(span * 0.55, (bookHi - bookLo) * 1.2, span / Math.max(8, rows / 4));
+      let colMax = 0;
+      for (let r = 0; r < rows; r++) {
+        const px = priceMax - ((r + 0.5) / rows) * span;
+        let val = interpolateDepthUsd(levels, px);
+        if (!(val > 0)) {
+          const edgePx = px < bookLo ? bookLo : px > bookHi ? bookHi : px;
+          const edgeUsd =
+            px < bookLo
+              ? levels[0][1]
+              : px > bookHi
+                ? levels[levels.length - 1][1]
+                : Math.max(levels[0][1], levels[levels.length - 1][1]);
+          const dist = Math.abs(px - edgePx);
+          val = edgeUsd * Math.exp(-dist / falloff) * 0.9;
+        }
+        // Absolute floor so far-from-book rows stay dark-blue, never black void.
+        const floor = Math.max(...levels.map((l) => l[1])) * 0.04 * Math.exp(-Math.abs(px - (bookLo + bookHi) / 2) / (span * 0.7));
+        val = Math.max(val, floor);
+        const idx = r * cols + c;
+        grid[idx] = val;
+        if (val > colMax) colMax = val;
+        if (val > maxVal) maxVal = val;
+      }
+    } else {
+      for (const [px, usd] of levels) {
         if (px < priceMin || px > priceMax) continue;
         const rowF = ((priceMax - px) / span) * rows;
         const row = Math.min(rows - 1, Math.max(0, Math.floor(rowF)));
-        // Spread one tick across neighboring rows so thin books still fill a band.
         const neighbors = row > 0 && row < rows - 1 ? [row - 1, row, row + 1] : [row];
         const share = usd / neighbors.length;
         for (const r of neighbors) {
@@ -1076,9 +1224,7 @@ export function buildHeatmapGrid(history, opts = {}) {
           if (grid[idx] > maxVal) maxVal = grid[idx];
         }
       }
-    };
-    fill(s.bids);
-    fill(s.asks);
+    }
   }
 
   const midPath = slice
@@ -1101,6 +1247,28 @@ export function buildHeatmapGrid(history, opts = {}) {
       bestAsk: bestPrice(s.asks, 'min'),
     })),
   };
+}
+
+/**
+ * Linear interpolate resting USD between sorted [price, usd] levels.
+ * @param {Array<[number, number]>} levels
+ * @param {number} px
+ */
+function interpolateDepthUsd(levels, px) {
+  if (!levels.length) return 0;
+  if (px <= levels[0][0]) return px === levels[0][0] ? levels[0][1] : 0;
+  const last = levels[levels.length - 1];
+  if (px >= last[0]) return px === last[0] ? last[1] : 0;
+  for (let i = 0; i < levels.length - 1; i++) {
+    const [p0, u0] = levels[i];
+    const [p1, u1] = levels[i + 1];
+    if (px >= p0 && px <= p1) {
+      if (p1 === p0) return Math.max(u0, u1);
+      const u = (px - p0) / (p1 - p0);
+      return u0 * (1 - u) + u1 * u;
+    }
+  }
+  return 0;
 }
 
 /**
@@ -1128,9 +1296,9 @@ function bestPrice(map, which) {
 export function heatIntensity(value, maxVal, gain = 1) {
   if (!(value > 0) || !(maxVal > 0)) return 0;
   const base = Math.log1p(value) / Math.log1p(maxVal);
-  // Slight floor so thin books still paint a field, not a 1px filament.
+  // Slight floor so thin books / soft falloff still paint a field, not a void.
   const shaped = Math.pow(base, 1 / Math.max(0.35, gain));
-  return Math.max(0, Math.min(1, 0.08 + shaped * 0.92));
+  return Math.max(0, Math.min(1, 0.12 + shaped * 0.88));
 }
 
 /**

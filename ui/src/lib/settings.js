@@ -46,6 +46,12 @@ export const DEFAULTS = {
   ofBubbleMinUsd: 50,
   /** Visible layers csv: heat,bubbles,mid,vap,cvd,vol,cob,candles,footprint,markers */
   ofLayers: 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
+  /** Order Flow price zoom (1=auto book window; <1 zoom in; >1 zoom out). */
+  ofPriceZoom: 1,
+  /** Order Flow visible time window seconds (null = use session preset). */
+  ofViewSec: null,
+  /** When true, Order Flow time axis tracks live edge. */
+  ofFollowLive: true,
 };
 
 /**
@@ -157,6 +163,12 @@ function mergeParsed(parsed) {
     ofLayers: typeof parsed?.ofLayers === 'string' && parsed.ofLayers
       ? parsed.ofLayers
       : DEFAULTS.ofLayers,
+    ofPriceZoom: clampNum(parsed?.ofPriceZoom, 0.25, 6, DEFAULTS.ofPriceZoom),
+    ofViewSec:
+      parsed?.ofViewSec == null || parsed?.ofViewSec === ''
+        ? null
+        : clampInt(parsed.ofViewSec, 15, 3600, null),
+    ofFollowLive: parsed?.ofFollowLive !== false,
   };
 }
 
