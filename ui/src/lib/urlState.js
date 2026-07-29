@@ -69,6 +69,18 @@ export function parseUrlState() {
   const pulseAlert = p.get('pulseAlert');
   if (pulseAlert != null) out.pulseSpikeThreshold = Number(pulseAlert);
 
+  const ofTick = p.get('ofTick');
+  if (ofTick === 'auto' || (ofTick != null && Number(ofTick) > 0)) out.ofTick = ofTick;
+
+  const ofHeat = p.get('ofHeat');
+  if (ofHeat != null) out.ofHeat = Number(ofHeat);
+
+  const ofBubble = p.get('ofBubble');
+  if (ofBubble != null) out.ofBubbleMinUsd = Number(ofBubble);
+
+  const ofLayers = p.get('ofLayers');
+  if (ofLayers) out.ofLayers = ofLayers;
+
   return out;
 }
 
@@ -113,6 +125,14 @@ export function buildUrlState(state) {
     s.pulseSpikeThreshold !== DEFAULTS.pulseSpikeThreshold
   ) {
     p.set('pulseAlert', String(s.pulseSpikeThreshold));
+  }
+  if (s.ofTick != null && s.ofTick !== DEFAULTS.ofTick) p.set('ofTick', String(s.ofTick));
+  if (s.ofHeat != null && s.ofHeat !== DEFAULTS.ofHeat) p.set('ofHeat', String(s.ofHeat));
+  if (s.ofBubbleMinUsd != null && s.ofBubbleMinUsd !== DEFAULTS.ofBubbleMinUsd) {
+    p.set('ofBubble', String(s.ofBubbleMinUsd));
+  }
+  if (s.ofLayers != null && s.ofLayers !== DEFAULTS.ofLayers) {
+    p.set('ofLayers', String(s.ofLayers));
   }
 
   return p.toString();

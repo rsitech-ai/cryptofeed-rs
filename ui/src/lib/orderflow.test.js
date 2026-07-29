@@ -10,11 +10,16 @@ import {
   buildHeatmapGrid,
   computeCvd,
   detectFlowHeuristics,
+  domLadder,
+  heatIntensity,
   heatmapColor,
   ladderLevels,
   levelImbalancePct,
+  parseOfLayers,
   pushDepthHistory,
+  resolveTick,
   sampleBookDepth,
+  serializeOfLayers,
   tradeBubbles,
   tradeNotional,
   volumeAtPrice,
@@ -198,6 +203,43 @@ describe('heatmap / depth ring', () => {
     const hot = heatmapColor(0.95);
     assert.ok(cold[2] > cold[0]); // bluish
     assert.ok(hot[0] > hot[2]); // reddish
+  });
+
+  it('applies heat intensity gain', () => {
+    const soft = heatIntensity(50, 100, 0.5);
+    const hard = heatIntensity(50, 100, 2);
+    assert.ok(hard > soft);
+    assert.ok(soft > 0 && hard <= 1);
+  });
+
+  it('builds classic DOM ladder bid|price|ask', () => {
+    const book = {
+      bids: [
+        { price: '100', quantity: '2' },
+        { price: '99', quantity: '3' },
+      ],
+      asks: [
+        { price: '101', quantity: '1' },
+        { price: '102', quantity: '4' },
+      ],
+    };
+    const L = domLadder(book, { depth: 4, tick: 1 });
+    assert.ok(L.rows.length >= 2);
+    assert.equal(L.bestBid, 100);
+    assert.equal(L.bestAsk, 101);
+    const topBid = L.rows.find((r) => r.price === 100);
+    assert.ok(topBid && topBid.bidQty === 2);
+    const topAsk = L.rows.find((r) => r.price === 101);
+    assert.ok(topAsk && topAsk.askQty === 1);
+  });
+
+  it('parses layer flags and resolves tick', () => {
+    const L = parseOfLayers('heat,bubbles,cvd');
+    assert.equal(L.heat, true);
+    assert.equal(L.vap, false);
+    assert.equal(serializeOfLayers(L), 'heat,bubbles,cvd');
+    assert.equal(resolveTick('auto', { bids: [{ price: '100' }, { price: '99' }], asks: [] }), 1);
+    assert.equal(resolveTick('0.5', null), 0.5);
   });
 });
 

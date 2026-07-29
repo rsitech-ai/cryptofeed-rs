@@ -721,5 +721,199 @@ export function buildHeatmapGrid(history, opts = {}) {
     tMax: slice[slice.length - 1].t,
     maxVal: maxVal || 1,
     midPath,
+    bidAskPath: slice.map((s) => ({
+      t: s.t,
+      bestBid: bestPrice(s.bids, 'max'),
+      bestAsk: bestPrice(s.asks, 'min'),
+    })),
   };
+}
+
+/**
+ * Best price from a price→usd map.
+ * @param {Map<number, number>|undefined} map
+ * @param {'min'|'max'} which
+ */
+function bestPrice(map, which) {
+  if (!map?.size) return null;
+  let best = which === 'max' ? -Infinity : Infinity;
+  for (const px of map.keys()) {
+    if (which === 'max') {
+      if (px > best) best = px;
+    } else if (px < best) best = px;
+  }
+  return Number.isFinite(best) ? best : null;
+}
+
+/**
+ * Normalize intensity with user heat gain (0.5–2.5).
+ * @param {number} value
+ * @param {number} maxVal
+ * @param {number} [gain]
+ */
+export function heatIntensity(value, maxVal, gain = 1) {
+  if (!(value > 0) || !(maxVal > 0)) return 0;
+  const base = Math.log1p(value) / Math.log1p(maxVal);
+  return Math.max(0, Math.min(1, Math.pow(base, 1 / Math.max(0.35, gain))));
+}
+
+/**
+ * Classic DOM ladder aligned on a tick grid: bid | price | ask.
+ * @param {object|null} book
+ * @param {{ depth?: number, tick?: number|null }} [opts]
+ */
+export function domLadder(book, opts = {}) {
+  const depth = Math.max(1, Math.min(50, Number(opts.depth) || 16));
+  const tick = opts.tick && opts.tick > 0 ? opts.tick : inferTickSize(book);
+  const bidsRaw = (book?.bids || []).slice(0, depth);
+  const asksRaw = (book?.asks || []).slice(0, depth);
+
+  /** @type {Map<number, { bidQty: number, askQty: number, bidUsd: number, askUsd: number }>} */
+  const byPx = new Map();
+
+  for (const l of bidsRaw) {
+    const px = Number(l.price);
+    const qty = Number(l.quantity) || 0;
+    if (!Number.isFinite(px) || qty <= 0) continue;
+    const key = quantizePrice(px, tick);
+    const row = byPx.get(key) || { bidQty: 0, askQty: 0, bidUsd: 0, askUsd: 0 };
+    row.bidQty += qty;
+    row.bidUsd += px * qty;
+    byPx.set(key, row);
+  }
+  for (const l of asksRaw) {
+    const px = Number(l.price);
+    const qty = Number(l.quantity) || 0;
+    if (!Number.isFinite(px) || qty <= 0) continue;
+    const key = quantizePrice(px, tick);
+    const row = byPx.get(key) || { bidQty: 0, askQty: 0, bidUsd: 0, askUsd: 0 };
+    row.askQty += qty;
+    row.askUsd += px * qty;
+    byPx.set(key, row);
+  }
+
+  const prices = [...byPx.keys()].sort((a, b) => b - a);
+  const bestBid = bidsRaw.length ? Number(bidsRaw[0].price) : null;
+  const bestAsk = asksRaw.length ? Number(asksRaw[0].price) : null;
+  const mid =
+    Number.isFinite(bestBid) && Number.isFinite(bestAsk)
+      ? (bestBid + bestAsk) / 2
+      : Number.isFinite(bestBid)
+        ? bestBid
+        : Number.isFinite(bestAsk)
+          ? bestAsk
+          : null;
+
+  const bidPrices = prices.filter((p) => (byPx.get(p)?.bidQty || 0) > 0).sort((a, b) => b - a);
+  const askPrices = prices.filter((p) => (byPx.get(p)?.askQty || 0) > 0).sort((a, b) => a - b);
+  /** @type {Map<number, { bidCumQty: number, askCumQty: number, bidCumUsd: number, askCumUsd: number }>} */
+  const cum = new Map();
+  let bq = 0;
+  let bu = 0;
+  for (const p of bidPrices) {
+    const r = byPx.get(p);
+    bq += r.bidQty;
+    bu += r.bidUsd;
+    cum.set(p, { bidCumQty: bq, bidCumUsd: bu, askCumQty: 0, askCumUsd: 0 });
+  }
+  let aq = 0;
+  let au = 0;
+  for (const p of askPrices) {
+    const r = byPx.get(p);
+    aq += r.askQty;
+    au += r.askUsd;
+    const prev = cum.get(p) || { bidCumQty: 0, bidCumUsd: 0, askCumQty: 0, askCumUsd: 0 };
+    cum.set(p, { ...prev, askCumQty: aq, askCumUsd: au });
+  }
+
+  let maxUsd = 0;
+  let maxCumUsd = 0;
+  const rows = prices.map((price) => {
+    const r = byPx.get(price);
+    const c = cum.get(price) || {
+      bidCumQty: 0,
+      askCumQty: 0,
+      bidCumUsd: 0,
+      askCumUsd: 0,
+    };
+    maxUsd = Math.max(maxUsd, r.bidUsd, r.askUsd);
+    maxCumUsd = Math.max(maxCumUsd, c.bidCumUsd || 0, c.askCumUsd || 0);
+    const side =
+      r.bidQty > 0 && r.askQty > 0 ? 'both' : r.askQty > 0 ? 'ask' : 'bid';
+    return {
+      price,
+      key: String(price),
+      side,
+      bidQty: r.bidQty,
+      askQty: r.askQty,
+      bidUsd: r.bidUsd,
+      askUsd: r.askUsd,
+      bidCumQty: c.bidCumQty || 0,
+      askCumQty: c.askCumQty || 0,
+      bidCumUsd: c.bidCumUsd || 0,
+      askCumUsd: c.askCumUsd || 0,
+      imbPct: levelImbalancePct(r.bidQty, r.askQty),
+    };
+  });
+
+  return {
+    rows,
+    maxUsd: maxUsd || 1,
+    maxCumUsd: maxCumUsd || 1,
+    bestBid: Number.isFinite(bestBid) ? bestBid : null,
+    bestAsk: Number.isFinite(bestAsk) ? bestAsk : null,
+    mid,
+    tick,
+  };
+}
+
+/**
+ * Resolve tick override: null/'auto' → infer from book.
+ * @param {number|string|null|undefined} tickOpt
+ * @param {object|null} book
+ */
+export function resolveTick(tickOpt, book) {
+  if (tickOpt == null || tickOpt === '' || tickOpt === 'auto') return inferTickSize(book);
+  const n = Number(tickOpt);
+  return Number.isFinite(n) && n > 0 ? n : inferTickSize(book);
+}
+
+/**
+ * Parse layer visibility flags from csv/string/object.
+ * @param {string|object|null|undefined} raw
+ */
+export function parseOfLayers(raw) {
+  const defaults = {
+    heat: true,
+    bubbles: true,
+    mid: true,
+    vap: true,
+    cvd: true,
+    vol: true,
+  };
+  if (raw == null || raw === '') return { ...defaults };
+  if (typeof raw === 'object') return { ...defaults, ...raw };
+  const parts = String(raw)
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (!parts.length) return { ...defaults };
+  const out = { heat: false, bubbles: false, mid: false, vap: false, cvd: false, vol: false };
+  for (const p of parts) {
+    if (p in out) out[p] = true;
+  }
+  if (!out.heat && !out.bubbles) out.heat = true;
+  return out;
+}
+
+/**
+ * Serialize layer flags to csv.
+ * @param {ReturnType<typeof parseOfLayers>} layers
+ */
+export function serializeOfLayers(layers) {
+  const L = parseOfLayers(layers);
+  return Object.entries(L)
+    .filter(([, v]) => v)
+    .map(([k]) => k)
+    .join(',');
 }

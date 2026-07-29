@@ -38,6 +38,14 @@ export const DEFAULTS = {
   largeTradeUsd: 25000,
   /** Pulse spike alert threshold (0–100 score). */
   pulseSpikeThreshold: 72,
+  /** Order-flow tick bucket: 'auto' or numeric string. */
+  ofTick: 'auto',
+  /** Heat intensity gain 0.5–2.5. */
+  ofHeat: 1,
+  /** Min bubble notional (USD) to draw. */
+  ofBubbleMinUsd: 500,
+  /** Visible layers csv: heat,bubbles,mid,vap,cvd,vol */
+  ofLayers: 'heat,bubbles,mid,vap,cvd,vol',
 };
 
 /**
@@ -140,6 +148,15 @@ function mergeParsed(parsed) {
       100,
       DEFAULTS.pulseSpikeThreshold,
     ),
+    ofTick:
+      parsed?.ofTick === 'auto' || (parsed?.ofTick != null && Number(parsed.ofTick) > 0)
+        ? String(parsed.ofTick)
+        : DEFAULTS.ofTick,
+    ofHeat: clampNum(parsed?.ofHeat, 0.5, 2.5, DEFAULTS.ofHeat),
+    ofBubbleMinUsd: clampNum(parsed?.ofBubbleMinUsd, 0, 1e9, DEFAULTS.ofBubbleMinUsd),
+    ofLayers: typeof parsed?.ofLayers === 'string' && parsed.ofLayers
+      ? parsed.ofLayers
+      : DEFAULTS.ofLayers,
   };
 }
 
