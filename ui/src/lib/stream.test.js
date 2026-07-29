@@ -30,8 +30,9 @@ describe('dispatchStreamMessage', () => {
     );
     assert.deepEqual(calls[0], ['status', { live: true }]);
     assert.ok(calls.some((c) => c[0] === 'focus'));
-    assert.ok(calls.some((c) => c[0] === 'book' && c[1] === 'binance-spot'));
-    assert.ok(calls.some((c) => c[0] === 'tape' && c[3] === 1));
+    // Combined focus must not also fire onBook/onTape (double-apply → flicker).
+    assert.equal(calls.filter((c) => c[0] === 'book').length, 0);
+    assert.equal(calls.filter((c) => c[0] === 'tape').length, 0);
   });
 
   it('still handles typed messages', () => {

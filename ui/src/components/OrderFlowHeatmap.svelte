@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { fmtPrice, fmtUsd } from '../lib/format.js';
+  import { createPaintGate, ema } from '../lib/paint.js';
   import {
     buildHeatmapGrid,
     heatmapColor,
@@ -20,7 +21,6 @@
 
   let wrap = $state(null);
   let canvas = $state(null);
-  let tip = $state(null);
   /** @type {{ x: number, y: number, lines: string[] }|null} */
   let hover = $state(null);
 
@@ -40,8 +40,37 @@
   );
   let volBars = $derived(volumeBarsFromTape(tape, { windowSec, bucketSec: 1 }));
 
-  let raf = 0;
+  /** Stable y-scale (EMA) so walls don't jump every sample. */
+  let scaleLo = null;
+  let scaleHi = null;
+  /** @type {HTMLCanvasElement|null} */
+  let frameBuf = null;
+  /** @type {HTMLCanvasElement|null} */
+  let heatLayer = null;
+  /** @type {ImageData|null} */
+  let imageBuf = null;
   let ro = null;
+  let lastPaintKey = '';
+
+  const gate = createPaintGate(() => paint(), { minIntervalMs: 110 });
+
+  function ensureCanvas(slot, w, h) {
+    if (!slot) slot = document.createElement('canvas');
+    if (slot.width !== w || slot.height !== h) {
+      slot.width = w;
+      slot.height = h;
+    }
+    return slot;
+  }
+
+  function ensureImageData(w, h) {
+    if (!imageBuf || imageBuf.width !== w || imageBuf.height !== h) {
+      // createImageData needs a live 2d context; use heat layer once sized
+      heatLayer = ensureCanvas(heatLayer, w, h);
+      imageBuf = heatLayer.getContext('2d').createImageData(w, h);
+    }
+    return imageBuf;
+  }
 
   function paint() {
     const el = canvas;
@@ -52,11 +81,14 @@
     const hCss = host.clientHeight || 360;
     const w = Math.max(1, Math.floor(wCss * dpr));
     const h = Math.max(1, Math.floor(hCss * dpr));
+
+    // Resize only when needed — setting width/height clears the bitmap (flash).
     if (el.width !== w || el.height !== h) {
       el.width = w;
       el.height = h;
     }
-    const ctx = el.getContext('2d');
+
+    const ctx = el.getContext('2d', { alpha: false });
     if (!ctx) return;
 
     const padL = 58 * dpr;
@@ -66,37 +98,80 @@
     const padB = 4 * dpr;
     const heatH = h - padT - volH - padB - 4 * dpr;
     const heatW = w - padL - padR;
+    const heatWInt = Math.max(1, Math.ceil(heatW));
+    const heatHInt = Math.max(1, Math.ceil(heatH));
 
-    ctx.fillStyle = '#0c1016';
-    ctx.fillRect(0, 0, w, h);
+    // Draw into offscreen first, then blit — avoids mid-frame clear flash.
+    frameBuf = ensureCanvas(frameBuf, w, h);
+    const octx = frameBuf.getContext('2d', { alpha: false });
+    if (!octx) return;
 
-    const grid = buildHeatmapGrid(depthHistory, {
-      rows: Math.min(120, Math.max(40, Math.floor(heatH / (2 * dpr)))),
-      cols: Math.min(depthHistory.length, Math.max(32, Math.floor(heatW / (2 * dpr)))),
-    });
+    octx.fillStyle = '#0c1016';
+    octx.fillRect(0, 0, w, h);
 
-    // Grid lines
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 8; i++) {
-      const y = padT + (heatH * i) / 8;
-      ctx.beginPath();
-      ctx.moveTo(padL, y);
-      ctx.lineTo(padL + heatW, y);
-      ctx.stroke();
-    }
-    for (let i = 0; i <= 10; i++) {
-      const x = padL + (heatW * i) / 10;
-      ctx.beginPath();
-      ctx.moveTo(x, padT);
-      ctx.lineTo(x, padT + heatH);
-      ctx.stroke();
+    const rows = Math.min(120, Math.max(40, Math.floor(heatH / (2 * dpr))));
+    const cols = Math.min(depthHistory.length, Math.max(32, Math.floor(heatW / (2 * dpr))));
+
+    // Raw bounds from latest mid / lastPrice for EMA target.
+    let targetLo = lastPrice != null ? lastPrice * 0.9975 : null;
+    let targetHi = lastPrice != null ? lastPrice * 1.0025 : null;
+    const latest = depthHistory.at(-1);
+    if (latest?.mid != null && Number.isFinite(latest.mid)) {
+      const pad = latest.mid * 0.0025;
+      targetLo = latest.mid - pad;
+      targetHi = latest.mid + pad;
     }
 
     let priceMin = lastPrice != null ? lastPrice * 0.998 : 0;
     let priceMax = lastPrice != null ? lastPrice * 1.002 : 1;
     let tMin = Date.now() - windowSec * 1000;
     let tMax = Date.now();
+
+    // Prefer fixed EMA window around mid so y-axis is calm.
+    if (targetLo != null && targetHi != null) {
+      scaleLo = ema(scaleLo, targetLo, 0.08);
+      scaleHi = ema(scaleHi, targetHi, 0.08);
+      // Expand slightly if book walls exceed current window.
+      let wallLo = Infinity;
+      let wallHi = -Infinity;
+      for (const s of depthHistory.slice(-Math.min(cols, depthHistory.length))) {
+        for (const px of s.bids?.keys?.() || []) {
+          if (px < wallLo) wallLo = px;
+          if (px > wallHi) wallHi = px;
+        }
+        for (const px of s.asks?.keys?.() || []) {
+          if (px < wallLo) wallLo = px;
+          if (px > wallHi) wallHi = px;
+        }
+      }
+      if (Number.isFinite(wallLo) && wallLo < scaleLo) scaleLo = ema(scaleLo, wallLo, 0.2);
+      if (Number.isFinite(wallHi) && wallHi > scaleHi) scaleHi = ema(scaleHi, wallHi, 0.2);
+    }
+
+    const grid = buildHeatmapGrid(depthHistory, {
+      rows,
+      cols,
+      priceMin: scaleLo,
+      priceMax: scaleHi,
+    });
+
+    // Grid lines
+    octx.strokeStyle = 'rgba(255,255,255,0.04)';
+    octx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) {
+      const y = padT + (heatH * i) / 8;
+      octx.beginPath();
+      octx.moveTo(padL, y);
+      octx.lineTo(padL + heatW, y);
+      octx.stroke();
+    }
+    for (let i = 0; i <= 10; i++) {
+      const x = padL + (heatW * i) / 10;
+      octx.beginPath();
+      octx.moveTo(x, padT);
+      octx.lineTo(x, padT + heatH);
+      octx.stroke();
+    }
 
     if (grid) {
       priceMin = grid.priceMin;
@@ -106,65 +181,59 @@
       const spanT = Math.max(1, tMax - tMin);
       const cellW = heatW / grid.cols;
       const cellH = heatH / grid.rows;
-      const img = ctx.createImageData(Math.ceil(heatW), Math.ceil(heatH));
-      // Fill transparent first
-      for (let i = 0; i < img.data.length; i += 4) {
-        img.data[i] = 8;
-        img.data[i + 1] = 12;
-        img.data[i + 2] = 22;
-        img.data[i + 3] = 255;
+      const img = ensureImageData(heatWInt, heatHInt);
+      const data = img.data;
+      // Fill base (opaque) — no transparent flash
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 8;
+        data[i + 1] = 12;
+        data[i + 2] = 22;
+        data[i + 3] = 255;
       }
-      // Draw cells into ImageData (nearest-neighbor stretch)
       for (let r = 0; r < grid.rows; r++) {
         for (let c = 0; c < grid.cols; c++) {
           const v = grid.grid[r * grid.cols + c];
           if (v <= 0) continue;
-          // log scale so walls pop
           const intensity = Math.min(1, Math.log1p(v) / Math.log1p(grid.maxVal));
           const [R, G, B, A] = heatmapColor(intensity);
           const x0 = Math.floor(c * cellW);
           const x1 = Math.floor((c + 1) * cellW);
           const y0 = Math.floor(r * cellH);
           const y1 = Math.floor((r + 1) * cellH);
+          const a = A / 255;
           for (let y = y0; y < y1 && y < img.height; y++) {
             for (let x = x0; x < x1 && x < img.width; x++) {
               const idx = (y * img.width + x) * 4;
-              const a = A / 255;
-              img.data[idx] = Math.round(img.data[idx] * (1 - a) + R * a);
-              img.data[idx + 1] = Math.round(img.data[idx + 1] * (1 - a) + G * a);
-              img.data[idx + 2] = Math.round(img.data[idx + 2] * (1 - a) + B * a);
-              img.data[idx + 3] = 255;
+              data[idx] = Math.round(data[idx] * (1 - a) + R * a);
+              data[idx + 1] = Math.round(data[idx + 1] * (1 - a) + G * a);
+              data[idx + 2] = Math.round(data[idx + 2] * (1 - a) + B * a);
+              data[idx + 3] = 255;
             }
           }
         }
       }
-      // Blit via temp canvas for crispness
-      const tmp = document.createElement('canvas');
-      tmp.width = img.width;
-      tmp.height = img.height;
-      tmp.getContext('2d').putImageData(img, 0, 0);
-      ctx.drawImage(tmp, padL, padT, heatW, heatH);
+      heatLayer = ensureCanvas(heatLayer, heatWInt, heatHInt);
+      heatLayer.getContext('2d').putImageData(img, 0, 0);
+      octx.drawImage(heatLayer, padL, padT, heatW, heatH);
 
-      // Mid path
       if (grid.midPath.length > 1) {
-        ctx.beginPath();
-        ctx.strokeStyle = 'rgba(240,185,11,0.85)';
-        ctx.lineWidth = 1.2 * dpr;
+        octx.beginPath();
+        octx.strokeStyle = 'rgba(240,185,11,0.85)';
+        octx.lineWidth = 1.2 * dpr;
         for (let i = 0; i < grid.midPath.length; i++) {
           const p = grid.midPath[i];
           const x = padL + ((p.t - tMin) / spanT) * heatW;
           const y = padT + ((priceMax - p.mid) / (priceMax - priceMin || 1)) * heatH;
-          if (i === 0) ctx.moveTo(x, y);
-          else ctx.lineTo(x, y);
+          if (i === 0) octx.moveTo(x, y);
+          else octx.lineTo(x, y);
         }
-        ctx.stroke();
+        octx.stroke();
       }
     }
 
     const spanP = priceMax - priceMin || 1;
     const spanT = Math.max(1, tMax - tMin);
 
-    // Volume bubbles (split green/red)
     const maxBubbleUsd = Math.max(1, ...bubbles.map((b) => b.totalUsd), 1);
     for (const b of bubbles) {
       if (b.t < tMin || b.t > tMax) continue;
@@ -174,38 +243,35 @@
       const r = Math.max(3 * dpr, Math.min(22 * dpr, Math.sqrt(b.totalUsd / maxBubbleUsd) * 20 * dpr));
       const buyFrac = b.totalUsd > 0 ? b.buyUsd / b.totalUsd : 0.5;
 
-      // Sell (top half tendency) / buy (bottom) — classic bookmap split sphere look
-      ctx.beginPath();
-      ctx.arc(x, y, r, Math.PI, 0, false);
-      ctx.closePath();
-      ctx.fillStyle = `rgba(246,70,93,${0.35 + (1 - buyFrac) * 0.45})`;
-      ctx.fill();
+      octx.beginPath();
+      octx.arc(x, y, r, Math.PI, 0, false);
+      octx.closePath();
+      octx.fillStyle = `rgba(246,70,93,${0.35 + (1 - buyFrac) * 0.45})`;
+      octx.fill();
 
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI, false);
-      ctx.closePath();
-      ctx.fillStyle = `rgba(2,192,118,${0.35 + buyFrac * 0.45})`;
-      ctx.fill();
+      octx.beginPath();
+      octx.arc(x, y, r, 0, Math.PI, false);
+      octx.closePath();
+      octx.fillStyle = `rgba(2,192,118,${0.35 + buyFrac * 0.45})`;
+      octx.fill();
 
-      // Split line
-      ctx.beginPath();
-      ctx.moveTo(x - r, y);
-      ctx.lineTo(x + r, y);
-      ctx.strokeStyle = 'rgba(12,16,22,0.55)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      octx.beginPath();
+      octx.moveTo(x - r, y);
+      octx.lineTo(x + r, y);
+      octx.strokeStyle = 'rgba(12,16,22,0.55)';
+      octx.lineWidth = 1;
+      octx.stroke();
 
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = 1;
-      ctx.stroke();
+      octx.beginPath();
+      octx.arc(x, y, r, 0, Math.PI * 2);
+      octx.strokeStyle = 'rgba(255,255,255,0.25)';
+      octx.lineWidth = 1;
+      octx.stroke();
     }
 
-    // Volume subplot
     const volTop = padT + heatH + 6 * dpr;
-    ctx.fillStyle = '#0a0e14';
-    ctx.fillRect(padL, volTop, heatW, volH);
+    octx.fillStyle = '#0a0e14';
+    octx.fillRect(padL, volTop, heatW, volH);
     const maxVol = Math.max(1, ...volBars.map((v) => v.totalUsd));
     const barW = Math.max(1, heatW / Math.max(volBars.length, 1) - 1);
     for (const v of volBars) {
@@ -214,44 +280,36 @@
       const x = padL + ((tMs - tMin) / spanT) * heatW;
       const buyH = (v.buyUsd / maxVol) * (volH - 2);
       const sellH = (v.sellUsd / maxVol) * (volH - 2);
-      ctx.fillStyle = 'rgba(2,192,118,0.7)';
-      ctx.fillRect(x, volTop + volH - buyH, barW, buyH);
-      ctx.fillStyle = 'rgba(246,70,93,0.7)';
-      ctx.fillRect(x, volTop + volH - buyH - sellH, barW, sellH);
+      octx.fillStyle = 'rgba(2,192,118,0.7)';
+      octx.fillRect(x, volTop + volH - buyH, barW, buyH);
+      octx.fillStyle = 'rgba(246,70,93,0.7)';
+      octx.fillRect(x, volTop + volH - buyH - sellH, barW, sellH);
     }
 
-    // Price axis labels
-    ctx.fillStyle = '#848e9c';
-    ctx.font = `${11 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
+    octx.fillStyle = '#848e9c';
+    octx.font = `${11 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
+    octx.textAlign = 'right';
+    octx.textBaseline = 'middle';
     for (let i = 0; i <= 6; i++) {
       const px = priceMax - (spanP * i) / 6;
       const y = padT + (heatH * i) / 6;
-      ctx.fillText(fmtPrice(px, 2), padL - 6 * dpr, y);
+      octx.fillText(fmtPrice(px, 2), padL - 6 * dpr, y);
     }
 
-    // Footer label
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    ctx.fillStyle = '#5e6673';
-    ctx.font = `${10 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
-    ctx.fillText(
+    octx.textAlign = 'left';
+    octx.textBaseline = 'top';
+    octx.fillStyle = '#5e6673';
+    octx.font = `${10 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
+    octx.fillText(
       `L2 reconstructed · ${venue || '?'} ${symbol || ''} · not MBO`,
       padL,
       h - 12 * dpr,
     );
 
-    // Store layout for hover
-    el._layout = { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax, dpr, volTop, volH };
-  }
+    // Single blit to visible canvas (no intermediate clear flash)
+    ctx.drawImage(frameBuf, 0, 0);
 
-  function schedule() {
-    if (raf) cancelAnimationFrame(raf);
-    raf = requestAnimationFrame(() => {
-      raf = 0;
-      paint();
-    });
+    el._layout = { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax, dpr, volTop, volH };
   }
 
   function onMove(ev) {
@@ -270,7 +328,6 @@
     const price = L.priceMax - ((y - L.padT) / L.heatH) * spanP;
     const t = L.tMin + ((x - L.padL) / L.heatW) * spanT;
 
-    // Nearest depth sample
     let nearest = null;
     let bestDt = Infinity;
     for (const s of depthHistory) {
@@ -284,7 +341,6 @@
     const bidSz = nearest?.bids?.get?.(qpx) ?? 0;
     const askSz = nearest?.asks?.get?.(qpx) ?? 0;
 
-    // Nearest bubble
     let bub = null;
     let best = Infinity;
     for (const b of bubbles) {
@@ -318,20 +374,22 @@
   }
 
   $effect(() => {
-    // Depend on reactive inputs
+    const key = `${depthHistory.length}|${tape.length}|${windowSec}|${lastPrice ?? ''}|${venue}|${symbol}`;
+    // Always schedule on dependency change; gate throttles paint Hz.
     depthHistory;
     tape;
     windowSec;
     lastPrice;
-    schedule();
+    if (key !== lastPaintKey) lastPaintKey = key;
+    gate.schedule();
   });
 
   onMount(() => {
-    schedule();
-    ro = new ResizeObserver(() => schedule());
+    gate.schedule();
+    ro = new ResizeObserver(() => gate.schedule());
     if (wrap) ro.observe(wrap);
     return () => {
-      if (raf) cancelAnimationFrame(raf);
+      gate.dispose();
       ro?.disconnect();
     };
   });
@@ -353,7 +411,7 @@
       aria-label="Liquidity heatmap with volume bubbles"
     ></canvas>
     {#if hover}
-      <div class="tip" style={`left:${hover.x}px;top:${hover.y}px`} bind:this={tip}>
+      <div class="tip" style={`left:${hover.x}px;top:${hover.y}px`}>
         {#each hover.lines as line}
           <div>{line}</div>
         {/each}

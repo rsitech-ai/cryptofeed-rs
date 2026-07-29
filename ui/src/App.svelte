@@ -25,6 +25,7 @@
     pushPulseHistory,
     spreadBpsFromBook,
   } from './lib/pulse.js';
+  import { createPaintGate } from './lib/paint.js';
   import HeaderBar from './components/HeaderBar.svelte';
   import OrderBook from './components/OrderBook.svelte';
   import PriceChart from './components/PriceChart.svelte';
@@ -56,8 +57,8 @@
   let showVolume = $state(initial.showVolume !== false);
   let bookDepth = $state(initial.bookDepth || 16);
   let tapeLimit = $state(initial.tapeLimit || 120);
-  let pollFocusMs = $state(initial.pollFocusMs || 120);
-  let pollMultiMs = $state(initial.pollMultiMs || 220);
+  let pollFocusMs = $state(initial.pollFocusMs || 180);
+  let pollMultiMs = $state(initial.pollMultiMs || 280);
   let hiddenVenues = $state(new Set(initial.hiddenVenues || []));
   let pinnedVenues = $state(new Set(initial.pinnedVenues || []));
   let statsMode = $state('window');
@@ -99,6 +100,39 @@
   let lastPulseAlertAt = 0;
   let pulseMetricFilter = $state('');
   let lastDepthSampleAt = 0;
+  /** @type {object|null} */
+  let pendingFocusBook = null;
+  /** @type {object[]|null} */
+  let pendingFocusTape = null;
+  let snapsDirty = false;
+
+  const bookPaint = createPaintGate(() => {
+    if (pendingFocusBook) {
+      book = pendingFocusBook;
+      const pressure = bookPressure(book, bookDepth);
+      imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
+      pendingFocusBook = null;
+    }
+  }, { minIntervalMs: 70 });
+
+  const tapePaint = createPaintGate(() => {
+    if (pendingFocusTape) {
+      tape = pendingFocusTape;
+      candleBuilder.ingest(tape);
+      syncCandleView();
+      pendingFocusTape = null;
+    }
+  }, { minIntervalMs: 80 });
+
+  const linePaint = createPaintGate(() => {
+    flushLineView();
+  }, { minIntervalMs: 100 });
+
+  const snapsPaint = createPaintGate(() => {
+    if (!snapsDirty) return;
+    snapsDirty = false;
+    venueBookSnaps = new Map(venueBookSnaps);
+  }, { minIntervalMs: 120 });
 
   let candles = $state([]);
   let volumeBars = $state([]);
@@ -152,23 +186,24 @@
   function applyFocusBook(venue, symbol, data) {
     if (!data) return;
     const key = `${venue}|${symbol}`;
-    venueBooks.set(key, true);
-    venueBooks = new Map(venueBooks);
+    if (!venueBooks.has(key)) {
+      venueBooks.set(key, true);
+      venueBooks = new Map(venueBooks);
+    }
     venueBookSnaps.set(key, data);
-    venueBookSnaps = new Map(venueBookSnaps);
+    snapsDirty = true;
+    snapsPaint.schedule();
     if (venue === selectedVenue && symbol === selectedSymbol) {
-      book = data;
-      const pressure = bookPressure(data, bookDepth);
-      imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
+      pendingFocusBook = data;
+      bookPaint.schedule();
       sampleDepth(data);
     }
   }
 
   function applyFocusTape(venue, symbol, entries) {
     if (venue === selectedVenue && symbol === selectedSymbol) {
-      tape = entries || [];
-      candleBuilder.ingest(tape);
-      syncCandleView();
+      pendingFocusTape = entries || [];
+      tapePaint.schedule();
     }
   }
 
@@ -282,7 +317,15 @@
     syncUrl(next);
   }
 
-  function syncLineView() {
+  function syncLineView(immediate = false) {
+    if (immediate) {
+      flushLineView();
+      return;
+    }
+    linePaint.schedule();
+  }
+
+  function flushLineView() {
     const snap = tracker.snapshot(priceMode, { hidden: hiddenVenues, windowSec: sessionSec });
     lineSeries = snap.series;
     discrepancy = snap.discrepancy;
@@ -449,6 +492,10 @@
     imbalanceHistory = [];
     depthHistory = [];
     lastDepthSampleAt = 0;
+    pendingFocusBook = null;
+    pendingFocusTape = null;
+    bookPaint.flushNow();
+    tapePaint.flushNow();
   }
 
   function applyTimeframe(id) {
@@ -610,6 +657,8 @@
 
   async function refreshBook() {
     if (!selectedVenue || !selectedSymbol || replayMode) return;
+    // SSE focus already delivers books — skip redundant poll to cut double-apply flicker.
+    if (streamMode === 'sse' && stream.focusFresh(1200)) return;
     try {
       const data = await fetchJson(bookQuery(selectedVenue, selectedSymbol, bookDepth));
       applyFocusBook(selectedVenue, selectedSymbol, data);
@@ -852,6 +901,10 @@
       clearInterval(mid);
       if (focusTimer) clearInterval(focusTimer);
       if (multiTimer) clearInterval(multiTimer);
+      bookPaint.dispose();
+      tapePaint.dispose();
+      linePaint.dispose();
+      snapsPaint.dispose();
       stream.disconnect();
     };
   });
@@ -929,45 +982,46 @@
           onSpikeClick={onSpikeClick}
         />
       {/if}
+      <!-- Single PriceChart instance — remounting on mode switch caused chart flicker. -->
+      <PriceChart
+        series={lineSeries}
+        {candles}
+        {volumeBars}
+        {bpsHistory}
+        {chartMode}
+        {priceMode}
+        {timeframe}
+        asset={selectedAsset}
+        {discrepancy}
+        {assets}
+        {coverage}
+        {showVolume}
+        {bookDepth}
+        {tapeLimit}
+        {pollFocusMs}
+        {pollMultiMs}
+        alertBpsThreshold={alertBpsThreshold}
+        webhookUrl={webhookUrl}
+        focusVenue={selectedVenue}
+        {highlightVenues}
+        {highlightSec}
+        sessionWindowSec={sessionSec}
+        toolbarOnly={chartMode === 'orderflow'}
+        onTimeframe={applyTimeframe}
+        onChartMode={setChartMode}
+        onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(true); }}
+        onAsset={onAssetChange}
+        onToggleVenue={toggleVenue}
+        onFocusVenue={(v, s) => selectMarket(v, s)}
+        onShowVolume={(v) => { showVolume = v; persist({ showVolume: v }); }}
+        onBookDepth={setBookDepth}
+        onTapeLimit={setTapeLimit}
+        onPollFocus={rescheduleFocus}
+        onPollMulti={rescheduleMulti}
+        onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
+        onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
+      />
       {#if chartMode === 'orderflow'}
-        <PriceChart
-          series={lineSeries}
-          {candles}
-          {volumeBars}
-          {bpsHistory}
-          {chartMode}
-          {priceMode}
-          {timeframe}
-          asset={selectedAsset}
-          {discrepancy}
-          {assets}
-          {coverage}
-          {showVolume}
-          {bookDepth}
-          {tapeLimit}
-          {pollFocusMs}
-          {pollMultiMs}
-          alertBpsThreshold={alertBpsThreshold}
-          webhookUrl={webhookUrl}
-          focusVenue={selectedVenue}
-          {highlightVenues}
-          {highlightSec}
-          sessionWindowSec={sessionSec}
-          toolbarOnly={true}
-          onTimeframe={applyTimeframe}
-            onChartMode={setChartMode}
-          onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(); }}
-          onAsset={onAssetChange}
-          onToggleVenue={toggleVenue}
-          onFocusVenue={(v, s) => selectMarket(v, s)}
-          onShowVolume={(v) => { showVolume = v; persist({ showVolume: v }); }}
-          onBookDepth={setBookDepth}
-          onTapeLimit={setTapeLimit}
-          onPollFocus={rescheduleFocus}
-          onPollMulti={rescheduleMulti}
-          onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
-          onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
-        />
         <div class="of-chart-stack">
           <div class="of-heat-main">
             <OrderFlowHeatmap
@@ -993,44 +1047,6 @@
             />
           </div>
         </div>
-      {:else}
-        <PriceChart
-          series={lineSeries}
-          {candles}
-          {volumeBars}
-          {bpsHistory}
-          {chartMode}
-          {priceMode}
-          {timeframe}
-          asset={selectedAsset}
-          {discrepancy}
-          {assets}
-          {coverage}
-          {showVolume}
-          {bookDepth}
-          {tapeLimit}
-          {pollFocusMs}
-          {pollMultiMs}
-          alertBpsThreshold={alertBpsThreshold}
-          webhookUrl={webhookUrl}
-          focusVenue={selectedVenue}
-          {highlightVenues}
-          {highlightSec}
-          sessionWindowSec={sessionSec}
-          onTimeframe={applyTimeframe}
-            onChartMode={setChartMode}
-          onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(); }}
-          onAsset={onAssetChange}
-          onToggleVenue={toggleVenue}
-          onFocusVenue={(v, s) => selectMarket(v, s)}
-          onShowVolume={(v) => { showVolume = v; persist({ showVolume: v }); }}
-          onBookDepth={setBookDepth}
-          onTapeLimit={setTapeLimit}
-          onPollFocus={rescheduleFocus}
-          onPollMulti={rescheduleMulti}
-          onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
-          onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
-        />
       {/if}
     </section>
 
