@@ -9,19 +9,22 @@
 
 | Artifact | How | Status |
 |---|---|---|
-| CycloneDX SBOM | `./scripts/generate-sbom.sh` → `sbom/` | Local + advisory PR `ci.yml` job `sbom` |
-| Tag SBOM upload | `release.yml` job `sbom` on `v*` | Enabled |
-| Signed attestation | GitHub Artifact Attestations (`actions/attest-build-provenance@v2`) | **Job enabled** in `release.yml` (hard-fail); no published tag yet |
+| CycloneDX SBOM | `./scripts/generate-sbom.sh` → `sbom/` | Local generator repaired after the first alpha selected the wrong workspace target |
+| `v0.1.0-alpha.1` release | Public GitHub prerelease | Published; archive and checksums exist |
+| Tag workflow | `release.yml` on `v*` | The first alpha run failed before any job started |
+| Signed attestation | GitHub Artifact Attestations | Not published or verified for `v0.1.0-alpha.1` |
 
 Do **not** claim production-ready provenance until attestations actually publish
 for a tag build. YAML-ready ≠ published.
 
 ## Target shape (when enabled)
 
-1. Push tag `v*` → `release.yml` builds SBOM (existing `sbom` job).
-2. Attest job attaches provenance to the SBOM artifact (and later release
-   binaries) via one of:
-   - **GitHub Artifact Attestations** (`actions/attest-build-provenance`) —
+1. Push tag `v*` → `release.yml` runs the release gate and builds the package
+   from the tagged commit.
+2. The package-and-attest job attaches provenance to the binary archive, SBOM,
+   checksums, evidence manifest, and unpacked binary
+   via one of:
+   - **GitHub Artifact Attestations** (`actions/attest`) —
      OIDC; needs `id-token: write` + `attestations: write`.
    - **cosign** (`sigstore/cosign-installer` + `cosign attest` / keyless) —
      same OIDC path, or a dedicated signing key in repo secrets.
@@ -29,15 +32,17 @@ for a tag build. YAML-ready ≠ published.
 
 ## Publication checklist
 
-- [x] Path: GitHub Artifact Attestations (`actions/attest-build-provenance@v2`)
-- [x] `attest` job enabled in `release.yml` (needs `id-token: write` + `attestations: write`; hard-fail, no `continue-on-error`)
-- [ ] Tag an alpha release and confirm SBOM artifact + attestation appear
+- [x] `v0.1.0-alpha.1` tag and prerelease published
+- [x] Path selected: GitHub Artifact Attestations
+- [ ] Run the corrected tag workflow successfully
+- [ ] Confirm archive, SBOM, checksums, evidence manifest, and binary each have
+      an attestation
 - [ ] Document verify command output for consumers (`gh attestation verify`)
 
 ## Local / manual dry-run (no CI)
 
 ```bash
-cargo install cargo-cyclonedx --locked
+cargo install cargo-cyclonedx --locked --version 0.5.9
 ./scripts/generate-sbom.sh
 # optional, once tooling + identity are available:
 # cosign attest-blob --new-bundle-format --predicate sbom/marketfeed.cdx.json \

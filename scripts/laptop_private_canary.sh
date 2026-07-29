@@ -82,7 +82,7 @@ run_filters() {
   shift
   echo "--- cargo test -p marketfeed-private --features live --test live_ignored $* ---"
   set +e
-  cargo test -p marketfeed-private --features live --test live_ignored -- --ignored --nocapture "$@" \
+  cargo test --locked -p marketfeed-private --features live --test live_ignored -- --ignored --nocapture "$@" \
     > >(tee "${OUT}/${log}") 2>&1
   local ec=$?
   set -e

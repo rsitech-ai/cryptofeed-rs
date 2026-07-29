@@ -95,7 +95,7 @@ mod affinity {
 
     use super::LatencyRuntimeError;
     use libc::{CPU_SET, CPU_SETSIZE, CPU_ZERO, cpu_set_t, sched_setaffinity};
-    use std::mem::{MaybeUninit, size_of};
+    use std::mem::{size_of, zeroed};
 
     pub(super) fn set_affinity(core: usize) -> Result<(), LatencyRuntimeError> {
         if core >= CPU_SETSIZE as usize {
@@ -106,11 +106,9 @@ mod affinity {
         // CPU_* macros; `sched_setaffinity(0, …)` pins the calling thread with
         // a valid pointer and size. Failure is reported via errno / return code.
         unsafe {
-            let mut set = MaybeUninit::<cpu_set_t>::zeroed();
-            let set_ptr = set.as_mut_ptr();
-            CPU_ZERO(set_ptr);
-            CPU_SET(core, set_ptr);
-            let set = set.assume_init();
+            let mut set: cpu_set_t = zeroed();
+            CPU_ZERO(&mut set);
+            CPU_SET(core, &mut set);
             let rc = sched_setaffinity(0, size_of::<cpu_set_t>(), &set);
             if rc == 0 {
                 Ok(())

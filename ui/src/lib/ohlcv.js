@@ -19,6 +19,8 @@ export class CandleBuilder {
     this.sessionSellVol = 0;
     this.lastPrice = null;
     this.prevPrice = null;
+    this._lastAppliedNs = null;
+    this._needsChronologicalRebuild = false;
   }
 
   setInterval(intervalSec) {
@@ -40,6 +42,8 @@ export class CandleBuilder {
     this.sessionSellVol = 0;
     this.lastPrice = null;
     this.prevPrice = null;
+    this._lastAppliedNs = null;
+    this._needsChronologicalRebuild = false;
   }
 
   tradeKey(t) {
@@ -50,7 +54,10 @@ export class CandleBuilder {
   ingest(entries) {
     if (!this._trades) this._trades = [];
     let added = 0;
-    for (const e of entries || []) {
+    // `/v1/tape` is newest-first. Apply unseen events chronologically so
+    // bucket open/close and the headline last price describe event time.
+    const chronological = [...(entries || [])].sort(compareTapeTime);
+    for (const e of chronological) {
       if (e.kind !== 'trade') continue;
       const key = this.tradeKey(e);
       if (this.seen.has(key)) continue;
@@ -61,11 +68,19 @@ export class CandleBuilder {
       if (!Number.isFinite(price) || !Number.isFinite(qty) || sec == null) continue;
       const trade = {
         sec,
+        orderNs: Number(e.exchange_ts_ns ?? e.receive_ts_ns),
         price,
         qty,
         buy: e.aggressor === 'buy',
       };
       this._trades.push(trade);
+      if (
+        Number.isFinite(trade.orderNs) &&
+        this._lastAppliedNs != null &&
+        trade.orderNs < this._lastAppliedNs
+      ) {
+        this._needsChronologicalRebuild = true;
+      }
       this._applyTrade(trade);
       added += 1;
     }
@@ -76,6 +91,11 @@ export class CandleBuilder {
     }
     if (this._trades.length > 15000) {
       this._trades = this._trades.slice(-10000);
+      this._needsChronologicalRebuild = true;
+    }
+    if (this._needsChronologicalRebuild) {
+      this._trades.sort((a, b) => (a.orderNs || 0) - (b.orderNs || 0));
+      this._needsChronologicalRebuild = false;
       this.rebuildFromTrades();
     }
     return added;
@@ -138,10 +158,14 @@ export class CandleBuilder {
     else this.sessionSellVol += qty;
     if (this.sessionHigh == null || price > this.sessionHigh) this.sessionHigh = price;
     if (this.sessionLow == null || price < this.sessionLow) this.sessionLow = price;
+    if (Number.isFinite(trade.orderNs)) this._lastAppliedNs = trade.orderNs;
   }
 
   rebuildFromTrades() {
-    const trades = this._trades || [];
+    const trades = [...(this._trades || [])].sort(
+      (a, b) => (a.orderNs || 0) - (b.orderNs || 0),
+    );
+    this._trades = trades;
     this.buckets.clear();
     this.sessionHigh = null;
     this.sessionLow = null;
@@ -154,6 +178,7 @@ export class CandleBuilder {
     const pp = this.prevPrice;
     this.lastPrice = null;
     this.prevPrice = null;
+    this._lastAppliedNs = null;
     for (const t of trades) this._applyTrade(t);
     if (this.lastPrice == null && lp != null) {
       this.lastPrice = lp;
@@ -194,6 +219,15 @@ export class CandleBuilder {
     }
     return { volume, notional, trades, windowSec, tradesPerMin: (trades / windowSec) * 60 };
   }
+}
+
+function compareTapeTime(a, b) {
+  const at = Number(a?.exchange_ts_ns ?? a?.receive_ts_ns);
+  const bt = Number(b?.exchange_ts_ns ?? b?.receive_ts_ns);
+  if (!Number.isFinite(at) && !Number.isFinite(bt)) return 0;
+  if (!Number.isFinite(at)) return -1;
+  if (!Number.isFinite(bt)) return 1;
+  return at - bt;
 }
 
 export const TIMEFRAMES = [

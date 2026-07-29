@@ -151,6 +151,9 @@ export class LiveFlagGate {
     }
     if (want === st.live) {
       st.since = now;
+      // Recovery cancels the pending opposite transition. A later blip must
+      // earn a fresh full hold instead of inheriting an old candidate time.
+      st._flipAt = null;
       return st.live;
     }
     const hold = want ? this.showHoldMs : this.clearHoldMs;

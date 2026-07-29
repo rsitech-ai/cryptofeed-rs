@@ -66,7 +66,7 @@ pub struct SpillWalSink {
     batch_capacity: usize,
     system_capacity: usize,
     path: PathBuf,
-    writer: BufWriter<File>,
+    writer: Option<BufWriter<File>>,
     wal_limit_bytes: u64,
     wal_bytes: u64,
     spilled_batches: u64,
@@ -130,7 +130,7 @@ impl SpillWalSink {
             batch_capacity: cfg.batch_capacity,
             system_capacity: cfg.system_capacity,
             path: cfg.path,
-            writer: BufWriter::new(file),
+            writer: Some(BufWriter::new(file)),
             wal_limit_bytes: cfg.wal_limit_bytes,
             wal_bytes,
             spilled_batches: 0,
@@ -225,13 +225,19 @@ impl SpillWalSink {
         if self.recovery_prefix_bytes == WAL_MAGIC.len() as u64 {
             return Ok(());
         }
-        self.writer
-            .flush()
-            .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
-        self.writer
-            .get_ref()
-            .sync_data()
-            .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
+        {
+            let writer = self
+                .writer
+                .as_mut()
+                .expect("spill WAL writer must be open outside checkpoint replacement");
+            writer
+                .flush()
+                .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
+            writer
+                .get_ref()
+                .sync_data()
+                .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
+        }
 
         let mut source = File::open(&self.path)
             .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
@@ -252,28 +258,60 @@ impl SpillWalSink {
             .seek(SeekFrom::Start(self.recovery_prefix_bytes))
             .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
         let tail_len = file_len - self.recovery_prefix_bytes;
-        let temp_path = checkpoint_temp_path(&self.path);
-        let checkpoint_result = (|| -> Result<(), std::io::Error> {
-            let mut temp = OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&temp_path)?;
-            temp.write_all(WAL_MAGIC)?;
-            std::io::copy(&mut source, &mut temp)?;
-            temp.sync_all()?;
-            replace_file_atomically(&temp_path, &self.path)?;
-            sync_parent_directory(&self.path)?;
-            Ok(())
-        })();
-        if let Err(error) = checkpoint_result {
-            let _ = std::fs::remove_file(&temp_path);
-            return Err(Self::note_io(&mut self.pending_system_events, error));
-        }
-        let file = OpenOptions::new()
+        let parent = self
+            .path
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let mut temp = tempfile::NamedTempFile::new_in(parent)
+            .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
+        temp.write_all(WAL_MAGIC)
+            .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
+        std::io::copy(&mut source, &mut temp)
+            .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
+        temp.as_file()
+            .sync_all()
+            .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
+        drop(source);
+
+        // Windows will not replace a destination that lacks delete sharing.
+        // Close our append handle before tempfile performs the platform-native
+        // atomic replacement, then reopen whichever path remains on success or
+        // failure so the sink never retains a stale handle to the old WAL.
+        drop(self.writer.take());
+        let checkpoint_result = temp
+            .persist(&self.path)
+            .map(drop)
+            .map_err(|error| error.error)
+            .and_then(|()| sync_parent_directory(&self.path));
+        let reopen_result = OpenOptions::new()
             .append(true)
             .open(&self.path)
-            .map_err(|error| Self::note_io(&mut self.pending_system_events, error))?;
-        self.writer = BufWriter::new(file);
+            .map(BufWriter::new);
+        match (checkpoint_result, reopen_result) {
+            (Ok(()), Ok(writer)) => self.writer = Some(writer),
+            (Err(checkpoint_error), Ok(writer)) => {
+                self.writer = Some(writer);
+                return Err(Self::note_io(
+                    &mut self.pending_system_events,
+                    checkpoint_error,
+                ));
+            }
+            (Ok(()), Err(reopen_error)) => {
+                return Err(Self::note_io(&mut self.pending_system_events, reopen_error));
+            }
+            (Err(checkpoint_error), Err(reopen_error)) => {
+                return Err(Self::note_io(
+                    &mut self.pending_system_events,
+                    std::io::Error::new(
+                        reopen_error.kind(),
+                        format!(
+                            "spill WAL checkpoint failed: {checkpoint_error}; reopening WAL failed: {reopen_error}"
+                        ),
+                    ),
+                ));
+            }
+        }
         self.wal_bytes = WAL_MAGIC.len() as u64 + tail_len;
         self.recovery_prefix_bytes = WAL_MAGIC.len() as u64;
         self.recovery_next_offset = WAL_MAGIC.len() as u64;
@@ -293,16 +331,20 @@ impl SpillWalSink {
             self.note_wal_exhausted(1);
             return Err(SinkError::FailEngine);
         }
-        if let Err(e) = self.writer.write_all(&[tag]) {
+        let writer = self
+            .writer
+            .as_mut()
+            .expect("spill WAL writer must be open outside checkpoint replacement");
+        if let Err(e) = writer.write_all(&[tag]) {
             return Err(Self::note_io(&mut self.pending_system_events, e));
         }
-        if let Err(e) = self.writer.write_all(&body_len.to_le_bytes()) {
+        if let Err(e) = writer.write_all(&body_len.to_le_bytes()) {
             return Err(Self::note_io(&mut self.pending_system_events, e));
         }
-        if let Err(e) = self.writer.write_all(body) {
+        if let Err(e) = writer.write_all(body) {
             return Err(Self::note_io(&mut self.pending_system_events, e));
         }
-        if let Err(e) = self.writer.flush() {
+        if let Err(e) = writer.flush() {
             return Err(Self::note_io(&mut self.pending_system_events, e));
         }
         self.wal_bytes = self.wal_bytes.saturating_add(record_len);
@@ -500,34 +542,6 @@ fn read_one_item(
     let item = decode_item(tag[0], &body)
         .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error.to_string()))?;
     Ok((item, 5 + body_len))
-}
-
-fn checkpoint_temp_path(path: &Path) -> PathBuf {
-    let suffix = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|duration| duration.as_nanos())
-        .unwrap_or(0);
-    let file_name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("spill.wal");
-    path.with_file_name(format!(
-        ".{file_name}.checkpoint-{}-{suffix}",
-        std::process::id()
-    ))
-}
-
-#[cfg(unix)]
-fn replace_file_atomically(source: &Path, destination: &Path) -> Result<(), std::io::Error> {
-    std::fs::rename(source, destination)
-}
-
-#[cfg(not(unix))]
-fn replace_file_atomically(_source: &Path, _destination: &Path) -> Result<(), std::io::Error> {
-    Err(std::io::Error::new(
-        std::io::ErrorKind::Unsupported,
-        "atomic spill WAL checkpoint replacement is not implemented on this platform",
-    ))
 }
 
 #[cfg(unix)]

@@ -129,7 +129,7 @@ async fn synthetic_forwards_batches_to_file_sink() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("events.log");
-    let path_str = path.to_string_lossy().into_owned();
+    let path_toml = toml::Value::String(path.to_string_lossy().into_owned()).to_string();
 
     let cfg = DaemonConfig::from_toml_str(&format!(
         r#"
@@ -141,7 +141,7 @@ async fn synthetic_forwards_batches_to_file_sink() {
         min_live_sessions = 1
         [[sinks]]
         type = "file"
-        path = "{path_str}"
+        path = {path_toml}
         capacity = 64
         overflow = "fail_engine"
         [[venues]]
@@ -202,7 +202,7 @@ async fn synthetic_forwards_batches_to_protobuf_file_sink() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("events.mfpe");
-    let path_str = path.to_string_lossy().into_owned();
+    let path_toml = toml::Value::String(path.to_string_lossy().into_owned()).to_string();
 
     let cfg = DaemonConfig::from_toml_str(&format!(
         r#"
@@ -214,7 +214,7 @@ async fn synthetic_forwards_batches_to_protobuf_file_sink() {
         min_live_sessions = 1
         [[sinks]]
         type = "protobuf-file"
-        path = "{path_str}"
+        path = {path_toml}
         capacity = 64
         overflow = "fail_engine"
         [[venues]]
@@ -274,7 +274,7 @@ async fn synthetic_forwards_batches_to_protobuf_file_bin_sink() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("events.mfpeb");
-    let path_str = path.to_string_lossy().into_owned();
+    let path_toml = toml::Value::String(path.to_string_lossy().into_owned()).to_string();
 
     let cfg = DaemonConfig::from_toml_str(&format!(
         r#"
@@ -286,7 +286,7 @@ async fn synthetic_forwards_batches_to_protobuf_file_bin_sink() {
         min_live_sessions = 1
         [[sinks]]
         type = "protobuf-file-bin"
-        path = "{path_str}"
+        path = {path_toml}
         capacity = 64
         overflow = "fail_engine"
         [[venues]]

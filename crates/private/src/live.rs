@@ -33,6 +33,8 @@ use crate::error::PrivateError;
 use crate::okx::{OkxPrivateConfig, OkxPrivateSession};
 use crate::session::{PrivateActionBuffer, PrivateSessionAction, PrivateSessionMachine};
 
+const DEFAULT_PRIVATE_PUMP_CAPACITY: usize = 1024;
+
 fn now_ns() -> TimestampNs {
     let dur = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -90,6 +92,7 @@ struct PrivatePump {
     pending_http: Vec<HttpRequestSpec>,
     pending_ws: Vec<OutboundFrame>,
     timers: HashMap<u64, TimestampNs>,
+    capacity: usize,
     account_events: u64,
     system_events: u64,
     marked_live: bool,
@@ -99,10 +102,16 @@ struct PrivatePump {
 
 impl PrivatePump {
     fn new() -> Self {
+        Self::with_capacity(DEFAULT_PRIVATE_PUMP_CAPACITY)
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        let capacity = capacity.max(1);
         Self {
-            pending_http: Vec::new(),
-            pending_ws: Vec::new(),
-            timers: HashMap::new(),
+            pending_http: Vec::with_capacity(capacity.min(64)),
+            pending_ws: Vec::with_capacity(capacity.min(64)),
+            timers: HashMap::with_capacity(capacity.min(64)),
+            capacity,
             account_events: 0,
             system_events: 0,
             marked_live: false,
@@ -124,26 +133,48 @@ impl PrivatePump {
                     self.account_events = self.account_events.saturating_add(1);
                 }
                 PrivateSessionAction::Session(a) => match a {
-                    SessionAction::RequestHttp(spec) => self.pending_http.push(spec),
-                    SessionAction::SendText(payload) => self.pending_ws.push(OutboundFrame {
-                        opcode: FrameOpcode::Text,
-                        payload: payload.to_vec(),
-                    }),
+                    SessionAction::RequestHttp(spec) => {
+                        if self.pending_http.len() >= self.capacity {
+                            return Err(PrivateError::Protocol(format!(
+                                "private HTTP request capacity {} exceeded",
+                                self.capacity
+                            )));
+                        }
+                        self.pending_http.push(spec);
+                    }
+                    SessionAction::SendText(payload) => {
+                        self.push_ws(OutboundFrame {
+                            opcode: FrameOpcode::Text,
+                            payload: payload.to_vec(),
+                        })?;
+                    }
                     SessionAction::SendSensitiveText(payload) => {
-                        self.pending_ws.push(OutboundFrame {
+                        self.push_ws(OutboundFrame {
                             opcode: FrameOpcode::Text,
                             payload: payload.into_inner().to_vec(),
-                        });
+                        })?;
                     }
-                    SessionAction::SendBinary(payload) => self.pending_ws.push(OutboundFrame {
-                        opcode: FrameOpcode::Binary,
-                        payload: payload.to_vec(),
-                    }),
-                    SessionAction::SendPing(payload) => self.pending_ws.push(OutboundFrame {
-                        opcode: FrameOpcode::Ping,
-                        payload: payload.to_vec(),
-                    }),
+                    SessionAction::SendBinary(payload) => {
+                        self.push_ws(OutboundFrame {
+                            opcode: FrameOpcode::Binary,
+                            payload: payload.to_vec(),
+                        })?;
+                    }
+                    SessionAction::SendPing(payload) => {
+                        self.push_ws(OutboundFrame {
+                            opcode: FrameOpcode::Ping,
+                            payload: payload.to_vec(),
+                        })?;
+                    }
                     SessionAction::ScheduleTimer(spec) => {
+                        if !self.timers.contains_key(&spec.timer_id)
+                            && self.timers.len() >= self.capacity
+                        {
+                            return Err(PrivateError::Protocol(format!(
+                                "private timer capacity {} exceeded",
+                                self.capacity
+                            )));
+                        }
                         self.timers.insert(spec.timer_id, spec.fire_at);
                     }
                     SessionAction::CancelTimer(id) => {
@@ -170,6 +201,17 @@ impl PrivatePump {
         Ok(())
     }
 
+    fn push_ws(&mut self, frame: OutboundFrame) -> Result<(), PrivateError> {
+        if self.pending_ws.len() >= self.capacity {
+            return Err(PrivateError::Protocol(format!(
+                "private WebSocket write capacity {} exceeded",
+                self.capacity
+            )));
+        }
+        self.pending_ws.push(frame);
+        Ok(())
+    }
+
     fn drive(
         &mut self,
         session: &mut impl PrivateSessionMachine,
@@ -178,6 +220,12 @@ impl PrivatePump {
     ) -> Result<(), PrivateError> {
         let mut buf = PrivateActionBuffer::new();
         session.on_input(input, &mut buf)?;
+        let dropped = buf.take_dropped();
+        if dropped != 0 {
+            return Err(PrivateError::Protocol(format!(
+                "private action buffer overflow: dropped {dropped} action(s)"
+            )));
+        }
         self.ingest(&mut buf, sink)
     }
 
@@ -616,6 +664,96 @@ mod tests {
             self.system += 1;
             Ok(())
         }
+    }
+
+    struct OverflowingSession;
+
+    impl PrivateSessionMachine for OverflowingSession {
+        fn on_input(
+            &mut self,
+            _input: SessionInput<'_>,
+            output: &mut PrivateActionBuffer,
+        ) -> Result<(), PrivateError> {
+            for _ in 0..=crate::session::DEFAULT_PRIVATE_ACTION_BUFFER_CAPACITY {
+                output.push_session(SessionAction::MarkLive);
+            }
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn private_pump_fails_closed_on_action_buffer_overflow() {
+        let mut pump = PrivatePump::new();
+        let mut session = OverflowingSession;
+        let mut sink = CountingSink::default();
+        let error = pump
+            .drive(
+                &mut session,
+                SessionInput::Connected {
+                    now: TimestampNs(1),
+                },
+                &mut sink,
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("action buffer overflow"));
+    }
+
+    #[test]
+    fn private_pump_fails_closed_when_timer_set_exceeds_bound() {
+        let mut pump = PrivatePump::with_capacity(1);
+        let mut actions = PrivateActionBuffer::with_capacity(2);
+        actions.push_session(SessionAction::ScheduleTimer(
+            marketfeed_adapter_api::TimerSpec {
+                timer_id: 1,
+                fire_at: TimestampNs(10),
+            },
+        ));
+        actions.push_session(SessionAction::ScheduleTimer(
+            marketfeed_adapter_api::TimerSpec {
+                timer_id: 2,
+                fire_at: TimestampNs(20),
+            },
+        ));
+        let mut sink = CountingSink::default();
+
+        let error = pump.ingest(&mut actions, &mut sink).unwrap_err();
+        assert!(error.to_string().contains("timer capacity"));
+        assert_eq!(pump.timers.len(), 1);
+    }
+
+    #[test]
+    fn private_pump_fails_closed_when_http_or_websocket_queue_exceeds_bound() {
+        let mut sink = CountingSink::default();
+        let request = |id| {
+            SessionAction::RequestHttp(HttpRequestSpec {
+                id,
+                method: AdapterMethod::Get,
+                url: "https://example.test/private".into(),
+                headers: Vec::new(),
+                body: None,
+            })
+        };
+
+        let mut http_pump = PrivatePump::with_capacity(1);
+        let mut http_actions = PrivateActionBuffer::with_capacity(2);
+        http_actions.push_session(request(1));
+        http_actions.push_session(request(2));
+        let error = http_pump.ingest(&mut http_actions, &mut sink).unwrap_err();
+        assert!(error.to_string().contains("HTTP request capacity"));
+        assert_eq!(http_pump.pending_http.len(), 1);
+
+        let mut websocket_pump = PrivatePump::with_capacity(1);
+        let mut websocket_actions = PrivateActionBuffer::with_capacity(2);
+        websocket_actions
+            .push_session(SessionAction::SendText(bytes::Bytes::from_static(b"first")));
+        websocket_actions.push_session(SessionAction::SendPing(bytes::Bytes::from_static(
+            b"second",
+        )));
+        let error = websocket_pump
+            .ingest(&mut websocket_actions, &mut sink)
+            .unwrap_err();
+        assert!(error.to_string().contains("WebSocket write capacity"));
+        assert_eq!(websocket_pump.pending_ws.len(), 1);
     }
 
     #[tokio::test]

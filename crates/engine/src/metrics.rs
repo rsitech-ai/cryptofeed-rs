@@ -3,9 +3,64 @@
 //! High-cardinality labels (native symbol) are intentionally omitted; scrapers
 //! get venue-agnostic totals. Daemon `/metrics` appends this text.
 
+use std::collections::{HashMap, HashSet};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use marketfeed_model::SystemEvent;
+use marketfeed_model::{InstrumentId, SessionId, SystemEvent};
+
+#[derive(Default)]
+struct ValidBooks {
+    by_session: HashMap<SessionId, HashSet<InstrumentId>>,
+    session_references: HashMap<InstrumentId, usize>,
+}
+
+impl ValidBooks {
+    fn insert(&mut self, session: SessionId, instrument: InstrumentId) {
+        if self
+            .by_session
+            .entry(session)
+            .or_default()
+            .insert(instrument)
+        {
+            *self.session_references.entry(instrument).or_default() += 1;
+        }
+    }
+
+    fn remove(&mut self, session: SessionId, instrument: InstrumentId) {
+        let removed = self
+            .by_session
+            .get_mut(&session)
+            .is_some_and(|books| books.remove(&instrument));
+        if removed {
+            self.decrement_reference(instrument);
+        }
+        if self.by_session.get(&session).is_some_and(HashSet::is_empty) {
+            self.by_session.remove(&session);
+        }
+    }
+
+    fn clear_session(&mut self, session: SessionId) {
+        if let Some(instruments) = self.by_session.remove(&session) {
+            for instrument in instruments {
+                self.decrement_reference(instrument);
+            }
+        }
+    }
+
+    fn decrement_reference(&mut self, instrument: InstrumentId) {
+        if let Some(references) = self.session_references.get_mut(&instrument) {
+            *references -= 1;
+            if *references == 0 {
+                self.session_references.remove(&instrument);
+            }
+        }
+    }
+
+    fn unique_count(&self) -> usize {
+        self.session_references.len()
+    }
+}
 
 /// Hot-path counters shared with the daemon `/metrics` scrape.
 /// Alias kept for call sites that still say SessionMetrics.
@@ -155,6 +210,7 @@ pub struct EngineMetrics {
     pub events_dropped: AtomicU64,
     pub action_buffer_overflows: AtomicU64,
     pub valid_books: AtomicU64,
+    valid_books_by_session: Mutex<ValidBooks>,
     pub batch_queue_occupancy: AtomicU64,
     pub batch_queue_capacity: AtomicU64,
     pub system_queue_occupancy: AtomicU64,
@@ -190,6 +246,7 @@ impl Default for EngineMetrics {
             events_dropped: AtomicU64::new(0),
             action_buffer_overflows: AtomicU64::new(0),
             valid_books: AtomicU64::new(0),
+            valid_books_by_session: Mutex::new(ValidBooks::default()),
             batch_queue_occupancy: AtomicU64::new(0),
             batch_queue_capacity: AtomicU64::new(0),
             system_queue_occupancy: AtomicU64::new(0),
@@ -285,25 +342,31 @@ impl EngineMetrics {
     }
 
     pub fn observe_system(&self, ev: &SystemEvent) {
+        self.observe_system_for_session(SessionId(0), ev);
+    }
+
+    pub fn observe_system_for_session(&self, session: SessionId, ev: &SystemEvent) {
         match ev {
             SystemEvent::ParseError { .. } => Self::add(&self.parse_failures, 1),
             SystemEvent::UnknownMessage { .. } => Self::add(&self.unknown_messages, 1),
             SystemEvent::SequenceGap { .. } => Self::add(&self.sequence_gaps, 1),
             SystemEvent::ChecksumMismatch { .. } => Self::add(&self.checksum_mismatches, 1),
-            SystemEvent::BookInvalidated { .. } => {
+            SystemEvent::BookInvalidated { instrument, .. } => {
                 Self::add(&self.book_invalidations, 1);
-                let _ = self
-                    .valid_books
-                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
-                        Some(v.saturating_sub(1))
-                    });
+                let mut valid = self.valid_books_by_session.lock().expect("valid book set");
+                valid.remove(session, *instrument);
+                self.valid_books
+                    .store(valid.unique_count() as u64, Ordering::Relaxed);
             }
             SystemEvent::BookSnapshotRejected { .. } => {
                 Self::add(&self.book_snapshot_rejections, 1);
             }
-            SystemEvent::BookResynchronized { .. } => {
+            SystemEvent::BookResynchronized { instrument } => {
                 Self::add(&self.book_resynchronizations, 1);
-                Self::add(&self.valid_books, 1);
+                let mut valid = self.valid_books_by_session.lock().expect("valid book set");
+                valid.insert(session, *instrument);
+                self.valid_books
+                    .store(valid.unique_count() as u64, Ordering::Relaxed);
             }
             SystemEvent::EventsDropped { count, .. } => Self::add(&self.events_dropped, *count),
             SystemEvent::EngineStateChanged { .. }
@@ -320,6 +383,19 @@ impl EngineMetrics {
             | SystemEvent::ShutdownStarted
             | SystemEvent::ShutdownCompleted => {}
         }
+    }
+
+    /// Remove every book owned by a disconnected session before reconnection.
+    ///
+    /// Adapters invalidate their local books on transport loss, but they are
+    /// not required to emit one `BookInvalidated` event per configured symbol.
+    /// Clearing here prevents stale pre-reconnect books from satisfying daemon
+    /// readiness while replacement snapshots are still arriving.
+    pub fn clear_valid_books_for_session(&self, session: SessionId) {
+        let mut valid = self.valid_books_by_session.lock().expect("valid book set");
+        valid.clear_session(session);
+        self.valid_books
+            .store(valid.unique_count() as u64, Ordering::Relaxed);
     }
 
     pub fn prometheus_text(&self) -> String {
@@ -496,6 +572,57 @@ mod tests {
         assert_eq!(m.book_snapshot_rejections.load(Ordering::Relaxed), 1);
         assert_eq!(m.book_resynchronizations.load(Ordering::Relaxed), 1);
         assert_eq!(m.valid_books.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn valid_book_gauge_tracks_unique_instruments() {
+        let m = EngineMetrics::new();
+        let resynchronized = SystemEvent::BookResynchronized {
+            instrument: InstrumentId(7),
+        };
+        m.observe_system(&resynchronized);
+        m.observe_system(&resynchronized);
+        assert_eq!(m.valid_books.load(Ordering::Relaxed), 1);
+
+        m.observe_system(&SystemEvent::BookResynchronized {
+            instrument: InstrumentId(8),
+        });
+        assert_eq!(m.valid_books.load(Ordering::Relaxed), 2);
+
+        let invalidated = SystemEvent::BookInvalidated {
+            instrument: InstrumentId(7),
+            reason: "gap".into(),
+        };
+        m.observe_system(&invalidated);
+        m.observe_system(&invalidated);
+        assert_eq!(m.valid_books.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn disconnect_clears_only_the_sessions_valid_books() {
+        let m = EngineMetrics::new();
+        let shared = SystemEvent::BookResynchronized {
+            instrument: InstrumentId(7),
+        };
+        m.observe_system_for_session(SessionId(1), &shared);
+        m.observe_system_for_session(SessionId(2), &shared);
+        m.observe_system_for_session(
+            SessionId(1),
+            &SystemEvent::BookResynchronized {
+                instrument: InstrumentId(8),
+            },
+        );
+        assert_eq!(m.valid_books.load(Ordering::Relaxed), 2);
+
+        m.clear_valid_books_for_session(SessionId(1));
+        assert_eq!(
+            m.valid_books.load(Ordering::Relaxed),
+            1,
+            "the shared instrument remains valid through session 2"
+        );
+
+        m.clear_valid_books_for_session(SessionId(2));
+        assert_eq!(m.valid_books.load(Ordering::Relaxed), 0);
     }
 
     #[test]

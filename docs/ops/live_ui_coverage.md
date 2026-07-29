@@ -1,6 +1,9 @@
 # Live UI market coverage
 
-Updated for broad multi-asset run (top liquid majors per venue).
+Configuration inventory for the broad multi-asset profile (top liquid majors
+per venue). The 13/13 result below is historical run evidence; the 2026-07-29
+embedded-UI audit used the deterministic offline synthetic profile and records
+its evidence in [`live_ui_audit.md`](./live_ui_audit.md).
 
 ## Venues (13)
 
@@ -21,7 +24,9 @@ Updated for broad multi-asset run (top liquid majors per venue).
 | bitfinex | BTC ETH SOL XRP | trades quote | no `tBNBUSD`; L2 dropped |
 
 **57 configured markets** across 5 logical assets (BTC/ETH/SOL/XRP/BNB).
-Verified live: **13/13 venues**, reconnects=0 after warm-up.
+Historical broad-profile run: **13/13 venues** reached live state with
+reconnects=0 after warm-up. Re-run the live checks before making a current
+exchange-readiness claim.
 
 ## Why L2 was narrowed
 

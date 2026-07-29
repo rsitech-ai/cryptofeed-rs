@@ -51,13 +51,14 @@ use crate::sinks::SharedDaemonSinks;
 use crate::state::DaemonState;
 use crate::subscriptions::expand_concrete_subscriptions;
 
-fn shared_sinks(state: &DaemonState) -> SharedDaemonSinks {
+fn shared_sinks(state: &DaemonState, venue: VenueId) -> SharedDaemonSinks {
     #[cfg(feature = "ui-api")]
     {
-        SharedDaemonSinks::with_view(Arc::clone(&state.sinks), state.view.clone())
+        SharedDaemonSinks::with_view(Arc::clone(&state.sinks), state.view.clone(), venue)
     }
     #[cfg(not(feature = "ui-api"))]
     {
+        let _ = venue;
         SharedDaemonSinks::new(Arc::clone(&state.sinks))
     }
 }
@@ -70,6 +71,13 @@ fn register_view_venue(state: &DaemonState, venue_id: VenueId, venue: &VenueConf
 }
 
 static NEXT_SESSION: AtomicU64 = AtomicU64::new(1);
+
+fn unix_time_ns() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| i64::try_from(duration.as_nanos()).unwrap_or(i64::MAX))
+        .unwrap_or(0)
+}
 
 struct ActivePublicVenueTask {
     state: Arc<DaemonState>,
@@ -197,7 +205,6 @@ async fn run_recording(
         }
     }
 
-    state.shutdown_draining.store(true, Ordering::Relaxed);
     let deadline =
         Instant::now() + Duration::from_secs(state.config.engine.shutdown_deadline_secs.max(1));
     while state.active_public_venue_tasks.load(Ordering::Acquire) > 0 {
@@ -225,7 +232,6 @@ async fn run_recording(
         }
     };
     update_recording_metrics(&state, &pipeline)?;
-    state.shutdown_draining.store(false, Ordering::Relaxed);
     if let Some(error) = drain_error {
         return Err(format!("recording drain failed: {error}"));
     }
@@ -807,7 +813,7 @@ async fn run_synthetic_memory(
                 url: "memory://synthetic".into(),
                 ..WebSocketSpec::default()
             },
-            1,
+            unix_time_ns(),
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -815,7 +821,7 @@ async fn run_synthetic_memory(
     // Forward into configured sinks, or drop when none (FailEngine-safe drain).
     {
         let runner = supervisor.session_mut(session).map_err(|e| e.to_string())?;
-        let mut shared = shared_sinks(state);
+        let mut shared = shared_sinks(state, SYNTHETIC_VENUE_ID);
         runner
             .consume_dispatch(Some(&mut shared))
             .map_err(|e| e.to_string())?;
@@ -854,7 +860,7 @@ async fn run_synthetic_memory(
                     1.0 + ((seq + 2) % 5) as f64 * 0.1
                 );
                 let stamp = FrameStamp {
-                    receive_ts: TimestampNs(mono_ns as i64),
+                    receive_ts: TimestampNs(unix_time_ns()),
                     mono_ns,
                 };
                 {
@@ -865,14 +871,14 @@ async fn run_synthetic_memory(
                         .map_err(|e| e.to_string())?;
                     mono_ns = mono_ns.saturating_add(1);
                     let stamp2 = FrameStamp {
-                        receive_ts: TimestampNs(mono_ns as i64),
+                        receive_ts: TimestampNs(unix_time_ns()),
                         mono_ns,
                     };
                     let mut quote_bytes = quote.into_bytes();
                     runner
                         .on_text_frame(&mut quote_bytes, stamp2)
                         .map_err(|e| e.to_string())?;
-                    let mut shared = shared_sinks(state);
+                    let mut shared = shared_sinks(state, SYNTHETIC_VENUE_ID);
                     runner
                         .consume_dispatch(Some(&mut shared))
                         .map_err(|e| e.to_string())?;
@@ -886,7 +892,7 @@ async fn run_synthetic_memory(
                     );
                     mono_ns = mono_ns.saturating_add(1);
                     let stamp = FrameStamp {
-                        receive_ts: TimestampNs(mono_ns as i64),
+                        receive_ts: TimestampNs(unix_time_ns()),
                         mono_ns,
                     };
                     let runner = supervisor.session_mut(session).map_err(|e| e.to_string())?;
@@ -894,7 +900,7 @@ async fn run_synthetic_memory(
                     runner
                         .on_text_frame(&mut bytes, stamp)
                         .map_err(|e| e.to_string())?;
-                    let mut shared = shared_sinks(state);
+                    let mut shared = shared_sinks(state, SYNTHETIC_VENUE_ID);
                     runner
                         .consume_dispatch(Some(&mut shared))
                         .map_err(|e| e.to_string())?;
@@ -907,13 +913,13 @@ async fn run_synthetic_memory(
     supervisor.begin_shutdown().map_err(|e| e.to_string())?;
     {
         let runner = supervisor.session_mut(session).map_err(|e| e.to_string())?;
-        let mut shared = shared_sinks(state);
+        let mut shared = shared_sinks(state, SYNTHETIC_VENUE_ID);
         runner
             .consume_dispatch(Some(&mut shared))
             .map_err(|e| e.to_string())?;
     }
     {
-        let mut shared = shared_sinks(state);
+        let mut shared = shared_sinks(state, SYNTHETIC_VENUE_ID);
         supervisor
             .finish_shutdown_to(Some(&mut shared))
             .map_err(|e| e.to_string())?;
@@ -1136,7 +1142,7 @@ async fn run_live_ws_session(
 
     // Always forward: empty DaemonSinks is a null-sink (drops; FailEngine-safe).
     // Concrete SharedDaemonSinks (not dyn) so the live loop stays Send.
-    let mut shared = shared_sinks(state);
+    let mut shared = shared_sinks(state, venue_id);
     let run = supervisor.run_session_loop_to(
         session,
         &mut ws,

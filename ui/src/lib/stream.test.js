@@ -63,3 +63,43 @@ describe('StreamClient disconnect silent', () => {
     assert.equal(disconnects, 1);
   });
 });
+
+describe('StreamClient reconnect state', () => {
+  it('notifies onConnect again after EventSource reconnects so sticky UI state clears', () => {
+    const OriginalEventSource = globalThis.EventSource;
+    class FakeEventSource {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      static CLOSED = 2;
+      constructor() {
+        this.readyState = FakeEventSource.CONNECTING;
+      }
+      addEventListener() {}
+      close() {
+        this.readyState = FakeEventSource.CLOSED;
+      }
+    }
+    globalThis.EventSource = FakeEventSource;
+    try {
+      let connects = 0;
+      let reconnecting = 0;
+      const s = new StreamClient({
+        onConnect: () => { connects += 1; },
+        onReconnecting: () => { reconnecting += 1; },
+      });
+      assert.equal(s.connect({ venue: 'okx', symbol: 'BTC-USDT' }), true);
+      s.es.readyState = FakeEventSource.OPEN;
+      s.es.onopen();
+      s.es.readyState = FakeEventSource.CONNECTING;
+      s.es.onerror();
+      assert.equal(s.connected, true);
+      assert.equal(reconnecting, 1);
+      s.es.readyState = FakeEventSource.OPEN;
+      s.es.onopen();
+      assert.equal(connects, 2);
+      assert.equal(s.reconnectCount, 1);
+    } finally {
+      globalThis.EventSource = OriginalEventSource;
+    }
+  });
+});

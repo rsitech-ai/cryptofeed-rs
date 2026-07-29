@@ -1,5 +1,6 @@
 <script>
   import { fetchJson } from '../lib/api.js';
+  import { normalizeReplayEntries } from '../lib/contracts.js';
 
   let {
     replayMode = false,
@@ -9,7 +10,9 @@
   } = $props();
 
   let apiAvailable = $state(null);
-  let files = $state([]);
+  let entries = $state([]);
+  let replayFiles = $state([]);
+  let selectedFile = $state('');
   let position = $state(0);
   let playing = $state(false);
   let error = $state('');
@@ -24,8 +27,10 @@
 
   async function probeApi() {
     try {
-      const res = await fetch('/v1/replay', { method: 'HEAD' });
-      apiAvailable = res.ok || res.status === 405;
+      const data = await fetchJson('/v1/replay/files');
+      replayFiles = Array.isArray(data.files) ? data.files : [];
+      selectedFile = replayFiles[0]?.name || '';
+      apiAvailable = true;
     } catch {
       apiAvailable = false;
     }
@@ -35,21 +40,13 @@
     error = '';
     try {
       const data = await fetchJson(`/v1/replay?file=${encodeURIComponent(name)}`);
-      files = data.entries || data.events || [];
+      if (data.error) throw new Error(data.error);
+      entries = normalizeReplayEntries(data.entries || data.events || []);
       position = 0;
       onReplayMode(true);
       emitUpTo(0);
     } catch (e) {
       error = String(e.message || e);
-    }
-  }
-
-  async function listReplayFiles() {
-    try {
-      const data = await fetchJson('/v1/replay/list');
-      return data.files || [];
-    } catch {
-      return [];
     }
   }
 
@@ -60,7 +57,8 @@
     try {
       const text = await file.text();
       const lines = text.trim().split('\n').filter(Boolean);
-      files = lines.map((l) => JSON.parse(l));
+      entries = normalizeReplayEntries(lines.map((l) => JSON.parse(l)));
+      if (!entries.length) throw new Error('no trade or quote entries found');
       position = 0;
       onReplayMode(true);
       emitUpTo(0);
@@ -70,9 +68,9 @@
   }
 
   function emitUpTo(pos) {
-    const slice = files.slice(0, pos + 1);
+    const slice = entries.slice(0, pos + 1);
     onEntries(slice);
-    onPosition(pos, files.length);
+    onPosition(pos, entries.length);
   }
 
   function scrub(ev) {
@@ -83,9 +81,9 @@
   function togglePlay() {
     playing = !playing;
     if (playTimer) clearInterval(playTimer);
-    if (playing && files.length) {
+    if (playing && entries.length) {
       playTimer = setInterval(() => {
-        if (position >= files.length - 1) {
+        if (position >= entries.length - 1) {
           playing = false;
           clearInterval(playTimer);
           return;
@@ -99,7 +97,7 @@
   function exitReplay() {
     playing = false;
     if (playTimer) clearInterval(playTimer);
-    files = [];
+    entries = [];
     position = 0;
     onReplayMode(false);
   }
@@ -122,27 +120,42 @@
   {:else if apiAvailable === null}
     <p class="hint">Checking replay API…</p>
   {:else}
-    <p class="hint">Replay API available. Telegram alerts skipped (use webhook).</p>
+    <p class="hint">Replay API available. Choose a daemon file or load local JSONL.</p>
   {/if}
 
   <div class="controls">
     <label class="file-btn">
       JSONL
-      <input type="file" accept=".jsonl,.json,.log" onchange={onFilePick} />
+      <input
+        type="file"
+        accept=".jsonl,.json,.log"
+        aria-label="Load replay JSONL file"
+        onchange={onFilePick}
+      />
     </label>
-    <button type="button" onclick={togglePlay} disabled={!files.length}>
+    {#if apiAvailable && replayFiles.length}
+      <select bind:value={selectedFile} aria-label="Daemon replay file">
+        {#each replayFiles as file}
+          <option value={file.name}>{file.name}</option>
+        {/each}
+      </select>
+      <button type="button" onclick={() => loadFromApi(selectedFile)} disabled={!selectedFile}>
+        Load
+      </button>
+    {/if}
+    <button type="button" onclick={togglePlay} disabled={!entries.length}>
       {playing ? 'Pause' : 'Play'}
     </button>
-    {#if files.length}
+    {#if entries.length}
       <input
         type="range"
         min="0"
-        max={Math.max(files.length - 1, 0)}
+        max={Math.max(entries.length - 1, 0)}
         value={position}
         oninput={scrub}
         class="scrub"
       />
-      <span class="pos">{position + 1}/{files.length}</span>
+      <span class="pos">{position + 1}/{entries.length}</span>
     {/if}
   </div>
 
@@ -214,6 +227,8 @@
   }
 
   .file-btn {
+    position: relative;
+    overflow: hidden;
     font-family: var(--mono);
     font-size: 0.62rem;
     color: var(--text);
@@ -224,10 +239,21 @@
   }
 
   .file-btn input {
-    display: none;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
   }
 
-  .controls button {
+  .file-btn:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .controls button,
+  .controls select {
     background: transparent;
     border: 1px solid var(--border);
     color: var(--muted);

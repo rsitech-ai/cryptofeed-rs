@@ -4,6 +4,9 @@
 
 name: canary
 
+permissions:
+  contents: read
+
 on:
   schedule:
     # Daily 06:00 UTC — offline synthetic until live venues are wired.
@@ -29,15 +32,19 @@ jobs:
     if: ${{ github.event_name == 'schedule' || github.event.inputs.venue == 'synthetic' || github.event.inputs.venue == '' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.91.0 --profile minimal
       - name: Run offline synthetic canary
         env:
           SOAK_SECS: ${{ github.event.inputs.soak_secs || '3' }}
           MARKETFEED_BIND_PORT: "19118"
         run: |
-          chmod +x scripts/offline_daemon_e2e.sh
+          set -euo pipefail
+          [[ "$SOAK_SECS" =~ ^[0-9]+$ ]]
+          (( SOAK_SECS >= 1 && SOAK_SECS <= 300 ))
           ./scripts/offline_daemon_e2e.sh
 
   live-placeholder:
@@ -45,10 +52,13 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.venue != 'synthetic' && github.event.inputs.venue != '' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Document live gate (no I/O without secrets)
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Fail closed until a live canary is implemented
+        env:
+          REQUESTED_VENUE: ${{ github.event.inputs.venue }}
         run: |
-          echo "Live canary for venue=${{ github.event.inputs.venue }} is not enabled."
-          echo "When ready: MARKETFEED_LIVE=1 + venue secrets, then ignored adapter tests."
-          echo "Example: cargo test -p marketfeed-adapter-binance --test live_ignored -- --ignored --nocapture"
-          exit 0
+          echo "::error::Live canary for venue=${REQUESTED_VENUE} is not implemented."
+          echo "A requested live canary must never report success without executing the venue gate."
+          exit 1

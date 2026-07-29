@@ -88,6 +88,17 @@ async fn synthetic_venue_makes_ready() {
     state
         .shutdown_draining
         .store(true, std::sync::atomic::Ordering::Relaxed);
+    assert!(
+        !state.is_ready(),
+        "readiness must fail before shutdown starts draining venues"
+    );
+    let (st, body) = http_get(&addr, "/ready").await;
+    assert_eq!(st, 503, "{body}");
+    let (st, body) = http_get(&addr, "/metrics").await;
+    assert_eq!(st, 200);
+    assert!(body.contains("marketfeed_ready 0"), "{body}");
+    assert!(body.contains("marketfeed_shutdown_draining 1"), "{body}");
+
     state.request_all_stops();
     let _ = shutdown_tx.send(true);
     let join = async {
@@ -118,7 +129,7 @@ async fn synthetic_recording_drains_on_shutdown() {
     let dir = std::env::temp_dir().join(format!("marketfeed-synth-rec-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    let dir_s = dir.display().to_string();
+    let dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
 
     let cfg = DaemonConfig::from_toml_str(&format!(
         r#"
@@ -133,7 +144,7 @@ async fn synthetic_recording_drains_on_shutdown() {
         require_recording_healthy = true
         [recording.raw]
         enabled = true
-        directory = "{dir_s}"
+        directory = {dir_toml}
         segment_size = "1MiB"
         segment_duration = "1m"
         queue_capacity = 64
@@ -159,6 +170,9 @@ async fn synthetic_recording_drains_on_shutdown() {
             .load(std::sync::atomic::Ordering::Relaxed)
     );
 
+    state
+        .shutdown_draining
+        .store(true, std::sync::atomic::Ordering::Relaxed);
     state.request_all_stops();
     let _ = shutdown_tx.send(true);
     let join = async {
@@ -226,6 +240,12 @@ async fn synthetic_recording_drains_on_shutdown() {
             .active_public_venue_tasks
             .load(std::sync::atomic::Ordering::Acquire),
         0
+    );
+    assert!(
+        state
+            .shutdown_draining
+            .load(std::sync::atomic::Ordering::Relaxed),
+        "recording worker must not clear the coordinator-owned shutdown state"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }

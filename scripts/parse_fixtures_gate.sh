@@ -122,9 +122,9 @@ fi
 run_harness() {
   local backend=$1
   if [[ "$backend" == "simd" ]]; then
-    cargo bench -p marketfeed-adapter-binance --bench parse_fixtures --features simd-json
+    cargo bench --locked -p marketfeed-adapter-binance --bench parse_fixtures --features simd-json
   else
-    cargo bench -p marketfeed-adapter-binance --bench parse_fixtures
+    cargo bench --locked -p marketfeed-adapter-binance --bench parse_fixtures
   fi
 }
 

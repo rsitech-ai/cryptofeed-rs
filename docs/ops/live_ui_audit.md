@@ -1,39 +1,74 @@
 # Live market panel audit — 2026-07-29
 
-## Smoke
-- `scripts/live_ui_smoke.sh` → **RESULT: PASS** (see `smoke-latest.txt`)
-- Browser probe → **BROWSER_OK** (`browser-audit.json`, `browser-audit.png`)
-- View plane unit tests → 3/3 pass including `quote_flood_does_not_evict_trades`
+This record covers the loopback view API and embedded SPA on the offline
+synthetic profile. It is runtime evidence for the audited commit, not proof of
+credentialed private feeds, every exchange, a long soak, or a hosted release.
 
-## Bugs found & fixed
+## Current evidence
 
-### Critical: quotes starved the trade tape
-- **Wrong:** trades and quotes shared one ring + shared rate limit. Busy quote venues (binance-spot/usdm) returned almost only quotes; Market Trades often empty/stale.
-- **Fix:** dual rings per instrument (`InstrumentTape` trades/quotes). `/v1/tape?kind=trade|quote|all`.
-- SPA focus tape now polls `kind=trade`.
+- `npm test` — 54/54 pass.
+- `npm run build` — production Vite bundle built successfully.
+- `BASE=http://127.0.0.1:19109 ./scripts/live_ui_smoke.sh` — 13 shell and
+  4 Python assertions pass against a running daemon.
+- `/live` and `/ready` return 200; book, tape, status, instruments, SSE, replay,
+  and static asset routes return their documented shapes.
+- Two real daemon stop/start cycles shut down cleanly (all tasks joined and sink
+  workers drained) and restarted without warnings or errors.
+- In-app browser checks at 768×900 and 1440×900 show no horizontal overflow.
+- Lines, Candles, and Order Flow transitions; Pulse/Order Flow/Escape shortcuts;
+  search focus; and the replay file control work in the running embedded bundle.
+- A live daemon stop leaves the SPA mounted and shows `SSE reconnecting`; restart
+  restores `connected` / `SSE` without a reload or browser-console error.
+- Synthetic tape timestamps and chart axes use current Unix wall time; feed lag
+  remains bounded instead of presenting 1970-era samples or monotonic-clock lag.
 
-### Missing volume / trade counts
-- Session vol existed; no trade count; no window-tied chips; no chart volume subplot; no multi-venue vol/#.
-- **Fix:** CandleBuilder tracks trades; window stats by timeframe; HeaderBar Vol/Trades chips (click window↔session); legend per-venue vol/#; Multi vol/#; histogram volume subplot (toggleable).
+## Bugs found and fixed
 
-### UX not interactive enough
-- Legend not clickable; no settings persistence; depth/tape/poll fixed.
-- **Fix:** legend click toggles series, Shift+click focuses venue; trade row click marks chart time; book depth 8/16/24; settings gear for depth/tape/poll; localStorage persistence.
+### Disposed chart callbacks
 
-### Display/time
-- Times now labeled **UTC** (`…Z`).
+Visible-range and crosshair handlers were anonymous and survived removal of the
+secondary chart. Mode transitions then called a disposed Lightweight Charts
+object once per update. Synchronization now uses named logical-range handlers,
+returns explicit disposers, and unwires both directions before either chart is
+removed. The invalid cross-chart price/series coupling was removed.
 
-## Verified correct
-- Book bids descending / asks ascending / BBO ask≥bid (binance-spot, okx-spot, bybit-linear)
-- Trade fields: price, quantity, aggressor, trade_id, timestamps
-- Tape newest-first by `receive_ts_ns`
-- SPA panel vol/# = sum of `/v1/tape?kind=trade` snapshot (parity check in smoke)
-- Mid/spread/bps from book BBO
-- Multi-venue % baseline = first sample per venue; cross-venue Δ from visible series
+### Event time and newest-first tape semantics
 
-## Residual risks
-- **binance-usdm:** live with quotes but **0 trades** in ring — adapter/channel ingest issue, not SPA (config has `trades`).
-- **coinbase-spot / some venues:** no L2 book (404) — expected for quote/trade-only channels.
-- **Multi vol/#:** sums **native qty units** (Deribit USD notionals dominate) — not USD-normalized.
-- **Window/session vol:** SPA accumulates from first poll after focus/asset switch, not exchange session open.
-- Rate limit still applies **per ring** (`ui_tape_max_per_sec`); extreme trade bursts can drop trades independently of quotes.
+The synthetic source used a monotonic counter as `receive_ts`, producing
+unbounded lag and 1970 chart data. Continuous and seed events now use Unix
+nanoseconds while internal scheduling remains monotonic. OHLC and last-price
+builders ingest newest-first API pages chronologically and ignore late older
+pages when deriving the current close.
+
+### Book lifecycle and request races
+
+`BookInvalidated` now removes only the matching venue/instrument view. Temporary
+book-404 suppression is scoped by venue and symbol and clears on a successful
+response. Slow focus responses are rejected after a focus generation changes.
+
+### Streaming, replay, and HTTP boundaries
+
+- SSE reconnect callbacks clear sticky disconnected UI state.
+- SSE payload suppression ignores the volatile server timestamp.
+- HTTP request reads are bounded, handle fragmented bodies, enforce
+  `Content-Length`, and have an overall deadline.
+- Replay list/read work runs off the async executor, streams bounded records,
+  accepts normalized/MFNE envelopes, and exposes a keyboard-focusable file input.
+
+### Alerts
+
+The UI maps discrepancy and lag alerts to the daemon's accepted contract.
+Pulse alerts remain in-app or use the configured direct browser webhook; the UI
+does not claim daemon delivery for an unsupported alert kind, and delivery
+failures are visible.
+
+## Known boundaries
+
+- The offline profile proves UI/view behavior with a deterministic synthetic
+  venue, not exchange-specific market correctness.
+- Funding, open interest, liquidation panels, Telegram, private fills, and true
+  MBO are intentionally not implemented; the UI labels those boundaries.
+- Window/session statistics begin when the SPA starts observing the selected
+  market, not at an exchange session boundary.
+- Trade and quote rings are independently bounded and rate capped; drops are
+  reported rather than silently expanding memory.

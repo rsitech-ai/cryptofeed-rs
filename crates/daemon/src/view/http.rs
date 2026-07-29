@@ -20,6 +20,7 @@ const IO_TIMEOUT: Duration = Duration::from_secs(2);
 const STREAM_INTERVAL: Duration = Duration::from_millis(100);
 const STREAM_HEARTBEAT: Duration = Duration::from_secs(15);
 const STREAM_MAX_LIFE: Duration = Duration::from_secs(3600);
+const MAX_HTTP_HEAD: usize = 8_192;
 const MAX_POST_BODY: usize = 16_384;
 
 pub async fn serve_view(listener: TcpListener, state: Arc<DaemonState>) -> std::io::Result<()> {
@@ -51,24 +52,13 @@ pub async fn handle_view_conn_with_prefix(
     state: Arc<DaemonState>,
     prefix: &[u8],
 ) -> std::io::Result<()> {
-    let mut buf = vec![0u8; 8192];
-    let mut n = prefix.len().min(buf.len());
-    buf[..n].copy_from_slice(&prefix[..n]);
-    if n < prefix.len() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "view request prefix too large",
-        ));
-    }
-    if n == 0 {
-        n = timeout(IO_TIMEOUT, stream.read(&mut buf))
-            .await
-            .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "view read timeout"))??;
-    }
-    if n == 0 {
+    let request = timeout(IO_TIMEOUT, read_http_request(&mut stream, prefix))
+        .await
+        .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "view request timeout"))??;
+    if request.is_empty() {
         return Ok(());
     }
-    let req = String::from_utf8_lossy(&buf[..n]).into_owned();
+    let req = String::from_utf8_lossy(&request).into_owned();
     if prefix.is_empty() {
         state.http_requests.fetch_add(1, Ordering::Relaxed);
     }
@@ -101,6 +91,84 @@ connection: close\r\n\r\n";
     respond_view_request(&mut stream, &req, &state).await
 }
 
+async fn read_http_request(stream: &mut TcpStream, prefix: &[u8]) -> std::io::Result<Vec<u8>> {
+    let max_request = MAX_HTTP_HEAD.saturating_add(MAX_POST_BODY);
+    if prefix.len() > max_request {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "view request exceeds bounded request size",
+        ));
+    }
+    let mut request = Vec::with_capacity(prefix.len().max(1024));
+    request.extend_from_slice(prefix);
+
+    loop {
+        if let Some(head_end) = find_header_end(&request) {
+            if head_end > MAX_HTTP_HEAD {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "view request headers too large",
+                ));
+            }
+            let head = String::from_utf8_lossy(&request[..head_end]);
+            let body_len = content_length(&head).unwrap_or(0);
+            if body_len > MAX_POST_BODY {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "view request body too large",
+                ));
+            }
+            let expected = head_end.checked_add(body_len).ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "view request size overflow",
+                )
+            })?;
+            if request.len() >= expected {
+                request.truncate(expected);
+                return Ok(request);
+            }
+        } else if request.len() >= MAX_HTTP_HEAD {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "view request headers too large",
+            ));
+        }
+
+        let remaining = max_request.saturating_sub(request.len());
+        if remaining == 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "view request exceeds bounded request size",
+            ));
+        }
+        let mut chunk = [0u8; 4096];
+        let read_len = remaining.min(chunk.len());
+        let n = timeout(IO_TIMEOUT, stream.read(&mut chunk[..read_len]))
+            .await
+            .map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::TimedOut, "view read timeout")
+            })??;
+        if n == 0 {
+            if request.is_empty() {
+                return Ok(request);
+            }
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "view request ended before declared content length",
+            ));
+        }
+        request.extend_from_slice(&chunk[..n]);
+    }
+}
+
+fn find_header_end(request: &[u8]) -> Option<usize> {
+    request
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .map(|position| position + 4)
+}
+
 /// Handle one already-read HTTP request on an open stream (shared with health bind).
 pub async fn respond_view_request(
     stream: &mut TcpStream,
@@ -110,6 +178,7 @@ pub async fn respond_view_request(
     let (method, path, query) = parse_request(req).unwrap_or(("GET", "/", ""));
 
     let (status, content_type, body) = match method {
+        "HEAD" if path == "/v1/replay" => (200, "application/json; charset=utf-8", Vec::new()),
         "GET" | "HEAD" => route(state, path, query).await,
         "POST" if path == "/v1/alerts/test" => alert_test_route(state, request_body(req)).await,
         _ => (
@@ -149,8 +218,8 @@ async fn route(state: &DaemonState, path: &str, query: &str) -> (u16, &'static s
         "/v1/instruments" => json_ok(&view.instruments_json(state)),
         "/v1/books" => books(view, query),
         "/v1/tape" => tape(view, query),
-        "/v1/replay/files" => replay_files(state),
-        "/v1/replay" => replay_read(state, query),
+        "/v1/replay/files" | "/v1/replay/list" => replay_files(state).await,
+        "/v1/replay" => replay_read(state, query).await,
         "/live" => {
             if state.is_live() {
                 (200, "text/plain; charset=utf-8", b"live\n".to_vec())
@@ -174,19 +243,28 @@ async fn route(state: &DaemonState, path: &str, query: &str) -> (u16, &'static s
     }
 }
 
-fn replay_files(state: &DaemonState) -> (u16, &'static str, Vec<u8>) {
-    match list_replay_files(&state.config) {
-        Ok(resp) => json_ok(&resp),
-        Err(msg) => {
+async fn replay_files(state: &DaemonState) -> (u16, &'static str, Vec<u8>) {
+    let config = state.config.clone();
+    match tokio::task::spawn_blocking(move || list_replay_files(&config)).await {
+        Ok(Ok(resp)) => json_ok(&resp),
+        Ok(Err(msg)) => {
             let body = serde_json::json!({ "error": msg }).to_string().into_bytes();
+            (500, "application/json; charset=utf-8", body)
+        }
+        Err(error) => {
+            let body = serde_json::json!({
+                "error": format!("replay list worker failed: {error}")
+            })
+            .to_string()
+            .into_bytes();
             (500, "application/json; charset=utf-8", body)
         }
     }
 }
 
-fn replay_read(state: &DaemonState, query: &str) -> (u16, &'static str, Vec<u8>) {
+async fn replay_read(state: &DaemonState, query: &str) -> (u16, &'static str, Vec<u8>) {
     let params = Query::parse(query);
-    let Some(file) = params.get("file") else {
+    let Some(file) = params.get("file").map(str::to_owned) else {
         return bad_request("missing file");
     };
     let offset = params
@@ -197,7 +275,21 @@ fn replay_read(state: &DaemonState, query: &str) -> (u16, &'static str, Vec<u8>)
         .get("limit")
         .and_then(|s| s.parse::<u64>().ok())
         .unwrap_or(100);
-    let resp = read_replay_entries(&state.config, file, offset, limit);
+    let config = state.config.clone();
+    let response =
+        tokio::task::spawn_blocking(move || read_replay_entries(&config, &file, offset, limit))
+            .await;
+    let resp = match response {
+        Ok(resp) => resp,
+        Err(error) => {
+            let body = serde_json::json!({
+                "error": format!("replay read worker failed: {error}")
+            })
+            .to_string()
+            .into_bytes();
+            return (500, "application/json; charset=utf-8", body);
+        }
+    };
     if resp.error.is_some() {
         (404, "application/json; charset=utf-8", json_ok_body(&resp))
     } else {
@@ -409,13 +501,8 @@ async fn handle_sse_stream(
             last_heartbeat = Instant::now();
         }
 
-        let now_ns = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos() as i64)
-            .unwrap_or(0);
         let status = view.status(state);
         let mut payload = serde_json::json!({
-            "ts_ns": now_ns,
             "status": status,
         });
         if let Some(f) = &focus {
@@ -426,16 +513,22 @@ async fn handle_sse_stream(
             }
         }
 
-        let serialized = match serde_json::to_string(&payload) {
+        let state_serialized = match serde_json::to_string(&payload) {
             Ok(s) => s,
             Err(_) => {
                 tokio::time::sleep(STREAM_INTERVAL).await;
                 continue;
             }
         };
-        if serialized != last_payload {
+        if state_serialized != last_payload {
+            let now_ns = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as i64)
+                .unwrap_or(0);
+            payload["ts_ns"] = serde_json::json!(now_ns);
+            let serialized = serde_json::to_string(&payload).unwrap_or(state_serialized.clone());
             write_sse_data(&mut stream, &serialized).await?;
-            last_payload = serialized;
+            last_payload = state_serialized;
         }
 
         tokio::time::sleep(STREAM_INTERVAL).await;
@@ -533,9 +626,7 @@ fn resolve_instrument(
         return Ok(InstrumentId(id));
     }
     if let Some(sym) = params.get("symbol") {
-        return view
-            .resolve_instrument(venue, sym)
-            .ok_or("unknown symbol");
+        return view.resolve_instrument(venue, sym).ok_or("unknown symbol");
     }
     Ok(InstrumentId(1))
 }
@@ -665,14 +756,15 @@ fn parse_request(req: &str) -> Option<(&str, &str, &str)> {
 }
 
 fn request_body(req: &str) -> Option<&str> {
-    let mut parts = req.splitn(2, "\r\n\r\n");
-    let _head = parts.next()?;
-    let body = parts.next()?;
+    let (_head, body) = req.split_once("\r\n\r\n")?;
     let len = content_length(req).unwrap_or(body.len());
     if len > MAX_POST_BODY {
         return None;
     }
-    Some(&body[..body.len().min(len)])
+    if body.len() < len {
+        return None;
+    }
+    Some(&body[..len])
 }
 
 fn content_length(req: &str) -> Option<usize> {
@@ -847,16 +939,16 @@ mod tests {
                 .unwrap()
                 .as_nanos()
         ));
+        let replay_dir_toml = toml::Value::String(dir.to_string_lossy().into_owned()).to_string();
         let cfg = DaemonConfig::from_toml_str(&format!(
             r#"
             [telemetry]
             bind = "127.0.0.1:0"
             ui_bind = "127.0.0.1:0"
-            replay_dir = "{}"
+            replay_dir = {replay_dir_toml}
             [readiness]
             require_required_venues = false
-            "#,
-            dir.display()
+            "#
         ))
         .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -902,6 +994,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fragmented_post_waits_for_declared_content_length() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            [readiness]
+            require_required_venues = false
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, state).await;
+        });
+
+        let body = r#"{"kind":"lag","message":"fragmented"}"#;
+        let mut stream = TcpStream::connect(&addr).await.unwrap();
+        let head = format!(
+            "POST /v1/alerts/test HTTP/1.1\r\nhost: localhost\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
+        stream.write_all(head.as_bytes()).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let split = body.len() / 2;
+        stream.write_all(&body.as_bytes()[..split]).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        stream.write_all(&body.as_bytes()[split..]).await.unwrap();
+
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await.unwrap();
+        let text = String::from_utf8_lossy(&response);
+        assert!(text.starts_with("HTTP/1.1 200"), "{text}");
+        assert!(text.contains("\"ok\":true"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn replay_head_and_ui_list_route_are_available() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            [readiness]
+            require_required_venues = false
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, state).await;
+        });
+
+        let mut stream = TcpStream::connect(&addr).await.unwrap();
+        stream
+            .write_all(b"HEAD /v1/replay HTTP/1.1\r\nhost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await.unwrap();
+        let text = String::from_utf8_lossy(&response);
+        assert!(text.starts_with("HTTP/1.1 200"), "{text}");
+
+        let (status, body) = get(&addr, "/v1/replay/list").await;
+        assert_eq!(status, 200, "{body}");
+        assert!(body.contains("\"files\""), "{body}");
+    }
+
+    #[tokio::test]
     async fn alert_test_forwards_to_mock_webhook() {
         let hook = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let hook_addr = hook.local_addr().unwrap();
@@ -913,7 +1078,8 @@ mod tests {
                 let req = String::from_utf8_lossy(&buf[..n]);
                 assert!(req.contains("POST /hook"), "{req}");
                 assert!(req.contains("\"kind\":\"discrepancy\""), "{req}");
-                let resp = "HTTP/1.1 204 No Content\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
+                let resp =
+                    "HTTP/1.1 204 No Content\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
                 let _ = stream.write_all(resp.as_bytes()).await;
             }
         });
@@ -1030,6 +1196,46 @@ mod tests {
         assert!(text.contains("text/event-stream"), "{text}");
         assert!(text.contains("data:"), "{text}");
         assert!(text.contains("\"status\""), "{text}");
+    }
+
+    #[tokio::test]
+    async fn sse_does_not_emit_every_tick_when_only_clock_fields_change() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            [readiness]
+            require_required_venues = false
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, state).await;
+        });
+
+        let mut stream = TcpStream::connect(&addr).await.unwrap();
+        stream
+            .write_all(b"GET /v1/stream HTTP/1.1\r\nhost: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_millis(450);
+        let mut response = Vec::new();
+        let mut buf = [0u8; 4096];
+        while Instant::now() < deadline {
+            match timeout(Duration::from_millis(75), stream.read(&mut buf)).await {
+                Ok(Ok(0)) => break,
+                Ok(Ok(n)) => response.extend_from_slice(&buf[..n]),
+                Ok(Err(e)) => panic!("stream read failed: {e}"),
+                Err(_) => {}
+            }
+        }
+        let text = String::from_utf8_lossy(&response);
+        let events = text.matches("data:").count();
+        assert!((1..=2).contains(&events), "{text}");
     }
 
     #[cfg(feature = "ui")]

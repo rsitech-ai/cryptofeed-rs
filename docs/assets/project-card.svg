@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+  <title id="title">cryptofeed-rs project card</title>
+  <desc id="description">Alpha Rust market-data infrastructure by RSI Tech.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#102d3f"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4de3c1"/>
+      <stop offset="1" stop-color="#54a9ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="36" fill="url(#background)"/>
+  <path d="M80 448 C190 448 198 340 308 340 S428 420 520 420 626 254 732 254 842 342 930 342 1024 188 1120 188"
+        fill="none" stroke="url(#signal)" stroke-width="10" stroke-linecap="round"/>
+  <g fill="#4de3c1">
+    <circle cx="308" cy="340" r="10"/>
+    <circle cx="520" cy="420" r="10"/>
+    <circle cx="732" cy="254" r="10"/>
+    <circle cx="930" cy="342" r="10"/>
+  </g>
+  <text x="80" y="140" fill="#f4fbff" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="64" font-weight="700">cryptofeed-rs</text>
+  <text x="82" y="202" fill="#a8bdca" font-family="system-ui, -apple-system, sans-serif" font-size="30">Rust-native market-data infrastructure</text>
+  <g font-family="system-ui, -apple-system, sans-serif" font-size="24">
+    <rect x="80" y="252" width="230" height="48" rx="24" fill="#153c48"/>
+    <text x="112" y="284" fill="#8ff4da">ALPHA PREVIEW</text>
+    <text x="80" y="540" fill="#b8cad4">Exact fixed point · fail-closed L2 · bounded dispatch</text>
+    <text x="1000" y="560" fill="#f4fbff" font-weight="700">RSI Tech</text>
+  </g>
+</svg>

@@ -38,25 +38,25 @@ served on `telemetry.bind` alongside `/live` `/ready` `/metrics`.
 
 ```bash
 # Daemon with embedded UI (serves checked-in ui/dist; Node not required)
-cargo run -p marketfeed-daemon --features ui -- run --config crates/daemon/config.offline.toml
+cargo run --locked -p marketfeed-daemon --features ui -- run --config crates/daemon/config.offline.toml
 # open http://127.0.0.1:19109/
 
 # API-only (no SPA embed)
-cargo run -p marketfeed-daemon --features ui-api -- run --config crates/daemon/config.offline.toml
+cargo run --locked -p marketfeed-daemon --features ui-api -- run --config crates/daemon/config.offline.toml
 ```
 
 Optional SPA rebuild from Svelte sources (Node 20+):
 
 ```bash
-cd ui && npm install && npm run build && cd ..
-cargo run -p marketfeed-daemon --features ui -- run --config crates/daemon/config.offline.toml
+cd ui && npm ci && npm run build && cd ..
+cargo run --locked -p marketfeed-daemon --features ui -- run --config crates/daemon/config.offline.toml
 ```
 
 Dev SPA against a running API:
 
 ```bash
 # terminal 1 — daemon with ui-api
-cargo run -p marketfeed-daemon --features ui-api -- run --config crates/daemon/config.offline.toml
+cargo run --locked -p marketfeed-daemon --features ui-api -- run --config crates/daemon/config.offline.toml
 
 # terminal 2 — Vite proxies /v1 to ui_bind / bind
 cd ui && npm run dev
@@ -130,7 +130,7 @@ Poll endpoints remain available for clients that do not use SSE.
   - Combined SSE focus frames call `onFocus` once (no double `onBook`/`onTape` apply).
   - UI paint gates: book ~14 Hz, tape ~12 Hz, lines ~10 Hz, heatmap ~9 Hz; EMA-stable heatmap y-scale; offscreen blit.
   - `visibilitychange` forces a live refresh when the tab becomes visible again.
-- Depth chart, time & sales filters, multi-pane synced crosshair.
+- Depth chart, time & sales filters, and synchronized multi-pane time ranges.
 - Session presets (1m/5m/1h), keyboard shortcuts (`/` search, `1`–`5` TF), density toggle.
 - Health strip + data-quality badges; Grafana link-out; replay scrubber (best-effort).
 - **Order Flow chart mode** (`mode=orderflow`, tab next to Lines/Candles): desk-style
@@ -146,8 +146,10 @@ Poll endpoints remain available for clients that do not use SSE.
   Keys: `F` open, `Esc` hide. URL: `tab=orderflow`, `largeUsd=…`, `dock=0|1`.
 - **Market Pulse** dock (multi-venue asset): trades/min, USD/min, cross Δ bps, median spread,
   book imbalance, clickable per-venue heat chips (focus book/tape/orderflow), clickable
-  metrics to sort/highlight, pulse-score sparkline + optional spike alert
-  (reuses in-app toast + `/v1/alerts/test` / webhook path). Key: `P`.
+  metrics to sort/highlight, pulse-score sparkline + optional spike alert.
+  Pulse alerts use the in-app toast and, when configured in the SPA, a direct
+  browser webhook; the daemon endpoint accepts discrepancy and lag alerts only.
+  Key: `P`.
   URL: `tab=pulse`, `pulseAlert=72`.
 
 ## Venue feed notes

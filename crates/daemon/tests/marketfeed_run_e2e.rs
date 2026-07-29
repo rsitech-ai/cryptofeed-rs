@@ -1,5 +1,6 @@
-//! Binary E2E: `marketfeed run` with synthetic config → `/live` `/ready` 200,
-//! then SIGTERM drains cleanly (offline, no exchange I/O).
+//! Binary E2E: `marketfeed run` with synthetic config → `/live` `/ready` 200
+//! (offline, no exchange I/O). Unix additionally proves a clean SIGTERM drain;
+//! the standard Windows child-process API only exposes forced termination.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -48,7 +49,7 @@ fn wait_http_200(addr: &str, path: &str, timeout: Duration) -> String {
 }
 
 #[test]
-fn marketfeed_run_synthetic_ready_then_sigterm_drains() {
+fn marketfeed_run_synthetic_ready_then_platform_stop() {
     let port = free_loopback_port();
     let tmp = std::env::temp_dir().join(format!(
         "marketfeed-run-e2e-{}-{}",
@@ -57,6 +58,8 @@ fn marketfeed_run_synthetic_ready_then_sigterm_drains() {
     ));
     std::fs::create_dir_all(&tmp).unwrap();
     let cfg_path: PathBuf = tmp.join("config.toml");
+    let raw_dir_toml =
+        toml::Value::String(tmp.join("raw").to_string_lossy().into_owned()).to_string();
     let cfg = format!(
         r#"
 [engine]
@@ -76,7 +79,7 @@ require_recording_healthy = false
 
 [recording.raw]
 enabled = false
-directory = "{dir}/raw"
+directory = {raw_dir_toml}
 segment_size = "1MiB"
 segment_duration = "1m"
 queue_capacity = 64
@@ -89,8 +92,7 @@ adapter = "synthetic"
 required = true
 transport = "memory"
 "#,
-        port = port,
-        dir = tmp.display()
+        port = port
     );
     std::fs::write(&cfg_path, cfg).unwrap();
 
@@ -136,9 +138,19 @@ transport = "memory"
             Err(e) => panic!("try_wait: {e}"),
         }
     };
+    let mut stderr = String::new();
+    if let Some(mut stream) = child.stderr.take() {
+        let _ = stream.read_to_string(&mut stderr);
+    }
+    #[cfg(unix)]
     assert!(
         exit.success(),
-        "expected clean exit after drain, got {exit:?}"
+        "expected clean exit after drain, got {exit:?}\nstderr:\n{stderr}"
+    );
+    #[cfg(not(unix))]
+    assert!(
+        !exit.success(),
+        "forced Windows cleanup unexpectedly reported a clean exit\nstderr:\n{stderr}"
     );
     let _ = std::fs::remove_dir_all(&tmp);
 }

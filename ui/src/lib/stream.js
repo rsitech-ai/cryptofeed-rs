@@ -151,8 +151,10 @@ export class StreamClient {
       const was = this.connected;
       this.connected = true;
       this.available = true;
-      if (!was) this.handlers.onConnect?.();
-      else this.reconnectCount += 1;
+      if (was) this.reconnectCount += 1;
+      // Also notify after an EventSource auto-reconnect. Consumers use this
+      // callback to clear their soft "reconnecting" indicator.
+      this.handlers.onConnect?.();
     };
 
     this.es.onerror = () => {

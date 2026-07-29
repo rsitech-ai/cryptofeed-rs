@@ -3,7 +3,7 @@
 #![cfg(feature = "ui-api")]
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use marketfeed_daemon::{DaemonConfig, DaemonState, serve_view, spawn_venues};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -87,8 +87,11 @@ async fn synthetic_view_books_and_tape() {
     // Seeded book + continuous ticks should yield a book quickly.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
     let book_body = loop {
-        let (st, body) =
-            http_get(&addr, "/v1/books?venue=synthetic-demo&symbol=BTC-USD&depth=5").await;
+        let (st, body) = http_get(
+            &addr,
+            "/v1/books?venue=synthetic-demo&symbol=BTC-USD&depth=5",
+        )
+        .await;
         if st == 200 && body.contains("\"bids\"") && body.contains("100.00") {
             break body;
         }
@@ -101,8 +104,11 @@ async fn synthetic_view_books_and_tape() {
 
     let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
     let tape_body = loop {
-        let (st, body) =
-            http_get(&addr, "/v1/tape?venue=synthetic-demo&symbol=BTC-USD&limit=20").await;
+        let (st, body) = http_get(
+            &addr,
+            "/v1/tape?venue=synthetic-demo&symbol=BTC-USD&limit=20",
+        )
+        .await;
         assert_eq!(st, 200, "{body}");
         if body.contains("\"kind\":\"trade\"") {
             break body;
@@ -115,6 +121,45 @@ async fn synthetic_view_books_and_tape() {
     assert!(
         tape_body.contains("\"price\"") && tape_body.contains("entries"),
         "{tape_body}"
+    );
+
+    // The UI computes feed lag and rolling-window visibility from receive_ts_ns.
+    // Synthetic frames therefore need real wall-clock timestamps, not the
+    // independent monotonic sequence used to order frames.
+    let now_ns = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as i64;
+    let (_, status_body) = http_get(&addr, "/v1/status").await;
+    let status: serde_json::Value = serde_json::from_str(&status_body).unwrap();
+    let synthetic = status["venues"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|venue| venue["id"] == "synthetic-demo")
+        .unwrap();
+    let last_event_ts_ns = synthetic["last_event_ts_ns"].as_i64().unwrap();
+    assert!(
+        (0..=5_000_000_000).contains(&(now_ns - last_event_ts_ns)),
+        "synthetic event timestamp is not recent: now={now_ns} event={last_event_ts_ns}"
+    );
+    assert!(
+        synthetic["feed_lag_ms"].as_u64().unwrap() <= 5_000,
+        "synthetic feed lag should stay within the live UI window: {synthetic}"
+    );
+
+    let tape: serde_json::Value = serde_json::from_str(&tape_body).unwrap();
+    let oldest_trade_ts_ns = tape["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["kind"] == "trade")
+        .filter_map(|entry| entry["receive_ts_ns"].as_i64())
+        .min()
+        .unwrap();
+    assert!(
+        (0..=5_000_000_000).contains(&(now_ns - oldest_trade_ts_ns)),
+        "all synthetic trades must remain visible in rolling UI windows: now={now_ns} oldest_trade={oldest_trade_ts_ns}"
     );
 
     let _ = shutdown_tx.send(true);
@@ -146,9 +191,15 @@ async fn spa_index_served() {
 
     let (st, body) = http_get(&addr, "/").await;
     assert_eq!(st, 200, "{body}");
-    assert!(body.contains("marketfeed") || body.contains("app.js"), "{body}");
+    assert!(
+        body.contains("marketfeed") || body.contains("app.js"),
+        "{body}"
+    );
 
     let (st, body) = http_get(&addr, "/assets/app.js").await;
     assert_eq!(st, 200);
-    assert!(body.contains("svelte") || body.contains("__svelte"), "not svelte build");
+    assert!(
+        body.contains("svelte") || body.contains("__svelte"),
+        "not svelte build"
+    );
 }

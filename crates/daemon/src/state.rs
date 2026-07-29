@@ -176,6 +176,21 @@ impl DaemonState {
     }
 
     pub fn is_ready(&self) -> bool {
+        if self.shutdown_draining.load(Ordering::Relaxed)
+            || self.disk_pressure.load(Ordering::Relaxed)
+        {
+            return false;
+        }
+        for venue in &self.config.venues {
+            if venue.required
+                && venue.wants_l2()
+                && self.venue_metrics.get(&venue.id).is_none_or(|metrics| {
+                    metrics.valid_books.load(Ordering::Relaxed) < venue.symbols.len() as u64
+                })
+            {
+                return false;
+            }
+        }
         let venue_live: HashMap<String, bool> = self
             .venue_flags
             .iter()
@@ -194,7 +209,7 @@ impl DaemonState {
             &venue_live,
             self.live_session_count(),
             self.recording_healthy.load(Ordering::Relaxed),
-        )
+        ) && self.sinks.lock().expect("sinks lock").required_healthy()
     }
 
     pub fn prometheus_text(&self) -> String {
@@ -281,6 +296,50 @@ impl DaemonState {
         out.push_str("# HELP marketfeed_shutdown_draining 1 while graceful shutdown drains\n");
         out.push_str("# TYPE marketfeed_shutdown_draining gauge\n");
         out.push_str(&format!("marketfeed_shutdown_draining {draining}\n"));
+        let sink_snapshots = self.sinks.lock().expect("sinks lock").snapshots();
+        out.push_str("# HELP marketfeed_sink_healthy 1 if the isolated sink worker is healthy\n");
+        out.push_str("# TYPE marketfeed_sink_healthy gauge\n");
+        out.push_str("# HELP marketfeed_sink_queue_len Items pending in the isolated sink FIFO\n");
+        out.push_str("# TYPE marketfeed_sink_queue_len gauge\n");
+        out.push_str(
+            "# HELP marketfeed_sink_queue_capacity Configured isolated sink FIFO capacity\n",
+        );
+        out.push_str("# TYPE marketfeed_sink_queue_capacity gauge\n");
+        out.push_str(
+            "# HELP marketfeed_sink_in_flight Items currently being written by the sink worker\n",
+        );
+        out.push_str("# TYPE marketfeed_sink_in_flight gauge\n");
+        out.push_str(
+            "# HELP marketfeed_sink_enqueued_total Items accepted by the isolated sink FIFO\n",
+        );
+        out.push_str("# TYPE marketfeed_sink_enqueued_total counter\n");
+        out.push_str(
+            "# HELP marketfeed_sink_dropped_total Items dropped by the sink FIFO or backend\n",
+        );
+        out.push_str("# TYPE marketfeed_sink_dropped_total counter\n");
+        out.push_str("# HELP marketfeed_sink_errors_total Terminal sink worker errors\n");
+        out.push_str("# TYPE marketfeed_sink_errors_total counter\n");
+        for sink in sink_snapshots {
+            let id = prometheus_label_value(&sink.id);
+            let healthy = u8::from(sink.healthy);
+            let required = if sink.required { "true" } else { "false" };
+            let labels = format!("id=\"{id}\",kind=\"{}\",required=\"{required}\"", sink.kind);
+            out.push_str(&format!(
+                "marketfeed_sink_healthy{{{labels}}} {healthy}\n\
+                 marketfeed_sink_queue_len{{{labels}}} {}\n\
+                 marketfeed_sink_queue_capacity{{{labels}}} {}\n\
+                 marketfeed_sink_in_flight{{{labels}}} {}\n\
+                 marketfeed_sink_enqueued_total{{{labels}}} {}\n\
+                 marketfeed_sink_dropped_total{{{labels}}} {}\n\
+                 marketfeed_sink_errors_total{{{labels}}} {}\n",
+                sink.queue_len,
+                sink.queue_capacity,
+                sink.in_flight,
+                sink.enqueued,
+                sink.dropped,
+                sink.errors
+            ));
+        }
         for (id, flag) in &self.venue_flags {
             let v = if flag.load(Ordering::Relaxed) { 1 } else { 0 };
             let id = prometheus_label_value(id);
@@ -718,11 +777,67 @@ mod tests {
     }
 
     #[test]
+    fn readiness_fails_on_disk_pressure() {
+        let config = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            "#,
+        )
+        .unwrap();
+        let state = DaemonState::new(config);
+        state.mark_supervisor_running();
+        assert!(state.is_ready());
+        state.disk_pressure.store(true, Ordering::Relaxed);
+        assert!(!state.is_ready());
+    }
+
+    #[test]
+    fn required_l2_venue_needs_every_configured_book() {
+        let config = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            [[venues]]
+            id = "required-l2"
+            adapter = "binance"
+            required = true
+            symbols = ["BTCUSDT", "ETHUSDT"]
+            channels = ["l2"]
+            "#,
+        )
+        .unwrap();
+        let state = DaemonState::new(config);
+        state.mark_supervisor_running();
+        state
+            .venue_flag("required-l2")
+            .unwrap()
+            .store(true, Ordering::Relaxed);
+        assert!(!state.is_ready());
+        state
+            .venue_metrics("required-l2")
+            .unwrap()
+            .valid_books
+            .store(1, Ordering::Relaxed);
+        assert!(!state.is_ready());
+        state
+            .venue_metrics("required-l2")
+            .unwrap()
+            .valid_books
+            .store(2, Ordering::Relaxed);
+        assert!(state.is_ready());
+    }
+
+    #[test]
     fn metrics_include_recording_and_session_series() {
         let cfg = DaemonConfig::from_toml_str(
             r#"
             [telemetry]
             bind = "127.0.0.1:9"
+            [[sinks]]
+            id = "primary"
+            type = "memory"
+            required = true
             [[venues]]
             id = "syn"
             adapter = "synthetic"
@@ -759,6 +874,15 @@ mod tests {
         assert!(text.contains("marketfeed_recording_enabled 1"));
         assert!(text.contains("marketfeed_recording_frames_dropped_total 0"));
         assert!(text.contains("marketfeed_disk_pressure 0"));
+        assert!(text.contains(
+            "marketfeed_sink_healthy{id=\"primary\",kind=\"memory\",required=\"true\"} 1"
+        ));
+        assert!(text.contains(
+            "marketfeed_sink_queue_len{id=\"primary\",kind=\"memory\",required=\"true\"} 0"
+        ));
+        assert!(text.contains(
+            "marketfeed_sink_queue_capacity{id=\"primary\",kind=\"memory\",required=\"true\"} 1024"
+        ));
         assert!(text.contains("marketfeed_frames_received_total 9"));
         assert!(text.contains("marketfeed_events_dropped_total"));
         assert!(text.contains("marketfeed_batch_queue_occupancy"));
@@ -831,20 +955,21 @@ mod tests {
         let parent_file = dir.join("not-a-directory");
         std::fs::write(&parent_file, b"x").unwrap();
         let sink_path = parent_file.join("events.log");
+        let sink_path_toml =
+            toml::Value::String(sink_path.to_string_lossy().into_owned()).to_string();
         let cfg = DaemonConfig::from_toml_str(&format!(
             r#"
             [telemetry]
             bind = "127.0.0.1:0"
             [[sinks]]
             type = "file"
-            path = "{}"
+            path = {sink_path_toml}
             capacity = 8
             overflow = "fail_engine"
             [[venues]]
             id = "synthetic-demo"
             adapter = "synthetic"
-            "#,
-            sink_path.display()
+            "#
         ))
         .unwrap();
 

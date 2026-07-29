@@ -4,14 +4,14 @@
 
 use std::env;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+#[cfg(unix)]
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use marketfeed_daemon::cli::{format_benchmark, format_catalog, format_catalog_live, format_plan};
-use marketfeed_daemon::{
-    DaemonConfig, DaemonState, classify_reload, serve, spawn_private_sessions, spawn_venues,
-};
+use marketfeed_daemon::{DaemonConfig, DaemonState, serve, spawn_private_sessions, spawn_venues};
 use marketfeed_recording::RawSegmentReader;
 use tokio::net::TcpListener;
 use tokio::sync::watch;
@@ -24,6 +24,7 @@ type DaemonTaskHandle = tokio::task::JoinHandle<Result<(), String>>;
 async fn wait_for_shutdown_or_task_exit<F>(
     handles: &mut Vec<DaemonTaskHandle>,
     shutdown: F,
+    state: Option<Arc<DaemonState>>,
 ) -> Option<String>
 where
     F: Future<Output = ()>,
@@ -38,6 +39,23 @@ where
                 Err(error) => format!("daemon task join failure: {error}"),
             };
             return Some(error);
+        }
+        if let Some(state) = state.as_ref() {
+            let failed = state
+                .sinks
+                .lock()
+                .expect("sinks lock")
+                .snapshots()
+                .into_iter()
+                .find(|sink| sink.required && !sink.healthy);
+            if let Some(sink) = failed {
+                return Some(format!(
+                    "required sink {} ({}) failed: {}",
+                    sink.id,
+                    sink.kind,
+                    sink.last_error.as_deref().unwrap_or("unknown error")
+                ));
+            }
         }
         tokio::select! {
             _ = &mut shutdown => return None,
@@ -84,6 +102,7 @@ fn install_tracing(cfg: &DaemonConfig) -> reload::Handle<EnvFilter, tracing_subs
     handle
 }
 
+#[cfg(unix)]
 fn apply_reload_plan(
     state: &DaemonState,
     plan: &marketfeed_daemon::ReloadPlan,
@@ -113,6 +132,7 @@ fn apply_reload_plan(
     }
 }
 
+#[cfg(unix)]
 fn handle_config_reload(
     path: &Path,
     state: &DaemonState,
@@ -130,7 +150,7 @@ fn handle_config_reload(
         }
     };
     let applied = state.reloadable.lock().expect("reloadable lock").clone();
-    let plan = classify_reload(&state.config, &applied, &new);
+    let plan = marketfeed_daemon::classify_reload(&state.config, &applied, &new);
     apply_reload_plan(state, &plan, filter);
 }
 
@@ -387,7 +407,8 @@ async fn main() {
                         tracing::info!(%ui_addr, "view API listening");
                         let ui_state = Arc::clone(&state);
                         tokio::spawn(async move {
-                            if let Err(e) = marketfeed_daemon::serve_view(ui_listener, ui_state).await
+                            if let Err(e) =
+                                marketfeed_daemon::serve_view(ui_listener, ui_state).await
                             {
                                 tracing::error!(error = %e, "view server exited");
                             }
@@ -407,8 +428,12 @@ async fn main() {
                 config_reload_loop(reload_path, reload_state, reload_filter).await;
             });
 
-            let trigger_error =
-                wait_for_shutdown_or_task_exit(&mut venue_handles, shutdown_signal()).await;
+            let trigger_error = wait_for_shutdown_or_task_exit(
+                &mut venue_handles,
+                shutdown_signal(),
+                Some(Arc::clone(&state)),
+            )
+            .await;
             if let Some(error) = &trigger_error {
                 tracing::error!(%error, "runtime task exited; initiating coordinated shutdown");
             } else {
@@ -424,6 +449,7 @@ async fn main() {
             state.request_all_stops();
             let _ = shutdown_tx.send(true);
             let deadline = Duration::from_secs(cfg.engine.shutdown_deadline_secs.max(1));
+            let shutdown_started = std::time::Instant::now();
             let join = async move {
                 let mut errors = trigger_error.into_iter().collect::<Vec<_>>();
                 for h in venue_handles {
@@ -443,7 +469,7 @@ async fn main() {
             // coordinator a small scheduling margin so it can observe and
             // report the recorder's result instead of aborting it at the same instant.
             let outer_deadline = deadline.saturating_add(Duration::from_secs(5));
-            let shutdown_error = match tokio::time::timeout(outer_deadline, join).await {
+            let mut shutdown_error = match tokio::time::timeout(outer_deadline, join).await {
                 Ok(Ok(())) => {
                     tracing::info!("all daemon tasks joined cleanly");
                     None
@@ -458,6 +484,22 @@ async fn main() {
                     Some(error)
                 }
             };
+            let sink_deadline = shutdown_started + outer_deadline;
+            let sink_result = state
+                .sinks
+                .lock()
+                .expect("sinks lock")
+                .shutdown(sink_deadline);
+            match sink_result {
+                Ok(()) => tracing::info!("all sink workers drained cleanly"),
+                Err(error) => {
+                    tracing::error!(%error, "sink worker drain failed");
+                    shutdown_error = Some(match shutdown_error {
+                        Some(existing) => format!("{existing}; {error}"),
+                        None => error,
+                    });
+                }
+            }
             state
                 .process_live
                 .store(false, std::sync::atomic::Ordering::Relaxed);
@@ -526,17 +568,67 @@ async fn shutdown_signal() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use marketfeed_adapter_api::EventBatch;
+    use marketfeed_model::SessionId;
+    use marketfeed_sinks::EventSink;
 
     #[tokio::test]
     async fn unexpected_task_failure_triggers_supervised_shutdown() {
         let mut handles = vec![tokio::spawn(async {
             Err::<(), String>("recording write failed".into())
         })];
-        let error = wait_for_shutdown_or_task_exit(&mut handles, std::future::pending()).await;
+        let error =
+            wait_for_shutdown_or_task_exit(&mut handles, std::future::pending(), None).await;
         assert_eq!(
             error.as_deref(),
             Some("daemon task failed: recording write failed")
         );
         assert!(handles.is_empty());
+    }
+
+    #[tokio::test]
+    async fn required_sink_failure_triggers_supervised_shutdown() {
+        let config = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            [[sinks]]
+            id = "required-memory"
+            type = "memory"
+            required = true
+            capacity = 1
+            overflow = "fail_engine"
+            "#,
+        )
+        .unwrap();
+        let state = DaemonState::new(config);
+        let batch = |frame_seq| EventBatch {
+            session: SessionId(1),
+            frame_seq,
+            events: Vec::new(),
+        };
+        state.sinks.lock().unwrap().push_batch(batch(1)).unwrap();
+        for _ in 0..100 {
+            if state.sinks.lock().unwrap().memory_batch_len() == 1 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        state.sinks.lock().unwrap().push_batch(batch(2)).unwrap();
+
+        let mut handles = Vec::new();
+        let error = tokio::time::timeout(
+            Duration::from_secs(1),
+            wait_for_shutdown_or_task_exit(
+                &mut handles,
+                std::future::pending(),
+                Some(Arc::clone(&state)),
+            ),
+        )
+        .await
+        .expect("required sink supervision timed out")
+        .expect("required sink failure must trigger shutdown");
+        assert!(error.contains("required sink required-memory"));
+        assert!(error.contains("FailEngine"));
     }
 }

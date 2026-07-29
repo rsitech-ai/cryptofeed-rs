@@ -21,10 +21,6 @@ RSS_INTERVAL_SECS="${RSS_INTERVAL_SECS:-0}"
 RSS_LOG="${RSS_LOG:-}"
 # Optional cargo features, e.g. FEATURES=ui for SPA + /v1 checks.
 FEATURES="${FEATURES:-}"
-FEATURE_ARGS=()
-if [[ -n "$FEATURES" ]]; then
-  FEATURE_ARGS=(--features "$FEATURES")
-fi
 
 if [[ ! -f "$CONFIG" ]]; then
   echo "missing config: $CONFIG" >&2
@@ -42,7 +38,12 @@ awk -v host="$BIND_HOST" -v port="$BIND_PORT" -v uiport="$UI_PORT" '
 ' "$CONFIG" >"$TMP_CFG"
 
 echo "starting marketfeed run (offline) config=$TMP_CFG bind=$ADDR ui=$UI_ADDR soak=${SOAK_SECS}s features=${FEATURES:-none}"
-cargo run -q -p marketfeed-daemon "${FEATURE_ARGS[@]}" -- run --config "$TMP_CFG" &
+if [[ -n "$FEATURES" ]]; then
+  cargo run --locked -q -p marketfeed-daemon --features "$FEATURES" -- run --config "$TMP_CFG" &
+else
+  # Bash 3.2 treats an empty array expansion as unbound under `set -u`.
+  cargo run --locked -q -p marketfeed-daemon -- run --config "$TMP_CFG" &
+fi
 CHILD_PID=$!
 
 http_code() {
@@ -71,8 +72,8 @@ while true; do
 done
 
 metrics="$(curl -sS --max-time 2 "http://${ADDR}/metrics" || true)"
-echo "$metrics" | grep -q 'marketfeed_ready 1'
-echo "$metrics" | grep -q 'marketfeed_live_sessions 1'
+grep -q 'marketfeed_ready 1' <<<"$metrics"
+grep -q 'marketfeed_live_sessions 1' <<<"$metrics"
 echo "metrics gate ok"
 
 if [[ "$FEATURES" == *"ui"* ]]; then

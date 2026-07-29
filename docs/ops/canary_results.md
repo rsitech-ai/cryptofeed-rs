@@ -40,4 +40,5 @@ reproduction entry point.
 These runs prove that the sampled public paths connected and emitted expected
 events at that time. They do not prove continuous venue availability, all
 instrument/channel combinations, authenticated feeds, external sink delivery,
-or the scheduled multi-day gate required for beta.
+or the calendar-spaced scheduled canaries required for beta. Multi-day live
+soak remains a separate stable-adapter gate.
