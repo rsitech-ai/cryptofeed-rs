@@ -429,7 +429,7 @@
       <div class="modes">
         <button type="button" class:active={chartMode === 'lines'} onclick={() => onChartMode('lines')}>Lines</button>
         <button type="button" class:active={chartMode === 'candles'} onclick={() => onChartMode('candles')}>Candles</button>
-        <button type="button" class:active={chartMode === 'orderflow'} onclick={() => onChartMode('orderflow')} title="L2 liquidity heatmap + trade bubbles">Order Flow</button>
+        <button type="button" class:active={chartMode === 'orderflow'} onclick={() => onChartMode('orderflow')} title="L2+tape liquidity heatmap + DOM (not MBO)">Order Flow</button>
       </div>
       <div class="modes">
         <button type="button" class:active={priceMode === 'percent'} onclick={() => onPriceMode('percent')}>%</button>

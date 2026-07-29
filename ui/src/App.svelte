@@ -16,6 +16,7 @@
     bookPressure,
     pushDepthHistory,
     pushImbalanceHistory,
+    resolveTick,
     sampleBookDepth,
   } from './lib/orderflow.js';
   import {
@@ -37,6 +38,7 @@
   import ReplayScrubber from './components/ReplayScrubber.svelte';
   import OrderFlowPanel from './components/OrderFlowPanel.svelte';
   import OrderFlowHeatmap from './components/OrderFlowHeatmap.svelte';
+  import DomLadder from './components/DomLadder.svelte';
   import PulsePanel from './components/PulsePanel.svelte';
 
   const initial = loadSettings();
@@ -78,6 +80,10 @@
   let analyticsOpen = $state(initial.analyticsOpen !== false);
   let largeTradeUsd = $state(initial.largeTradeUsd ?? 25000);
   let pulseSpikeThreshold = $state(initial.pulseSpikeThreshold ?? 72);
+  let ofTick = $state(initial.ofTick ?? 'auto');
+  let ofHeat = $state(initial.ofHeat ?? 1);
+  let ofBubbleMinUsd = $state(initial.ofBubbleMinUsd ?? 500);
+  let ofLayers = $state(initial.ofLayers ?? 'heat,bubbles,mid,vap,cvd,vol');
 
   let lineSeries = $state([]);
   let discrepancy = $state(null);
@@ -212,8 +218,13 @@
     // Cap sample rate so the heatmap ring stays smooth without thrashing.
     if (now - lastDepthSampleAt < 200) return;
     lastDepthSampleAt = now;
-    const sample = sampleBookDepth(data, { t: now, maxLevels: Math.min(40, bookDepth * 2) });
-    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 300);
+    const tick = resolveTick(ofTick, data);
+    const sample = sampleBookDepth(data, {
+      t: now,
+      tick,
+      maxLevels: Math.min(48, bookDepth * 2),
+    });
+    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 320);
   }
 
   let lastEvents = null;
@@ -919,6 +930,25 @@
   );
   let spreadBps = $derived(mid != null && spread != null && mid > 0 ? (spread / mid) * 10000 : null);
   let lastPrice = $derived(lastTradePrice ?? mid);
+  let hasFocusL2 = $derived(
+    !!(book?.bids?.length || book?.asks?.length) ||
+      venueBooks.has(`${selectedVenue}|${selectedSymbol}`),
+  );
+
+  function patchOfSettings(patch) {
+    const tickChanged = patch.ofTick != null && String(patch.ofTick) !== String(ofTick);
+    if (patch.ofTick != null) ofTick = String(patch.ofTick);
+    if (patch.ofHeat != null) ofHeat = Number(patch.ofHeat);
+    if (patch.ofBubbleMinUsd != null) ofBubbleMinUsd = Number(patch.ofBubbleMinUsd);
+    if (patch.ofLayers != null) ofLayers = String(patch.ofLayers);
+    if (tickChanged) depthHistory = [];
+    persist({
+      ofTick,
+      ofHeat,
+      ofBubbleMinUsd,
+      ofLayers,
+    });
+  }
   let venueLive = $derived(!!(status?.venues || []).find((v) => v.id === selectedVenue)?.live);
   let crossBps = $derived(discrepancy?.bps ?? null);
 </script>
@@ -1031,18 +1061,20 @@
               venue={selectedVenue}
               symbol={selectedSymbol}
               {lastPrice}
+              hasL2={hasFocusL2}
+              {ofTick}
+              {ofHeat}
+              {ofBubbleMinUsd}
+              {ofLayers}
+              onSettings={patchOfSettings}
             />
           </div>
-          <div class="of-stats-side">
-            <OrderFlowPanel
+          <div class="of-dom-side">
+            <DomLadder
               {book}
-              {tape}
               depth={bookDepth}
+              tickOpt={ofTick}
               {lastPrice}
-              windowSec={sessionSec}
-              largeUsd={largeTradeUsd}
-              {imbalanceHistory}
-              onLargeUsd={(n) => { largeTradeUsd = n; persist({ largeTradeUsd: n }); }}
               onDepth={setBookDepth}
             />
           </div>
@@ -1120,6 +1152,7 @@
             windowSec={sessionSec}
             largeUsd={largeTradeUsd}
             {imbalanceHistory}
+            tickOpt={ofTick}
             onLargeUsd={(n) => { largeTradeUsd = n; persist({ largeTradeUsd: n }); }}
             onDepth={setBookDepth}
           />
@@ -1177,15 +1210,15 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
     border-top: 1px solid var(--border);
   }
-  .of-heat-main, .of-stats-side {
+  .of-heat-main, .of-dom-side {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
   }
-  .of-stats-side {
+  .of-dom-side {
     border-left: 1px solid var(--border);
   }
 
@@ -1258,8 +1291,8 @@
     .markets-pane, .trades-pane { flex: 1; }
     .analytics-dock.open { max-height: 45vh; }
     .dock-hint { display: none; }
-    .of-chart-stack { grid-template-columns: 1fr; grid-template-rows: 1fr minmax(180px, 40%); }
-    .of-stats-side { border-left: none; border-top: 1px solid var(--border); }
+    .of-chart-stack { grid-template-columns: 1fr; grid-template-rows: 1fr minmax(180px, 38%); }
+    .of-dom-side { border-left: none; border-top: 1px solid var(--border); }
   }
 
   @media (max-width: 720px) {
