@@ -99,7 +99,7 @@ fn coinm_agg_trade_quote_and_mark_bundle() {
             _ => None,
         })
         .expect("subscribe");
-    assert!(sub.contains("btcusd_perp@aggTrade"), "subscribe={sub}");
+    assert!(sub.contains("btcusd_perp@trade"), "subscribe={sub}");
     assert!(sub.contains("btcusd_perp@bookTicker"), "subscribe={sub}");
     assert!(sub.contains("btcusd_perp@markPrice@1s"), "subscribe={sub}");
     assert!(

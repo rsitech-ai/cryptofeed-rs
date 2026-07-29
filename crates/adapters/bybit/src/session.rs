@@ -711,11 +711,16 @@ impl SessionMachine for BybitSession {
                         args.push(format!("kline.{}.{s}", kline_topic_interval(*interval)));
                     }
                 }
-                let body = serde_json::json!({
-                    "op": "subscribe",
-                    "args": args
-                });
-                output.push(SessionAction::SendText(Bytes::from(body.to_string())));
+                // Bybit spot rejects subscribe when args.len() > 10 (`args size >10`).
+                // Linear/inverse are safer when chunked the same way.
+                const MAX_ARGS_PER_SUBSCRIBE: usize = 10;
+                for chunk in args.chunks(MAX_ARGS_PER_SUBSCRIBE.max(1)) {
+                    let body = serde_json::json!({
+                        "op": "subscribe",
+                        "args": chunk
+                    });
+                    output.push(SessionAction::SendText(Bytes::from(body.to_string())));
+                }
                 // ScheduleTimer(PING_TIMER_ID) is emitted here on every connect — see
                 // tests/fixtures.rs::trade_and_quote_fixtures for the offline assertion.
                 self.schedule_ping(now, output);

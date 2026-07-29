@@ -114,6 +114,17 @@ struct AggTradeMsg {
 }
 
 #[derive(Debug, Deserialize)]
+struct TradeMsg {
+    s: String,
+    t: u64,
+    p: String,
+    q: String,
+    #[serde(rename = "T")]
+    trade_time: i64,
+    m: bool,
+}
+
+#[derive(Debug, Deserialize)]
 struct BookTickerMsg {
     u: u64,
     s: String,
@@ -262,6 +273,7 @@ fn decode_value(v: &Value) -> Result<CoinmDecoded, String> {
         }
         match obj.get("e").and_then(|x| x.as_str()) {
             Some("aggTrade") => return decode_agg_trade(v),
+            Some("trade") => return decode_trade(v),
             Some("kline") => return decode_kline(v),
             Some("24hrTicker") => return decode_24hr_ticker(v),
             Some("bookTicker") => return decode_book_ticker(v),
@@ -318,6 +330,23 @@ fn decode_agg_trade(v: &Value) -> Result<CoinmDecoded, String> {
     Ok(CoinmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.a,
+        price: Price(parse_fixed(&m.p)?),
+        quantity: Quantity(parse_fixed(&m.q)?),
+        aggressor,
+        exchange_ts_ms: m.trade_time,
+    })
+}
+
+fn decode_trade(v: &Value) -> Result<CoinmDecoded, String> {
+    let m: TradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+    let aggressor = if m.m {
+        AggressorSide::Sell
+    } else {
+        AggressorSide::Buy
+    };
+    Ok(CoinmDecoded::AggTrade {
+        symbol: m.s,
+        agg_id: m.t,
         price: Price(parse_fixed(&m.p)?),
         quantity: Quantity(parse_fixed(&m.q)?),
         aggressor,
