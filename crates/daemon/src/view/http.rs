@@ -152,14 +152,25 @@ fn tape(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(50)
         .clamp(1, 500);
+    let kind = params.get("kind").filter(|k| {
+        matches!(
+            *k,
+            "trade" | "trades" | "quote" | "quotes" | "all" | "mixed"
+        )
+    });
+    let kind = match kind {
+        Some("all") | Some("mixed") => None,
+        other => other,
+    };
     let instrument = match resolve_instrument(view, venue, &params) {
         Ok(id) => id,
         Err(msg) => return bad_request(msg),
     };
-    let entries = view.tape(venue, instrument, limit);
+    let entries = view.tape_filtered(venue, instrument, limit, kind);
     json_ok(&serde_json::json!({
         "venue": venue,
         "instrument": instrument.0,
+        "kind": kind.unwrap_or("all"),
         "entries": entries,
     }))
 }

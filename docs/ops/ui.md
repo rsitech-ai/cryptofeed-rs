@@ -61,7 +61,9 @@ cd ui && npm run dev
 - `GET /v1/status` — process + per-venue health/metrics snapshot
 - `GET /v1/instruments` — configured venue/symbol map
 - `GET /v1/books?venue=<id>&symbol=<sym>&depth=25` (or `instrument=<u32>`)
-- `GET /v1/tape?venue=<id>&symbol=<sym>&limit=50`
+- `GET /v1/tape?venue=<id>&symbol=<sym>&limit=50&kind=trade|quote|all`
+  - Trades and quotes use **separate rings** per instrument so quote floods cannot evict trades.
+  - `kind=trade` / `kind=quote` filter; omit or `all` merges newest-first.
 
 ### Books correctness
 
@@ -75,8 +77,18 @@ Offline synthetic (`config.offline.toml`) continuously injects book snaps,
 trades, and quotes so `/v1/books` and `/v1/tape` stay populated without exchange
 I/O.
 
-Tape rings are bounded (`ui_tape_capacity`, drop-oldest) and rate-capped
-(`ui_tape_max_per_sec`, drop-newest). Poll books at ≤10–20 Hz from the SPA.
+Per-instrument trade/quote rings are each bounded (`ui_tape_capacity`, drop-oldest)
+and rate-capped (`ui_tape_max_per_sec`, drop-newest). Poll books at ≤10–20 Hz from the SPA.
+
+## Live smoke
+
+With a live daemon on the view bind:
+
+```bash
+BASE=http://127.0.0.1:19109 ./scripts/live_ui_smoke.sh
+```
+
+See also `docs/ops/live_ui_audit.md` and `docs/ops/live_ui_coverage.md`.
 
 ## Prometheus / Grafana
 
