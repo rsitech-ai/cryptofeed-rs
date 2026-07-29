@@ -4,11 +4,19 @@
   import { createPaintGate, ema } from '../lib/paint.js';
   import {
     buildHeatmapGrid,
+    cobColumn,
     computeCvd,
+    computePriceWindow,
+    flowMarkers,
+    footprintClusters,
     heatIntensity,
     heatmapColor,
+    nearestWalls,
+    ohlcBucketsFromTape,
     parseOfLayers,
+    priceAxisPadPx,
     resolveTick,
+    restingAtPrice,
     serializeOfLayers,
     tradeBubbles,
     volumeAtPrice,
@@ -25,8 +33,9 @@
     hasL2 = true,
     ofTick = 'auto',
     ofHeat = 1,
-    ofBubbleMinUsd = 500,
-    ofLayers = 'heat,bubbles,mid,vap,cvd,vol',
+    ofBubbleMinUsd = 50,
+    ofLayers = 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
+    largeTradeUsd = 15000,
     onSettings = () => {},
   } = $props();
 
@@ -49,8 +58,12 @@
   const LAYER_KEYS = [
     { k: 'heat', label: 'Heat' },
     { k: 'bubbles', label: 'Bubbles' },
-    { k: 'mid', label: 'Mid/BBO' },
-    { k: 'vap', label: 'VAP' },
+    { k: 'mid', label: 'Bid/Ask' },
+    { k: 'candles', label: 'Candles' },
+    { k: 'footprint', label: 'Footprint' },
+    { k: 'markers', label: 'Large/Sweep' },
+    { k: 'cob', label: 'COB' },
+    { k: 'vap', label: 'Profile' },
     { k: 'cvd', label: 'CVD' },
     { k: 'vol', label: 'Volume' },
   ];
@@ -75,13 +88,23 @@
   let tick = $derived(resolveTick(ofTick, latestBookFromHistory(depthHistory)));
 
   let bubbles = $derived(
-    tradeBubbles(tape, { windowSec, tick, bucketMs: 400, maxBubbles: 220 }).filter(
+    tradeBubbles(tape, { windowSec, tick, bucketMs: 350, maxBubbles: 280 }).filter(
       (b) => b.totalUsd >= ofBubbleMinUsd,
     ),
   );
   let volBars = $derived(volumeBarsFromTape(tape, { windowSec, bucketSec: 1 }));
   let cvdData = $derived(computeCvd(tape, { windowSec }));
-  let vapRows = $derived(volumeAtPrice(tape, { windowSec, tickSize: tick, maxBuckets: 36 }));
+  let vapRows = $derived(volumeAtPrice(tape, { windowSec, tickSize: tick, maxBuckets: 48 }));
+  let candles = $derived(ohlcBucketsFromTape(tape, { windowSec, bucketSec: 5, maxBars: 60 }));
+  let clusters = $derived(
+    footprintClusters(tape, { windowSec, tick, bucketSec: 15, maxCells: 360 }),
+  );
+  let markers = $derived(
+    flowMarkers(tape, latestBookFromHistory(depthHistory), {
+      windowSec,
+      largeUsd: largeTradeUsd,
+    }),
+  );
 
   /** Stable y-scale (EMA) so walls don't jump every sample. */
   let scaleLo = null;
@@ -213,8 +236,8 @@
       octx.fillStyle = 'rgba(240,185,11,0.06)';
       octx.fill();
 
-      // Best bid / ask hairlines
-      octx.lineWidth = 0.8 * dpr;
+      // Bookmap-style bid (green) / ask (magenta) lines
+      octx.lineWidth = 1.35 * dpr;
       for (const side of ['bid', 'ask']) {
         octx.beginPath();
         let started = false;
@@ -229,16 +252,16 @@
             started = true;
           } else octx.lineTo(x, y);
         }
-        octx.strokeStyle = side === 'bid' ? 'rgba(2,192,118,0.35)' : 'rgba(246,70,93,0.35)';
+        octx.strokeStyle = side === 'bid' ? 'rgba(2,192,118,0.95)' : 'rgba(200,80,220,0.95)';
         octx.stroke();
       }
     }
 
-    // Mid line
+    // Soft last/mid guide
     if (layers.mid && grid.midPath.length > 1) {
       octx.beginPath();
-      octx.strokeStyle = 'rgba(240,185,11,0.85)';
-      octx.lineWidth = 1.2 * dpr;
+      octx.strokeStyle = 'rgba(255,255,255,0.35)';
+      octx.lineWidth = 0.9 * dpr;
       for (let i = 0; i < grid.midPath.length; i++) {
         const p = grid.midPath[i];
         const x = timeX(p.t, tMin, spanT, padL, heatW);
@@ -252,31 +275,31 @@
 
   function paintBubbles(octx, layout, dpr) {
     const { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax } = layout;
-    const spanP = priceMax - priceMin || 1;
     const spanT = Math.max(1, tMax - tMin);
-    const maxBubbleUsd = Math.max(1, ...bubbles.map((b) => b.totalUsd), 1);
+    const maxBubbleUsd = Math.max(1, ...bubbles.map((b) => b.totalUsd), ofBubbleMinUsd || 1);
 
     for (const b of bubbles) {
       if (b.t < tMin || b.t > tMax) continue;
       if (b.price < priceMin || b.price > priceMax) continue;
       const x = timeX(b.t, tMin, spanT, padL, heatW);
       const y = priceY(b.price, priceMin, priceMax, padT, heatH);
+      // Log-ish sizing so mid-size prints stay visible next to whales.
       const r = Math.max(
-        3 * dpr,
-        Math.min(22 * dpr, Math.sqrt(b.totalUsd / maxBubbleUsd) * 20 * dpr),
+        3.5 * dpr,
+        Math.min(26 * dpr, (Math.log1p(b.totalUsd) / Math.log1p(maxBubbleUsd)) * 22 * dpr),
       );
       const buyFrac = b.totalUsd > 0 ? b.buyUsd / b.totalUsd : 0.5;
 
       octx.beginPath();
       octx.arc(x, y, r, Math.PI, 0, false);
       octx.closePath();
-      octx.fillStyle = `rgba(246,70,93,${0.35 + (1 - buyFrac) * 0.45})`;
+      octx.fillStyle = `rgba(246,70,93,${0.4 + (1 - buyFrac) * 0.45})`;
       octx.fill();
 
       octx.beginPath();
       octx.arc(x, y, r, 0, Math.PI, false);
       octx.closePath();
-      octx.fillStyle = `rgba(2,192,118,${0.35 + buyFrac * 0.45})`;
+      octx.fillStyle = `rgba(2,192,118,${0.4 + buyFrac * 0.45})`;
       octx.fill();
 
       octx.beginPath();
@@ -288,15 +311,162 @@
 
       octx.beginPath();
       octx.arc(x, y, r, 0, Math.PI * 2);
-      octx.strokeStyle = 'rgba(255,255,255,0.25)';
+      octx.strokeStyle = 'rgba(255,255,255,0.28)';
       octx.lineWidth = 1;
       octx.stroke();
     }
   }
 
+  function paintCandles(octx, layout, dpr) {
+    const { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax } = layout;
+    if (!candles.length) return;
+    const spanT = Math.max(1, tMax - tMin);
+    const bucketMs = Math.max(1000, (candles[1]?.sec - candles[0]?.sec || 5) * 1000);
+    const barW = Math.max(3 * dpr, Math.min(14 * dpr, (bucketMs / spanT) * heatW * 0.55));
+
+    for (const c of candles) {
+      const tMs = c.sec * 1000;
+      if (tMs < tMin || tMs > tMax) continue;
+      if (c.h < priceMin || c.l > priceMax) continue;
+      const x = timeX(tMs + bucketMs / 2, tMin, spanT, padL, heatW);
+      const yO = priceY(c.o, priceMin, priceMax, padT, heatH);
+      const yC = priceY(c.c, priceMin, priceMax, padT, heatH);
+      const yH = priceY(c.h, priceMin, priceMax, padT, heatH);
+      const yL = priceY(c.l, priceMin, priceMax, padT, heatH);
+      const up = c.c >= c.o;
+      const col = up ? 'rgba(2,192,118,0.55)' : 'rgba(246,70,93,0.55)';
+      octx.strokeStyle = col;
+      octx.lineWidth = 1 * dpr;
+      octx.beginPath();
+      octx.moveTo(x, yH);
+      octx.lineTo(x, yL);
+      octx.stroke();
+      const top = Math.min(yO, yC);
+      const bodyH = Math.max(1.5 * dpr, Math.abs(yC - yO));
+      octx.fillStyle = col;
+      octx.fillRect(x - barW / 2, top, barW, bodyH);
+    }
+  }
+
+  function paintFootprint(octx, layout, dpr) {
+    const { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax } = layout;
+    if (!clusters.length) return;
+    const spanT = Math.max(1, tMax - tMin);
+    const maxCell = Math.max(1, ...clusters.map((c) => c.totalUsd));
+    const bucketMs = 15000;
+    const cellW = Math.max(10 * dpr, Math.min(36 * dpr, (bucketMs / spanT) * heatW * 0.7));
+
+    for (const c of clusters) {
+      if (c.t < tMin || c.t > tMax) continue;
+      if (c.price < priceMin || c.price > priceMax) continue;
+      const x = timeX(c.t + bucketMs / 2, tMin, spanT, padL, heatW);
+      const y = priceY(c.price, priceMin, priceMax, padT, heatH);
+      const w = (c.totalUsd / maxCell) * cellW;
+      const h = Math.max(2 * dpr, 3.5 * dpr);
+      const bidW = c.totalUsd > 0 ? (c.bidUsd / c.totalUsd) * w : w / 2;
+      const askW = w - bidW;
+      octx.fillStyle = 'rgba(2,192,118,0.45)';
+      octx.fillRect(x - w / 2, y - h / 2, bidW, h);
+      octx.fillStyle = 'rgba(246,70,93,0.45)';
+      octx.fillRect(x - w / 2 + bidW, y - h / 2, askW, h);
+      if (Math.abs(c.delta) / c.totalUsd > 0.55 && c.totalUsd > maxCell * 0.2) {
+        octx.strokeStyle = 'rgba(255,255,255,0.35)';
+        octx.strokeRect(x - w / 2, y - h / 2, w, h);
+      }
+    }
+  }
+
+  function paintMarkers(octx, layout, dpr) {
+    const { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax } = layout;
+    if (!markers.length) return;
+    const spanT = Math.max(1, tMax - tMin);
+    for (const m of markers) {
+      if (m.price == null || m.ts == null) continue;
+      const tMs = m.ts * 1000;
+      if (tMs < tMin || tMs > tMax) continue;
+      if (m.price < priceMin || m.price > priceMax) continue;
+      const x = timeX(tMs, tMin, spanT, padL, heatW);
+      const y = priceY(m.price, priceMin, priceMax, padT, heatH);
+      const r = Math.max(5 * dpr, Math.min(14 * dpr, Math.log1p(m.usd) * 0.9 * dpr));
+      const col =
+        m.side === 'buy' ? 'rgba(2,192,118,0.9)' : m.side === 'sell' ? 'rgba(246,70,93,0.9)' : 'rgba(240,185,11,0.9)';
+      octx.fillStyle = col;
+      octx.strokeStyle = 'rgba(255,255,255,0.55)';
+      octx.lineWidth = 1 * dpr;
+      octx.beginPath();
+      if (m.marker === 'triangle') {
+        octx.moveTo(x, y - r);
+        octx.lineTo(x + r, y + r);
+        octx.lineTo(x - r, y + r);
+        octx.closePath();
+      } else if (m.marker === 'square') {
+        octx.rect(x - r * 0.75, y - r * 0.75, r * 1.5, r * 1.5);
+      } else {
+        // diamond — large print / liq-style (honest: not exchange liquidation)
+        octx.moveTo(x, y - r);
+        octx.lineTo(x + r, y);
+        octx.lineTo(x, y + r);
+        octx.lineTo(x - r, y);
+        octx.closePath();
+      }
+      octx.fill();
+      octx.stroke();
+    }
+  }
+
+  function paintCobColumn(octx, layout, dpr) {
+    const { cobX, cobW, padT, heatH, priceMin, priceMax } = layout;
+    if (!(cobW > 0)) return;
+    const sample = depthHistory.at(-1);
+    const cob = cobColumn(sample, { priceMin, priceMax, maxRows: 72 });
+
+    octx.fillStyle = '#090d12';
+    octx.fillRect(cobX, padT, cobW, heatH);
+    octx.strokeStyle = 'rgba(255,255,255,0.07)';
+    octx.strokeRect(cobX + 0.5, padT + 0.5, cobW - 1, heatH - 1);
+
+    octx.font = `${9 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
+    octx.textAlign = 'center';
+    octx.textBaseline = 'middle';
+    octx.fillStyle = '#5e6673';
+    octx.fillText('COB', cobX + cobW / 2, padT + 8 * dpr);
+
+    const barMax = (cobW - 10 * dpr) * 0.9;
+    const rowH = Math.max(2 * dpr, heatH / Math.max(cob.rows.length, 12));
+    for (const row of cob.rows) {
+      const y = priceY(row.price, priceMin, priceMax, padT, heatH);
+      if (y < padT + 12 * dpr || y > padT + heatH - 4 * dpr) continue;
+      const isAsk = row.askUsd >= row.bidUsd && row.askUsd > 0;
+      const usd = Math.max(row.bidUsd, row.askUsd);
+      const w = (usd / cob.maxUsd) * barMax;
+      // Wall highlight
+      const wall = usd >= cob.maxUsd * 0.55;
+      octx.fillStyle = isAsk
+        ? wall
+          ? 'rgba(246,70,93,0.55)'
+          : 'rgba(246,70,93,0.28)'
+        : wall
+          ? 'rgba(2,192,118,0.55)'
+          : 'rgba(2,192,118,0.28)';
+      octx.fillRect(cobX + 4 * dpr, y - rowH * 0.4, w, rowH * 0.8);
+      octx.fillStyle = '#c9cdD3';
+      octx.textAlign = 'right';
+      octx.font = `${8 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
+      const label = usd >= 1000 ? `${(usd / 1000).toFixed(1)}k` : usd.toFixed(0);
+      octx.fillText(label, cobX + cobW - 4 * dpr, y);
+    }
+
+    // Current price marker
+    if (lastPrice != null && lastPrice >= priceMin && lastPrice <= priceMax) {
+      const y = priceY(lastPrice, priceMin, priceMax, padT, heatH);
+      octx.fillStyle = 'rgba(240,185,11,0.9)';
+      octx.fillRect(cobX + 1, y - 1 * dpr, cobW - 2, 2 * dpr);
+    }
+  }
+
   function paintVapSidebar(octx, layout, dpr) {
-    const { padL, heatW, padT, heatH, vapX, vapW, priceMin, priceMax } = layout;
-    if (vapW <= 0 || !vapRows.length) return;
+    const { padT, heatH, vapX, vapW, priceMin, priceMax } = layout;
+    if (vapW <= 0) return;
 
     octx.fillStyle = '#0a0e14';
     octx.fillRect(vapX, padT, vapW, heatH);
@@ -304,33 +474,54 @@
     octx.lineWidth = 1;
     octx.strokeRect(vapX + 0.5, padT + 0.5, vapW - 1, heatH - 1);
 
-    const maxUsd = Math.max(1, ...vapRows.map((r) => Math.max(r.buyUsd, r.sellUsd)));
-    const barMaxW = (vapW - 8 * dpr) * 0.42;
     const midX = vapX + vapW / 2;
-
     octx.font = `${9 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
     octx.textAlign = 'center';
     octx.textBaseline = 'middle';
     octx.fillStyle = '#5e6673';
-    octx.fillText('VAP', midX, padT + 8 * dpr);
+    octx.fillText('VP', midX, padT + 8 * dpr);
 
-    for (const row of vapRows) {
-      if (row.price < priceMin || row.price > priceMax) continue;
+    const inWin = vapRows.filter((r) => r.price >= priceMin && r.price <= priceMax);
+    // Fallback: book depth profile when tape VAP empty in window.
+    const sample = depthHistory.at(-1);
+    const bookProfile = [];
+    if (!inWin.length && sample) {
+      for (const [px, usd] of sample.bids?.entries?.() || []) {
+        if (px >= priceMin && px <= priceMax) bookProfile.push({ price: px, buyUsd: usd, sellUsd: 0 });
+      }
+      for (const [px, usd] of sample.asks?.entries?.() || []) {
+        if (px >= priceMin && px <= priceMax) bookProfile.push({ price: px, buyUsd: 0, sellUsd: usd });
+      }
+    }
+    const rows = inWin.length ? inWin : bookProfile;
+    if (!rows.length) {
+      octx.fillStyle = '#474d57';
+      octx.font = `${8 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
+      octx.fillText('—', midX, padT + heatH / 2);
+      return;
+    }
+
+    const maxUsd = Math.max(
+      1,
+      ...rows.map((r) => Math.max(r.buyUsd || 0, r.sellUsd || 0, (r.buyUsd || 0) + (r.sellUsd || 0))),
+    );
+    const barMaxW = (vapW - 8 * dpr) * 0.45;
+    const h = Math.max(2 * dpr, Math.min(5 * dpr, heatH / Math.max(rows.length, 8)));
+
+    for (const row of rows) {
       const y = priceY(row.price, priceMin, priceMax, padT, heatH);
       if (y < padT + 12 * dpr || y > padT + heatH - 2 * dpr) continue;
-
-      const buyW = (row.buyUsd / maxUsd) * barMaxW;
-      const sellW = (row.sellUsd / maxUsd) * barMaxW;
-
-      octx.fillStyle = 'rgba(2,192,118,0.55)';
-      octx.fillRect(midX + 1, y - 2 * dpr, buyW, 4 * dpr);
-      octx.fillStyle = 'rgba(246,70,93,0.55)';
-      octx.fillRect(midX - 1 - sellW, y - 2 * dpr, sellW, 4 * dpr);
+      const buyW = ((row.buyUsd || 0) / maxUsd) * barMaxW;
+      const sellW = ((row.sellUsd || 0) / maxUsd) * barMaxW;
+      octx.fillStyle = 'rgba(2,192,118,0.6)';
+      octx.fillRect(midX + 1, y - h / 2, buyW, h);
+      octx.fillStyle = 'rgba(246,70,93,0.6)';
+      octx.fillRect(midX - 1 - sellW, y - h / 2, sellW, h);
     }
 
     octx.font = `${8 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
     octx.fillStyle = '#474d57';
-    octx.fillText('tape', midX, padT + heatH - 6 * dpr);
+    octx.fillText(inWin.length ? 'tape' : 'book', midX, padT + heatH - 6 * dpr);
   }
 
   function paintVolSubplot(octx, layout, dpr) {
@@ -489,17 +680,27 @@
     const showVap = layers.vap;
     const showCvd = layers.cvd;
     const showVol = layers.vol;
+    const showCob = layers.cob;
 
-    const padL = 58 * dpr;
-    const vapW = showVap ? 72 * dpr : 0;
-    const padR = 10 * dpr + vapW;
+    const focusHint =
+      lastPrice != null && Number.isFinite(lastPrice)
+        ? lastPrice
+        : depthHistory.at(-1)?.mid != null
+          ? depthHistory.at(-1).mid
+          : 1000;
+    // Wide enough for "64,287.99" — fixed 58px clipped the leading 6 → fake 4k axis.
+    const padL = Math.max(72 * dpr, priceAxisPadPx(focusHint, dpr));
+    const cobW = showCob ? 58 * dpr : 0;
+    const vapW = showVap ? 64 * dpr : 0;
+    const padR = 8 * dpr + cobW + vapW;
     const padT = 8 * dpr;
     const cvdH = showCvd ? Math.max(28 * dpr, h * 0.08) : 0;
     const volH = showVol ? Math.max(36 * dpr, h * 0.12) : 0;
     const padB = 4 * dpr + (cvdH > 0 ? cvdH + 4 * dpr : 0);
     const heatH = h - padT - volH - padB;
     const heatW = w - padL - padR;
-    const vapX = padL + heatW + 4 * dpr;
+    const cobX = padL + heatW + 3 * dpr;
+    const vapX = cobX + cobW + (cobW > 0 ? 2 * dpr : 0);
     const volTop = padT + heatH + 6 * dpr;
     const cvdTop = showVol ? volTop + volH + 4 * dpr : volTop + 4 * dpr;
 
@@ -510,40 +711,43 @@
     octx.fillStyle = '#0c1016';
     octx.fillRect(0, 0, w, h);
 
-    const rows = Math.min(120, Math.max(40, Math.floor(heatH / (2 * dpr))));
+    const rows = Math.min(140, Math.max(48, Math.floor(heatH / (1.5 * dpr))));
     const cols = Math.min(depthHistory.length, Math.max(32, Math.floor(heatW / (2 * dpr))));
 
-    let targetLo = lastPrice != null ? lastPrice * 0.9975 : null;
-    let targetHi = lastPrice != null ? lastPrice * 1.0025 : null;
-    const latest = depthHistory.at(-1);
-    if (latest?.mid != null && Number.isFinite(latest.mid)) {
-      const pad = latest.mid * 0.0025;
-      targetLo = latest.mid - pad;
-      targetHi = latest.mid + pad;
-    }
+    const win = computePriceWindow(depthHistory, {
+      focusPrice: lastPrice,
+      tick,
+      lookback: Math.min(cols, depthHistory.length) || 64,
+      minTicks: 56,
+      padFrac: 0.25,
+      minBps: 0.6,
+      maxBps: 10,
+    });
 
-    let priceMin = lastPrice != null ? lastPrice * 0.998 : 0;
-    let priceMax = lastPrice != null ? lastPrice * 1.002 : 1;
+    let targetLo = win?.priceMin ?? (lastPrice != null ? lastPrice * 0.999 : null);
+    let targetHi = win?.priceMax ?? (lastPrice != null ? lastPrice * 1.001 : null);
+
+    let priceMin = lastPrice != null ? lastPrice * 0.9995 : 0;
+    let priceMax = lastPrice != null ? lastPrice * 1.0005 : 1;
     let tMin = Date.now() - windowSec * 1000;
     let tMax = Date.now();
 
     if (targetLo != null && targetHi != null) {
-      scaleLo = ema(scaleLo, targetLo, 0.07);
-      scaleHi = ema(scaleHi, targetHi, 0.07);
-      let wallLo = Infinity;
-      let wallHi = -Infinity;
-      for (const s of depthHistory.slice(-Math.min(cols, depthHistory.length))) {
-        for (const px of s.bids?.keys?.() || []) {
-          if (px < wallLo) wallLo = px;
-          if (px > wallHi) wallHi = px;
-        }
-        for (const px of s.asks?.keys?.() || []) {
-          if (px < wallLo) wallLo = px;
-          if (px > wallHi) wallHi = px;
+      // Hard-reset EMA if scale drifted to a wrong regime (e.g. leftover / jump).
+      if (scaleLo != null && scaleHi != null && lastPrice != null && Number.isFinite(lastPrice)) {
+        const midScale = (scaleLo + scaleHi) / 2;
+        if (midScale > 0 && Math.abs(lastPrice - midScale) / lastPrice > 0.02) {
+          scaleLo = null;
+          scaleHi = null;
         }
       }
-      if (Number.isFinite(wallLo) && wallLo < scaleLo) scaleLo = ema(scaleLo, wallLo, 0.2);
-      if (Number.isFinite(wallHi) && wallHi > scaleHi) scaleHi = ema(scaleHi, wallHi, 0.2);
+      scaleLo = ema(scaleLo, targetLo, 0.18);
+      scaleHi = ema(scaleHi, targetHi, 0.18);
+      // Never let EMA lag leave the focus price outside the visible domain.
+      if (lastPrice != null && Number.isFinite(lastPrice)) {
+        if (lastPrice < scaleLo) scaleLo = lastPrice - (scaleHi - scaleLo) * 0.05;
+        if (lastPrice > scaleHi) scaleHi = lastPrice + (scaleHi - scaleLo) * 0.05;
+      }
     }
 
     const grid = buildHeatmapGrid(depthHistory, {
@@ -566,6 +770,8 @@
         padT,
         heatW,
         heatH,
+        cobX,
+        cobW,
         vapX,
         vapW,
         volTop,
@@ -580,14 +786,35 @@
       };
 
       if (layers.heat) paintHeatLayer(octx, grid, layout, dpr);
-      else if (layers.mid) paintHeatLayer(octx, { ...grid, grid: new Float32Array(0) }, layout, dpr);
+      else if (layers.mid || layers.candles) {
+        paintHeatLayer(octx, { ...grid, grid: new Float32Array(0) }, layout, dpr);
+      }
 
+      if (layers.candles) paintCandles(octx, layout, dpr);
+      if (layers.footprint) paintFootprint(octx, layout, dpr);
       if (layers.bubbles) paintBubbles(octx, layout, dpr);
+      if (layers.markers) paintMarkers(octx, layout, dpr);
+      if (layers.cob) paintCobColumn(octx, layout, dpr);
       if (layers.vap) paintVapSidebar(octx, layout, dpr);
       if (layers.vol) paintVolSubplot(octx, layout, dpr);
       if (layers.cvd) paintCvdStrip(octx, layout, dpr);
 
       paintPriceLabels(octx, layout, dpr);
+
+      // Last price tag on right of heat (Bookmap-style)
+      if (lastPrice != null && lastPrice >= priceMin && lastPrice <= priceMax) {
+        const y = priceY(lastPrice, priceMin, priceMax, padT, heatH);
+        octx.fillStyle = 'rgba(240,185,11,0.92)';
+        octx.fillRect(padL + heatW - 2 * dpr, y - 1 * dpr, 2 * dpr, 2 * dpr);
+        octx.beginPath();
+        octx.moveTo(padL, y);
+        octx.lineTo(padL + heatW, y);
+        octx.strokeStyle = 'rgba(240,185,11,0.2)';
+        octx.setLineDash([4 * dpr, 4 * dpr]);
+        octx.lineWidth = 1;
+        octx.stroke();
+        octx.setLineDash([]);
+      }
     }
 
     octx.textAlign = 'left';
@@ -595,7 +822,7 @@
     octx.fillStyle = '#5e6673';
     octx.font = `${10 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
     octx.fillText(
-      `L2+tape reconstruction · ${venue || '?'} ${symbol || ''} · not MBO · ${windowLabel(windowSec)}`,
+      `L2+tape reconstruction · ${venue || '?'} ${symbol || ''} · not MBO · markers≠liquidations · ${windowLabel(windowSec)}`,
       padL,
       h - 12 * dpr,
     );
@@ -607,6 +834,8 @@
       padT,
       heatW,
       heatH,
+      cobX,
+      cobW,
       vapX,
       vapW,
       priceMin,
@@ -661,9 +890,12 @@
         nearest = s;
       }
     }
-    const qpx = Math.round(price / (nearest?.tick || L.tick || tick || 0.1)) * (nearest?.tick || L.tick || tick || 0.1);
-    const bidSz = nearest?.bids?.get?.(qpx) ?? 0;
-    const askSz = nearest?.asks?.get?.(qpx) ?? 0;
+    const qTick = nearest?.tick || L.tick || tick || 0.1;
+    const resting = restingAtPrice(nearest, price, qTick);
+    const walls = nearestWalls(nearest, price);
+    const qpx = resting.price ?? walls.bidPrice ?? walls.askPrice ?? price;
+    const bidSz = resting.bidUsd > 0 ? resting.bidUsd : walls.bidUsd;
+    const askSz = resting.askUsd > 0 ? resting.askUsd : walls.askUsd;
 
     let bub = null;
     let best = Infinity;
@@ -679,12 +911,29 @@
 
     const lines = [
       `${fmtPrice(price, 2)} · ${new Date(t).toISOString().slice(11, 19)}Z`,
-      `Resting bid ${fmtUsd(bidSz)} · ask ${fmtUsd(askSz)} @ ~${fmtPrice(qpx, 2)}`,
+      `Resting bid ${fmtUsd(bidSz)}${
+        walls.bidPrice != null ? ` @ ${fmtPrice(walls.bidPrice, 2)}` : ''
+      } · ask ${fmtUsd(askSz)}${walls.askPrice != null ? ` @ ${fmtPrice(walls.askPrice, 2)}` : ''}`,
     ];
-    if (bub && best < 0.004) {
+    if (bub && best < 0.006) {
       lines.push(
         `Print Δ ${fmtUsd(bub.delta)} · buy ${fmtUsd(bub.buyUsd)} / sell ${fmtUsd(bub.sellUsd)}`,
       );
+    }
+    let markHit = null;
+    let markBest = Infinity;
+    for (const m of markers) {
+      if (m.price == null || m.ts == null) continue;
+      const dx = (m.ts * 1000 - t) / spanT;
+      const dy = (m.price - price) / spanP;
+      const d = dx * dx + dy * dy;
+      if (d < markBest) {
+        markBest = d;
+        markHit = m;
+      }
+    }
+    if (markHit && markBest < 0.01) {
+      lines.push(`${markHit.label} · ${markHit.note}`);
     }
     const vapHit = nearestVapRow(price);
     if (vapHit) {
@@ -817,6 +1066,9 @@
     {#if lastPrice != null}
       <span class="last">{fmtPrice(lastPrice, 2)}</span>
     {/if}
+    <span class="honesty" title="Reconstructed from L2 books + aggressor tape — not MBO / not exchange liquidations">
+      L2+tape · not MBO
+    </span>
   </div>
 
   <div class="canvas-wrap" bind:this={wrap}>
@@ -973,6 +1225,17 @@
     font-size: 0.82rem;
     font-weight: 600;
     color: var(--text, #eaecef);
+  }
+
+  .honesty {
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0.05rem 0.28rem;
+    background: var(--panel-2, #12161c);
+    white-space: nowrap;
   }
 
   .canvas-wrap {

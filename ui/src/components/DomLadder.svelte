@@ -38,7 +38,7 @@
     <span class="meta" title="L2 snapshot ladder — not MBO queue">bid · price · ask</span>
     {#if onDepth}
       <div class="depth-btns">
-        {#each [8, 16, 24, 32] as d}
+        {#each [8, 16, 24, 32, 48] as d}
           <button type="button" class:active={depth === d} onclick={() => onDepth(d)}>{d}</button>
         {/each}
       </div>

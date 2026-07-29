@@ -419,7 +419,8 @@ async fn handle_sse_stream(
             "status": status,
         });
         if let Some(f) = &focus {
-            payload["focus"] = view.stream_focus(&f.venue, f.instrument, Some(5), 20);
+            // Deep L2 (not BBO-only) so Order Flow heatmap / DOM / COB have real walls.
+            payload["focus"] = view.stream_focus(&f.venue, f.instrument, Some(48), 80);
             if let Some(sym) = &f.symbol {
                 payload["focus"]["symbol"] = serde_json::json!(sym);
             }

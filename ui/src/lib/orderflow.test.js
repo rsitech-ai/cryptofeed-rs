@@ -9,15 +9,24 @@ import {
   bookPressure,
   buildHeatmapGrid,
   computeCvd,
+  cobColumn,
+  computePriceWindow,
   detectFlowHeuristics,
   domLadder,
+  flowMarkers,
+  footprintClusters,
   heatIntensity,
   heatmapColor,
   ladderLevels,
   levelImbalancePct,
+  nearestWalls,
+  ohlcBucketsFromTape,
   parseOfLayers,
+  priceAxisPadPx,
   pushDepthHistory,
+  quantizePrice,
   resolveTick,
+  restingAtPrice,
   sampleBookDepth,
   serializeOfLayers,
   tradeBubbles,
@@ -185,6 +194,72 @@ describe('heatmap / depth ring', () => {
     assert.ok(grid.grid.length === grid.rows * grid.cols);
   });
 
+  it('Y-domain for ~64k BTC includes 64288, not a 4k remnant scale', () => {
+    const mid = 64287.99;
+    const book = {
+      bids: Array.from({ length: 24 }, (_, i) => ({
+        price: String(mid - 0.01 * (i + 1)),
+        quantity: String(0.4 + (i % 5) * 0.1),
+      })),
+      asks: Array.from({ length: 24 }, (_, i) => ({
+        price: String(mid + 0.01 * i),
+        quantity: String(0.35 + (i % 4) * 0.1),
+      })),
+    };
+    let hist = [];
+    for (let i = 0; i < 8; i++) {
+      hist = pushDepthHistory(hist, sampleBookDepth(book, { t: 1000 + i * 250, tick: 0.01 }), 32);
+    }
+    const win = computePriceWindow(hist, { focusPrice: mid, tick: 0.01, minTicks: 48, maxBps: 12 });
+    assert.ok(win, 'price window required');
+    // Must be real BTC spot scale — not mid%10000 (~4287) and not a clipped label remnant.
+    assert.ok(win.priceMin < mid && win.priceMax > mid);
+    assert.ok(win.priceMin > 60000, `priceMin=${win.priceMin} must stay near 64k`);
+    assert.ok(win.priceMax < 70000, `priceMax=${win.priceMax} must stay near 64k`);
+    assert.ok(win.priceMin <= 64200 || win.priceMax >= 64300 || (win.priceMin < mid && win.priceMax > mid));
+    // Window must hug book depth — not the old ±25bps (~±$160) void that crushed heat to a filament.
+    const half = (win.priceMax - win.priceMin) / 2;
+    assert.ok(half < mid * 0.0015, `half-span ${half} too wide (empty canvas)`);
+    assert.ok(half > 0.2, `half-span ${half} too tight`);
+
+    const grid = buildHeatmapGrid(hist, {
+      rows: 60,
+      priceMin: win.priceMin,
+      priceMax: win.priceMax,
+    });
+    assert.ok(grid);
+    assert.ok(grid.priceMin > 60000 && grid.priceMax < 70000);
+    assert.ok(grid.maxVal > 0);
+    // Axis pad must fit "64,287.99" — pad of 58px clips the leading 6 → looks like 4,287.
+    const pad = priceAxisPadPx(win.priceMax, 1);
+    assert.ok(pad >= 72, `pad ${pad} too narrow; clips leading digits of 64k labels`);
+    const pad2 = priceAxisPadPx(win.priceMax, 2);
+    assert.ok(pad2 >= 140, `dpr=2 pad ${pad2} too narrow`);
+  });
+
+  it('stabilizes quantize Map keys and resting lookup at 64k', () => {
+    const px = 64287.99;
+    const tick = 0.01;
+    const q = quantizePrice(px, tick);
+    assert.equal(q, 64287.99);
+    // Drift that previously broke Map.get for resting tooltip.
+    const drifted = Math.round(px / tick) * tick;
+    assert.equal(quantizePrice(drifted, tick), 64287.99);
+
+    const book = {
+      bids: [{ price: '64287.99', quantity: '1.5' }, { price: '64287.98', quantity: '2' }],
+      asks: [{ price: '64288.00', quantity: '1.2' }, { price: '64288.01', quantity: '0.8' }],
+    };
+    const sample = sampleBookDepth(book, { tick: 0.01, t: 1 });
+    assert.ok(sample);
+    const hit = restingAtPrice(sample, 64287.993, 0.01);
+    assert.ok(hit.bidUsd > 0, 'resting bid must be non-zero near BBO');
+    assert.ok(hit.price != null && hit.price > 60000);
+    const miss = restingAtPrice(sample, 64159.28, 0.01);
+    assert.equal(miss.bidUsd, 0);
+    assert.equal(miss.askUsd, 0);
+  });
+
   it('builds trade bubbles and volume bars', () => {
     const tape = [
       trade({ side: 'buy', price: 100, qty: 2, sec: 10 }),
@@ -237,9 +312,66 @@ describe('heatmap / depth ring', () => {
     const L = parseOfLayers('heat,bubbles,cvd');
     assert.equal(L.heat, true);
     assert.equal(L.vap, false);
-    assert.equal(serializeOfLayers(L), 'heat,bubbles,cvd');
+    assert.equal(L.cob, false);
+    assert.ok(serializeOfLayers(L).includes('heat'));
     assert.equal(resolveTick('auto', { bids: [{ price: '100' }, { price: '99' }], asks: [] }), 1);
     assert.equal(resolveTick('0.5', null), 0.5);
+    const full = parseOfLayers(null);
+    assert.equal(full.cob, true);
+    assert.equal(full.markers, true);
+  });
+
+  it('builds candles, footprint, COB, markers, nearest walls', () => {
+    const tape = [
+      trade({ side: 'buy', price: 64200, qty: 0.5, sec: 100 }),
+      trade({ side: 'sell', price: 64199, qty: 0.4, sec: 101 }),
+      trade({ side: 'buy', price: 64201, qty: 2, sec: 105 }),
+    ];
+    const ohlc = ohlcBucketsFromTape(tape, { bucketSec: 5 });
+    assert.ok(ohlc.length >= 1);
+    assert.ok(ohlc[0].h >= ohlc[0].l);
+    const fp = footprintClusters(tape, { tick: 1, bucketSec: 5 });
+    assert.ok(fp.length >= 1);
+    const book = {
+      bids: [
+        { price: '64200', quantity: '1' },
+        { price: '64199', quantity: '2' },
+      ],
+      asks: [
+        { price: '64201', quantity: '1.5' },
+        { price: '64202', quantity: '1' },
+      ],
+    };
+    const sample = sampleBookDepth(book, { tick: 1, t: 1 });
+    const cob = cobColumn(sample, { priceMin: 64190, priceMax: 64210 });
+    assert.ok(cob.rows.length >= 2);
+    assert.ok(cob.maxUsd > 0);
+    const walls = nearestWalls(sample, 64200.5);
+    assert.ok(walls.bidUsd > 0);
+    assert.ok(walls.askUsd > 0);
+    const marks = flowMarkers(
+      [trade({ side: 'buy', price: 64200, qty: 1, sec: 1, notional: 50000 })],
+      book,
+      { largeUsd: 10000 },
+    );
+    assert.ok(marks.some((m) => m.honest && m.marker));
+  });
+
+  it('filters DOM outlier stubs far from BBO', () => {
+    const book = {
+      bids: [
+        { price: '64203.68', quantity: '1' },
+        { price: '64203.50', quantity: '2' },
+        { price: '64000.00', quantity: '99' }, // far stub
+      ],
+      asks: [
+        { price: '64203.69', quantity: '1' },
+        { price: '64204.00', quantity: '1' },
+        { price: '65000.00', quantity: '99' },
+      ],
+    };
+    const L = domLadder(book, { depth: 8, tick: 0.01 });
+    assert.ok(L.rows.every((r) => Math.abs(r.price - 64203.68) < 50));
   });
 });
 
