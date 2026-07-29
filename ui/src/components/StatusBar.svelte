@@ -6,6 +6,7 @@
     error = '',
     connected = false,
     streamMode = 'poll',
+    streamReconnecting = false,
     venueHealth = [],
   } = $props();
 
@@ -27,7 +28,9 @@
     <span class="dot" class:on={connected} class:off={!connected}></span>
     <span>{connected ? 'connected' : 'disconnected'}</span>
     <span class="sep">|</span>
-    <span>{streamMode === 'sse' ? 'SSE' : 'poll'}</span>
+    <span title={streamReconnecting ? 'SSE reconnecting (UI stays mounted)' : ''}>
+      {streamMode === 'sse' ? (streamReconnecting ? 'SSE…' : 'SSE') : 'poll'}
+    </span>
     {#if status}
       <span class="sep">|</span>
       <span>lifecycle {status.lifecycle}</span>
@@ -104,6 +107,7 @@
     border: 1px solid var(--border);
     padding: 0.02rem 0.25rem;
     white-space: nowrap;
+    min-width: 6.5rem;
   }
 
   .vh.bad {
@@ -120,6 +124,9 @@
   .tag {
     color: var(--muted);
     font-size: 0.58rem;
+    min-width: 2.2rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
 
   .tag.warn {
