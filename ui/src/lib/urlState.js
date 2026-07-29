@@ -81,6 +81,16 @@ export function parseUrlState() {
   const ofLayers = p.get('ofLayers');
   if (ofLayers) out.ofLayers = ofLayers;
 
+  const ofPriceZoom = p.get('ofZoom');
+  if (ofPriceZoom != null) out.ofPriceZoom = Number(ofPriceZoom);
+
+  const ofViewSec = p.get('ofView');
+  if (ofViewSec != null) out.ofViewSec = Number(ofViewSec);
+
+  const ofFollow = p.get('ofLive');
+  if (ofFollow === '0' || ofFollow === 'false') out.ofFollowLive = false;
+  if (ofFollow === '1' || ofFollow === 'true') out.ofFollowLive = true;
+
   return out;
 }
 
@@ -134,6 +144,13 @@ export function buildUrlState(state) {
   if (s.ofLayers != null && s.ofLayers !== DEFAULTS.ofLayers) {
     p.set('ofLayers', String(s.ofLayers));
   }
+  if (s.ofPriceZoom != null && s.ofPriceZoom !== DEFAULTS.ofPriceZoom) {
+    p.set('ofZoom', String(s.ofPriceZoom));
+  }
+  if (s.ofViewSec != null && s.ofViewSec !== DEFAULTS.ofViewSec) {
+    p.set('ofView', String(s.ofViewSec));
+  }
+  if (s.ofFollowLive === false) p.set('ofLive', '0');
 
   return p.toString();
 }

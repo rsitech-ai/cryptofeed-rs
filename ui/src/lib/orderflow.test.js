@@ -8,14 +8,18 @@ import {
   aggressorSign,
   bookPressure,
   buildHeatmapGrid,
+  clampPriceZoom,
+  clampViewSec,
   computeCvd,
   cobColumn,
   computePriceWindow,
+  densifyDepthHistory,
   detectFlowHeuristics,
   domLadder,
   flowMarkers,
   footprintClusters,
   heatIntensity,
+  heatmapBaselineRgba,
   heatmapColor,
   ladderLevels,
   levelImbalancePct,
@@ -273,11 +277,73 @@ describe('heatmap / depth ring', () => {
     assert.ok(bars.length >= 1);
   });
 
+  it('densifies history with hold-last across time gaps', () => {
+    const mid = 100;
+    const book = {
+      bids: [{ price: '99.9', quantity: '1' }],
+      asks: [{ price: '100.1', quantity: '1' }],
+    };
+    const a = sampleBookDepth(book, { t: 1000, tick: 0.1 });
+    const b = sampleBookDepth(book, { t: 3000, tick: 0.1 });
+    const dense = densifyDepthHistory([a, b], { bucketMs: 250, maxCols: 20 });
+    assert.ok(dense.length >= 8);
+    assert.equal(dense[0].t, 1000);
+    assert.ok(dense.every((s) => s.bids?.size || s.asks?.size));
+  });
+
+  it('fills full Y range and hold-last gap columns', () => {
+    const mid = 64250;
+    const book = {
+      bids: Array.from({ length: 12 }, (_, i) => ({
+        price: String(mid - 0.1 * (i + 1)),
+        quantity: '1',
+      })),
+      asks: Array.from({ length: 12 }, (_, i) => ({
+        price: String(mid + 0.1 * i),
+        quantity: '1',
+      })),
+    };
+    let hist = [];
+    for (let i = 0; i < 6; i++) {
+      hist = pushDepthHistory(hist, sampleBookDepth(book, { t: 1000 + i * 250, tick: 0.1 }), 32);
+    }
+    // Simulate SSE gap → hold-last fillers
+    hist = pushDepthHistory(
+      hist,
+      sampleBookDepth(book, { t: 1000 + 6 * 250 + 2000, tick: 0.1 }),
+      64,
+      { gapMs: 400 },
+    );
+    assert.ok(hist.length > 7, 'gap fill should insert hold-last samples');
+
+    const win = computePriceWindow(hist, { focusPrice: mid, tick: 0.1, zoom: 1.5 });
+    assert.ok(win);
+    const grid = buildHeatmapGrid(hist, {
+      rows: 40,
+      priceMin: win.priceMin,
+      priceMax: win.priceMax,
+    });
+    assert.ok(grid);
+    let nonzero = 0;
+    for (let i = 0; i < grid.grid.length; i++) if (grid.grid[i] > 0) nonzero++;
+    const fillRatio = nonzero / grid.grid.length;
+    assert.ok(fillRatio > 0.7, `expected full-height heat fill, got ${fillRatio}`);
+  });
+
+  it('clamps price/time zoom helpers', () => {
+    assert.equal(clampPriceZoom(0.1), 0.25);
+    assert.equal(clampPriceZoom(99), 6);
+    assert.equal(clampViewSec(5), 15);
+    assert.equal(clampViewSec(99999), 3600);
+  });
+
   it('maps intensity to blue→red palette', () => {
     const cold = heatmapColor(0.05);
     const hot = heatmapColor(0.95);
     assert.ok(cold[2] > cold[0]); // bluish
     assert.ok(hot[0] > hot[2]); // reddish
+    const base = heatmapBaselineRgba();
+    assert.ok(base[2] > base[0], 'baseline must be dark blue, not black');
   });
 
   it('applies heat intensity gain', () => {

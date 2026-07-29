@@ -27,7 +27,7 @@
 
   let pressure = $derived(bookPressure(book, depth));
   let cvd = $derived(computeCvd(tape, { windowSec }));
-  let vap = $derived(volumeAtPrice(tape, { windowSec, maxBuckets: 28 }));
+  let vap = $derived(volumeAtPrice(tape, { windowSec, maxBuckets: 36 }));
   let heuristics = $derived(detectFlowHeuristics(tape, book, { largeUsd, windowSec }));
 
   let imbSpark = $derived(sparkPath(imbalanceHistory.map((p) => p.imbalancePct), { w: 120, h: 28 }));
@@ -37,8 +37,32 @@
     Math.max(1, ...cvd.histogram.map((h) => Math.max(h.buyUsd, h.sellUsd))),
   );
 
-  let vapMax = $derived(
-    Math.max(1, ...vap.map((r) => Math.max(r.buyUsd, r.sellUsd))),
+  /** Book depth profile fallback when tape VAP empty in window. */
+  let bookVap = $derived.by(() => {
+    if (vap.length) return [];
+    const bids = book?.bids || [];
+    const asks = book?.asks || [];
+    /** @type {Array<{ price: number, buyUsd: number, sellUsd: number, delta: number }>} */
+    const rows = [];
+    for (const l of bids.slice(0, depth)) {
+      const price = Number(l.price);
+      const qty = Number(l.quantity) || 0;
+      if (!Number.isFinite(price) || qty <= 0) continue;
+      const usd = price * qty;
+      rows.push({ price, buyUsd: usd, sellUsd: 0, delta: usd });
+    }
+    for (const l of asks.slice(0, depth)) {
+      const price = Number(l.price);
+      const qty = Number(l.quantity) || 0;
+      if (!Number.isFinite(price) || qty <= 0) continue;
+      const usd = price * qty;
+      rows.push({ price, buyUsd: 0, sellUsd: usd, delta: -usd });
+    }
+    return rows.sort((a, b) => b.price - a.price).slice(0, 36);
+  });
+  let vapRows = $derived(vap.length ? vap : bookVap);
+  let vapMaxEff = $derived(
+    Math.max(1, ...vapRows.map((r) => Math.max(r.buyUsd || 0, r.sellUsd || 0))),
   );
 
   let largeTrades = $derived(
@@ -135,8 +159,8 @@
       <div class="hist" aria-label="Buy vs sell histogram">
         {#each cvd.histogram.slice(-40) as h}
           <div class="hcol">
-            <div class="buy" style={`height:${(h.buyUsd / histMax) * 100}%`}></div>
-            <div class="sell" style={`height:${(h.sellUsd / histMax) * 100}%`}></div>
+            <div class="buy" style={`height:${Math.max(2, (h.buyUsd / histMax) * 100)}%`}></div>
+            <div class="sell" style={`height:${Math.max(2, (h.sellUsd / histMax) * 100)}%`}></div>
           </div>
         {:else}
           <span class="muted">buy/sell histogram…</span>
@@ -172,15 +196,15 @@
       </div>
       <div class="vap-cols"><span>Sell $</span><span>Price</span><span>Buy $</span><span>Δ</span></div>
       <div class="vap">
-        {#each vap as row}
+        {#each vapRows as row}
           <div class="vrow">
             <div class="sell-bar-wrap">
-              <div class="sell-bar" style={`width:${barW(row.sellUsd, vapMax)}`}></div>
+              <div class="sell-bar" style={`width:${barW(row.sellUsd, vapMaxEff)}`}></div>
               <span>{fmtUsd(row.sellUsd)}</span>
             </div>
             <span class="px">{fmtPrice(row.price, 2)}</span>
             <div class="buy-bar-wrap">
-              <div class="buy-bar" style={`width:${barW(row.buyUsd, vapMax)}`}></div>
+              <div class="buy-bar" style={`width:${barW(row.buyUsd, vapMaxEff)}`}></div>
               <span>{fmtUsd(row.buyUsd)}</span>
             </div>
             <span class="delta" class:up={row.delta > 0} class:down={row.delta < 0}>{fmtUsd(row.delta)}</span>
@@ -190,7 +214,7 @@
         {/each}
       </div>
       <div class="foot-note">
-        Pressure bid {fmtUsd(pressure.bidUsd)} / ask {fmtUsd(pressure.askUsd)} · window {Math.round(windowSec / 60)}m
+        {vap.length ? 'tape VAP' : 'book profile fallback'} · Pressure bid {fmtUsd(pressure.bidUsd)} / ask {fmtUsd(pressure.askUsd)} · window {Math.round(windowSec / 60)}m
       </div>
     </div>
   </div>
@@ -338,15 +362,16 @@
     flex-shrink: 0;
   }
   .hcol {
-    flex: 1;
+    flex: 1 1 0;
     display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    min-width: 0;
+    flex-direction: column-reverse;
+    justify-content: flex-start;
+    min-width: 2px;
+    max-width: 12px;
     height: 100%;
   }
-  .hcol .buy { background: rgba(2, 192, 118, 0.65); min-height: 0; }
-  .hcol .sell { background: rgba(246, 70, 93, 0.65); min-height: 0; }
+  .hcol .buy { background: rgba(2, 192, 118, 0.65); min-height: 0; width: 100%; }
+  .hcol .sell { background: rgba(246, 70, 93, 0.65); min-height: 0; width: 100%; }
   .heuristics {
     display: flex;
     flex-wrap: wrap;
