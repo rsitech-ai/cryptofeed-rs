@@ -15,10 +15,12 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    cssCodeSplit: false,
     rollupOptions: {
       output: {
+        // Single bundle so daemon embed (app.js + app.css only) stays valid.
+        inlineDynamicImports: true,
         entryFileNames: 'assets/app.js',
-        chunkFileNames: 'assets/[name].js',
         assetFileNames: (info) => {
           if (info.name && info.name.endsWith('.css')) return 'assets/app.css';
           return 'assets/[name][extname]';
