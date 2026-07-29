@@ -56,6 +56,19 @@ export function parseUrlState() {
   const grafana = p.get('grafana');
   if (grafana) out.grafanaUrl = grafana;
 
+  const tab = p.get('tab');
+  if (tab === 'orderflow' || tab === 'pulse' || tab === 'hidden') out.analyticsTab = tab;
+
+  const dock = p.get('dock');
+  if (dock === '0' || dock === 'false') out.analyticsOpen = false;
+  if (dock === '1' || dock === 'true') out.analyticsOpen = true;
+
+  const largeUsd = p.get('largeUsd');
+  if (largeUsd != null) out.largeTradeUsd = Number(largeUsd);
+
+  const pulseAlert = p.get('pulseAlert');
+  if (pulseAlert != null) out.pulseSpikeThreshold = Number(pulseAlert);
+
   return out;
 }
 
@@ -88,6 +101,19 @@ export function buildUrlState(state) {
     p.set('hidden', s.hiddenVenues.join(','));
   }
   if (s.grafanaUrl) p.set('grafana', s.grafanaUrl);
+  if (s.analyticsTab && s.analyticsTab !== DEFAULTS.analyticsTab) {
+    p.set('tab', String(s.analyticsTab));
+  }
+  if (s.analyticsOpen === false) p.set('dock', '0');
+  if (s.largeTradeUsd != null && s.largeTradeUsd !== DEFAULTS.largeTradeUsd) {
+    p.set('largeUsd', String(s.largeTradeUsd));
+  }
+  if (
+    s.pulseSpikeThreshold != null &&
+    s.pulseSpikeThreshold !== DEFAULTS.pulseSpikeThreshold
+  ) {
+    p.set('pulseAlert', String(s.pulseSpikeThreshold));
+  }
 
   return p.toString();
 }

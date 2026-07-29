@@ -116,6 +116,7 @@ Poll endpoints remain available for clients that do not use SSE.
 - Funding / open-interest / liquidation UI panels — not implemented (no fake numbers).
 - Telegram notifications — not implemented (in-app + optional webhook only).
 - Private fills overlay — not implemented until a private path exists.
+- True MBO / Bookmap footprint — VAP is trade-aggregated only; labels say so.
 
 ## SPA pro features (embedded UI)
 
@@ -126,6 +127,15 @@ Poll endpoints remain available for clients that do not use SSE.
 - Depth chart, time & sales filters, multi-pane synced crosshair.
 - Session presets (1m/5m/1h), keyboard shortcuts (`/` search, `1`–`5` TF), density toggle.
 - Health strip + data-quality badges; Grafana link-out; replay scrubber (best-effort).
+- **Order Flow** bottom dock (focus instrument): depth ladder with per-level imbalance %,
+  bid/ask USD pressure + imbalance sparkline, CVD (aggressor buy+/sell−, USD-normalized),
+  buy/sell histogram, large-trade / sweep / absorption **heuristics** (honest labels),
+  trade-aggregated VAP (not MBO footprint). Keys: `F` open, `Esc` hide.
+  URL/localStorage: `tab=orderflow`, `largeUsd=…`, `dock=0|1`.
+- **Market Pulse** dock (multi-venue asset): trades/min, USD/min, cross Δ bps, median spread,
+  book imbalance, per-venue heat chips, pulse-score sparkline + optional spike alert
+  (reuses in-app toast + `/v1/alerts/test` / webhook path). Key: `P`.
+  URL: `tab=pulse`, `pulseAlert=72`.
 
 ## Venue feed notes
 
@@ -154,6 +164,12 @@ With a live daemon on the view bind:
 
 ```bash
 BASE=http://127.0.0.1:19109 ./scripts/live_ui_smoke.sh
+```
+
+SPA unit tests (CVD / VAP / imbalance / pulse math):
+
+```bash
+cd ui && npm test
 ```
 
 See also `docs/ops/live_ui_audit.md` and `docs/ops/live_ui_coverage.md`.

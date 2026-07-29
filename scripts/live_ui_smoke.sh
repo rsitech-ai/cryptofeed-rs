@@ -222,6 +222,65 @@ for venue, symbol in samples:
     else:
         bad(f"SPA parity mismatch {venue}: spa=({spa_n},{spa_vol}) raw=({n},{vol})")
 
+    # Order-flow / pulse inputs: aggressor + notional enough for CVD / VAP
+    if entries:
+        sides = {e.get("aggressor") for e in entries if e.get("kind") == "trade"}
+        if sides & {"buy", "sell"}:
+            ok(f"aggressor sides for CVD {venue}: {sorted(sides)}")
+        else:
+            warn(f"no buy/sell aggressor {venue}: {sides}")
+        notionals = []
+        for e in entries:
+            if e.get("kind") != "trade":
+                continue
+            if e.get("notional") is not None:
+                try:
+                    notionals.append(float(e["notional"]))
+                except (TypeError, ValueError):
+                    pass
+            else:
+                try:
+                    notionals.append(float(e["price"]) * float(e["quantity"]))
+                except (TypeError, ValueError):
+                    pass
+        if notionals:
+            cvd = sum(
+                n if e.get("aggressor") == "buy" else (-n if e.get("aggressor") == "sell" else 0)
+                for e, n in zip(
+                    [x for x in entries if x.get("kind") == "trade"],
+                    notionals,
+                )
+            )
+            ok(f"CVD sample {venue}: cvd≈{cvd:.4f} from {len(notionals)} prints")
+        if book is not None:
+            bids = book.get("bids") or []
+            asks = book.get("asks") or []
+            bid_usd = sum(float(x["price"]) * float(x["quantity"]) for x in bids[:10])
+            ask_usd = sum(float(x["price"]) * float(x["quantity"]) for x in asks[:10])
+            if bid_usd + ask_usd > 0:
+                imb = (bid_usd - ask_usd) / (bid_usd + ask_usd) * 100
+                ok(f"book pressure USD {venue}: bid={bid_usd:.0f} ask={ask_usd:.0f} imb={imb:.1f}%")
+            else:
+                warn(f"book pressure empty {venue}")
+
+# SPA bundle embeds Order Flow / Pulse dock markers
+try:
+    spa = urllib.request.urlopen(base + "/", timeout=5).read().decode("utf-8", "replace")
+    # Embedded assets referenced from index
+    import re
+    m = re.search(r'src="(/assets/[^"]+\.js)"', spa)
+    js = ""
+    if m:
+        js = urllib.request.urlopen(base + m.group(1), timeout=5).read().decode("utf-8", "replace")
+    blob = spa + js
+    for needle in ("Order Flow", "Market Pulse", "orderflow", "pulse"):
+        if needle in blob:
+            ok(f"SPA embeds '{needle}'")
+        else:
+            bad(f"SPA missing '{needle}'")
+except Exception as e:
+    bad(f"SPA order-flow/pulse embed check: {e}")
+
 print(f"SUMMARY_PY pass={pass_n} fail={fail_n}")
 sys.exit(1 if fail_n else 0)
 PY
