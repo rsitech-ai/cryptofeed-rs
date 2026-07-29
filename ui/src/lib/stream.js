@@ -38,6 +38,8 @@ export function dispatchStreamMessage(msg, handlers) {
   }
 
   // Combined focus payload (primary daemon contract).
+  // Call onFocus once — do NOT also fire onBook/onTape (that double-applies and
+  // causes UI flicker when the SPA handlers already apply book+tape in onFocus).
   if (msg.status) handlers.onStatus?.(msg.status);
 
   const focus = msg.focus;
@@ -51,8 +53,6 @@ export function dispatchStreamMessage(msg, handlers) {
         book: focus.book || null,
         tape: Array.isArray(focus.tape) ? focus.tape : [],
       });
-      if (focus.book) handlers.onBook?.(venue, symbol, focus.book);
-      if (Array.isArray(focus.tape)) handlers.onTape?.(venue, symbol, focus.tape);
     }
   }
 }

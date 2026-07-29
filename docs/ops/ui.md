@@ -126,7 +126,9 @@ Poll endpoints remain available for clients that do not use SSE.
 - SSE `/v1/stream` with poll fallback.
   - Daemon emits unnamed `data:` frames `{ ts_ns, status, focus?: { venue, symbol, book, tape } }`.
   - SPA parses that shape (and typed events); reconnects with `venue`+`symbol` for the selected focus.
-  - Focus poll remains authoritative; SSE freshness only skips redundant focus-tape polls.
+  - Focus poll remains authoritative; SSE freshness skips redundant focus **book and tape** polls.
+  - Combined SSE focus frames call `onFocus` once (no double `onBook`/`onTape` apply).
+  - UI paint gates: book ~14 Hz, tape ~12 Hz, lines ~10 Hz, heatmap ~9 Hz; EMA-stable heatmap y-scale; offscreen blit.
   - `visibilitychange` forces a live refresh when the tab becomes visible again.
 - Depth chart, time & sales filters, multi-pane synced crosshair.
 - Session presets (1m/5m/1h), keyboard shortcuts (`/` search, `1`–`5` TF), density toggle.
