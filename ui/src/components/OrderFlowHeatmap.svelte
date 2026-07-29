@@ -4,12 +4,16 @@
   import { createPaintGate, ema } from '../lib/paint.js';
   import {
     buildHeatmapGrid,
+    clampPriceZoom,
+    clampViewSec,
     cobColumn,
     computeCvd,
     computePriceWindow,
+    densifyDepthHistory,
     flowMarkers,
     footprintClusters,
     heatIntensity,
+    heatmapBaselineRgba,
     heatmapColor,
     nearestWalls,
     ohlcBucketsFromTape,
@@ -36,6 +40,8 @@
     ofBubbleMinUsd = 50,
     ofLayers = 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
     largeTradeUsd = 15000,
+    priceZoom = 1,
+    followLive = true,
     onSettings = () => {},
   } = $props();
 
@@ -109,6 +115,10 @@
   /** Stable y-scale (EMA) so walls don't jump every sample. */
   let scaleLo = null;
   let scaleHi = null;
+  /** Pan anchor (ms) when not following live. */
+  let viewTMax = $state(null);
+  /** @type {ReturnType<typeof buildHeatmapGrid>|null} */
+  let lastGoodGrid = null;
   /** @type {HTMLCanvasElement|null} */
   let frameBuf = null;
   /** @type {HTMLCanvasElement|null} */
@@ -117,8 +127,23 @@
   let imageBuf = null;
   let ro = null;
   let lastPaintKey = '';
+  let pinchDist0 = 0;
+  let zoomPersistTimer = 0;
+  let localPriceZoom = $state(/** @type {number|null} */ (null));
+  let localViewSec = $state(/** @type {number|null} */ (null));
 
   const gate = createPaintGate(() => paint(), { minIntervalMs: 110 });
+
+  let zoomFactor = $derived(clampPriceZoom(localPriceZoom ?? priceZoom, 1));
+  let viewSec = $derived(clampViewSec(localViewSec ?? windowSec, 300));
+
+  $effect(() => {
+    // Keep local overrides in sync when parent/URL pushes new values.
+    priceZoom;
+    windowSec;
+    localPriceZoom = null;
+    localViewSec = null;
+  });
 
   function windowLabel(sec) {
     if (sec < 60) return `${sec}s`;
@@ -178,18 +203,19 @@
     const cellH = heatH / grid.rows;
     const img = ensureImageData(heatWInt, heatHInt);
     const data = img.data;
+    const [bR, bG, bB, bA] = heatmapBaselineRgba();
 
     for (let i = 0; i < data.length; i += 4) {
-      data[i] = 8;
-      data[i + 1] = 12;
-      data[i + 2] = 22;
-      data[i + 3] = 255;
+      data[i] = bR;
+      data[i + 1] = bG;
+      data[i + 2] = bB;
+      data[i + 3] = bA;
     }
 
     for (let r = 0; r < grid.rows; r++) {
       for (let c = 0; c < grid.cols; c++) {
         const v = grid.grid[r * grid.cols + c];
-        if (v <= 0) continue;
+        if (!(v > 0)) continue;
         const intensity = heatIntensity(v, maxVal, ofHeatGain);
         const [R, G, B, A] = heatmapColor(intensity);
         const x0 = Math.floor(c * cellW);
@@ -533,27 +559,30 @@
     octx.strokeStyle = 'rgba(255,255,255,0.05)';
     octx.strokeRect(padL + 0.5, volTop + 0.5, heatW - 1, volH - 1);
 
-    const maxVol = Math.max(1, ...volBars.map((v) => v.totalUsd));
     const spanT = Math.max(1, tMax - tMin);
-    const barW = Math.max(1, heatW / Math.max(volBars.length, 1) - 1);
-
-    for (const v of volBars) {
+    const inWin = volBars.filter((v) => {
       const tMs = v.sec * 1000;
-      if (tMs < tMin || tMs > tMax) continue;
+      return tMs >= tMin && tMs <= tMax;
+    });
+    const maxVol = Math.max(1, ...inWin.map((v) => v.totalUsd), 1);
+    const barW = Math.max(1.5 * dpr, Math.min(10 * dpr, (1000 / spanT) * heatW * 0.75));
+
+    for (const v of inWin) {
+      const tMs = v.sec * 1000;
       const x = timeX(tMs, tMin, spanT, padL, heatW);
       const buyH = (v.buyUsd / maxVol) * (volH - 2);
       const sellH = (v.sellUsd / maxVol) * (volH - 2);
       octx.fillStyle = 'rgba(2,192,118,0.7)';
-      octx.fillRect(x, volTop + volH - buyH, barW, buyH);
+      octx.fillRect(x - barW / 2, volTop + volH - buyH, barW, buyH);
       octx.fillStyle = 'rgba(246,70,93,0.7)';
-      octx.fillRect(x, volTop + volH - buyH - sellH, barW, sellH);
+      octx.fillRect(x - barW / 2, volTop + volH - buyH - sellH, barW, sellH);
     }
 
     octx.fillStyle = '#474d57';
     octx.font = `${9 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
     octx.textAlign = 'left';
     octx.textBaseline = 'top';
-    octx.fillText('vol', padL + 4 * dpr, volTop + 2 * dpr);
+    octx.fillText(inWin.length ? 'vol' : 'vol (awaiting tape)', padL + 4 * dpr, volTop + 2 * dpr);
   }
 
   function paintCvdStrip(octx, layout, dpr) {
@@ -712,25 +741,28 @@
     octx.fillRect(0, 0, w, h);
 
     const rows = Math.min(140, Math.max(48, Math.floor(heatH / (1.5 * dpr))));
-    const cols = Math.min(depthHistory.length, Math.max(32, Math.floor(heatW / (2 * dpr))));
+    const cols = Math.min(depthHistory.length, Math.max(48, Math.floor(heatW / (2.2 * dpr))));
 
     const win = computePriceWindow(depthHistory, {
       focusPrice: lastPrice,
       tick,
-      lookback: Math.min(cols, depthHistory.length) || 64,
-      minTicks: 56,
-      padFrac: 0.25,
+      lookback: Math.min(16, depthHistory.length) || 12,
+      minTicks: 48,
+      padFrac: 0.18,
       minBps: 0.6,
-      maxBps: 10,
+      maxBps: 8,
+      zoom: zoomFactor,
     });
 
     let targetLo = win?.priceMin ?? (lastPrice != null ? lastPrice * 0.999 : null);
     let targetHi = win?.priceMax ?? (lastPrice != null ? lastPrice * 1.001 : null);
 
+    const now = Date.now();
+    let tMax = followLive || viewTMax == null ? now : viewTMax;
+    if (followLive) viewTMax = null;
+    let tMin = tMax - viewSec * 1000;
     let priceMin = lastPrice != null ? lastPrice * 0.9995 : 0;
     let priceMax = lastPrice != null ? lastPrice * 1.0005 : 1;
-    let tMin = Date.now() - windowSec * 1000;
-    let tMax = Date.now();
 
     if (targetLo != null && targetHi != null) {
       // Hard-reset EMA if scale drifted to a wrong regime (e.g. leftover / jump).
@@ -741,8 +773,8 @@
           scaleHi = null;
         }
       }
-      scaleLo = ema(scaleLo, targetLo, 0.18);
-      scaleHi = ema(scaleHi, targetHi, 0.18);
+      scaleLo = ema(scaleLo, targetLo, 0.22);
+      scaleHi = ema(scaleHi, targetHi, 0.22);
       // Never let EMA lag leave the focus price outside the visible domain.
       if (lastPrice != null && Number.isFinite(lastPrice)) {
         if (lastPrice < scaleLo) scaleLo = lastPrice - (scaleHi - scaleLo) * 0.05;
@@ -750,20 +782,33 @@
       }
     }
 
-    const grid = buildHeatmapGrid(depthHistory, {
+    // Slice history to the visible time window (keep continuity; don't clear ring).
+    const histInView = depthHistory.filter((s) => s && s.t >= tMin - 2000 && s.t <= tMax + 500);
+    const histRaw = histInView.length >= 2 ? histInView : depthHistory;
+    const histForGrid = densifyDepthHistory(histRaw, {
+      bucketMs: Math.max(120, Math.min(500, Math.floor((viewSec * 1000) / Math.max(64, cols)))),
+      tMin: histRaw[0]?.t,
+      tMax: histRaw.at(-1)?.t,
+      maxCols: cols,
+    });
+
+    let grid = buildHeatmapGrid(histForGrid.length >= 2 ? histForGrid : histRaw, {
       rows,
-      cols,
+      cols: Math.min((histForGrid.length >= 2 ? histForGrid : histRaw).length, cols),
       priceMin: scaleLo,
       priceMax: scaleHi,
     });
+    if (grid) lastGoodGrid = grid;
+    else if (lastGoodGrid) grid = lastGoodGrid;
 
     paintGridLines(octx, { padL, padT, heatW, heatH });
 
     if (grid) {
-      priceMin = grid.priceMin;
-      priceMax = grid.priceMax;
+      priceMin = scaleLo ?? grid.priceMin;
+      priceMax = scaleHi ?? grid.priceMax;
+      // Keep heat columns / overlays time-aligned (index↔timestamp from ring).
       tMin = grid.tMin;
-      tMax = grid.tMax || tMin + 1;
+      tMax = Math.max(grid.tMax || tMin + 1, tMin + 1);
 
       const layout = {
         padL,
@@ -785,9 +830,16 @@
         ofHeatGain: ofHeat,
       };
 
-      if (layers.heat) paintHeatLayer(octx, grid, layout, dpr);
+      // Paint heat against the visible Y domain (may differ slightly from grid domain).
+      const heatGrid = {
+        ...grid,
+        priceMin,
+        priceMax,
+      };
+
+      if (layers.heat) paintHeatLayer(octx, heatGrid, layout, dpr);
       else if (layers.mid || layers.candles) {
-        paintHeatLayer(octx, { ...grid, grid: new Float32Array(0) }, layout, dpr);
+        paintHeatLayer(octx, { ...heatGrid, grid: new Float32Array(0) }, layout, dpr);
       }
 
       if (layers.candles) paintCandles(octx, layout, dpr);
@@ -822,7 +874,7 @@
     octx.fillStyle = '#5e6673';
     octx.font = `${10 * dpr}px IBM Plex Mono, SF Mono, Menlo, monospace`;
     octx.fillText(
-      `L2+tape reconstruction · ${venue || '?'} ${symbol || ''} · not MBO · markers≠liquidations · ${windowLabel(windowSec)}`,
+      `L2+tape reconstruction · ${venue || '?'} ${symbol || ''} · not MBO · markers≠liquidations · ${windowLabel(viewSec)}${followLive ? '' : ' · paused'}`,
       padL,
       h - 12 * dpr,
     );
@@ -849,6 +901,67 @@
       cvdH,
       tick,
     };
+  }
+
+  function scheduleZoomPersist(patch) {
+    if (zoomPersistTimer) clearTimeout(zoomPersistTimer);
+    zoomPersistTimer = setTimeout(() => {
+      zoomPersistTimer = 0;
+      patchSettings(patch);
+    }, 120);
+  }
+
+  function jumpToLive() {
+    viewTMax = null;
+    patchSettings({ ofFollowLive: true });
+    gate.schedule();
+  }
+
+  function zoomPrice(dir) {
+    const next = clampPriceZoom(zoomFactor * (dir < 0 ? 0.82 : 1.22), zoomFactor);
+    localPriceZoom = next;
+    scheduleZoomPersist({ ofPriceZoom: next });
+    gate.schedule();
+  }
+
+  function zoomTime(dir) {
+    const next = clampViewSec(viewSec * (dir < 0 ? 0.75 : 1.35), viewSec);
+    localViewSec = next;
+    scheduleZoomPersist({ ofViewSec: next, ofFollowLive: followLive });
+    gate.schedule();
+  }
+
+  function onWheel(ev) {
+    ev.preventDefault();
+    const dir = ev.deltaY > 0 ? 1 : -1;
+    if (ev.shiftKey || ev.altKey) zoomTime(dir);
+    else zoomPrice(dir);
+  }
+
+  function onTouchStart(ev) {
+    if (ev.touches.length === 2) {
+      const [a, b] = ev.touches;
+      pinchDist0 = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    }
+  }
+
+  function onTouchMove(ev) {
+    if (ev.touches.length !== 2 || !(pinchDist0 > 0)) return;
+    ev.preventDefault();
+    const [a, b] = ev.touches;
+    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const ratio = dist / pinchDist0;
+    if (ratio > 1.08) {
+      zoomPrice(-1);
+      pinchDist0 = dist;
+    } else if (ratio < 0.92) {
+      zoomPrice(1);
+      pinchDist0 = dist;
+    }
+  }
+
+  function onTouchEnd() {
+    pinchDist0 = 0;
   }
 
   function nearestVapRow(price) {
@@ -979,7 +1092,9 @@
     const key = [
       depthHistory.length,
       tape.length,
-      windowSec,
+      viewSec,
+      zoomFactor,
+      followLive,
       lastPrice ?? '',
       venue,
       symbol,
@@ -991,7 +1106,9 @@
     ].join('|');
     depthHistory;
     tape;
-    windowSec;
+    viewSec;
+    zoomFactor;
+    followLive;
     lastPrice;
     ofTick;
     ofHeat;
@@ -1005,9 +1122,14 @@
     gate.schedule();
     ro = new ResizeObserver(() => gate.schedule());
     if (wrap) ro.observe(wrap);
+    const el = canvas;
+    const onWheelNative = (e) => onWheel(e);
+    el?.addEventListener('wheel', onWheelNative, { passive: false });
     return () => {
       gate.dispose();
       ro?.disconnect();
+      el?.removeEventListener('wheel', onWheelNative);
+      if (zoomPersistTimer) clearTimeout(zoomPersistTimer);
     };
   });
 </script>
@@ -1038,6 +1160,18 @@
         onchange={onBubbleChange}
       />
     </label>
+    <div class="zoom-btns" title="Wheel = price zoom · Shift+wheel = time zoom · Pinch supported">
+      <button type="button" onclick={() => zoomPrice(-1)} aria-label="Zoom price in">Y−</button>
+      <button type="button" onclick={() => zoomPrice(1)} aria-label="Zoom price out">Y+</button>
+      <button type="button" onclick={() => zoomTime(-1)} aria-label="Zoom time in">T−</button>
+      <button type="button" onclick={() => zoomTime(1)} aria-label="Zoom time out">T+</button>
+      <button
+        type="button"
+        class:live={followLive}
+        onclick={jumpToLive}
+        aria-label="Jump to live"
+      >live</button>
+    </div>
     <div class="layers-wrap">
       <button
         type="button"
@@ -1062,7 +1196,7 @@
         </div>
       {/if}
     </div>
-    <span class="win">{windowLabel(windowSec)}</span>
+    <span class="win">{windowLabel(viewSec)} · z{zoomFactor.toFixed(2)}</span>
     {#if lastPrice != null}
       <span class="last">{fmtPrice(lastPrice, 2)}</span>
     {/if}
@@ -1076,6 +1210,9 @@
       bind:this={canvas}
       onmousemove={onMove}
       onmouseleave={onLeave}
+      ontouchstart={onTouchStart}
+      ontouchmove={onTouchMove}
+      ontouchend={onTouchEnd}
       aria-label="Liquidity heatmap with volume bubbles, VAP, CVD"
     ></canvas>
     {#if hover}
@@ -1158,6 +1295,33 @@
   .heat-ctl .val {
     min-width: 1.6rem;
     color: var(--text-dim, #848e9c);
+  }
+
+  .zoom-btns {
+    display: inline-flex;
+    gap: 0.12rem;
+    align-items: center;
+  }
+
+  .zoom-btns button {
+    background: var(--panel-2, #12161c);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 0.08rem 0.28rem;
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .zoom-btns button:hover {
+    border-color: var(--accent);
+    color: var(--text, #eaecef);
+  }
+
+  .zoom-btns button.live {
+    color: var(--bid);
+    border-color: rgba(2, 192, 118, 0.45);
   }
 
   .layers-wrap {
