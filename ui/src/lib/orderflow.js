@@ -415,7 +415,12 @@ export function sparkPath(values, opts = {}) {
  */
 export function quantizePrice(price, tick) {
   if (!Number.isFinite(price) || !(tick > 0)) return price;
-  return Math.round(price / tick) * tick;
+  const n = Math.round(price / tick);
+  const q = n * tick;
+  if (tick >= 1) return q;
+  // Stabilize Map keys: 64287.99 / 0.01 * 0.01 can become 64287.990000000005.
+  const decimals = Math.min(8, Math.max(0, Math.ceil(-Math.log10(tick) - 1e-12)));
+  return Number(q.toFixed(decimals));
 }
 
 /**
@@ -616,22 +621,385 @@ export function volumeBarsFromTape(tape, opts = {}) {
  */
 export function heatmapColor(intensity) {
   const t = Math.max(0, Math.min(1, intensity));
-  if (t < 0.01) return [8, 12, 22, 0];
+  // Keep faint liquidity visible (was fully transparent below 0.01 → empty canvas).
+  if (t < 0.02) return [12, 28, 48, Math.round(t * 900)];
   // piecewise: blue → cyan → yellow → orange → red
   if (t < 0.25) {
     const u = t / 0.25;
-    return [10 + u * 20, 40 + u * 140, 120 + u * 80, Math.round(40 + u * 120)];
+    return [10 + u * 20, 40 + u * 140, 120 + u * 80, Math.round(70 + u * 110)];
   }
   if (t < 0.5) {
     const u = (t - 0.25) / 0.25;
-    return [30 + u * 180, 180 + u * 40, 200 - u * 160, Math.round(160 + u * 40)];
+    return [30 + u * 180, 180 + u * 40, 200 - u * 160, Math.round(180 + u * 40)];
   }
   if (t < 0.75) {
     const u = (t - 0.5) / 0.25;
-    return [210 + u * 30, 220 - u * 80, 40 - u * 20, 220];
+    return [210 + u * 30, 220 - u * 80, 40 - u * 20, 235];
   }
   const u = (t - 0.75) / 0.25;
   return [240, 140 - u * 90, 20 + u * 30, 255];
+}
+
+/**
+ * Left-pad (CSS/canvas px) so full price labels like "64,287.99" are not clipped.
+ * Root cause of "4,287" axis: leading digit drawn past x=0.
+ * @param {number|null|undefined} price
+ * @param {number} [dpr]
+ */
+export function priceAxisPadPx(price, dpr = 1) {
+  const n = Math.abs(Number(price)) || 0;
+  let chars = 7;
+  if (n >= 100000) chars = 10;
+  else if (n >= 10000) chars = 9;
+  else if (n >= 1000) chars = 8;
+  else if (n >= 100) chars = 7;
+  // Monospace ~7.2 CSS-px/char at 11px + gutter for tick marks.
+  return Math.ceil((chars * 7.2 + 18) * Math.max(1, dpr));
+}
+
+/**
+ * Bookmap-style Y domain around focus/BBO using recent L2 walls.
+ * Prefer book span (padded) over a fixed ±bps band so BTC pennies aren't
+ * crushed into a 1px ribbon inside an empty ±160$ void.
+ *
+ * @param {Array<object>} history samples from sampleBookDepth
+ * @param {{
+ *   focusPrice?: number|null,
+ *   tick?: number|null,
+ *   lookback?: number,
+ *   minTicks?: number,
+ *   padFrac?: number,
+ *   minBps?: number,
+ *   maxBps?: number,
+ * }} [opts]
+ * @returns {{ priceMin: number, priceMax: number, mid: number, tick: number, wallLo: number|null, wallHi: number|null }|null}
+ */
+export function computePriceWindow(history, opts = {}) {
+  const samples = (history || []).filter((s) => s && (s.bids?.size || s.asks?.size || s.mid != null));
+  const latest = samples.at(-1) || null;
+  const focus =
+    opts.focusPrice != null && Number.isFinite(Number(opts.focusPrice))
+      ? Number(opts.focusPrice)
+      : latest?.mid != null && Number.isFinite(latest.mid)
+        ? latest.mid
+        : null;
+  if (focus == null || !(focus > 0)) return null;
+
+  const tick =
+    opts.tick != null && opts.tick > 0
+      ? opts.tick
+      : latest?.tick > 0
+        ? latest.tick
+        : 0.1;
+  const lookback = Math.max(1, opts.lookback ?? 64);
+  const minTicks = Math.max(8, opts.minTicks ?? 48);
+  const padFrac = opts.padFrac ?? 0.2;
+  const minBps = opts.minBps ?? 0.8;
+  const maxBps = opts.maxBps ?? 12;
+
+  const slice = samples.slice(-lookback);
+  let wallLo = Infinity;
+  let wallHi = -Infinity;
+  const maxDist = focus * (maxBps / 10000) * 1.5;
+  for (const s of slice) {
+    for (const px of s.bids?.keys?.() || []) {
+      if (!Number.isFinite(px)) continue;
+      // Ignore outlier stubs far from focus (bad/stale ladder rows).
+      if (Math.abs(px - focus) > maxDist) continue;
+      if (px < wallLo) wallLo = px;
+      if (px > wallHi) wallHi = px;
+    }
+    for (const px of s.asks?.keys?.() || []) {
+      if (!Number.isFinite(px)) continue;
+      if (Math.abs(px - focus) > maxDist) continue;
+      if (px < wallLo) wallLo = px;
+      if (px > wallHi) wallHi = px;
+    }
+    if (s.mid != null && Number.isFinite(s.mid) && Math.abs(s.mid - focus) <= maxDist) {
+      if (s.mid < wallLo) wallLo = s.mid;
+      if (s.mid > wallHi) wallHi = s.mid;
+    }
+  }
+  if (!Number.isFinite(wallLo) || !Number.isFinite(wallHi)) {
+    wallLo = focus;
+    wallHi = focus;
+  }
+
+  const bookHalf = Math.max(0, (wallHi - wallLo) / 2) * (1 + padFrac);
+  const tickHalf = tick * minTicks;
+  const minHalf = focus * (minBps / 10000);
+  const maxHalf = focus * (maxBps / 10000);
+  let half = Math.max(bookHalf, tickHalf, minHalf, tick * 4);
+  half = Math.min(half, Math.max(maxHalf, bookHalf, tickHalf));
+
+  // Keep focus centered; never collapse to zero span.
+  if (!(half > 0)) half = Math.max(tick * minTicks, focus * 1e-4);
+
+  return {
+    priceMin: focus - half,
+    priceMax: focus + half,
+    mid: focus,
+    tick,
+    wallLo: Number.isFinite(wallLo) ? wallLo : null,
+    wallHi: Number.isFinite(wallHi) ? wallHi : null,
+  };
+}
+
+/**
+ * Resting USD at/near a price from a depth sample (exact tick, else nearest).
+ * @param {object|null|undefined} sample
+ * @param {number} price
+ * @param {number} [tick]
+ * @returns {{ bidUsd: number, askUsd: number, price: number|null, dist: number }}
+ */
+export function restingAtPrice(sample, price, tick = 0.1) {
+  const empty = { bidUsd: 0, askUsd: 0, price: null, dist: Infinity };
+  if (!sample || !Number.isFinite(price)) return empty;
+  const t = tick > 0 ? tick : 0.1;
+  const q = quantizePrice(price, t);
+  const bidExact = sample.bids?.get?.(q) || 0;
+  const askExact = sample.asks?.get?.(q) || 0;
+  if (bidExact > 0 || askExact > 0) {
+    return { bidUsd: bidExact, askUsd: askExact, price: q, dist: Math.abs(q - price) };
+  }
+
+  let bestPx = null;
+  let bestD = Infinity;
+  for (const px of sample.bids?.keys?.() || []) {
+    const d = Math.abs(px - price);
+    if (d < bestD) {
+      bestD = d;
+      bestPx = px;
+    }
+  }
+  for (const px of sample.asks?.keys?.() || []) {
+    const d = Math.abs(px - price);
+    if (d < bestD) {
+      bestD = d;
+      bestPx = px;
+    }
+  }
+  // Snap within a small band so hover near BBO doesn't report $0 on float gaps.
+  const snap = Math.max(t * 8, t);
+  if (bestPx == null || bestD > snap) {
+    return { bidUsd: 0, askUsd: 0, price: q, dist: bestD };
+  }
+  return {
+    bidUsd: sample.bids?.get?.(bestPx) || 0,
+    askUsd: sample.asks?.get?.(bestPx) || 0,
+    price: bestPx,
+    dist: bestD,
+  };
+}
+
+/**
+ * Nearest bid wall (≤ price) and ask wall (≥ price) for Bookmap-style tooltips.
+ * @param {object|null|undefined} sample
+ * @param {number} price
+ */
+export function nearestWalls(sample, price) {
+  const empty = {
+    bidUsd: 0,
+    askUsd: 0,
+    bidPrice: null,
+    askPrice: null,
+  };
+  if (!sample || !Number.isFinite(price)) return empty;
+  let bidPrice = null;
+  let bidUsd = 0;
+  let askPrice = null;
+  let askUsd = 0;
+  for (const [px, usd] of sample.bids?.entries?.() || []) {
+    if (px <= price + 1e-12 && (bidPrice == null || px > bidPrice)) {
+      bidPrice = px;
+      bidUsd = usd;
+    }
+  }
+  for (const [px, usd] of sample.asks?.entries?.() || []) {
+    if (px >= price - 1e-12 && (askPrice == null || px < askPrice)) {
+      askPrice = px;
+      askUsd = usd;
+    }
+  }
+  // Fallback: absolute nearest on each side if cursor is outside the book.
+  if (bidPrice == null) {
+    for (const [px, usd] of sample.bids?.entries?.() || []) {
+      if (bidPrice == null || px > bidPrice) {
+        bidPrice = px;
+        bidUsd = usd;
+      }
+    }
+  }
+  if (askPrice == null) {
+    for (const [px, usd] of sample.asks?.entries?.() || []) {
+      if (askPrice == null || px < askPrice) {
+        askPrice = px;
+        askUsd = usd;
+      }
+    }
+  }
+  return { bidUsd, askUsd, bidPrice, askPrice };
+}
+
+/**
+ * OHLC candles from aggressor tape (hybrid candle+heat layer).
+ * @param {object[]} tape
+ * @param {{ windowSec?: number|null, nowSec?: number|null, bucketSec?: number, maxBars?: number }} [opts]
+ */
+export function ohlcBucketsFromTape(tape, opts = {}) {
+  const bucketSec = Math.max(1, opts.bucketSec ?? 5);
+  const maxBars = opts.maxBars ?? 48;
+  const trades = filterTrades(tape, opts);
+  /** @type {Map<number, { sec: number, o: number, h: number, l: number, c: number, buyUsd: number, sellUsd: number, n: number }>} */
+  const buckets = new Map();
+  for (const e of trades) {
+    const px = Number(e.price);
+    const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
+    const usd = tradeNotional(e) ?? 0;
+    if (!Number.isFinite(px) || sec == null) continue;
+    const bsec = Math.floor(sec / bucketSec) * bucketSec;
+    let b = buckets.get(bsec);
+    if (!b) {
+      b = { sec: bsec, o: px, h: px, l: px, c: px, buyUsd: 0, sellUsd: 0, n: 0 };
+      buckets.set(bsec, b);
+    }
+    b.h = Math.max(b.h, px);
+    b.l = Math.min(b.l, px);
+    b.c = px;
+    b.n += 1;
+    const sign = aggressorSign(e.aggressor);
+    if (sign > 0) b.buyUsd += usd;
+    else if (sign < 0) b.sellUsd += usd;
+  }
+  return [...buckets.values()].sort((a, b) => a.sec - b.sec).slice(-maxBars);
+}
+
+/**
+ * Footprint / cluster cells: per time bucket × price, bid(sell) vs ask(buy) USD.
+ * Honest trade-aggregated footprint — not MBO queue.
+ * @param {object[]} tape
+ * @param {{ windowSec?: number|null, nowSec?: number|null, tick?: number, bucketSec?: number, maxCells?: number }} [opts]
+ */
+export function footprintClusters(tape, opts = {}) {
+  const tick = opts.tick ?? 0.1;
+  const bucketSec = Math.max(1, opts.bucketSec ?? 15);
+  const maxCells = opts.maxCells ?? 400;
+  const trades = filterTrades(tape, opts);
+  /** @type {Map<string, { t: number, price: number, bidUsd: number, askUsd: number }>} */
+  const cells = new Map();
+  for (const e of trades) {
+    const px = Number(e.price);
+    const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
+    const usd = tradeNotional(e) ?? 0;
+    if (!Number.isFinite(px) || sec == null || usd <= 0) continue;
+    const t = Math.floor(sec / bucketSec) * bucketSec * 1000;
+    const qpx = quantizePrice(px, tick);
+    const key = `${t}|${qpx}`;
+    const c = cells.get(key) || { t, price: qpx, bidUsd: 0, askUsd: 0 };
+    const sign = aggressorSign(e.aggressor);
+    // Convention: sell aggressor hits bid; buy aggressor lifts ask.
+    if (sign < 0) c.bidUsd += usd;
+    else if (sign > 0) c.askUsd += usd;
+    else {
+      c.bidUsd += usd / 2;
+      c.askUsd += usd / 2;
+    }
+    cells.set(key, c);
+  }
+  let rows = [...cells.values()].map((c) => ({
+    ...c,
+    totalUsd: c.bidUsd + c.askUsd,
+    delta: c.askUsd - c.bidUsd,
+  }));
+  if (rows.length > maxCells) {
+    rows = rows.sort((a, b) => b.totalUsd - a.totalUsd).slice(0, maxCells);
+  }
+  return rows.sort((a, b) => a.t - b.t || a.price - b.price);
+}
+
+/**
+ * Large-trade / sweep-style markers (honest: tape heuristics, not exchange liquidations).
+ * @param {object[]} tape
+ * @param {object|null} book
+ * @param {{ largeUsd?: number, windowSec?: number|null, nowSec?: number|null }} [opts]
+ */
+export function flowMarkers(tape, book, opts = {}) {
+  const largeUsd = opts.largeUsd ?? 15000;
+  const heuristics = detectFlowHeuristics(tape, book, { ...opts, largeUsd });
+  return heuristics.map((h) => ({
+    ...h,
+    // Visual kind for canvas: diamond = large, triangle = sweep, square = absorption.
+    marker: h.kind === 'sweep' ? 'triangle' : h.kind === 'absorption' ? 'square' : 'diamond',
+    honest: true,
+    note:
+      h.kind === 'sweep'
+        ? 'sweep heuristic (not exchange liquidation)'
+        : h.kind === 'absorption'
+          ? 'absorption heuristic (not MBO)'
+          : 'large print (not exchange liquidation)',
+  }));
+}
+
+/**
+ * COB column rows from latest depth sample (Bookmap-style right rail).
+ * @param {object|null|undefined} sample
+ * @param {{ priceMin?: number, priceMax?: number, maxRows?: number }} [opts]
+ */
+export function cobColumn(sample, opts = {}) {
+  if (!sample) return { rows: [], maxUsd: 1, bestBid: null, bestAsk: null, mid: sample?.mid ?? null };
+  const priceMin = opts.priceMin ?? -Infinity;
+  const priceMax = opts.priceMax ?? Infinity;
+  const maxRows = opts.maxRows ?? 80;
+  /** @type {Map<number, { price: number, bidUsd: number, askUsd: number }>} */
+  const byPx = new Map();
+  for (const [px, usd] of sample.bids?.entries?.() || []) {
+    if (px < priceMin || px > priceMax) continue;
+    const r = byPx.get(px) || { price: px, bidUsd: 0, askUsd: 0 };
+    r.bidUsd += usd;
+    byPx.set(px, r);
+  }
+  for (const [px, usd] of sample.asks?.entries?.() || []) {
+    if (px < priceMin || px > priceMax) continue;
+    const r = byPx.get(px) || { price: px, bidUsd: 0, askUsd: 0 };
+    r.askUsd += usd;
+    byPx.set(px, r);
+  }
+  let rows = [...byPx.values()].sort((a, b) => b.price - a.price);
+  if (rows.length > maxRows) {
+    const mid = sample.mid ?? (rows[0].price + rows[rows.length - 1].price) / 2;
+    rows = rows
+      .slice()
+      .sort((a, b) => Math.abs(a.price - mid) - Math.abs(b.price - mid))
+      .slice(0, maxRows)
+      .sort((a, b) => b.price - a.price);
+  }
+  let maxUsd = 0;
+  let askCum = 0;
+  let bidCum = 0;
+  const askSide = rows.filter((r) => r.askUsd > 0).sort((a, b) => a.price - b.price);
+  const bidSide = rows.filter((r) => r.bidUsd > 0).sort((a, b) => b.price - a.price);
+  /** @type {Map<number, { bidCumUsd: number, askCumUsd: number }>} */
+  const cum = new Map();
+  for (const r of bidSide) {
+    bidCum += r.bidUsd;
+    cum.set(r.price, { ...(cum.get(r.price) || { bidCumUsd: 0, askCumUsd: 0 }), bidCumUsd: bidCum });
+  }
+  for (const r of askSide) {
+    askCum += r.askUsd;
+    cum.set(r.price, { ...(cum.get(r.price) || { bidCumUsd: 0, askCumUsd: 0 }), askCumUsd: askCum });
+  }
+  rows = rows.map((r) => {
+    maxUsd = Math.max(maxUsd, r.bidUsd, r.askUsd);
+    const c = cum.get(r.price) || { bidCumUsd: 0, askCumUsd: 0 };
+    return { ...r, bidCumUsd: c.bidCumUsd || 0, askCumUsd: c.askCumUsd || 0 };
+  });
+  return {
+    rows,
+    maxUsd: maxUsd || 1,
+    bestBid: bestPrice(sample.bids, 'max'),
+    bestAsk: bestPrice(sample.asks, 'min'),
+    mid: sample.mid ?? null,
+  };
 }
 
 /**
@@ -697,10 +1065,16 @@ export function buildHeatmapGrid(history, opts = {}) {
     const fill = (map) => {
       for (const [px, usd] of map) {
         if (px < priceMin || px > priceMax) continue;
-        const row = Math.min(rows - 1, Math.max(0, Math.floor(((priceMax - px) / span) * rows)));
-        const idx = row * cols + c;
-        grid[idx] += usd;
-        if (grid[idx] > maxVal) maxVal = grid[idx];
+        const rowF = ((priceMax - px) / span) * rows;
+        const row = Math.min(rows - 1, Math.max(0, Math.floor(rowF)));
+        // Spread one tick across neighboring rows so thin books still fill a band.
+        const neighbors = row > 0 && row < rows - 1 ? [row - 1, row, row + 1] : [row];
+        const share = usd / neighbors.length;
+        for (const r of neighbors) {
+          const idx = r * cols + c;
+          grid[idx] += share;
+          if (grid[idx] > maxVal) maxVal = grid[idx];
+        }
       }
     };
     fill(s.bids);
@@ -754,7 +1128,9 @@ function bestPrice(map, which) {
 export function heatIntensity(value, maxVal, gain = 1) {
   if (!(value > 0) || !(maxVal > 0)) return 0;
   const base = Math.log1p(value) / Math.log1p(maxVal);
-  return Math.max(0, Math.min(1, Math.pow(base, 1 / Math.max(0.35, gain))));
+  // Slight floor so thin books still paint a field, not a 1px filament.
+  const shaped = Math.pow(base, 1 / Math.max(0.35, gain));
+  return Math.max(0, Math.min(1, 0.08 + shaped * 0.92));
 }
 
 /**
@@ -765,8 +1141,26 @@ export function heatIntensity(value, maxVal, gain = 1) {
 export function domLadder(book, opts = {}) {
   const depth = Math.max(1, Math.min(50, Number(opts.depth) || 16));
   const tick = opts.tick && opts.tick > 0 ? opts.tick : inferTickSize(book);
-  const bidsRaw = (book?.bids || []).slice(0, depth);
-  const asksRaw = (book?.asks || []).slice(0, depth);
+  const bidsAll = book?.bids || [];
+  const asksAll = book?.asks || [];
+  const b0 = Number(bidsAll[0]?.price);
+  const a0 = Number(asksAll[0]?.price);
+  const focusMid =
+    Number.isFinite(b0) && Number.isFinite(a0)
+      ? (b0 + a0) / 2
+      : Number.isFinite(b0)
+        ? b0
+        : Number.isFinite(a0)
+          ? a0
+          : null;
+  // Drop stale/outlier stubs that blow the ladder (e.g. 64,285 next to 64,203).
+  const maxDist = focusMid != null ? Math.max(focusMid * 0.0025, tick * 80) : Infinity;
+  const near = (l) => {
+    const px = Number(l.price);
+    return Number.isFinite(px) && (focusMid == null || Math.abs(px - focusMid) <= maxDist);
+  };
+  const bidsRaw = bidsAll.filter(near).slice(0, depth);
+  const asksRaw = asksAll.filter(near).slice(0, depth);
 
   /** @type {Map<number, { bidQty: number, askQty: number, bidUsd: number, askUsd: number }>} */
   const byPx = new Map();
@@ -890,6 +1284,10 @@ export function parseOfLayers(raw) {
     vap: true,
     cvd: true,
     vol: true,
+    cob: true,
+    candles: true,
+    footprint: false,
+    markers: true,
   };
   if (raw == null || raw === '') return { ...defaults };
   if (typeof raw === 'object') return { ...defaults, ...raw };
@@ -898,11 +1296,22 @@ export function parseOfLayers(raw) {
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
   if (!parts.length) return { ...defaults };
-  const out = { heat: false, bubbles: false, mid: false, vap: false, cvd: false, vol: false };
+  const out = {
+    heat: false,
+    bubbles: false,
+    mid: false,
+    vap: false,
+    cvd: false,
+    vol: false,
+    cob: false,
+    candles: false,
+    footprint: false,
+    markers: false,
+  };
   for (const p of parts) {
     if (p in out) out[p] = true;
   }
-  if (!out.heat && !out.bubbles) out.heat = true;
+  if (!out.heat && !out.bubbles && !out.candles) out.heat = true;
   return out;
 }
 
