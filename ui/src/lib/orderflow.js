@@ -405,3 +405,321 @@ export function sparkPath(values, opts = {}) {
     })
     .join(' ');
 }
+
+/* ── Liquidity heatmap (L2 snapshot reconstruction — not MBO) ─────────── */
+
+/**
+ * Quantize a price onto a tick grid.
+ * @param {number} price
+ * @param {number} tick
+ */
+export function quantizePrice(price, tick) {
+  if (!Number.isFinite(price) || !(tick > 0)) return price;
+  return Math.round(price / tick) * tick;
+}
+
+/**
+ * Infer a reasonable tick from BBO / book levels.
+ * @param {object|null} book
+ * @param {number} [fallback]
+ */
+export function inferTickSize(book, fallback = 0.1) {
+  const bids = book?.bids || [];
+  const asks = book?.asks || [];
+  const px = [];
+  for (const l of [...bids.slice(0, 8), ...asks.slice(0, 8)]) {
+    const p = Number(l.price);
+    if (Number.isFinite(p)) px.push(p);
+  }
+  if (px.length < 2) return fallback;
+  px.sort((a, b) => a - b);
+  let minDiff = Infinity;
+  for (let i = 1; i < px.length; i++) {
+    const d = px[i] - px[i - 1];
+    if (d > 0 && d < minDiff) minDiff = d;
+  }
+  if (!Number.isFinite(minDiff) || minDiff <= 0) return fallback;
+  // Snap to nice increments.
+  if (minDiff >= 1) return Math.max(1, Math.round(minDiff));
+  if (minDiff >= 0.1) return Math.round(minDiff * 10) / 10;
+  if (minDiff >= 0.01) return Math.round(minDiff * 100) / 100;
+  return minDiff;
+}
+
+/**
+ * Compact one book snapshot into price→USD size maps (bids/asks separate).
+ * Caps levels for render performance.
+ * @param {object|null} book
+ * @param {{ tick?: number, maxLevels?: number, t?: number }} [opts]
+ * @returns {{
+ *   t: number,
+ *   mid: number|null,
+ *   tick: number,
+ *   bids: Map<number, number>,
+ *   asks: Map<number, number>,
+ *   bidUsd: number,
+ *   askUsd: number,
+ * }|null}
+ */
+export function sampleBookDepth(book, opts = {}) {
+  const maxLevels = opts.maxLevels ?? 40;
+  const tick = opts.tick ?? inferTickSize(book);
+  const t = opts.t ?? Date.now();
+  const bidsRaw = (book?.bids || []).slice(0, maxLevels);
+  const asksRaw = (book?.asks || []).slice(0, maxLevels);
+  if (!bidsRaw.length && !asksRaw.length) return null;
+
+  /** @type {Map<number, number>} */
+  const bids = new Map();
+  /** @type {Map<number, number>} */
+  const asks = new Map();
+  let bidUsd = 0;
+  let askUsd = 0;
+
+  for (const l of bidsRaw) {
+    const px = Number(l.price);
+    const qty = Number(l.quantity) || 0;
+    if (!Number.isFinite(px) || qty <= 0) continue;
+    const key = quantizePrice(px, tick);
+    const usd = px * qty;
+    bids.set(key, (bids.get(key) || 0) + usd);
+    bidUsd += usd;
+  }
+  for (const l of asksRaw) {
+    const px = Number(l.price);
+    const qty = Number(l.quantity) || 0;
+    if (!Number.isFinite(px) || qty <= 0) continue;
+    const key = quantizePrice(px, tick);
+    const usd = px * qty;
+    asks.set(key, (asks.get(key) || 0) + usd);
+    askUsd += usd;
+  }
+
+  const b0 = Number(bidsRaw[0]?.price);
+  const a0 = Number(asksRaw[0]?.price);
+  const mid =
+    Number.isFinite(b0) && Number.isFinite(a0) ? (b0 + a0) / 2 : Number.isFinite(b0) ? b0 : Number.isFinite(a0) ? a0 : null;
+
+  return { t, mid, tick, bids, asks, bidUsd, askUsd };
+}
+
+/**
+ * Push a depth sample into a bounded ring (oldest dropped).
+ * @param {Array<object>} history
+ * @param {object|null} sample
+ * @param {number} [max]
+ */
+export function pushDepthHistory(history, sample, max = 240) {
+  if (!sample) return history || [];
+  const next = [...(history || []), sample];
+  return next.length > max ? next.slice(next.length - max) : next;
+}
+
+/**
+ * Aggregate trades into time×price bubbles (buy/sell split).
+ * @param {object[]} tape
+ * @param {{
+ *   windowSec?: number|null,
+ *   nowSec?: number|null,
+ *   tick?: number,
+ *   bucketMs?: number,
+ *   maxBubbles?: number,
+ * }} [opts]
+ * @returns {Array<{
+ *   t: number,
+ *   price: number,
+ *   buyUsd: number,
+ *   sellUsd: number,
+ *   totalUsd: number,
+ *   delta: number,
+ * }>}
+ */
+export function tradeBubbles(tape, opts = {}) {
+  const tick = opts.tick ?? 0.1;
+  const bucketMs = opts.bucketMs ?? 500;
+  const maxBubbles = opts.maxBubbles ?? 180;
+  const trades = filterTrades(tape, opts);
+  /** @type {Map<string, { t: number, price: number, buyUsd: number, sellUsd: number }>} */
+  const buckets = new Map();
+
+  for (const e of trades) {
+    const px = Number(e.price);
+    const usd = tradeNotional(e) ?? 0;
+    const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
+    if (!Number.isFinite(px) || sec == null || usd <= 0) continue;
+    const tMs = Math.floor((sec * 1000) / bucketMs) * bucketMs;
+    const qpx = quantizePrice(px, tick);
+    const key = `${tMs}|${qpx}`;
+    const b = buckets.get(key) || { t: tMs, price: qpx, buyUsd: 0, sellUsd: 0 };
+    const sign = aggressorSign(e.aggressor);
+    if (sign > 0) b.buyUsd += usd;
+    else if (sign < 0) b.sellUsd += usd;
+    else {
+      // Untagged — split evenly so bubble still shows size.
+      b.buyUsd += usd / 2;
+      b.sellUsd += usd / 2;
+    }
+    buckets.set(key, b);
+  }
+
+  let rows = [...buckets.values()]
+    .map((b) => ({
+      ...b,
+      totalUsd: b.buyUsd + b.sellUsd,
+      delta: b.buyUsd - b.sellUsd,
+    }))
+    .sort((a, b) => a.t - b.t);
+
+  if (rows.length > maxBubbles) rows = rows.slice(rows.length - maxBubbles);
+  return rows;
+}
+
+/**
+ * Volume bars for subplot (buy/sell per time bucket).
+ * @param {object[]} tape
+ * @param {{ windowSec?: number|null, nowSec?: number|null, bucketSec?: number }} [opts]
+ */
+export function volumeBarsFromTape(tape, opts = {}) {
+  const bucketSec = opts.bucketSec ?? 1;
+  const trades = filterTrades(tape, opts);
+  /** @type {Map<number, { buyUsd: number, sellUsd: number }>} */
+  const hist = new Map();
+  for (const e of trades) {
+    const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
+    const usd = tradeNotional(e) ?? 0;
+    if (sec == null || usd <= 0) continue;
+    const bucket = Math.floor(sec / bucketSec) * bucketSec;
+    const h = hist.get(bucket) || { buyUsd: 0, sellUsd: 0 };
+    const sign = aggressorSign(e.aggressor);
+    if (sign > 0) h.buyUsd += usd;
+    else if (sign < 0) h.sellUsd += usd;
+    else {
+      h.buyUsd += usd / 2;
+      h.sellUsd += usd / 2;
+    }
+    hist.set(bucket, h);
+  }
+  return [...hist.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([sec, v]) => ({
+      sec,
+      buyUsd: v.buyUsd,
+      sellUsd: v.sellUsd,
+      totalUsd: v.buyUsd + v.sellUsd,
+    }));
+}
+
+/**
+ * Bookmap-style color: dark blue → cyan → yellow → red by intensity 0..1.
+ * @param {number} intensity
+ * @returns {[number, number, number, number]} RGBA 0–255
+ */
+export function heatmapColor(intensity) {
+  const t = Math.max(0, Math.min(1, intensity));
+  if (t < 0.01) return [8, 12, 22, 0];
+  // piecewise: blue → cyan → yellow → orange → red
+  if (t < 0.25) {
+    const u = t / 0.25;
+    return [10 + u * 20, 40 + u * 140, 120 + u * 80, Math.round(40 + u * 120)];
+  }
+  if (t < 0.5) {
+    const u = (t - 0.25) / 0.25;
+    return [30 + u * 180, 180 + u * 40, 200 - u * 160, Math.round(160 + u * 40)];
+  }
+  if (t < 0.75) {
+    const u = (t - 0.5) / 0.25;
+    return [210 + u * 30, 220 - u * 80, 40 - u * 20, 220];
+  }
+  const u = (t - 0.75) / 0.25;
+  return [240, 140 - u * 90, 20 + u * 30, 255];
+}
+
+/**
+ * Build a dense heatmap grid from depth history for canvas blit.
+ * @param {Array<object>} history samples from sampleBookDepth
+ * @param {{
+ *   priceMin?: number|null,
+ *   priceMax?: number|null,
+ *   rows?: number,
+ *   cols?: number,
+ * }} [opts]
+ * @returns {{
+ *   grid: Float32Array,
+ *   rows: number,
+ *   cols: number,
+ *   priceMin: number,
+ *   priceMax: number,
+ *   tMin: number,
+ *   tMax: number,
+ *   maxVal: number,
+ *   midPath: Array<{ t: number, mid: number }>,
+ * }|null}
+ */
+export function buildHeatmapGrid(history, opts = {}) {
+  const samples = (history || []).filter((s) => s && (s.bids?.size || s.asks?.size));
+  if (samples.length < 2) return null;
+
+  const rows = Math.max(16, Math.min(160, opts.rows ?? 80));
+  const cols = Math.min(samples.length, opts.cols ?? samples.length);
+  const slice = samples.slice(samples.length - cols);
+
+  let priceMin = opts.priceMin;
+  let priceMax = opts.priceMax;
+  if (priceMin == null || priceMax == null) {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const s of slice) {
+      for (const px of s.bids.keys()) {
+        if (px < lo) lo = px;
+        if (px > hi) hi = px;
+      }
+      for (const px of s.asks.keys()) {
+        if (px < lo) lo = px;
+        if (px > hi) hi = px;
+      }
+      if (s.mid != null) {
+        if (s.mid < lo) lo = s.mid;
+        if (s.mid > hi) hi = s.mid;
+      }
+    }
+    if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return null;
+    const pad = (hi - lo) * 0.08 || 1;
+    priceMin = lo - pad;
+    priceMax = hi + pad;
+  }
+
+  const span = priceMax - priceMin || 1;
+  const grid = new Float32Array(rows * cols);
+  let maxVal = 0;
+
+  for (let c = 0; c < cols; c++) {
+    const s = slice[c];
+    const fill = (map) => {
+      for (const [px, usd] of map) {
+        if (px < priceMin || px > priceMax) continue;
+        const row = Math.min(rows - 1, Math.max(0, Math.floor(((priceMax - px) / span) * rows)));
+        const idx = row * cols + c;
+        grid[idx] += usd;
+        if (grid[idx] > maxVal) maxVal = grid[idx];
+      }
+    };
+    fill(s.bids);
+    fill(s.asks);
+  }
+
+  const midPath = slice
+    .filter((s) => s.mid != null)
+    .map((s) => ({ t: s.t, mid: s.mid }));
+
+  return {
+    grid,
+    rows,
+    cols,
+    priceMin,
+    priceMax,
+    tMin: slice[0].t,
+    tMax: slice[slice.length - 1].t,
+    maxVal: maxVal || 1,
+    midPath,
+  };
+}

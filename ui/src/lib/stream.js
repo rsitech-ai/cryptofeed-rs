@@ -5,11 +5,57 @@
  *   onTape?: (venue: string, symbol: string, entries: object[]) => void,
  *   onBook?: (venue: string, symbol: string, book: object) => void,
  *   onStatus?: (status: object) => void,
+ *   onFocus?: (focus: { venue: string, symbol: string, book?: object, tape?: object[] }) => void,
  *   onError?: (err: Error) => void,
  *   onConnect?: () => void,
  *   onDisconnect?: () => void,
  * }} StreamHandlers
  */
+
+/**
+ * Normalize a daemon SSE JSON frame into handler calls.
+ * Server emits unnamed `data:` frames shaped as:
+ *   `{ ts_ns, status, focus?: { venue, symbol, book, tape } }`
+ * Older/typed shapes (`type` / named events) are still accepted.
+ * @param {object} msg
+ * @param {StreamHandlers} handlers
+ */
+export function dispatchStreamMessage(msg, handlers) {
+  if (!msg || typeof msg !== 'object') return;
+
+  if (msg.type === 'tape') {
+    handlers.onTape?.(msg.venue, msg.symbol, msg.entries || []);
+    return;
+  }
+  if (msg.type === 'book') {
+    const book = msg.book && typeof msg.book === 'object' ? msg.book : msg;
+    handlers.onBook?.(msg.venue, msg.symbol, book);
+    return;
+  }
+  if (msg.type === 'status') {
+    handlers.onStatus?.(msg.status || msg);
+    return;
+  }
+
+  // Combined focus payload (primary daemon contract).
+  if (msg.status) handlers.onStatus?.(msg.status);
+
+  const focus = msg.focus;
+  if (focus && typeof focus === 'object') {
+    const venue = focus.venue || focus.book?.venue;
+    const symbol = focus.symbol || focus.book?.symbol;
+    if (venue && symbol) {
+      handlers.onFocus?.({
+        venue,
+        symbol,
+        book: focus.book || null,
+        tape: Array.isArray(focus.tape) ? focus.tape : [],
+      });
+      if (focus.book) handlers.onBook?.(venue, symbol, focus.book);
+      if (Array.isArray(focus.tape)) handlers.onTape?.(venue, symbol, focus.tape);
+    }
+  }
+}
 
 export class StreamClient {
   /**
@@ -21,6 +67,8 @@ export class StreamClient {
     this.es = null;
     this.connected = false;
     this.available = null; // null = unknown, true/false after probe
+    /** Last focus apply time (ms) — SPA uses this to avoid double-skipping polls. */
+    this.lastFocusAt = 0;
   }
 
   /**
@@ -71,12 +119,19 @@ export class StreamClient {
   }
 
   /**
-   * @param {{ asset?: string, venues?: string[] }} opts
+   * @param {{ asset?: string, venue?: string, symbol?: string, venues?: string[] }} opts
    */
   connect(opts = {}) {
     this.disconnect();
     const q = new URLSearchParams();
-    if (opts.asset) q.set('asset', opts.asset);
+    // Prefer explicit focus venue/symbol so SSE tracks the selected market,
+    // not just the first asset match in daemon config order.
+    if (opts.venue && opts.symbol) {
+      q.set('venue', opts.venue);
+      q.set('symbol', opts.symbol);
+    } else if (opts.asset) {
+      q.set('asset', opts.asset);
+    }
     if (opts.venues?.length) q.set('venues', opts.venues.join(','));
     const url = `/v1/stream?${q}`;
 
@@ -101,49 +156,48 @@ export class StreamClient {
       }
     };
 
-    this.es.addEventListener('tape', (ev) => {
+    const handle = (raw) => {
       try {
-        const msg = JSON.parse(ev.data);
-        this.handlers.onTape?.(msg.venue, msg.symbol, msg.entries || []);
+        const msg = JSON.parse(raw);
+        const before = this.lastFocusAt;
+        const wrapped = {
+          ...this.handlers,
+          onFocus: (f) => {
+            this.lastFocusAt = Date.now();
+            this.handlers.onFocus?.(f);
+          },
+          onBook: (v, s, b) => {
+            // Book-only events also count as focus freshness when matching.
+            this.lastFocusAt = Date.now();
+            this.handlers.onBook?.(v, s, b);
+          },
+          onTape: (v, s, e) => {
+            this.lastFocusAt = Date.now();
+            this.handlers.onTape?.(v, s, e);
+          },
+        };
+        dispatchStreamMessage(msg, wrapped);
+        // If payload had no focus, still allow status-only updates without bumping focus.
+        if (this.lastFocusAt === before && msg?.focus) this.lastFocusAt = Date.now();
       } catch {
         /* ignore malformed */
       }
-    });
-
-    this.es.addEventListener('book', (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        this.handlers.onBook?.(msg.venue, msg.symbol, msg);
-      } catch {
-        /* ignore */
-      }
-    });
-
-    this.es.addEventListener('status', (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        this.handlers.onStatus?.(msg);
-      } catch {
-        /* ignore */
-      }
-    });
-
-    this.es.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === 'tape') {
-          this.handlers.onTape?.(msg.venue, msg.symbol, msg.entries || []);
-        } else if (msg.type === 'book') {
-          this.handlers.onBook?.(msg.venue, msg.symbol, msg);
-        } else if (msg.type === 'status') {
-          this.handlers.onStatus?.(msg);
-        }
-      } catch {
-        /* ignore */
-      }
     };
 
+    this.es.addEventListener('tape', (ev) => handle(ev.data));
+    this.es.addEventListener('book', (ev) => handle(ev.data));
+    this.es.addEventListener('status', (ev) => handle(ev.data));
+    this.es.onmessage = (ev) => handle(ev.data);
+
     return true;
+  }
+
+  /**
+   * True when SSE delivered focus book/tape recently.
+   * @param {number} [maxAgeMs]
+   */
+  focusFresh(maxAgeMs = 1500) {
+    return this.connected && this.lastFocusAt > 0 && Date.now() - this.lastFocusAt < maxAgeMs;
   }
 
   disconnect() {

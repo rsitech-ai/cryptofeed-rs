@@ -124,16 +124,25 @@ Poll endpoints remain available for clients that do not use SSE.
 - Venue discrepancy workspace (Δbps sparkline, configurable alert threshold).
 - Watchlists / layouts + shareable URL state (`?asset=BTC&mode=lines&tf=1m&…`).
 - SSE `/v1/stream` with poll fallback.
+  - Daemon emits unnamed `data:` frames `{ ts_ns, status, focus?: { venue, symbol, book, tape } }`.
+  - SPA parses that shape (and typed events); reconnects with `venue`+`symbol` for the selected focus.
+  - Focus poll remains authoritative; SSE freshness only skips redundant focus-tape polls.
+  - `visibilitychange` forces a live refresh when the tab becomes visible again.
 - Depth chart, time & sales filters, multi-pane synced crosshair.
 - Session presets (1m/5m/1h), keyboard shortcuts (`/` search, `1`–`5` TF), density toggle.
 - Health strip + data-quality badges; Grafana link-out; replay scrubber (best-effort).
+- **Order Flow chart mode** (`mode=orderflow`, tab next to Lines/Candles): Bookmap-style
+  **L2 liquidity heatmap** (ring buffer of `/v1/books` samples) + **volume bubbles**
+  (buy/sell split from aggressor tape) + volume subplot. Honest label: reconstructed from
+  L2 snapshots + trades — **not MBO**. Side panel keeps CVD / VAP / ladder stats.
 - **Order Flow** bottom dock (focus instrument): depth ladder with per-level imbalance %,
   bid/ask USD pressure + imbalance sparkline, CVD (aggressor buy+/sell−, USD-normalized),
   buy/sell histogram, large-trade / sweep / absorption **heuristics** (honest labels),
   trade-aggregated VAP (not MBO footprint). Keys: `F` open, `Esc` hide.
   URL/localStorage: `tab=orderflow`, `largeUsd=…`, `dock=0|1`.
 - **Market Pulse** dock (multi-venue asset): trades/min, USD/min, cross Δ bps, median spread,
-  book imbalance, per-venue heat chips, pulse-score sparkline + optional spike alert
+  book imbalance, clickable per-venue heat chips (focus book/tape/orderflow), clickable
+  metrics to sort/highlight, pulse-score sparkline + optional spike alert
   (reuses in-app toast + `/v1/alerts/test` / webhook path). Key: `P`.
   URL: `tab=pulse`, `pulseAlert=72`.
 

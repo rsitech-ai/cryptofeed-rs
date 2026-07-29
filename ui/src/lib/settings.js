@@ -7,7 +7,7 @@ const KEY = 'marketfeed.live.ui.v1';
 export const DEFAULTS = {
   asset: 'BTC',
   timeframe: '1s',
-  chartMode: 'lines', // lines | candles
+  chartMode: 'lines', // lines | candles | orderflow
   priceMode: 'percent', // percent | absolute
   showVolume: true,
   bookDepth: 16,
@@ -119,6 +119,9 @@ function mergeParsed(parsed) {
     density: ['compact', 'comfortable'].includes(parsed?.density)
       ? parsed.density
       : DEFAULTS.density,
+    chartMode: ['lines', 'candles', 'orderflow'].includes(parsed?.chartMode)
+      ? parsed.chartMode
+      : DEFAULTS.chartMode,
     sessionPreset: ['1m', '5m', '1h'].includes(parsed?.sessionPreset)
       ? parsed.sessionPreset
       : DEFAULTS.sessionPreset,
