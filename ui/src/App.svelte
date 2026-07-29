@@ -88,8 +88,10 @@
   let pulseSpikeThreshold = $state(initial.pulseSpikeThreshold ?? 72);
   let ofTick = $state(initial.ofTick ?? 'auto');
   let ofHeat = $state(initial.ofHeat ?? 1);
-  let ofBubbleMinUsd = $state(initial.ofBubbleMinUsd ?? 500);
-  let ofLayers = $state(initial.ofLayers ?? 'heat,bubbles,mid,vap,cvd,vol');
+  let ofBubbleMinUsd = $state(initial.ofBubbleMinUsd ?? 50);
+  let ofLayers = $state(
+    initial.ofLayers ?? 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
+  );
 
   let lineSeries = $state([]);
   let discrepancy = $state(null);
@@ -249,15 +251,36 @@
   function sampleDepth(data) {
     const now = Date.now();
     // Cap sample rate so the heatmap ring stays smooth without thrashing.
-    if (now - lastDepthSampleAt < 200) return;
+    if (now - lastDepthSampleAt < 180) return;
     lastDepthSampleAt = now;
     const tick = resolveTick(ofTick, data);
     const sample = sampleBookDepth(data, {
       t: now,
       tick,
-      maxLevels: Math.min(48, bookDepth * 2),
+      // Prefer deep L2 walls (SSE now sends ~48; poll path uses heatBookDepth).
+      maxLevels: Math.min(64, Math.max(48, bookDepth * 3)),
     });
-    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 320);
+    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 360);
+  }
+
+  /** Deep L2 poll for Order Flow even when SSE focus is fresh (walls need depth). */
+  const HEAT_BOOK_DEPTH = 50;
+  let lastHeatBookAt = 0;
+  async function refreshHeatBook() {
+    if (chartMode !== 'orderflow' || !selectedVenue || !selectedSymbol || replayMode) return;
+    const now = Date.now();
+    if (now - lastHeatBookAt < 350) return;
+    lastHeatBookAt = now;
+    try {
+      const data = await fetchJson(
+        bookQuery(selectedVenue, selectedSymbol, HEAT_BOOK_DEPTH),
+      );
+      if (data) {
+        applyFocusBook(selectedVenue, selectedSymbol, data);
+      }
+    } catch {
+      /* keep last good depth ring */
+    }
   }
 
   let lastEvents = null;
@@ -727,9 +750,11 @@
   async function refreshBook() {
     if (!selectedVenue || !selectedSymbol || replayMode) return;
     // SSE focus already delivers books — skip redundant poll to cut double-apply flicker.
-    if (streamMode === 'sse' && stream.focusFresh(1200)) return;
+    // Order Flow still refreshes deep L2 via refreshHeatBook.
+    if (streamMode === 'sse' && stream.focusFresh(1200) && chartMode !== 'orderflow') return;
     try {
-      const data = await fetchJson(bookQuery(selectedVenue, selectedSymbol, bookDepth));
+      const depth = chartMode === 'orderflow' ? Math.max(bookDepth, HEAT_BOOK_DEPTH) : bookDepth;
+      const data = await fetchJson(bookQuery(selectedVenue, selectedSymbol, depth));
       applyFocusBook(selectedVenue, selectedSymbol, data);
       const b = Number(data?.bids?.[0]?.price);
       const a = Number(data?.asks?.[0]?.price);
@@ -852,7 +877,7 @@
   async function tickFocus() {
     if (replayMode) return;
     try {
-      await Promise.all([refreshBook(), refreshFocusTape()]);
+      await Promise.all([refreshBook(), refreshFocusTape(), refreshHeatBook()]);
     } catch (e) {
       error = String(e.message || e);
     }
@@ -1145,6 +1170,7 @@
               {ofHeat}
               {ofBubbleMinUsd}
               {ofLayers}
+              {largeTradeUsd}
               onSettings={patchOfSettings}
             />
           </div>

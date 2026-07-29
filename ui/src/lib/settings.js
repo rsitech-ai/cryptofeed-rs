@@ -43,9 +43,9 @@ export const DEFAULTS = {
   /** Heat intensity gain 0.5–2.5. */
   ofHeat: 1,
   /** Min bubble notional (USD) to draw. */
-  ofBubbleMinUsd: 500,
-  /** Visible layers csv: heat,bubbles,mid,vap,cvd,vol */
-  ofLayers: 'heat,bubbles,mid,vap,cvd,vol',
+  ofBubbleMinUsd: 50,
+  /** Visible layers csv: heat,bubbles,mid,vap,cvd,vol,cob,candles,footprint,markers */
+  ofLayers: 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
 };
 
 /**
