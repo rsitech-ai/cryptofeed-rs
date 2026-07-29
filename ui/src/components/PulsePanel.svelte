@@ -8,8 +8,11 @@
     alertActive = false,
     spikeThreshold = 72,
     asset = 'BTC',
+    focusVenue = '',
+    metricFilter = '',
     onSpikeThreshold = () => {},
     onChipClick = () => {},
+    onMetricClick = () => {},
   } = $props();
 
   let scoreSpark = $derived(
@@ -17,7 +20,27 @@
   );
 
   let score = $derived(pulse?.score ?? null);
-  let chips = $derived(pulse?.chips || []);
+  let chips = $derived.by(() => {
+    let list = pulse?.chips || [];
+    if (metricFilter === 'heat') {
+      list = [...list].sort((a, b) => (b.heat || 0) - (a.heat || 0));
+    } else if (metricFilter === 'spread') {
+      list = [...list].sort((a, b) => (b.spreadBps || 0) - (a.spreadBps || 0));
+    } else if (metricFilter === 'imb') {
+      list = [...list].sort((a, b) => Math.abs(b.imbalancePct || 0) - Math.abs(a.imbalancePct || 0));
+    } else if (metricFilter === 'usd') {
+      list = [...list].sort((a, b) => (b.usdPerMin || 0) - (a.usdPerMin || 0));
+    } else if (metricFilter === 'tpm') {
+      list = [...list].sort((a, b) => (b.tradesPerMin || 0) - (a.tradesPerMin || 0));
+    }
+    return list;
+  });
+
+  let maxHeat = $derived(Math.max(1, ...chips.map((c) => c.heat || 0)));
+
+  function metricActive(id) {
+    return metricFilter === id;
+  }
 </script>
 
 <section class="pulse" aria-label="Market pulse" class:alert={alertActive}>
@@ -26,6 +49,11 @@
       <span class="title">Market Pulse · {asset}</span>
       {#if alertActive}
         <span class="alert-badge">SPIKE</span>
+      {/if}
+      {#if metricFilter}
+        <button type="button" class="filter-clear" onclick={() => onMetricClick(metricFilter)}>
+          filter: {metricFilter} ✕
+        </button>
       {/if}
     </div>
     <label class="thresh" title="Pulse spike alert threshold (0–100)">
@@ -42,27 +70,27 @@
   </div>
 
   <div class="metrics">
-    <div class="metric">
+    <button type="button" class="metric" class:active={metricActive('tpm')} onclick={() => onMetricClick('tpm')} title="Sort venues by trades/min">
       <span class="lbl">Trades/min</span>
       <span class="val">{pulse?.tradesPerMin != null ? pulse.tradesPerMin.toFixed(1) : '—'}</span>
-    </div>
-    <div class="metric">
+    </button>
+    <button type="button" class="metric" class:active={metricActive('usd')} onclick={() => onMetricClick('usd')} title="Sort venues by USD/min">
       <span class="lbl">USD/min</span>
       <span class="val">{pulse?.usdPerMin != null ? fmtUsd(pulse.usdPerMin) : '—'}</span>
-    </div>
-    <div class="metric">
+    </button>
+    <button type="button" class="metric" class:active={metricActive('cross')} onclick={() => onMetricClick('cross')} title="Cross-venue discrepancy">
       <span class="lbl">Cross Δ</span>
       <span class="val" class:hot={pulse?.crossBps != null && pulse.crossBps > 10}>
         {pulse?.crossBps != null ? pulse.crossBps.toFixed(1) + ' bps' : '—'}
       </span>
-    </div>
-    <div class="metric">
+    </button>
+    <button type="button" class="metric" class:active={metricActive('spread')} onclick={() => onMetricClick('spread')} title="Sort by median spread">
       <span class="lbl">Med spread</span>
       <span class="val">
         {pulse?.medianSpread != null ? pulse.medianSpread.toFixed(2) + ' bps' : '—'}
       </span>
-    </div>
-    <div class="metric">
+    </button>
+    <button type="button" class="metric" class:active={metricActive('imb')} onclick={() => onMetricClick('imb')} title="Sort by book imbalance">
       <span class="lbl">Book imb</span>
       <span
         class="val"
@@ -71,11 +99,11 @@
       >
         {pulse?.bookImbalance != null ? pulse.bookImbalance.toFixed(1) + '%' : '—'}
       </span>
-    </div>
-    <div class="metric score">
+    </button>
+    <button type="button" class="metric score" class:active={metricActive('heat')} onclick={() => onMetricClick('heat')} title="Sort by pulse heat">
       <span class="lbl">Pulse score</span>
       <span class="val big">{score != null ? score.toFixed(0) : '—'}</span>
-    </div>
+    </button>
   </div>
 
   <div class="spark-wrap" title="Pulse score (last N samples)">
@@ -103,11 +131,13 @@
         type="button"
         class="chip"
         class:offline={!c.live}
-        style={`--heat:${Math.round(c.heat)}; --vc:${c.color || 'var(--accent)'}`}
-        title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m"
+        class:focus={c.venue === focusVenue}
+        class:spike={(c.heat || 0) >= spikeThreshold}
+        style={`--heat:${Math.round(c.heat)}; --vc:${c.color || 'var(--accent)'}; --heatpct:${Math.max(6, ((c.heat || 0) / maxHeat) * 100)}`}
+        title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m — click to focus"
         onclick={() => onChipClick(c.venue, c.symbol)}
       >
-        <span class="heat-bar" style={`width:${Math.max(4, c.heat)}%`}></span>
+        <span class="heat-bar" style={`width:var(--heatpct)%`}></span>
         <span class="vname">{c.venue}</span>
         <span class="vheat">{c.heat.toFixed(0)}</span>
       </button>
@@ -117,7 +147,7 @@
   </div>
 
   <div class="foot">
-    {pulse?.venueCount ?? 0} live venues · activity heat from trades/min + USD/min + imbalance + spread
+    {pulse?.venueCount ?? 0} live venues · click chip → focus book/tape/orderflow · click metric → sort
     {#if pulse?.medianSpread != null}
       · med BBO {fmtPrice(pulse.medianSpread, 2)} bps
     {/if}
@@ -130,13 +160,18 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.45rem 0.6rem;
+    gap: 0.45rem;
+    padding: 0.5rem 0.7rem;
     background: var(--panel);
     overflow: auto;
   }
   .pulse.alert {
     box-shadow: inset 0 0 0 1px rgba(246, 70, 93, 0.45);
+    animation: pulseFlash 1.4s ease-in-out 2;
+  }
+  @keyframes pulseFlash {
+    0%, 100% { background: var(--panel); }
+    50% { background: rgba(246, 70, 93, 0.08); }
   }
   .head {
     display: flex;
@@ -145,8 +180,8 @@
     gap: 0.5rem;
     flex-shrink: 0;
   }
-  .title-row { display: flex; align-items: center; gap: 0.5rem; }
-  .title { font-size: 0.75rem; font-weight: 600; }
+  .title-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .title { font-size: 0.8rem; font-weight: 600; }
   .alert-badge {
     font-family: var(--mono);
     font-size: 0.58rem;
@@ -159,6 +194,16 @@
   }
   @keyframes pulseblink {
     50% { opacity: 0.55; }
+  }
+  .filter-clear {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    color: var(--accent);
+    background: rgba(240, 185, 11, 0.08);
+    border: 1px solid rgba(240, 185, 11, 0.35);
+    padding: 0.05rem 0.35rem;
+    cursor: pointer;
+    border-radius: 2px;
   }
   .thresh {
     font-size: 0.62rem;
@@ -179,12 +224,29 @@
   }
 
   .metrics {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.55rem 1.1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    gap: 0.35rem;
     flex-shrink: 0;
   }
-  .metric { display: flex; flex-direction: column; gap: 0.05rem; }
+  .metric {
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+    align-items: flex-start;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.35rem 0.45rem;
+    cursor: pointer;
+    color: inherit;
+    text-align: left;
+  }
+  .metric:hover { border-color: rgba(240, 185, 11, 0.35); }
+  .metric.active {
+    border-color: rgba(240, 185, 11, 0.55);
+    box-shadow: inset 0 0 0 1px rgba(240, 185, 11, 0.2);
+  }
   .metric .lbl {
     font-size: 0.55rem;
     color: var(--muted);
@@ -193,16 +255,16 @@
   }
   .metric .val {
     font-family: var(--mono);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-weight: 600;
   }
-  .metric .val.big { font-size: 1.25rem; color: var(--accent); }
+  .metric .val.big { font-size: 1.3rem; color: var(--accent); }
   .metric .val.hot { color: var(--ask); }
   .metric .val.up { color: var(--bid); }
   .metric .val.down { color: var(--ask); }
 
   .spark-wrap {
-    height: 44px;
+    height: 48px;
     background: var(--panel-2);
     border: 1px solid var(--border);
     flex-shrink: 0;
@@ -210,9 +272,9 @@
   .spark-wrap svg { width: 100%; height: 100%; display: block; }
 
   .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 0.4rem;
     flex: 1;
     align-content: flex-start;
     min-height: 0;
@@ -222,33 +284,45 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.25rem 0.45rem;
+    padding: 0.4rem 0.55rem;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 3px;
     cursor: pointer;
     overflow: hidden;
-    min-width: 7.5rem;
+    min-height: 2.2rem;
   }
   .chip:hover { border-color: var(--vc); }
+  .chip.focus {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(240, 185, 11, 0.25);
+  }
+  .chip.spike {
+    animation: chipSpike 0.9s ease-out 1;
+  }
+  @keyframes chipSpike {
+    0% { filter: brightness(1.4); }
+    100% { filter: brightness(1); }
+  }
   .chip.offline { opacity: 0.45; }
   .heat-bar {
     position: absolute;
     left: 0; top: 0; bottom: 0;
-    background: color-mix(in srgb, var(--vc) 28%, transparent);
+    background: color-mix(in srgb, var(--vc) 32%, transparent);
     pointer-events: none;
+    transition: width 0.25s ease;
   }
   .vname {
     position: relative;
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     color: var(--text);
   }
   .vheat {
     position: relative;
     margin-left: auto;
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 700;
     color: var(--accent);
   }
@@ -266,5 +340,10 @@
     font-family: var(--mono);
     font-size: 0.65rem;
     padding: 0.5rem;
+  }
+
+  @media (max-width: 720px) {
+    .metrics { grid-template-columns: repeat(3, 1fr); }
+    .chips { grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); }
   }
 </style>

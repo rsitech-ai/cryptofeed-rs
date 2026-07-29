@@ -7,12 +7,18 @@ import assert from 'node:assert/strict';
 import {
   aggressorSign,
   bookPressure,
+  buildHeatmapGrid,
   computeCvd,
   detectFlowHeuristics,
+  heatmapColor,
   ladderLevels,
   levelImbalancePct,
+  pushDepthHistory,
+  sampleBookDepth,
+  tradeBubbles,
   tradeNotional,
   volumeAtPrice,
+  volumeBarsFromTape,
   sparkPath,
 } from './orderflow.js';
 import {
@@ -145,6 +151,53 @@ describe('sparkPath', () => {
   });
   it('empty for short series', () => {
     assert.equal(sparkPath([1]), '');
+  });
+});
+
+describe('heatmap / depth ring', () => {
+  it('samples book depth and builds grid', () => {
+    const book = {
+      bids: [
+        { price: '100', quantity: '5' },
+        { price: '99.9', quantity: '2' },
+      ],
+      asks: [
+        { price: '100.1', quantity: '4' },
+        { price: '100.2', quantity: '1' },
+      ],
+    };
+    let hist = [];
+    for (let i = 0; i < 5; i++) {
+      const s = sampleBookDepth(book, { t: 1000 + i * 200, tick: 0.1 });
+      assert.ok(s);
+      assert.ok(s.bids.size >= 1);
+      hist = pushDepthHistory(hist, s, 10);
+    }
+    assert.equal(hist.length, 5);
+    const grid = buildHeatmapGrid(hist, { rows: 20 });
+    assert.ok(grid);
+    assert.ok(grid.maxVal > 0);
+    assert.ok(grid.grid.length === grid.rows * grid.cols);
+  });
+
+  it('builds trade bubbles and volume bars', () => {
+    const tape = [
+      trade({ side: 'buy', price: 100, qty: 2, sec: 10 }),
+      trade({ side: 'sell', price: 100, qty: 1, sec: 10 }),
+      trade({ side: 'buy', price: 100.1, qty: 3, sec: 11 }),
+    ];
+    const bubbles = tradeBubbles(tape, { tick: 0.1, bucketMs: 1000 });
+    assert.ok(bubbles.length >= 1);
+    assert.ok(bubbles.some((b) => b.buyUsd > 0));
+    const bars = volumeBarsFromTape(tape, { bucketSec: 1 });
+    assert.ok(bars.length >= 1);
+  });
+
+  it('maps intensity to blue→red palette', () => {
+    const cold = heatmapColor(0.05);
+    const hot = heatmapColor(0.95);
+    assert.ok(cold[2] > cold[0]); // bluish
+    assert.ok(hot[0] > hot[2]); // reddish
   });
 });
 
