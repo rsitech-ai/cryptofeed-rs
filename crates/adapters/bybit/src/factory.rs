@@ -114,8 +114,11 @@ impl VenueFactory for BybitFactory {
         Ok(vec![HttpRequestSpec {
             id: 1,
             method: HttpMethod::Get,
+            // Default page is 10 rows; linear alone has 700+ instruments. limit=1000
+            // fits current catalogs on one page (cursor empty). If Bybit grows past
+            // 1000, discovery must follow nextPageCursor.
             url: format!(
-                "https://api.bybit.com/v5/market/instruments-info?category={}",
+                "https://api.bybit.com/v5/market/instruments-info?category={}&limit=1000",
                 self.category.as_str()
             ),
             headers: Vec::new(),

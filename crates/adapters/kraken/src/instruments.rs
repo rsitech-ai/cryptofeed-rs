@@ -53,6 +53,10 @@ pub fn parse_asset_pairs(
             let Some(symbol) = info.wsname.clone() else {
                 continue;
             };
+            // AssetPairs still reports wsname XBT/USD; Kraken WS v2 + our config use BTC/USD.
+            let symbol = normalize_kraken_ws_symbol(&symbol);
+            let base = normalize_kraken_asset(&info.base);
+            let quote = normalize_kraken_asset(&info.quote);
             let price_inc = Fixed::new(1, info.pair_decimals);
             let qty_inc = Fixed::new(1, info.lot_decimals);
             out.push(InstrumentDefinition {
@@ -63,8 +67,8 @@ pub fn parse_asset_pairs(
                     settlement: None,
                     expiry_ns: None,
                 },
-                base: AssetCode(info.base),
-                quote: AssetCode(info.quote),
+                base: AssetCode(base),
+                quote: AssetCode(quote),
                 settlement: None,
                 price_scale: info.pair_decimals,
                 quantity_scale: info.lot_decimals,
@@ -95,6 +99,30 @@ fn map_status(status: Option<&str>) -> InstrumentStatus {
         }
         Some("delisted") => InstrumentStatus::Delisted,
         Some(_) => InstrumentStatus::Unknown,
+    }
+}
+
+/// Normalize AssetPairs `wsname` to the WS v2 symbol (XBT → BTC).
+fn normalize_kraken_ws_symbol(wsname: &str) -> String {
+    if let Some(rest) = wsname.strip_prefix("XBT/") {
+        return format!("BTC/{rest}");
+    }
+    if wsname.starts_with("XBT") && !wsname.contains('/') {
+        return format!("BTC{}", &wsname[3..]);
+    }
+    wsname.to_string()
+}
+
+/// Strip classic Kraken asset prefixes (XXBT → BTC, ZUSD → USD, XETH → ETH).
+fn normalize_kraken_asset(code: &str) -> String {
+    match code {
+        "XXBT" | "XBT" => "BTC".into(),
+        "XETH" => "ETH".into(),
+        "XXRP" => "XRP".into(),
+        "ZUSD" => "USD".into(),
+        "ZEUR" => "EUR".into(),
+        "ZUSDT" | "USDT" => "USDT".into(),
+        other => other.to_string(),
     }
 }
 
@@ -146,11 +174,13 @@ mod tests {
         assert_eq!(defs.len(), 3);
         let active = defs
             .iter()
-            .find(|d| d.key.native_symbol == "XBT/USD")
-            .expect("online");
+            .find(|d| d.key.native_symbol == "BTC/USD")
+            .expect("online BTC/USD (normalized from XBT/USD)");
         assert_eq!(active.status, InstrumentStatus::Active);
         assert_eq!(active.price_scale, 1);
         assert_eq!(active.quantity_scale, 8);
+        assert_eq!(active.base.0, "BTC");
+        assert_eq!(active.quote.0, "USD");
         let dead = defs
             .iter()
             .find(|d| d.key.native_symbol == "DEAD/USD")
@@ -161,5 +191,12 @@ mod tests {
             .find(|d| d.key.native_symbol == "HALT/USD")
             .expect("cancel_only");
         assert_eq!(halt.status, InstrumentStatus::Suspended);
+    }
+
+    #[test]
+    fn normalizes_xbt_wsname_to_btc() {
+        assert_eq!(normalize_kraken_ws_symbol("XBT/USD"), "BTC/USD");
+        assert_eq!(normalize_kraken_ws_symbol("BTC/USD"), "BTC/USD");
+        assert_eq!(normalize_kraken_ws_symbol("ETH/USD"), "ETH/USD");
     }
 }

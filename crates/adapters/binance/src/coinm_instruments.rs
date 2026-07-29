@@ -15,6 +15,8 @@ struct ExchangeInfo {
 #[derive(Debug, Deserialize)]
 struct SymbolInfo {
     symbol: String,
+    /// Coin-M dapi currently emits `contractStatus`; older fixtures used `status`.
+    #[serde(alias = "contractStatus")]
     status: String,
     #[serde(rename = "contractType")]
     contract_type: String,
@@ -177,5 +179,33 @@ mod tests {
         assert_eq!(defs[0].quantity_scale, 0);
         assert_eq!(defs[1].key.native_symbol, "DEAD_PERP");
         assert_eq!(defs[1].status, InstrumentStatus::Suspended);
+    }
+
+    #[test]
+    fn accepts_contract_status_alias_from_live_dapi() {
+        let body = br#"{
+          "symbols":[{
+            "symbol":"ETHUSD_PERP",
+            "contractStatus":"TRADING",
+            "contractType":"PERPETUAL",
+            "baseAsset":"ETH",
+            "quoteAsset":"USD",
+            "marginAsset":"ETH",
+            "filters":[
+              {"filterType":"PRICE_FILTER","tickSize":"0.01"},
+              {"filterType":"LOT_SIZE","stepSize":"1"}
+            ]
+          }]
+        }"#;
+        let defs = parse_coinm_exchange_info(&[HttpResponse {
+            status: 200,
+            headers: Vec::new(),
+            body: Bytes::from_static(body),
+        }])
+        .unwrap();
+        assert_eq!(defs.len(), 1);
+        assert_eq!(defs[0].key.native_symbol, "ETHUSD_PERP");
+        assert_eq!(defs[0].status, InstrumentStatus::Active);
+        assert_eq!(defs[0].price_scale, 2);
     }
 }
