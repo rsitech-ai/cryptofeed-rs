@@ -9,8 +9,9 @@
 
 pub mod http;
 mod plane;
+mod replay;
 
-pub use http::{respond_view_request, serve_view};
+pub use http::{handle_view_conn, handle_view_conn_with_prefix, respond_view_request, serve_view};
 pub use plane::{
     SharedViewPlane, TapeEntry, ViewBookSnapshot, ViewPlane, ViewPlaneConfig, ViewStatus,
 };

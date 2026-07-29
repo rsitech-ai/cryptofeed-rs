@@ -13,6 +13,7 @@ export class CandleBuilder {
     this.sessionHigh = null;
     this.sessionLow = null;
     this.sessionVolume = 0;
+    this.sessionNotional = 0;
     this.sessionTrades = 0;
     this.sessionBuyVol = 0;
     this.sessionSellVol = 0;
@@ -33,6 +34,7 @@ export class CandleBuilder {
     this.sessionHigh = null;
     this.sessionLow = null;
     this.sessionVolume = 0;
+    this.sessionNotional = 0;
     this.sessionTrades = 0;
     this.sessionBuyVol = 0;
     this.sessionSellVol = 0;
@@ -93,6 +95,7 @@ export class CandleBuilder {
 
   _applyTrade(trade) {
     const { sec, price, qty, buy } = trade;
+    const notional = price * qty;
     const bucket = Math.floor(sec / this.intervalSec) * this.intervalSec;
     let c = this.buckets.get(bucket);
     if (!c) {
@@ -103,9 +106,12 @@ export class CandleBuilder {
         low: price,
         close: price,
         volume: 0,
+        notional: 0,
         trades: 0,
         buyVol: 0,
         sellVol: 0,
+        buyNotional: 0,
+        sellNotional: 0,
       };
       this.buckets.set(bucket, c);
     }
@@ -113,13 +119,20 @@ export class CandleBuilder {
     c.low = Math.min(c.low, price);
     c.close = price;
     c.volume += qty;
+    c.notional += notional;
     c.trades += 1;
-    if (buy) c.buyVol += qty;
-    else c.sellVol += qty;
+    if (buy) {
+      c.buyVol += qty;
+      c.buyNotional += notional;
+    } else {
+      c.sellVol += qty;
+      c.sellNotional += notional;
+    }
 
     this.prevPrice = this.lastPrice ?? price;
     this.lastPrice = price;
     this.sessionVolume += qty;
+    this.sessionNotional = (this.sessionNotional || 0) + notional;
     this.sessionTrades += 1;
     if (buy) this.sessionBuyVol += qty;
     else this.sessionSellVol += qty;
@@ -133,6 +146,7 @@ export class CandleBuilder {
     this.sessionHigh = null;
     this.sessionLow = null;
     this.sessionVolume = 0;
+    this.sessionNotional = 0;
     this.sessionTrades = 0;
     this.sessionBuyVol = 0;
     this.sessionSellVol = 0;
@@ -156,27 +170,29 @@ export class CandleBuilder {
     const down = '#f6465d';
     return this.candles().map((c) => ({
       time: c.time,
-      value: c.volume,
+      value: c.notional ?? c.volume,
       color: c.close >= c.open ? up : down,
     }));
   }
 
   /**
-   * Volume / trade count for buckets with time >= nowSec - windowSec.
+   * USD notional / trade count for buckets with time >= nowSec - windowSec.
    * @param {number} windowSec
    * @param {number} [nowSec]
    */
   windowStats(windowSec, nowSec = Math.floor(Date.now() / 1000)) {
     const since = nowSec - Math.max(1, windowSec);
     let volume = 0;
+    let notional = 0;
     let trades = 0;
     for (const c of this.buckets.values()) {
       if (c.time >= since) {
         volume += c.volume;
+        notional += c.notional ?? c.volume * c.close;
         trades += c.trades;
       }
     }
-    return { volume, trades, windowSec };
+    return { volume, notional, trades, windowSec, tradesPerMin: (trades / windowSec) * 60 };
   }
 }
 

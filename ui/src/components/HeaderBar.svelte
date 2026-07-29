@@ -1,5 +1,6 @@
 <script>
-  import { displayPair, fmtPrice, fmtQty, fmtCount, fmtWindowLabel } from '../lib/format.js';
+  import { displayPair, fmtPrice, fmtUsd, fmtCount, fmtWindowLabel, fmtTradesPerMin } from '../lib/format.js';
+  import { SESSION_PRESETS } from '../lib/session.js';
 
   let {
     asset = '',
@@ -16,28 +17,42 @@
     sessionHigh = null,
     sessionLow = null,
     sessionVolume = null,
+    sessionNotional = null,
     sessionTrades = null,
     windowVolume = null,
+    windowNotional = null,
     windowTrades = null,
     windowSec = 60,
+    sessionPreset = '5m',
     eventsPerSec = null,
     venueLive = false,
     mappedVenues = 0,
     liveMapped = 0,
     crossBps = null,
-    multiVolume = null,
+    multiNotional = null,
     multiTrades = null,
-    statsMode = 'window', // window | session
+    multiTradesPerMin = null,
+    statsMode = 'window',
+    density = 'comfortable',
+    grafanaUrl = '',
+    streamMode = 'poll',
     onStatsMode = () => {},
+    onSessionPreset = () => {},
+    onDensity = () => {},
+    onGrafana = () => {},
   } = $props();
 
-  let vol = $derived(statsMode === 'session' ? sessionVolume : windowVolume);
+  let vol = $derived(statsMode === 'session' ? (sessionNotional ?? sessionVolume) : (windowNotional ?? windowVolume));
   let trades = $derived(statsMode === 'session' ? sessionTrades : windowTrades);
   let volLbl = $derived(
-    statsMode === 'session' ? 'Vol (session)' : `Vol (${fmtWindowLabel(windowSec)})`,
+    statsMode === 'session'
+      ? 'Vol USD (session)'
+      : `Vol USD (${fmtWindowLabel(windowSec)})`,
   );
   let tradesLbl = $derived(
-    statsMode === 'session' ? 'Trades (session)' : `Trades (${fmtWindowLabel(windowSec)})`,
+    statsMode === 'session'
+      ? 'Trades (session)'
+      : `Trades (${fmtWindowLabel(windowSec)})`,
   );
 </script>
 
@@ -49,9 +64,7 @@
         <span class="watch-label">watching</span>
         <span class="watch-main">{asset || '—'}</span>
         <span class="watch-meta">across {mappedVenues} venues</span>
-        <span class="watch-live" class:ok={liveMapped > 0}>
-          {liveMapped} live
-        </span>
+        <span class="watch-live" class:ok={liveMapped > 0}>{liveMapped} live</span>
       {:else}
         <span class="watch-label">focus</span>
         <span class="watch-main mono">{venue || '—'}</span>
@@ -59,25 +72,15 @@
       {/if}
     </div>
     <div class="pair-meta">
-      <span class="venue-chip" class:live={venueLive} title="Book / tape focus venue">
-        {venue || '—'}
-      </span>
+      <span class="venue-chip" class:live={venueLive} title="Book / tape focus venue">{venue || '—'}</span>
       <span class="muted mono">{symbol}</span>
-      {#if chartMode === 'lines'}
-        <span class="muted">focus book</span>
-      {:else}
-        <span class="muted">{liveMapped}/{mappedVenues} venues mapped</span>
-      {/if}
+      <span class="stream-chip" title="Data transport">{streamMode === 'sse' ? 'SSE' : 'poll'}</span>
+      <span class="coming-soon" title="Not implemented">Funding · OI · Liq</span>
     </div>
   </div>
 
   <div class="last-block">
-    <div
-      class="last-price"
-      class:up={priceDir > 0}
-      class:down={priceDir < 0}
-      class:flat={priceDir === 0}
-    >
+    <div class="last-price" class:up={priceDir > 0} class:down={priceDir < 0} class:flat={priceDir === 0}>
       {lastPrice != null ? fmtPrice(lastPrice, 2) : '—'}
     </div>
   </div>
@@ -106,13 +109,7 @@
     </div>
     <div class="stat">
       <div class="lbl">Cross-venue Δ</div>
-      <div class="val">
-        {#if crossBps != null}
-          {crossBps.toFixed(2)} bps
-        {:else}
-          —
-        {/if}
-      </div>
+      <div class="val">{crossBps != null ? crossBps.toFixed(2) + ' bps' : '—'}</div>
     </div>
     <div class="stat">
       <div class="lbl">Session High</div>
@@ -122,25 +119,44 @@
       <div class="lbl">Session Low</div>
       <div class="val ask">{sessionLow != null ? fmtPrice(sessionLow, 2) : '—'}</div>
     </div>
-    <button class="stat clickable" class:active={statsMode === 'window'} onclick={() => onStatsMode('window')} title="Volume / trades in timeframe window for focus venue">
+    <button class="stat clickable" class:active={statsMode === 'window'} onclick={() => onStatsMode('window')}>
       <div class="lbl">{volLbl}</div>
-      <div class="val">{vol != null ? fmtQty(vol) : '—'}</div>
+      <div class="val">{vol != null ? fmtUsd(vol) : '—'}</div>
     </button>
-    <button class="stat clickable" class:active={statsMode === 'session'} onclick={() => onStatsMode('session')} title="Toggle session vs window stats">
+    <button class="stat clickable" class:active={statsMode === 'session'} onclick={() => onStatsMode('session')}>
       <div class="lbl">{tradesLbl}</div>
       <div class="val">{trades != null ? fmtCount(trades) : '—'}</div>
     </button>
-    <div class="stat" title="Sum across mapped venues (native qty units — not USD-normalized)">
-      <div class="lbl">Multi vol / #</div>
+    <div class="stat" title="USD notional sum across mapped venues">
+      <div class="lbl">Multi USD / #</div>
       <div class="val">
-        {multiVolume != null ? fmtQty(multiVolume) : '—'}
+        {multiNotional != null ? fmtUsd(multiNotional) : '—'}
         <span class="muted">/ {multiTrades != null ? fmtCount(multiTrades) : '—'}</span>
+        {#if multiTradesPerMin != null}
+          <span class="muted"> · {fmtTradesPerMin(multiTrades, windowSec)}</span>
+        {/if}
       </div>
     </div>
     <div class="stat">
       <div class="lbl">Events/s</div>
       <div class="val">{eventsPerSec != null ? eventsPerSec.toFixed(1) : '—'}</div>
     </div>
+    <div class="session-presets">
+      {#each SESSION_PRESETS as sp}
+        <button
+          type="button"
+          class:active={sessionPreset === sp.id}
+          onclick={() => onSessionPreset(sp.id)}
+          title="Stats window preset"
+        >{sp.label}</button>
+      {/each}
+    </div>
+    <button type="button" class="icon-btn" onclick={() => onDensity()} title="Toggle compact/comfortable density">
+      {density === 'compact' ? '▣' : '▢'}
+    </button>
+    {#if grafanaUrl}
+      <button type="button" class="icon-btn grafana" onclick={() => onGrafana()} title="Open Grafana dashboard">Grafana</button>
+    {/if}
   </div>
 </header>
 
@@ -149,10 +165,10 @@
     display: flex;
     align-items: stretch;
     gap: 1.25rem;
-    padding: 0.4rem 0.75rem;
+    padding: var(--header-pad, 0.4rem 0.75rem);
     background: var(--panel);
     border-bottom: 1px solid var(--border);
-    min-height: 56px;
+    min-height: var(--header-h, 56px);
     flex-shrink: 0;
   }
 
@@ -240,6 +256,22 @@
     border-color: rgba(2, 192, 118, 0.35);
   }
 
+  .stream-chip {
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 0.02rem 0.25rem;
+  }
+
+  .coming-soon {
+    font-family: var(--mono);
+    font-size: 0.52rem;
+    color: var(--muted);
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
   .last-block {
     display: flex;
     align-items: center;
@@ -255,15 +287,9 @@
     line-height: 1;
   }
 
-  .last-price.up {
-    color: var(--bid);
-  }
-  .last-price.down {
-    color: var(--ask);
-  }
-  .last-price.flat {
-    color: var(--text);
-  }
+  .last-price.up { color: var(--bid); }
+  .last-price.down { color: var(--ask); }
+  .last-price.flat { color: var(--text); }
 
   .stats {
     display: flex;
@@ -312,15 +338,47 @@
     white-space: nowrap;
   }
 
-  .stat .val.bid {
-    color: var(--bid);
-  }
-  .stat .val.ask {
-    color: var(--ask);
-  }
+  .stat .val.bid { color: var(--bid); }
+  .stat .val.ask { color: var(--ask); }
+
   .muted {
     color: var(--muted);
     font-size: 0.68rem;
     font-family: var(--mono);
+  }
+
+  .session-presets {
+    display: flex;
+    gap: 0.1rem;
+  }
+
+  .session-presets button {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    padding: 0.1rem 0.3rem;
+    cursor: pointer;
+  }
+
+  .session-presets button.active {
+    color: var(--accent);
+    border-color: rgba(240, 185, 11, 0.35);
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    padding: 0.15rem 0.4rem;
+    cursor: pointer;
+  }
+
+  .icon-btn.grafana {
+    color: var(--accent);
+    border-color: rgba(240, 185, 11, 0.35);
   }
 </style>

@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use marketfeed_adapter_api::{
-    ConcreteSubscriptionSet, ReconnectPolicy, SessionMachine, SessionSpec, VenueFactory,
+    ConcreteSubscriptionSet, Environment, ReconnectPolicy, SessionMachine, SessionSpec,
+    VenueFactory,
 };
 use marketfeed_adapter_binance::{
     BINANCE_COINM_VENUE_ID, BINANCE_SPOT_VENUE_ID, BINANCE_USDM_VENUE_ID, BinanceCoinmFactory,
@@ -44,6 +45,7 @@ use marketfeed_transport::{
 };
 use tokio::sync::watch;
 
+use crate::catalog_discover::discover_catalog;
 use crate::config::{TransportMode, VenueConfig, VenueKind};
 use crate::sinks::SharedDaemonSinks;
 use crate::state::DaemonState;
@@ -588,6 +590,7 @@ async fn run_venue(
 /// their factories (OKX/Bybit/Kraken/Deribit). Ceiling: config `symbols` matter
 /// for Binance + bitstamp/gemini/coinbase-spot/coinbase-adv/bitfinex/bitfinex-deriv
 /// (+ peers with `session_config_from_catalog`). Upgrade: remaining factories.
+/// Prefer [`resolve_live_catalog`] on the live WS path so L2 scales match the venue.
 pub(crate) fn catalog_for_venue(
     venue_id: VenueId,
     venue_code: &str,
@@ -635,6 +638,91 @@ pub(crate) fn catalog_for_venue(
         CatalogVersion(1),
         std::sync::Arc::from(instruments),
     )
+}
+
+/// Prefer REST-discovered scales for live sessions; fall back to stub on failure.
+///
+/// Filters the exchange catalog to configured symbols and reassigns dense
+/// instrument ids (1..N) so view-plane / planner wiring stays stable.
+async fn resolve_live_catalog<F: VenueFactory>(
+    factory: &F,
+    venue_id: VenueId,
+    venue_code: &str,
+    kind: InstrumentKind,
+    symbols: &[String],
+) -> CatalogView {
+    let stub = catalog_for_venue(venue_id, venue_code, kind, symbols);
+    if symbols.is_empty() {
+        return stub;
+    }
+    let http = match ReqwestHttpTransport::new() {
+        Ok(h) => h,
+        Err(e) => {
+            tracing::warn!(
+                venue = venue_code,
+                error = %e,
+                "live catalog HTTP transport unavailable; using stub scales"
+            );
+            return stub;
+        }
+    };
+    match discover_catalog(
+        factory,
+        &http,
+        venue_id,
+        Environment::Production,
+        CatalogVersion(1),
+    )
+    .await
+    {
+        Ok(full) => match filter_catalog_to_symbols(&full, symbols) {
+            Ok(filtered) => {
+                tracing::info!(
+                    venue = venue_code,
+                    instruments = filtered.instruments.len(),
+                    "live catalog resolved"
+                );
+                filtered
+            }
+            Err(e) => {
+                tracing::warn!(
+                    venue = venue_code,
+                    error = %e,
+                    "live catalog missing configured symbols; using stub scales"
+                );
+                stub
+            }
+        },
+        Err(e) => {
+            tracing::warn!(
+                venue = venue_code,
+                error = %e,
+                "live catalog discovery failed; using stub scales"
+            );
+            stub
+        }
+    }
+}
+
+fn filter_catalog_to_symbols(
+    full: &CatalogView,
+    symbols: &[String],
+) -> Result<CatalogView, String> {
+    let mut out = Vec::with_capacity(symbols.len());
+    for (i, sym) in symbols.iter().enumerate() {
+        let Some(inst) = full.find_by_native(sym) else {
+            return Err(format!("symbol {sym:?} missing from live catalog"));
+        };
+        let mut mapped = inst.clone();
+        mapped.id = InstrumentId((i as u32) + 1);
+        mapped.catalog_version = CatalogVersion(1);
+        out.push(mapped);
+    }
+    Ok(CatalogView::with_instruments(
+        full.venue,
+        CatalogVersion(1),
+        std::sync::Arc::from(out),
+    ))
 }
 
 async fn run_synthetic_memory(
@@ -853,7 +941,7 @@ async fn run_live_ws<F: VenueFactory>(
     }
 
     let max_frame_bytes = factory.specification().max_frame_bytes;
-    let catalog = catalog_for_venue(venue_id, venue_code, kind, &venue.symbols);
+    let catalog = resolve_live_catalog(&factory, venue_id, venue_code, kind, &venue.symbols).await;
     let request = expand_concrete_subscriptions(venue, &catalog).map_err(|e| e.to_string())?;
     let plan = factory
         .plan(&request, &catalog)

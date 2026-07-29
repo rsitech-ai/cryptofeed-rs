@@ -79,6 +79,9 @@ pub fn classify_reload(
         || new.telemetry.ui_tape_capacity != base.telemetry.ui_tape_capacity
         || new.telemetry.ui_tape_max_per_sec != base.telemetry.ui_tape_max_per_sec
         || new.telemetry.ui_static_dir != base.telemetry.ui_static_dir
+        || new.telemetry.grafana_base_url != base.telemetry.grafana_base_url
+        || new.telemetry.alert_webhook_url != base.telemetry.alert_webhook_url
+        || new.telemetry.replay_dir != base.telemetry.replay_dir
     {
         plan.restart_required.push("telemetry.ui");
     }
