@@ -12,7 +12,12 @@
   import { createAlert, sendWebhook, testDaemonAlert } from './lib/alerts.js';
   import { marketQuality, lastTapeSec, isQuotesOnly } from './lib/quality.js';
   import { nsToSec } from './lib/format.js';
-  import { bookPressure, pushImbalanceHistory } from './lib/orderflow.js';
+  import {
+    bookPressure,
+    pushDepthHistory,
+    pushImbalanceHistory,
+    sampleBookDepth,
+  } from './lib/orderflow.js';
   import {
     bookImbalanceFromSnap,
     computePulse,
@@ -30,6 +35,7 @@
   import AlertToast from './components/AlertToast.svelte';
   import ReplayScrubber from './components/ReplayScrubber.svelte';
   import OrderFlowPanel from './components/OrderFlowPanel.svelte';
+  import OrderFlowHeatmap from './components/OrderFlowHeatmap.svelte';
   import PulsePanel from './components/PulsePanel.svelte';
 
   const initial = loadSettings();
@@ -86,9 +92,13 @@
   /** @type {Map<string, object>} */
   let venueBookSnaps = $state(new Map());
   let imbalanceHistory = $state([]);
+  /** @type {Array<object>} L2 depth ring for order-flow heatmap */
+  let depthHistory = $state([]);
   let pulseHistory = $state([]);
   let pulseAlertActive = $state(false);
   let lastPulseAlertAt = 0;
+  let pulseMetricFilter = $state('');
+  let lastDepthSampleAt = 0;
 
   let candles = $state([]);
   let volumeBars = $state([]);
@@ -112,25 +122,23 @@
   const stream = new StreamClient({
     onTape: (venue, symbol, entries) => {
       if (replayMode) return;
-      if (venue === selectedVenue && symbol === selectedSymbol) {
-        tape = entries;
-        candleBuilder.ingest(entries);
-        syncCandleView();
-      }
+      applyFocusTape(venue, symbol, entries);
       tracker.ingest(venue, entries);
       updateFreshness(venue, symbol, entries);
       syncLineView();
     },
     onBook: (venue, symbol, data) => {
       if (replayMode) return;
-      venueBooks.set(`${venue}|${symbol}`, true);
-      venueBooks = venueBooks;
-      venueBookSnaps.set(`${venue}|${symbol}`, data);
-      venueBookSnaps = venueBookSnaps;
-      if (venue === selectedVenue && symbol === selectedSymbol) {
-        book = data;
-        const pressure = bookPressure(data, bookDepth);
-        imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
+      applyFocusBook(venue, symbol, data);
+    },
+    onFocus: (f) => {
+      if (replayMode || !f) return;
+      if (f.book) applyFocusBook(f.venue, f.symbol, f.book);
+      if (f.tape?.length) {
+        applyFocusTape(f.venue, f.symbol, f.tape);
+        tracker.ingest(f.venue, f.tape);
+        updateFreshness(f.venue, f.symbol, f.tape);
+        syncLineView();
       }
     },
     onStatus: (s) => {
@@ -140,6 +148,38 @@
     onConnect: () => { streamMode = 'sse'; },
     onDisconnect: () => { streamMode = 'poll'; },
   });
+
+  function applyFocusBook(venue, symbol, data) {
+    if (!data) return;
+    const key = `${venue}|${symbol}`;
+    venueBooks.set(key, true);
+    venueBooks = new Map(venueBooks);
+    venueBookSnaps.set(key, data);
+    venueBookSnaps = new Map(venueBookSnaps);
+    if (venue === selectedVenue && symbol === selectedSymbol) {
+      book = data;
+      const pressure = bookPressure(data, bookDepth);
+      imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
+      sampleDepth(data);
+    }
+  }
+
+  function applyFocusTape(venue, symbol, entries) {
+    if (venue === selectedVenue && symbol === selectedSymbol) {
+      tape = entries || [];
+      candleBuilder.ingest(tape);
+      syncCandleView();
+    }
+  }
+
+  function sampleDepth(data) {
+    const now = Date.now();
+    // Cap sample rate so the heatmap ring stays smooth without thrashing.
+    if (now - lastDepthSampleAt < 200) return;
+    lastDepthSampleAt = now;
+    const sample = sampleBookDepth(data, { t: now, maxLevels: Math.min(40, bookDepth * 2) });
+    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 300);
+  }
 
   let lastEvents = null;
   let lastEventsAt = 0;
@@ -407,6 +447,8 @@
     highlightSec = null;
     selectedTradeId = null;
     imbalanceHistory = [];
+    depthHistory = [];
+    lastDepthSampleAt = 0;
   }
 
   function applyTimeframe(id) {
@@ -440,7 +482,10 @@
       }
     }
     resetFocusSeries();
-    if (!replayMode) tickFocus();
+    if (!replayMode) {
+      tickFocus();
+      reconnectStream();
+    }
   }
 
   function toggleVenue(venue) {
@@ -496,7 +541,32 @@
   function reconnectStream() {
     stream.disconnect();
     if (replayMode) return;
-    stream.connect({ asset: selectedAsset, venues: mapped.map((m) => m.venue) });
+    stream.connect({
+      asset: selectedAsset,
+      venue: selectedVenue || undefined,
+      symbol: selectedSymbol || undefined,
+      venues: mapped.map((m) => m.venue),
+    });
+  }
+
+  function setChartMode(m) {
+    chartMode = m;
+    const patch = { chartMode: m };
+    // Heatmap already embeds CVD/VAP side panel — flip dock to Pulse for multi-venue heat.
+    if (m === 'orderflow' && analyticsTab === 'orderflow') {
+      analyticsTab = 'pulse';
+      analyticsOpen = true;
+      patch.analyticsTab = 'pulse';
+      patch.analyticsOpen = true;
+    }
+    persist(patch);
+  }
+
+  function forceLiveRefresh() {
+    if (replayMode) return;
+    tickFocus();
+    tickMulti();
+    refreshStatus().catch(() => {});
   }
 
   async function refreshStatus() {
@@ -541,15 +611,10 @@
   async function refreshBook() {
     if (!selectedVenue || !selectedSymbol || replayMode) return;
     try {
-      book = await fetchJson(bookQuery(selectedVenue, selectedSymbol, bookDepth));
-      venueBooks.set(`${selectedVenue}|${selectedSymbol}`, true);
-      venueBooks = venueBooks;
-      venueBookSnaps.set(`${selectedVenue}|${selectedSymbol}`, book);
-      venueBookSnaps = venueBookSnaps;
-      const pressure = bookPressure(book, bookDepth);
-      imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
-      const b = Number(book?.bids?.[0]?.price);
-      const a = Number(book?.asks?.[0]?.price);
+      const data = await fetchJson(bookQuery(selectedVenue, selectedSymbol, bookDepth));
+      applyFocusBook(selectedVenue, selectedSymbol, data);
+      const b = Number(data?.bids?.[0]?.price);
+      const a = Number(data?.asks?.[0]?.price);
       if (Number.isFinite(b) && Number.isFinite(a)) {
         const midPx = (b + a) / 2;
         candleBuilder.touchPrice(midPx);
@@ -564,14 +629,16 @@
 
   async function refreshFocusTape() {
     if (!selectedVenue || !selectedSymbol || replayMode) return;
+    // When SSE is actively delivering focus tape, skip redundant poll to cut load —
+    // but always poll if focus is stale (broken SSE used to starve the tape).
+    if (streamMode === 'sse' && stream.focusFresh(1200)) return;
     try {
       const data = await fetchJson(tapeQuery(selectedVenue, selectedSymbol, tapeLimit, 'trade'));
-      tape = data.entries || [];
-      updateFreshness(selectedVenue, selectedSymbol, tape);
+      const entries = data.entries || [];
+      updateFreshness(selectedVenue, selectedSymbol, entries);
       const prev = candleBuilder.lastPrice;
-      candleBuilder.ingest(tape);
-      tracker.ingest(selectedVenue, tape);
-      syncCandleView();
+      applyFocusTape(selectedVenue, selectedSymbol, entries);
+      tracker.ingest(selectedVenue, entries);
       syncLineView();
       if (candleBuilder.lastPrice != null && prev != null) {
         if (candleBuilder.lastPrice > prev) priceDir = 1;
@@ -596,17 +663,19 @@
       for (let i = 0; i < Math.min(batchSize, targets.length); i++) {
         batch.push(targets[(start + i) % targets.length]);
       }
-      // Under SSE, tape is pushed for focus — still poll tape+books for other venues (pulse).
-      const needTape = streamMode !== 'sse';
+      // Always poll multi-venue books. Skip focus tape only when SSE focus is fresh;
+      // never skip other venues (pulse + markets workspace depend on them).
+      const sseFresh = streamMode === 'sse' && stream.focusFresh(1500);
       await Promise.all(
         batch.map(async (t) => {
           try {
+            const isFocus = t.venue === selectedVenue && t.symbol === selectedSymbol;
             const tasks = [
               fetchJson(bookQuery(t.venue, t.symbol, Math.min(10, bookDepth))).catch(() => null),
             ];
-            if (needTape || t.venue !== selectedVenue) {
+            if (!(isFocus && sseFresh)) {
               tasks.unshift(
-                fetchJson(tapeQuery(t.venue, t.symbol, Math.min(80, tapeLimit))).catch(() => null),
+                fetchJson(tapeQuery(t.venue, t.symbol, Math.min(80, tapeLimit), 'trade')).catch(() => null),
               );
             } else {
               tasks.unshift(Promise.resolve(null));
@@ -615,12 +684,10 @@
             if (tapeData?.entries) {
               tracker.ingest(t.venue, tapeData.entries);
               updateFreshness(t.venue, t.symbol, tapeData.entries);
+              if (isFocus) applyFocusTape(t.venue, t.symbol, tapeData.entries);
             }
             if (bookData) {
-              venueBooks.set(`${t.venue}|${t.symbol}`, true);
-              venueBookSnaps.set(`${t.venue}|${t.symbol}`, bookData);
-              venueBooks = venueBooks;
-              venueBookSnaps = venueBookSnaps;
+              applyFocusBook(t.venue, t.symbol, bookData);
             }
           } catch {
             /* empty venue */
@@ -760,6 +827,10 @@
     candleBuilder.setInterval(tfSec);
 
     window.addEventListener('keydown', onKeydown);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') forceLiveRefresh();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     tickSlow()
       .then(async () => {
@@ -776,6 +847,7 @@
 
     return () => {
       window.removeEventListener('keydown', onKeydown);
+      document.removeEventListener('visibilitychange', onVisibility);
       clearInterval(slow);
       clearInterval(mid);
       if (focusTimer) clearInterval(focusTimer);
@@ -857,43 +929,109 @@
           onSpikeClick={onSpikeClick}
         />
       {/if}
-      <PriceChart
-        series={lineSeries}
-        {candles}
-        {volumeBars}
-        {bpsHistory}
-        {chartMode}
-        {priceMode}
-        {timeframe}
-        asset={selectedAsset}
-        {discrepancy}
-        {assets}
-        {coverage}
-        {showVolume}
-        {bookDepth}
-        {tapeLimit}
-        {pollFocusMs}
-        {pollMultiMs}
-        alertBpsThreshold={alertBpsThreshold}
-        webhookUrl={webhookUrl}
-        focusVenue={selectedVenue}
-        {highlightVenues}
-        {highlightSec}
-        sessionWindowSec={sessionSec}
-        onTimeframe={applyTimeframe}
-        onChartMode={(m) => { chartMode = m; persist({ chartMode: m }); }}
-        onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(); }}
-        onAsset={onAssetChange}
-        onToggleVenue={toggleVenue}
-        onFocusVenue={(v, s) => selectMarket(v, s)}
-        onShowVolume={(v) => { showVolume = v; persist({ showVolume: v }); }}
-        onBookDepth={setBookDepth}
-        onTapeLimit={setTapeLimit}
-        onPollFocus={rescheduleFocus}
-        onPollMulti={rescheduleMulti}
-        onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
-        onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
-      />
+      {#if chartMode === 'orderflow'}
+        <PriceChart
+          series={lineSeries}
+          {candles}
+          {volumeBars}
+          {bpsHistory}
+          {chartMode}
+          {priceMode}
+          {timeframe}
+          asset={selectedAsset}
+          {discrepancy}
+          {assets}
+          {coverage}
+          {showVolume}
+          {bookDepth}
+          {tapeLimit}
+          {pollFocusMs}
+          {pollMultiMs}
+          alertBpsThreshold={alertBpsThreshold}
+          webhookUrl={webhookUrl}
+          focusVenue={selectedVenue}
+          {highlightVenues}
+          {highlightSec}
+          sessionWindowSec={sessionSec}
+          toolbarOnly={true}
+          onTimeframe={applyTimeframe}
+            onChartMode={setChartMode}
+          onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(); }}
+          onAsset={onAssetChange}
+          onToggleVenue={toggleVenue}
+          onFocusVenue={(v, s) => selectMarket(v, s)}
+          onShowVolume={(v) => { showVolume = v; persist({ showVolume: v }); }}
+          onBookDepth={setBookDepth}
+          onTapeLimit={setTapeLimit}
+          onPollFocus={rescheduleFocus}
+          onPollMulti={rescheduleMulti}
+          onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
+          onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
+        />
+        <div class="of-chart-stack">
+          <div class="of-heat-main">
+            <OrderFlowHeatmap
+              {depthHistory}
+              {tape}
+              windowSec={sessionSec}
+              venue={selectedVenue}
+              symbol={selectedSymbol}
+              {lastPrice}
+            />
+          </div>
+          <div class="of-stats-side">
+            <OrderFlowPanel
+              {book}
+              {tape}
+              depth={bookDepth}
+              {lastPrice}
+              windowSec={sessionSec}
+              largeUsd={largeTradeUsd}
+              {imbalanceHistory}
+              onLargeUsd={(n) => { largeTradeUsd = n; persist({ largeTradeUsd: n }); }}
+              onDepth={setBookDepth}
+            />
+          </div>
+        </div>
+      {:else}
+        <PriceChart
+          series={lineSeries}
+          {candles}
+          {volumeBars}
+          {bpsHistory}
+          {chartMode}
+          {priceMode}
+          {timeframe}
+          asset={selectedAsset}
+          {discrepancy}
+          {assets}
+          {coverage}
+          {showVolume}
+          {bookDepth}
+          {tapeLimit}
+          {pollFocusMs}
+          {pollMultiMs}
+          alertBpsThreshold={alertBpsThreshold}
+          webhookUrl={webhookUrl}
+          focusVenue={selectedVenue}
+          {highlightVenues}
+          {highlightSec}
+          sessionWindowSec={sessionSec}
+          onTimeframe={applyTimeframe}
+            onChartMode={setChartMode}
+          onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(); }}
+          onAsset={onAssetChange}
+          onToggleVenue={toggleVenue}
+          onFocusVenue={(v, s) => selectMarket(v, s)}
+          onShowVolume={(v) => { showVolume = v; persist({ showVolume: v }); }}
+          onBookDepth={setBookDepth}
+          onTapeLimit={setTapeLimit}
+          onPollFocus={rescheduleFocus}
+          onPollMulti={rescheduleMulti}
+          onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
+          onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
+        />
+      {/if}
     </section>
 
     <aside class="col-right">
@@ -976,8 +1114,13 @@
             alertActive={pulseAlertActive}
             spikeThreshold={pulseSpikeThreshold}
             asset={selectedAsset}
+            focusVenue={selectedVenue}
+            metricFilter={pulseMetricFilter}
             onSpikeThreshold={(n) => { pulseSpikeThreshold = n; persist({ pulseSpikeThreshold: n }); }}
             onChipClick={(v, s) => { if (v && s) selectMarket(v, s); }}
+            onMetricClick={(m) => {
+              pulseMetricFilter = pulseMetricFilter === m ? '' : m;
+            }}
           />
         {/if}
       </div>
@@ -1013,6 +1156,22 @@
   .col-book, .col-chart, .col-right { min-height: 0; min-width: 0; }
 
   .col-chart { display: flex; flex-direction: column; min-height: 0; }
+
+  .of-chart-stack {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+    border-top: 1px solid var(--border);
+  }
+  .of-heat-main, .of-stats-side {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .of-stats-side {
+    border-left: 1px solid var(--border);
+  }
 
   .col-right {
     display: flex;
@@ -1083,6 +1242,8 @@
     .markets-pane, .trades-pane { flex: 1; }
     .analytics-dock.open { max-height: 45vh; }
     .dock-hint { display: none; }
+    .of-chart-stack { grid-template-columns: 1fr; grid-template-rows: 1fr minmax(180px, 40%); }
+    .of-stats-side { border-left: none; border-top: 1px solid var(--border); }
   }
 
   @media (max-width: 720px) {

@@ -20,7 +20,7 @@ export function parseUrlState() {
   if (asset) out.asset = asset.toUpperCase();
 
   const mode = p.get('mode');
-  if (mode === 'lines' || mode === 'candles') out.chartMode = mode;
+  if (mode === 'lines' || mode === 'candles' || mode === 'orderflow') out.chartMode = mode;
 
   const tf = p.get('tf');
   if (tf && TF_IDS.has(tf)) out.timeframe = tf;

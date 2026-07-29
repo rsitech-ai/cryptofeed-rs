@@ -59,12 +59,16 @@
 <header class="header">
   <div class="pair-block">
     <div class="pair-name">{asset || displayPair(symbol)}</div>
-    <div class="watching" title={chartMode === 'lines' ? 'Multi-venue overlay' : 'Single-venue focus'}>
+    <div class="watching" title={chartMode === 'lines' ? 'Multi-venue overlay' : chartMode === 'orderflow' ? 'L2 heatmap + trade bubbles' : 'Single-venue focus'}>
       {#if chartMode === 'lines'}
         <span class="watch-label">watching</span>
         <span class="watch-main">{asset || '—'}</span>
         <span class="watch-meta">across {mappedVenues} venues</span>
         <span class="watch-live" class:ok={liveMapped > 0}>{liveMapped} live</span>
+      {:else if chartMode === 'orderflow'}
+        <span class="watch-label">order flow</span>
+        <span class="watch-main mono">{venue || '—'}</span>
+        <span class="watch-meta mono">{symbol || displayPair(symbol)}</span>
       {:else}
         <span class="watch-label">focus</span>
         <span class="watch-main mono">{venue || '—'}</span>

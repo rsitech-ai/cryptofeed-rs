@@ -35,6 +35,7 @@
     highlightVenues = [],
     highlightSec = null,
     sessionWindowSec = 300,
+    toolbarOnly = false,
     onTimeframe = () => {},
     onChartMode = () => {},
     onPriceMode = () => {},
@@ -113,7 +114,7 @@
   }
 
   onMount(() => {
-    if (!host) return;
+    if (toolbarOnly || !host) return;
     chart = createChart(host, {
       ...chartOpts,
       autoSize: true,
@@ -354,7 +355,7 @@
   }
 </script>
 
-<section class="chart-panel">
+<section class="chart-panel" class:toolbar-only={toolbarOnly}>
   <div class="toolbar">
     <div class="left">
       <div class="assets">
@@ -368,6 +369,7 @@
       <div class="modes">
         <button type="button" class:active={chartMode === 'lines'} onclick={() => onChartMode('lines')}>Lines</button>
         <button type="button" class:active={chartMode === 'candles'} onclick={() => onChartMode('candles')}>Candles</button>
+        <button type="button" class:active={chartMode === 'orderflow'} onclick={() => onChartMode('orderflow')} title="L2 liquidity heatmap + trade bubbles">Order Flow</button>
       </div>
       <div class="modes">
         <button type="button" class:active={priceMode === 'percent'} onclick={() => onPriceMode('percent')}>%</button>
@@ -403,40 +405,42 @@
     </div>
   {/if}
 
-  {#if chartMode === 'lines'}
-    <div class="legend">
-      {#each series as row}
-        <button
-          type="button"
-          class="leg"
-          class:dim={!row.data?.length || row.hidden}
-          class:focus={row.venue === focusVenue}
-          class:hl={highlightVenues.includes(row.venue)}
-          onclick={(e) => onLegendClick(row, e)}
-          title="USD {fmtUsd(row.tradeNotional ?? 0)} · raw qty {row.tradeVolume ?? 0}"
-        >
-          <span class="swatch" style={`background:${row.color}`}></span>
-          <span class="name">{row.venue}</span>
-          <span class="live-dot" class:ok={row.live} class:bad={!row.live}>{row.live ? '●' : '○'}</span>
-          <span class="px" style={`color:${row.color}`}>{row.last != null ? fmtPrice(row.last, 2) : '—'}</span>
-          <span class="pct" class:up={row.pct > 0} class:down={row.pct < 0}>{row.pct != null ? fmtPct(row.pct, 3) : '—'}</span>
-          <span class="vol">{fmtUsd(row.windowNotional ?? row.tradeNotional ?? 0)}/{fmtTradesPerMin(row.windowTrades ?? row.tradeCount ?? 0, sessionWindowSec)}</span>
-        </button>
-      {/each}
+  {#if !toolbarOnly}
+    {#if chartMode === 'lines'}
+      <div class="legend">
+        {#each series as row}
+          <button
+            type="button"
+            class="leg"
+            class:dim={!row.data?.length || row.hidden}
+            class:focus={row.venue === focusVenue}
+            class:hl={highlightVenues.includes(row.venue)}
+            onclick={(e) => onLegendClick(row, e)}
+            title="USD {fmtUsd(row.tradeNotional ?? 0)} · raw qty {row.tradeVolume ?? 0}"
+          >
+            <span class="swatch" style={`background:${row.color}`}></span>
+            <span class="name">{row.venue}</span>
+            <span class="live-dot" class:ok={row.live} class:bad={!row.live}>{row.live ? '●' : '○'}</span>
+            <span class="px" style={`color:${row.color}`}>{row.last != null ? fmtPrice(row.last, 2) : '—'}</span>
+            <span class="pct" class:up={row.pct > 0} class:down={row.pct < 0}>{row.pct != null ? fmtPct(row.pct, 3) : '—'}</span>
+            <span class="vol">{fmtUsd(row.windowNotional ?? row.tradeNotional ?? 0)}/{fmtTradesPerMin(row.windowTrades ?? row.tradeCount ?? 0, sessionWindowSec)}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
+
+    <div class="chart-wrap">
+      <div class="chart-host" bind:this={host}></div>
+      {#if chartMode === 'lines' && showBpsPane}
+        <div class="bps-host" bind:this={bpsHost}></div>
+      {/if}
+      {#if chartMode === 'lines' && !series.some((s) => s.data?.length && !s.hidden)}
+        <div class="overlay">streaming multi-venue prices…</div>
+      {:else if chartMode === 'candles' && !candles.length}
+        <div class="overlay">accumulating trades for candles…</div>
+      {/if}
     </div>
   {/if}
-
-  <div class="chart-wrap">
-    <div class="chart-host" bind:this={host}></div>
-    {#if chartMode === 'lines' && showBpsPane}
-      <div class="bps-host" bind:this={bpsHost}></div>
-    {/if}
-    {#if chartMode === 'lines' && !series.some((s) => s.data?.length && !s.hidden)}
-      <div class="overlay">streaming multi-venue prices…</div>
-    {:else if chartMode === 'candles' && !candles.length}
-      <div class="overlay">accumulating trades for candles…</div>
-    {/if}
-  </div>
 </section>
 
 <style>
@@ -446,6 +450,10 @@
     min-height: 0;
     height: 100%;
     background: var(--panel);
+  }
+  .chart-panel.toolbar-only {
+    height: auto;
+    flex: 0 0 auto;
   }
 
   .toolbar {
