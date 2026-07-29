@@ -241,6 +241,21 @@ describe('heatmap / depth ring', () => {
     assert.ok(pad2 >= 140, `dpr=2 pad ${pad2} too narrow`);
   });
 
+  it('caps coarse-tick low-price books to a useful visible range', () => {
+    const book = {
+      bids: [{ price: '100.00', quantity: '1.5' }, { price: '99.50', quantity: '0.5' }],
+      asks: [{ price: '101.00', quantity: '1.25' }, { price: '101.50', quantity: '0.5' }],
+    };
+    const sample = sampleBookDepth(book, { t: 1, tick: 0.5 });
+    const win = computePriceWindow([sample], { focusPrice: 100.5, tick: 0.5 });
+
+    assert.ok(win.priceMin <= 99.5 && win.priceMax >= 101.5, 'book walls must remain visible');
+    assert.ok(
+      win.priceMin >= 98.5 && win.priceMax <= 102.5,
+      `unexpected empty range ${win.priceMin}–${win.priceMax}`,
+    );
+  });
+
   it('stabilizes quantize Map keys and resting lookup at 64k', () => {
     const px = 64287.99;
     const tick = 0.01;
