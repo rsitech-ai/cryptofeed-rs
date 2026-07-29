@@ -43,6 +43,9 @@ pub struct ViewStatus {
     pub disk_pressure: bool,
     pub shutdown_draining: bool,
     pub recording: ViewRecordingStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grafana_base_url: Option<String>,
+    pub alert_webhook_configured: bool,
     pub venues: Vec<ViewVenueStatus>,
 }
 
@@ -67,6 +70,18 @@ pub struct ViewVenueStatus {
     pub book_invalidations: u64,
     pub valid_books: u64,
     pub queue_occupancy: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feed_lag_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_event_ts_ns: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_trade_ts_ns: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_quote_ts_ns: Option<i64>,
+    pub tape_trades: u64,
+    pub tape_quotes: u64,
+    pub tape_trades_dropped: u64,
+    pub tape_quotes_dropped: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -94,6 +109,8 @@ pub enum TapeEntry {
         symbol: Option<String>,
         price: String,
         quantity: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        notional: Option<String>,
         aggressor: String,
         trade_id: Option<String>,
         exchange_ts_ns: Option<i64>,
@@ -159,6 +176,14 @@ impl TapeRing {
         let n = limit.min(self.entries.len());
         self.entries.iter().rev().take(n).cloned().collect()
     }
+
+    fn len(&self) -> u64 {
+        self.entries.len() as u64
+    }
+
+    fn dropped_count(&self) -> u64 {
+        self.dropped
+    }
 }
 
 /// Per-instrument dual rings so quote floods cannot evict trades (and vice versa).
@@ -200,6 +225,14 @@ impl InstrumentTape {
                 limit,
             ),
         }
+    }
+
+    fn trade_stats(&self) -> (u64, u64) {
+        (self.trades.len(), self.trades.dropped_count())
+    }
+
+    fn quote_stats(&self) -> (u64, u64) {
+        (self.quotes.len(), self.quotes.dropped_count())
     }
 }
 
@@ -288,6 +321,10 @@ struct ViewInner {
     symbols: HashMap<(String, u32), String>,
     books: HashMap<(VenueId, InstrumentId), LiveBook>,
     tapes: HashMap<(VenueId, InstrumentId), InstrumentTape>,
+    /// Last receive timestamp (ns) per venue from view ingest.
+    venue_last_event_ts: HashMap<VenueId, i64>,
+    venue_last_trade_ts: HashMap<VenueId, i64>,
+    venue_last_quote_ts: HashMap<VenueId, i64>,
 }
 
 /// Shared view plane: EventSink fan-in + HTTP query surface.
@@ -353,12 +390,17 @@ impl ViewPlane {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(started);
+        let now_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as i64)
+            .unwrap_or(0);
         let lifecycle = match *state.supervisor_lifecycle.lock().expect("lifecycle") {
             marketfeed_engine::EngineLifecycle::Starting => "starting",
             marketfeed_engine::EngineLifecycle::Running => "running",
             marketfeed_engine::EngineLifecycle::Draining => "draining",
             marketfeed_engine::EngineLifecycle::Stopped => "stopped",
         };
+        let inner = self.inner.lock().expect("view lock");
         let mut venues = Vec::with_capacity(state.config.venues.len());
         for v in &state.config.venues {
             let live = state
@@ -367,6 +409,21 @@ impl ViewPlane {
                 .map(|f| f.load(Ordering::Relaxed))
                 .unwrap_or(false);
             let m = state.venue_metrics.get(&v.id);
+            let venue_id = inner.venue_ids.get(&v.id).copied();
+            let (tape_trades, tape_trades_dropped, tape_quotes, tape_quotes_dropped) =
+                venue_id
+                    .map(|vid| inner.venue_tape_stats(vid))
+                    .unwrap_or((0, 0, 0, 0));
+            let last_event_ts_ns = venue_id.and_then(|vid| inner.venue_last_event_ts.get(&vid).copied());
+            let last_trade_ts_ns = venue_id.and_then(|vid| inner.venue_last_trade_ts.get(&vid).copied());
+            let last_quote_ts_ns = venue_id.and_then(|vid| inner.venue_last_quote_ts.get(&vid).copied());
+            let feed_lag_ms = last_event_ts_ns.and_then(|ts| {
+                if ts > 0 && now_ns >= ts {
+                    Some(((now_ns - ts) / 1_000_000) as u64)
+                } else {
+                    None
+                }
+            });
             venues.push(ViewVenueStatus {
                 id: v.id.clone(),
                 adapter: v.adapter.clone(),
@@ -387,6 +444,14 @@ impl ViewPlane {
                 queue_occupancy: m
                     .map(|x| x.batch_queue_occupancy.load(Ordering::Relaxed))
                     .unwrap_or(0),
+                feed_lag_ms,
+                last_event_ts_ns,
+                last_trade_ts_ns,
+                last_quote_ts_ns,
+                tape_trades,
+                tape_quotes,
+                tape_trades_dropped,
+                tape_quotes_dropped,
             });
         }
         ViewStatus {
@@ -402,6 +467,13 @@ impl ViewPlane {
                 queue_len: state.recording_queue_len.load(Ordering::Relaxed),
                 frames_dropped: state.recording_dropped.load(Ordering::Relaxed),
             },
+            grafana_base_url: state.config.telemetry.grafana_base_url.clone(),
+            alert_webhook_configured: state
+                .config
+                .telemetry
+                .alert_webhook_url
+                .as_ref()
+                .is_some_and(|u| !u.trim().is_empty()),
             venues,
         }
     }
@@ -511,6 +583,27 @@ impl ViewPlane {
         )
     }
 
+    /// Focus book + tape summary for SSE `/v1/stream`.
+    pub fn stream_focus(
+        &self,
+        venue_config_id: &str,
+        instrument: InstrumentId,
+        book_depth: Option<u32>,
+        tape_limit: usize,
+    ) -> serde_json::Value {
+        let book = self
+            .book_snapshot(venue_config_id, instrument, book_depth)
+            .map(|b| serde_json::to_value(b).unwrap_or(serde_json::Value::Null))
+            .unwrap_or(serde_json::Value::Null);
+        let tape = self.tape_filtered(venue_config_id, instrument, tape_limit, None);
+        serde_json::json!({
+            "venue": venue_config_id,
+            "instrument": instrument.0,
+            "book": book,
+            "tape": tape,
+        })
+    }
+
     fn ingest_batch(&self, batch: &EventBatch) {
         self.batches_seen.fetch_add(1, Ordering::Relaxed);
         let mut inner = self.inner.lock().expect("view lock");
@@ -534,6 +627,11 @@ impl ViewPlane {
                 .entry(venue_name.clone())
                 .or_insert(venue_id);
 
+            let receive_ts = ev.receive_ts.0;
+            inner
+                .venue_last_event_ts
+                .insert(venue_id, receive_ts);
+
             match &ev.payload {
                 MarketEvent::BookSnapshot(snap) => {
                     if let Some(live) = LiveBook::from_snapshot(snap) {
@@ -546,20 +644,25 @@ impl ViewPlane {
                     }
                 }
                 MarketEvent::Trade(t) => {
+                    inner.venue_last_trade_ts.insert(venue_id, receive_ts);
                     let symbol = inner
                         .symbols
                         .get(&(venue_name.clone(), instrument.0))
                         .cloned();
+                    let price_str = format_fixed(t.price.0);
+                    let qty_str = format_fixed(t.quantity.0);
+                    let notional = notional_fixed(t.price.0, t.quantity.0).map(format_fixed);
                     let entry = TapeEntry::Trade {
                         venue: venue_name.clone(),
                         instrument: instrument.0,
                         symbol,
-                        price: format_fixed(t.price.0),
-                        quantity: format_fixed(t.quantity.0),
+                        price: price_str,
+                        quantity: qty_str,
+                        notional,
                         aggressor: aggressor_str(t.aggressor).into(),
                         trade_id: t.trade_id.as_ref().map(|s| s.0.clone()),
                         exchange_ts_ns: ev.exchange_ts.map(|t| t.0),
-                        receive_ts_ns: ev.receive_ts.0,
+                        receive_ts_ns: receive_ts,
                     };
                     let ring = inner.tapes.entry((venue_id, instrument)).or_insert_with(|| {
                         InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
@@ -570,6 +673,7 @@ impl ViewPlane {
                     }
                 }
                 MarketEvent::Quote(q) => {
+                    inner.venue_last_quote_ts.insert(venue_id, receive_ts);
                     let symbol = inner
                         .symbols
                         .get(&(venue_name.clone(), instrument.0))
@@ -583,7 +687,7 @@ impl ViewPlane {
                         ask_price: format_fixed(q.ask_price.0),
                         ask_quantity: q.ask_quantity.map(|x| format_fixed(x.0)),
                         exchange_ts_ns: ev.exchange_ts.map(|t| t.0),
-                        receive_ts_ns: ev.receive_ts.0,
+                        receive_ts_ns: receive_ts,
                     };
                     let ring = inner.tapes.entry((venue_id, instrument)).or_insert_with(|| {
                         InstrumentTape::new(self.cfg.tape_capacity, self.cfg.tape_max_per_sec)
@@ -596,6 +700,27 @@ impl ViewPlane {
                 _ => {}
             }
         }
+    }
+}
+
+impl ViewInner {
+    fn venue_tape_stats(&self, venue_id: VenueId) -> (u64, u64, u64, u64) {
+        let mut trades = 0u64;
+        let mut trades_dropped = 0u64;
+        let mut quotes = 0u64;
+        let mut quotes_dropped = 0u64;
+        for ((vid, _), tape) in &self.tapes {
+            if *vid != venue_id {
+                continue;
+            }
+            let (t, td) = tape.trade_stats();
+            let (q, qd) = tape.quote_stats();
+            trades = trades.saturating_add(t);
+            trades_dropped = trades_dropped.saturating_add(td);
+            quotes = quotes.saturating_add(q);
+            quotes_dropped = quotes_dropped.saturating_add(qd);
+        }
+        (trades, trades_dropped, quotes, quotes_dropped)
     }
 }
 
@@ -669,6 +794,15 @@ fn format_fixed(f: Fixed) -> String {
         s.push_str(&frac_part);
     }
     s
+}
+
+fn notional_fixed(price: Fixed, qty: Fixed) -> Option<Fixed> {
+    let scale = price.scale.checked_add(qty.scale)?;
+    let coefficient = price.coefficient.checked_mul(qty.coefficient)?;
+    Some(Fixed {
+        coefficient,
+        scale,
+    })
 }
 
 #[cfg(test)]
@@ -831,5 +965,57 @@ mod tests {
         assert_eq!(view.bids.len(), 1);
         assert_eq!(view.asks[0].price, "101.00");
         assert_eq!(view.symbol.as_deref(), Some("BTC-USD"));
+    }
+
+    #[test]
+    fn trade_notional_computed() {
+        let plane = ViewPlane::new(ViewPlaneConfig::default());
+        plane.register_venue(VenueId(7), "syn", &["BTC-USD".into()]);
+        let mut sink = SharedViewPlane::new(std::sync::Arc::new(plane));
+        let plane = std::sync::Arc::clone(&sink.0);
+        sink.push_batch(trade_batch(VenueId(7), InstrumentId(1), "100.50", "2"))
+            .unwrap();
+        let tape = plane.tape("syn", InstrumentId(1), 1);
+        match &tape[0] {
+            TapeEntry::Trade {
+                notional,
+                price,
+                quantity,
+                ..
+            } => {
+                assert_eq!(price, "100.50");
+                assert_eq!(quantity, "2");
+                assert_eq!(notional.as_deref(), Some("201.00"));
+            }
+            _ => panic!("expected trade"),
+        }
+    }
+
+    #[test]
+    fn status_tracks_last_event_ts() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:9108"
+            [readiness]
+            require_required_venues = false
+            [[venues]]
+            id = "syn"
+            adapter = "synthetic"
+            required = false
+            "#,
+        )
+        .unwrap();
+        let state = crate::state::DaemonState::new(cfg);
+        let plane = ViewPlane::from_daemon_config(&state.config);
+        plane.register_venue(VenueId(1), "syn", &["BTC-USD".into()]);
+        let mut sink = SharedViewPlane::new(std::sync::Arc::new(plane));
+        sink.push_batch(trade_batch(VenueId(1), InstrumentId(1), "100", "1"))
+            .unwrap();
+        let status = sink.0.status(&state);
+        let venue = status.venues.iter().find(|v| v.id == "syn").unwrap();
+        assert!(venue.last_event_ts_ns.is_some());
+        assert!(venue.last_trade_ts_ns.is_some());
+        assert_eq!(venue.tape_trades, 1);
     }
 }

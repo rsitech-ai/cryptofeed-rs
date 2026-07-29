@@ -11,8 +11,15 @@
     selectedAsset = '',
     /** @type {Array<{venue:string,last:number|null,pct:number|null}>} */
     quotes = [],
+    /** @type {Map<string, {badges:string[]}>} */
+    qualityMap = new Map(),
+    searchRef = $bindable(null),
+    watchlists = [],
+    activeWatchlist = '',
     onSelect = () => {},
     onAsset = () => {},
+    onWatchlist = () => {},
+    onSaveWatchlist = () => {},
   } = $props();
 
   const saved = loadSettings();
@@ -205,10 +212,21 @@
     </div>
     <input
       type="search"
-      placeholder="Search asset, venue, symbol…"
+      placeholder="Search asset, venue, symbol… (/)"
       bind:value={filter}
+      bind:this={searchRef}
       spellcheck="false"
     />
+    {#if watchlists.length}
+      <div class="watchlists">
+        {#each watchlists as wl}
+          <button type="button" class:active={activeWatchlist === wl.id} onclick={() => onWatchlist(wl.id)}>{wl.name}</button>
+        {/each}
+        <button type="button" class="save-wl" onclick={() => onSaveWatchlist()} title="Save current asset as watchlist">+</button>
+      </div>
+    {:else}
+      <button type="button" class="save-wl solo" onclick={() => onSaveWatchlist()}>Save watchlist</button>
+    {/if}
     <div class="chips">
       <button type="button" class:active={liveFilter === 'all'} onclick={() => setLive('all')}>All</button>
       <button type="button" class:active={liveFilter === 'live'} onclick={() => setLive('live')}>
@@ -287,6 +305,9 @@
             <span class="chip" class:ok={r.live} class:bad={!r.live} title={r.live ? 'live' : 'offline'}>
               {r.live ? '●' : '○'}
             </span>
+            {#each (qualityMap.get(r.venue + '|' + r.symbol)?.badges || []) as badge}
+              <span class="badge" class:warn={badge === 'stale' || badge === 'lag'} title={badge}>{badge}</span>
+            {/each}
           </button>
         {:else}
           <div class="empty">no markets</div>
@@ -416,7 +437,7 @@
 
   .cols {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.25fr) 3.4rem 2.6rem 1.1rem;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.25fr) 3.4rem 2.6rem minmax(2rem, auto);
     padding: 0.12rem 0.45rem;
     font-size: 0.58rem;
     color: var(--muted);
@@ -491,7 +512,7 @@
 
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.25fr) 3.4rem 2.6rem 1.1rem;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.25fr) 3.4rem 2.6rem minmax(2rem, auto);
     width: 100%;
     text-align: left;
     background: transparent;
@@ -586,6 +607,48 @@
   }
   .chip.bad {
     color: var(--ask);
+  }
+
+  .badge {
+    font-family: var(--mono);
+    font-size: 0.48rem;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 0 0.15rem;
+    line-height: 1.2;
+  }
+
+  .badge.warn {
+    color: #fb923c;
+    border-color: rgba(251, 146, 60, 0.4);
+  }
+
+  .watchlists {
+    display: flex;
+    gap: 0.12rem;
+    flex-wrap: wrap;
+  }
+
+  .watchlists button,
+  .save-wl {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    padding: 0.08rem 0.3rem;
+    cursor: pointer;
+  }
+
+  .watchlists button.active {
+    color: var(--accent);
+    border-color: rgba(240, 185, 11, 0.35);
+  }
+
+  .save-wl.solo {
+    align-self: flex-start;
+    margin-top: 0.15rem;
   }
 
   .empty {

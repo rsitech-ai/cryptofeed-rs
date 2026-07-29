@@ -75,7 +75,8 @@ pub fn combined_stream_url(
 ) -> String {
     let mut streams = Vec::new();
     for s in symbols_lower {
-        streams.push(format!("{s}@aggTrade"));
+        // Coin-M `@aggTrade` is silent on dstream; `@trade` carries prints.
+        streams.push(format!("{s}@trade"));
         streams.push(format!("{s}@bookTicker"));
         streams.push(format!("{s}@ticker"));
         streams.push(format!("{s}@markPrice@1s"));

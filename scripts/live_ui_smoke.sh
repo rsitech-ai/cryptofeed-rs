@@ -35,13 +35,28 @@ code=$(http_code /)
 if [[ "$code" == "200" ]]; then ok "SPA / → 200"; else bad "SPA / → $code"; fi
 
 # --- Core endpoints ---
-for path in /v1/status /v1/instruments /live /ready; do
+for path in /v1/status /v1/instruments /live /ready /v1/replay/files; do
   code=$(http_code "$path")
   if [[ "$code" == "200" ]]; then ok "$path → 200"; else bad "$path → $code"; fi
 done
 
+# Alerts test (POST)
+ALERT_CODE=$(curl -sS -o /tmp/live_ui_alert.json -w '%{http_code}' --max-time 5 \
+  -X POST -H 'content-type: application/json' \
+  -d '{"kind":"discrepancy","bps":9,"message":"smoke"}' \
+  "${BASE}/v1/alerts/test" || echo 000)
+if [[ "$ALERT_CODE" == "200" ]]; then ok "POST /v1/alerts/test → 200"; else bad "POST /v1/alerts/test → $ALERT_CODE"; fi
+
+# SSE stream headers (short read)
+SSE_HEAD=$(curl -sS -N --max-time 2 -H 'accept: text/event-stream' "${BASE}/v1/stream?asset=BTC" 2>/dev/null | head -c 200 || true)
+if echo "$SSE_HEAD" | grep -q 'data:'; then ok "SSE /v1/stream emits data"; else bad "SSE /v1/stream no data event"; fi
+
 STATUS=$(curl_json /v1/status)
 echo "$STATUS" >"$OUT_DIR/smoke-status.json"
+# Enriched status fields
+python3 -c 'import json,sys; d=json.load(sys.stdin); assert "grafana_base_url" in d or d.get("grafana_base_url") is None; assert "alert_webhook_configured" in d; v=d["venues"][0]; assert "feed_lag_ms" in v; assert "tape_trades" in v' <<<"$STATUS" \
+  && ok "status enrichment keys present" || bad "status enrichment keys missing"
+
 LIVE_VENUES=$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(sum(1 for v in d.get("venues",[]) if v.get("live")))' <<<"$STATUS")
 TOTAL_VENUES=$(python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d.get("venues",[])))' <<<"$STATUS")
 log "venues live=$LIVE_VENUES/$TOTAL_VENUES"
@@ -56,8 +71,10 @@ base = sys.argv[1]
 out = sys.argv[2]
 samples = [
     ("binance-spot", "BTCUSDT"),
+    ("binance-usdm", "BTCUSDT"),
     ("okx-spot", "BTC-USDT"),
     ("bybit-linear", "BTCUSDT"),
+    ("bybit-spot", "BTCUSDT"),
     ("coinbase-spot", "BTC-USD"),
 ]
 
@@ -80,8 +97,18 @@ def bad(msg):
 def warn(msg):
     print(f"WARN  {msg}")
 
-# Book + tape audits
+# Discover which sample venues exist
+try:
+    status = get("/v1/status")
+    live_ids = {v["id"] for v in status.get("venues", [])}
+except Exception as e:
+    bad(f"status for samples: {e}")
+    live_ids = set()
+
 for venue, symbol in samples:
+    if venue not in live_ids:
+        warn(f"skip {venue} (not in status)")
+        continue
     q = urllib.parse.urlencode({"venue": venue, "symbol": symbol, "depth": 10})
     try:
         book = get(f"/v1/books?{q}")
@@ -128,6 +155,11 @@ for venue, symbol in samples:
         bad(f"kind=trade returned non-trades {venue}: {kinds}")
     else:
         ok(f"kind=trade filter {venue} n={len(entries)}")
+
+    if entries and any(e.get("notional") for e in entries if e.get("kind") == "trade"):
+        ok(f"trade notional present {venue}")
+    elif entries:
+        warn(f"trade notional missing {venue} (older daemon?)")
 
     if not entries:
         mq = urllib.parse.urlencode({"venue": venue, "symbol": symbol, "limit": 50})

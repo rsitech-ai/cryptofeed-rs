@@ -25,6 +25,28 @@ export function fmtTotal(v) {
   return n.toFixed(4);
 }
 
+/** USD notional formatting. */
+export function fmtUsd(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '—';
+  if (n >= 1e9) return '$' + (n / 1e9).toFixed(2) + 'B';
+  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return '$' + (n / 1e3).toFixed(1) + 'K';
+  if (n >= 1) return '$' + n.toFixed(0);
+  return '$' + n.toFixed(2);
+}
+
+/** Trades per minute intensity. */
+export function fmtTradesPerMin(count, windowSec) {
+  const n = Number(count);
+  const w = Number(windowSec);
+  if (!Number.isFinite(n) || !Number.isFinite(w) || w <= 0) return '—';
+  const tpm = (n / w) * 60;
+  if (tpm >= 1000) return tpm.toFixed(0) + '/m';
+  if (tpm >= 10) return tpm.toFixed(1) + '/m';
+  return tpm.toFixed(2) + '/m';
+}
+
 export function fmtPct(v, digits = 2) {
   const n = Number(v);
   if (!Number.isFinite(n)) return '—';

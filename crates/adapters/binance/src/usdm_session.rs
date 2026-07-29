@@ -908,7 +908,8 @@ impl SessionMachine for BinanceUsdmSession {
                 let mut params = Vec::new();
                 for s in &self.cfg.symbols {
                     let lower = s.to_ascii_lowercase();
-                    params.push(format!("{lower}@aggTrade"));
+                    // Prefer `@trade` — `@aggTrade` produces no frames on fstream (2026).
+                    params.push(format!("{lower}@trade"));
                     params.push(format!("{lower}@bookTicker"));
                     params.push(format!("{lower}@ticker"));
                     params.push(format!("{lower}@markPrice@1s"));

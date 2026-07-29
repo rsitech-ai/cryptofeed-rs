@@ -1,5 +1,6 @@
 <script>
   import { fmtPrice, fmtQty, fmtTotal } from '../lib/format.js';
+  import DepthChart from './DepthChart.svelte';
 
   let {
     book = null,
@@ -51,6 +52,7 @@
 </script>
 
 <section class="book">
+  <DepthChart {book} {depth} />
   <div class="book-head">
     <div class="title-row">
       <span class="title">Order Book</span>

@@ -4,13 +4,14 @@ import { colorForVenue } from './assets.js';
 /**
  * Multi-venue last-price series from tape trades + quote mids.
  * Buckets by interval; line value = last price in bucket (stable, no OHLC spikes).
- * Also accumulates per-venue trade volume / count for the compare legend.
+ * Tracks USD notional volume (price * qty) and trade intensity per venue.
  */
 export class MultiVenueTracker {
   constructor(intervalSec = 1) {
     this.intervalSec = intervalSec;
     /** @type {Map<string, VenueState>} */
     this.venues = new Map();
+    this.sessionStartSec = Math.floor(Date.now() / 1000);
   }
 
   /**
@@ -27,7 +28,6 @@ export class MultiVenueTracker {
         st = newVenueState(t.venue, t.symbol, colorForVenue(t.venue, i));
         this.venues.set(t.venue, st);
       } else if (st.symbol !== t.symbol) {
-        // Asset remapped to a different symbol on same venue — reset series.
         st = newVenueState(t.venue, t.symbol, st.color || colorForVenue(t.venue, i));
         this.venues.set(t.venue, st);
       }
@@ -46,10 +46,12 @@ export class MultiVenueTracker {
     for (const st of this.venues.values()) {
       Object.assign(st, newVenueState(st.venue, st.symbol, st.color));
     }
+    this.sessionStartSec = Math.floor(Date.now() / 1000);
   }
 
   clear() {
     this.venues.clear();
+    this.sessionStartSec = Math.floor(Date.now() / 1000);
   }
 
   /**
@@ -73,10 +75,15 @@ export class MultiVenueTracker {
         if (!Number.isFinite(price) || price <= 0) continue;
         applyPrice(st, sec, price, this.intervalSec);
         if (Number.isFinite(qty) && qty > 0) {
+          const notional = price * qty;
           st.tradeVolume += qty;
+          st.tradeNotional += notional;
           st.tradeCount += 1;
+          st.firstTradeSec = st.firstTradeSec ?? sec;
+          st.lastTradeSec = sec;
           const bucket = Math.floor(sec / this.intervalSec) * this.intervalSec;
-          st.volBuckets.set(bucket, (st.volBuckets.get(bucket) || 0) + qty);
+          st.volBuckets.set(bucket, (st.volBuckets.get(bucket) || 0) + notional);
+          st.tradeBuckets.set(bucket, (st.tradeBuckets.get(bucket) || 0) + 1);
         }
         added += 1;
       } else if (e.kind === 'quote') {
@@ -95,7 +102,6 @@ export class MultiVenueTracker {
     return added;
   }
 
-  /** Seed from book BBO mid (no tape yet). */
   touch(venue, price, sec = Math.floor(Date.now() / 1000)) {
     const st = this.venues.get(venue);
     if (!st) return;
@@ -105,25 +111,58 @@ export class MultiVenueTracker {
   }
 
   /**
+   * Window stats for a venue (USD notional + trades).
+   * @param {VenueState} st
+   * @param {number} windowSec
+   * @param {number} [nowSec]
+   */
+  venueWindowStats(st, windowSec, nowSec = Math.floor(Date.now() / 1000)) {
+    const since = nowSec - Math.max(1, windowSec);
+    let notional = 0;
+    let trades = 0;
+    for (const [bucket, val] of st.volBuckets) {
+      if (bucket >= since) {
+        notional += val;
+        trades += st.tradeBuckets?.get(bucket) || 0;
+      }
+    }
+    // Fallback: if no per-bucket trade counts, estimate from session ratio
+    if (trades === 0 && st.tradeCount > 0 && st.lastTradeSec != null && st.lastTradeSec >= since) {
+      const span = Math.max(1, (st.lastTradeSec - (st.firstTradeSec ?? since)) + 1);
+      const frac = Math.min(1, windowSec / span);
+      trades = Math.round(st.tradeCount * frac);
+      if (notional === 0) notional = st.tradeNotional * frac;
+    }
+    return { notional, trades, tradesPerMin: (trades / windowSec) * 60 };
+  }
+
+  /**
    * @param {'absolute'|'percent'} mode
-   * @param {{ hidden?: Set<string> }} [opts]
-   * @returns {{ series: Array<object>, discrepancy: object|null, pointCount: number, aggregate: { volume:number, trades:number } }}
+   * @param {{ hidden?: Set<string>, windowSec?: number }} [opts]
    */
   snapshot(mode = 'percent', opts = {}) {
     const hidden = opts.hidden || new Set();
+    const windowSec = opts.windowSec ?? 300;
     const series = [];
     let pointCount = 0;
     const lasts = [];
-    let aggVol = 0;
+    let aggNotional = 0;
     let aggTrades = 0;
+    let aggQty = 0;
 
     for (const st of this.venues.values()) {
+      const win = this.venueWindowStats(st, windowSec);
       const points = [...st.buckets.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([time, price]) => ({ time, price }));
 
-      aggVol += st.tradeVolume;
+      aggNotional += st.tradeNotional;
       aggTrades += st.tradeCount;
+      aggQty += st.tradeVolume;
+
+      const tpm = st.tradeCount > 0 && st.firstTradeSec != null && st.lastTradeSec != null
+        ? (st.tradeCount / Math.max(1, st.lastTradeSec - st.firstTradeSec + 1)) * 60
+        : win.tradesPerMin;
 
       if (!points.length) {
         series.push({
@@ -137,7 +176,11 @@ export class MultiVenueTracker {
           pct: null,
           baseline: st.baseline,
           tradeVolume: st.tradeVolume,
+          tradeNotional: st.tradeNotional,
           tradeCount: st.tradeCount,
+          tradesPerMin: tpm,
+          windowNotional: win.notional,
+          windowTrades: win.trades,
           volumeData: volumeSeries(st),
         });
         continue;
@@ -148,7 +191,7 @@ export class MultiVenueTracker {
         mode === 'percent'
           ? points.map((p) => ({
               time: p.time,
-              value: ((p.price / baseline) - 1) * 100,
+              value: (p.price / baseline - 1) * 100,
             }))
           : points.map((p) => ({
               time: p.time,
@@ -156,7 +199,7 @@ export class MultiVenueTracker {
             }));
 
       const last = points[points.length - 1].price;
-      const pct = baseline ? ((last / baseline) - 1) * 100 : null;
+      const pct = baseline ? (last / baseline - 1) * 100 : null;
       pointCount += data.length;
       if (!hidden.has(st.venue)) lasts.push(last);
 
@@ -171,7 +214,11 @@ export class MultiVenueTracker {
         pct,
         baseline,
         tradeVolume: st.tradeVolume,
+        tradeNotional: st.tradeNotional,
         tradeCount: st.tradeCount,
+        tradesPerMin: tpm,
+        windowNotional: win.notional,
+        windowTrades: win.trades,
         volumeData: hidden.has(st.venue) ? [] : volumeSeries(st),
       });
     }
@@ -183,16 +230,23 @@ export class MultiVenueTracker {
       const max = Math.max(...lasts);
       const min = Math.min(...lasts);
       const mid = (max + min) / 2;
-      const visiblePct = series.filter((s) => !s.hidden && s.pct != null).map((s) => s.pct);
+      const visibleSeries = series.filter((s) => !s.hidden && s.last != null);
+      let highVenue = null;
+      let lowVenue = null;
+      for (const s of visibleSeries) {
+        if (s.last === max) highVenue = s.venue;
+        if (s.last === min) lowVenue = s.venue;
+      }
+      const visiblePct = visibleSeries.filter((s) => s.pct != null).map((s) => s.pct);
       discrepancy = {
         max,
         min,
         abs: max - min,
         bps: mid > 0 ? ((max - min) / mid) * 10000 : null,
+        highVenue,
+        lowVenue,
         pctSpan:
-          visiblePct.length >= 2
-            ? Math.max(...visiblePct) - Math.min(...visiblePct)
-            : null,
+          visiblePct.length >= 2 ? Math.max(...visiblePct) - Math.min(...visiblePct) : null,
       };
     }
 
@@ -200,7 +254,11 @@ export class MultiVenueTracker {
       series,
       discrepancy,
       pointCount,
-      aggregate: { volume: aggVol, trades: aggTrades },
+      aggregate: {
+        volume: aggQty,
+        notional: aggNotional,
+        trades: aggTrades,
+      },
     };
   }
 }
@@ -214,10 +272,14 @@ export class MultiVenueTracker {
  *   seen: Set<string>,
  *   buckets: Map<number, number>,
  *   volBuckets: Map<number, number>,
+ *   tradeBuckets: Map<number, number>,
  *   baseline: number|null,
  *   lastPrice: number|null,
  *   tradeVolume: number,
+ *   tradeNotional: number,
  *   tradeCount: number,
+ *   firstTradeSec: number|null,
+ *   lastTradeSec: number|null,
  *   samples: Array<{sec:number, price:number}>,
  * }} VenueState
  */
@@ -231,10 +293,14 @@ function newVenueState(venue, symbol, color) {
     seen: new Set(),
     buckets: new Map(),
     volBuckets: new Map(),
+    tradeBuckets: new Map(),
     baseline: null,
     lastPrice: null,
     tradeVolume: 0,
+    tradeNotional: 0,
     tradeCount: 0,
+    firstTradeSec: null,
+    lastTradeSec: null,
     samples: [],
   };
 }

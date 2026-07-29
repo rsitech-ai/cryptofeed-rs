@@ -114,6 +114,18 @@ struct AggTradeMsg {
     m: bool,
 }
 
+/// Individual trade (`e=trade` / `@trade`) — preferred over silent `@aggTrade`.
+#[derive(Debug, Deserialize)]
+struct TradeMsg {
+    s: String,
+    t: u64,
+    p: String,
+    q: String,
+    #[serde(rename = "T")]
+    trade_time: i64,
+    m: bool,
+}
+
 #[derive(Debug, Deserialize)]
 struct BookTickerMsg {
     u: u64,
@@ -269,6 +281,7 @@ fn decode_value(v: &Value) -> Result<UsdmDecoded, String> {
         }
         match obj.get("e").and_then(|x| x.as_str()) {
             Some("aggTrade") => return decode_agg_trade(v),
+            Some("trade") => return decode_trade(v),
             Some("kline") => return decode_kline(v),
             Some("24hrTicker") => return decode_24hr_ticker(v),
             Some("bookTicker") => return decode_book_ticker(v),
@@ -325,6 +338,24 @@ fn decode_agg_trade(v: &Value) -> Result<UsdmDecoded, String> {
     Ok(UsdmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.a,
+        price: Price(parse_fixed(&m.p)?),
+        quantity: Quantity(parse_fixed(&m.q)?),
+        aggressor,
+        exchange_ts_ms: m.trade_time,
+    })
+}
+
+fn decode_trade(v: &Value) -> Result<UsdmDecoded, String> {
+    let m: TradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+    let aggressor = if m.m {
+        AggressorSide::Sell
+    } else {
+        AggressorSide::Buy
+    };
+    // Reuse AggTrade variant — `agg_id` carries the venue trade id (`t`).
+    Ok(UsdmDecoded::AggTrade {
+        symbol: m.s,
+        agg_id: m.t,
         price: Price(parse_fixed(&m.p)?),
         quantity: Quantity(parse_fixed(&m.q)?),
         aggressor,
@@ -512,6 +543,20 @@ mod tests {
         assert_eq!(aggressor, AggressorSide::Sell);
         assert_eq!(price.0, Fixed::new(650001, 1));
 
+        let trade = br#"{"e":"trade","E":1,"s":"BTCUSDT","t":42,"p":"65000.30","q":"0.010","T":3,"m":false,"X":"MARKET"}"#;
+        let UsdmDecoded::AggTrade {
+            agg_id,
+            aggressor,
+            price,
+            ..
+        } = decode_text(trade).unwrap()
+        else {
+            panic!("trade");
+        };
+        assert_eq!(agg_id, 42);
+        assert_eq!(aggressor, AggressorSide::Buy);
+        assert_eq!(price.0, Fixed::new(6500030, 2));
+
         let mark = br#"{"e":"markPriceUpdate","E":10,"s":"BTCUSDT","p":"65000.00","i":"64990.00","P":"65001.00","r":"0.00010000","T":20}"#;
         let UsdmDecoded::MarkPrice {
             funding_rate,
@@ -593,6 +638,8 @@ mod tests {
     fn usdm_parity_fixtures() -> &'static [&'static [u8]] {
         &[
             br#"{"e":"aggTrade","E":1,"s":"BTCUSDT","a":9,"p":"65000.1","q":"0.01","f":1,"l":2,"T":3,"m":true}"#,
+            br#"{"e":"trade","E":1,"s":"BTCUSDT","t":42,"p":"65000.30","q":"0.010","T":3,"m":false}"#,
+            br#"{"stream":"btcusdt@trade","data":{"e":"trade","E":1,"s":"BTCUSDT","t":10,"p":"65000.0","q":"0.02","T":4,"m":false}}"#,
             br#"{"stream":"btcusdt@aggTrade","data":{"e":"aggTrade","E":1,"s":"BTCUSDT","a":10,"p":"65000.0","q":"0.02","f":3,"l":4,"T":4,"m":false}}"#,
             br#"{"u":1,"s":"BTCUSDT","b":"100.00","B":"1.5","a":"100.01","A":"2.0"}"#,
             br#"{"e":"markPriceUpdate","E":10,"s":"BTCUSDT","p":"65000.00","i":"64990.00","P":"65001.00","r":"0.00010000","T":20}"#,
