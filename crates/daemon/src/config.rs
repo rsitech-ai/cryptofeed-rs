@@ -268,6 +268,15 @@ pub struct TelemetryConfig {
     /// Optional filesystem SPA root (feature `ui`); overrides embedded assets.
     #[serde(default)]
     pub ui_static_dir: Option<String>,
+    /// Optional Grafana base URL exposed in `/v1/status` (feature `ui-api`).
+    #[serde(default)]
+    pub grafana_base_url: Option<String>,
+    /// Optional webhook for `/v1/alerts/test` forwarding (feature `ui-api`).
+    #[serde(default)]
+    pub alert_webhook_url: Option<String>,
+    /// Optional replay file root for `/v1/replay/*` (defaults to `.local/live-ui/raw`).
+    #[serde(default)]
+    pub replay_dir: Option<String>,
 }
 
 fn default_log_format() -> String {
@@ -296,6 +305,9 @@ impl Default for TelemetryConfig {
             ui_tape_capacity: default_ui_tape_capacity(),
             ui_tape_max_per_sec: default_ui_tape_max_per_sec(),
             ui_static_dir: None,
+            grafana_base_url: None,
+            alert_webhook_url: None,
+            replay_dir: None,
         }
     }
 }

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -13,9 +13,14 @@ use marketfeed_model::InstrumentId;
 
 use crate::state::DaemonState;
 use crate::view::ViewPlane;
+use crate::view::replay::{list_replay_files, read_replay_entries};
 
 const MAX_CONNECTIONS: usize = 64;
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
+const STREAM_INTERVAL: Duration = Duration::from_millis(100);
+const STREAM_HEARTBEAT: Duration = Duration::from_secs(15);
+const STREAM_MAX_LIFE: Duration = Duration::from_secs(3600);
+const MAX_POST_BODY: usize = 16_384;
 
 pub async fn serve_view(listener: TcpListener, state: Arc<DaemonState>) -> std::io::Result<()> {
     let connections = Arc::new(Semaphore::new(MAX_CONNECTIONS));
@@ -28,23 +33,55 @@ pub async fn serve_view(listener: TcpListener, state: Arc<DaemonState>) -> std::
         let state = Arc::clone(&state);
         tokio::spawn(async move {
             let _permit = permit;
-            if let Err(e) = handle_conn(stream, state).await {
+            if let Err(e) = handle_view_conn(stream, state).await {
                 tracing::debug!(error = %e, "view conn closed");
             }
         });
     }
 }
 
-async fn handle_conn(mut stream: TcpStream, state: Arc<DaemonState>) -> std::io::Result<()> {
+/// One HTTP connection on the view bind (includes SSE long-poll paths).
+pub async fn handle_view_conn(stream: TcpStream, state: Arc<DaemonState>) -> std::io::Result<()> {
+    handle_view_conn_with_prefix(stream, state, &[]).await
+}
+
+/// Shared-bind entry: request bytes already read by the health listener.
+pub async fn handle_view_conn_with_prefix(
+    mut stream: TcpStream,
+    state: Arc<DaemonState>,
+    prefix: &[u8],
+) -> std::io::Result<()> {
     let mut buf = vec![0u8; 8192];
-    let n = timeout(IO_TIMEOUT, stream.read(&mut buf))
-        .await
-        .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "view read timeout"))??;
+    let mut n = prefix.len().min(buf.len());
+    buf[..n].copy_from_slice(&prefix[..n]);
+    if n < prefix.len() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "view request prefix too large",
+        ));
+    }
+    if n == 0 {
+        n = timeout(IO_TIMEOUT, stream.read(&mut buf))
+            .await
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::TimedOut, "view read timeout"))??;
+    }
     if n == 0 {
         return Ok(());
     }
-    let req = String::from_utf8_lossy(&buf[..n]);
-    state.http_requests.fetch_add(1, Ordering::Relaxed);
+    let req = String::from_utf8_lossy(&buf[..n]).into_owned();
+    if prefix.is_empty() {
+        state.http_requests.fetch_add(1, Ordering::Relaxed);
+    }
+
+    let (method, path, query) = parse_request(&req).unwrap_or(("GET", "/", ""));
+
+    if method == "GET" && path == "/v1/stream" {
+        return handle_sse_stream(stream, &state, query).await;
+    }
+    if method == "POST" && path == "/v1/alerts/test" {
+        return handle_alert_test(stream, &req, &state).await;
+    }
+
     respond_view_request(&mut stream, &req, &state).await
 }
 
@@ -56,14 +93,14 @@ pub async fn respond_view_request(
 ) -> std::io::Result<()> {
     let (method, path, query) = parse_request(req).unwrap_or(("GET", "/", ""));
 
-    let (status, content_type, body) = if method != "GET" && method != "HEAD" {
-        (
+    let (status, content_type, body) = match method {
+        "GET" | "HEAD" => route(state, path, query).await,
+        "POST" if path == "/v1/alerts/test" => alert_test_route(state, request_body(req)).await,
+        _ => (
             405,
             "text/plain; charset=utf-8",
             b"method not allowed\n".to_vec(),
-        )
-    } else {
-        route(state, path, query).await
+        ),
     };
 
     let resp_head = format!(
@@ -96,6 +133,8 @@ async fn route(state: &DaemonState, path: &str, query: &str) -> (u16, &'static s
         "/v1/instruments" => json_ok(&view.instruments_json(state)),
         "/v1/books" => books(view, query),
         "/v1/tape" => tape(view, query),
+        "/v1/replay/files" => replay_files(state),
+        "/v1/replay" => replay_read(state, query),
         "/live" => {
             if state.is_live() {
                 (200, "text/plain; charset=utf-8", b"live\n".to_vec())
@@ -117,6 +156,298 @@ async fn route(state: &DaemonState, path: &str, query: &str) -> (u16, &'static s
         ),
         _ => static_or_404(state, path),
     }
+}
+
+fn replay_files(state: &DaemonState) -> (u16, &'static str, Vec<u8>) {
+    match list_replay_files(&state.config) {
+        Ok(resp) => json_ok(&resp),
+        Err(msg) => {
+            let body = serde_json::json!({ "error": msg }).to_string().into_bytes();
+            (500, "application/json; charset=utf-8", body)
+        }
+    }
+}
+
+fn replay_read(state: &DaemonState, query: &str) -> (u16, &'static str, Vec<u8>) {
+    let params = Query::parse(query);
+    let Some(file) = params.get("file") else {
+        return bad_request("missing file");
+    };
+    let offset = params
+        .get("offset")
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(0);
+    let limit = params
+        .get("limit")
+        .and_then(|s| s.parse::<u64>().ok())
+        .unwrap_or(100);
+    let resp = read_replay_entries(&state.config, file, offset, limit);
+    if resp.error.is_some() {
+        (404, "application/json; charset=utf-8", json_ok_body(&resp))
+    } else {
+        json_ok(&resp)
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct AlertTestBody {
+    kind: String,
+    #[serde(default)]
+    bps: Option<f64>,
+    #[serde(default)]
+    message: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct AlertTestResponse {
+    ok: bool,
+    forwarded: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    forward_error: Option<String>,
+}
+
+async fn handle_alert_test(
+    mut stream: TcpStream,
+    req: &str,
+    state: &Arc<DaemonState>,
+) -> std::io::Result<()> {
+    let (status, _content_type, body) = alert_test_route(state, request_body(req)).await;
+    let resp_head = format!(
+        "HTTP/1.1 {status}\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: {}\r\naccess-control-allow-origin: *\r\ncache-control: no-store\r\nconnection: close\r\n\r\n",
+        body.len()
+    );
+    stream.write_all(resp_head.as_bytes()).await?;
+    stream.write_all(&body).await?;
+    Ok(())
+}
+
+async fn alert_test_route(state: &DaemonState, body: Option<&str>) -> (u16, &'static str, Vec<u8>) {
+    let Some(raw) = body else {
+        return bad_request("missing body");
+    };
+    let parsed: AlertTestBody = match serde_json::from_str(raw) {
+        Ok(v) => v,
+        Err(e) => return bad_request(&format!("invalid json: {e}")),
+    };
+    if parsed.kind != "discrepancy" && parsed.kind != "lag" {
+        return bad_request("kind must be discrepancy or lag");
+    }
+
+    let webhook = state
+        .config
+        .telemetry
+        .alert_webhook_url
+        .as_deref()
+        .filter(|u| !u.trim().is_empty());
+    let mut forwarded = false;
+    let mut forward_error = None;
+
+    if let Some(url) = webhook {
+        let payload = serde_json::json!({
+            "kind": parsed.kind,
+            "bps": parsed.bps,
+            "message": parsed.message,
+            "source": "marketfeed-daemon",
+        });
+        match forward_alert_webhook(url, &payload).await {
+            Ok(()) => forwarded = true,
+            Err(e) => forward_error = Some(e),
+        }
+    }
+
+    json_ok(&AlertTestResponse {
+        ok: true,
+        forwarded,
+        forward_error,
+    })
+}
+
+async fn forward_alert_webhook(url: &str, payload: &serde_json::Value) -> Result<(), String> {
+    let body = payload.to_string();
+    let parsed = parse_http_url(url)?;
+    let mut stream = TcpStream::connect(parsed.addr)
+        .await
+        .map_err(|e| format!("connect: {e}"))?;
+    let req = format!(
+        "POST {} HTTP/1.1\r\nhost: {}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+        parsed.path,
+        parsed.host,
+        body.len(),
+        body
+    );
+    timeout(Duration::from_secs(5), stream.write_all(req.as_bytes()))
+        .await
+        .map_err(|_| "write timeout".to_string())?
+        .map_err(|e| format!("write: {e}"))?;
+    let mut buf = vec![0u8; 1024];
+    let n = timeout(Duration::from_secs(5), stream.read(&mut buf))
+        .await
+        .map_err(|_| "read timeout".to_string())?
+        .map_err(|e| format!("read: {e}"))?;
+    let resp = String::from_utf8_lossy(&buf[..n]);
+    let status_line = resp.lines().next().unwrap_or("");
+    if status_line.contains(" 2") {
+        Ok(())
+    } else {
+        Err(format!("webhook status: {status_line}"))
+    }
+}
+
+struct ParsedHttpUrl {
+    addr: String,
+    host: String,
+    path: String,
+}
+
+fn parse_http_url(url: &str) -> Result<ParsedHttpUrl, String> {
+    let rest = url
+        .strip_prefix("http://")
+        .ok_or_else(|| "only http:// URLs supported".to_string())?;
+    let (authority, path) = match rest.split_once('/') {
+        Some((a, p)) => (a, format!("/{p}")),
+        None => (rest, "/".to_string()),
+    };
+    Ok(ParsedHttpUrl {
+        addr: authority.to_string(),
+        host: authority.to_string(),
+        path,
+    })
+}
+
+#[derive(Debug, Clone)]
+struct StreamFocus {
+    venue: String,
+    instrument: InstrumentId,
+    symbol: Option<String>,
+}
+
+fn resolve_stream_focus(state: &DaemonState, query: &str) -> Option<StreamFocus> {
+    let view = state.view.as_ref()?;
+    let params = Query::parse(query);
+    if let (Some(venue), Some(symbol)) = (params.get("venue"), params.get("symbol")) {
+        let instrument = view.resolve_instrument(venue, symbol)?;
+        return Some(StreamFocus {
+            venue: venue.to_string(),
+            instrument,
+            symbol: Some(symbol.to_string()),
+        });
+    }
+    if let Some(asset) = params.get("asset") {
+        for v in &state.config.venues {
+            for (i, sym) in v.symbols.iter().enumerate() {
+                if sym.contains(asset) {
+                    return Some(StreamFocus {
+                        venue: v.id.clone(),
+                        instrument: InstrumentId((i as u32) + 1),
+                        symbol: Some(sym.clone()),
+                    });
+                }
+            }
+            if v.symbols.is_empty() && v.adapter == "synthetic" && asset == "BTC" {
+                return Some(StreamFocus {
+                    venue: v.id.clone(),
+                    instrument: InstrumentId(1),
+                    symbol: Some("BTC-USD".into()),
+                });
+            }
+        }
+    }
+    state.config.venues.first().map(|v| StreamFocus {
+        venue: v.id.clone(),
+        instrument: InstrumentId(1),
+        symbol: v.symbols.first().cloned(),
+    })
+}
+
+async fn handle_sse_stream(
+    mut stream: TcpStream,
+    state: &Arc<DaemonState>,
+    query: &str,
+) -> std::io::Result<()> {
+    let Some(view) = state.view.as_ref() else {
+        let body = b"view plane unavailable\n";
+        let resp = format!(
+            "HTTP/1.1 503 Service Unavailable\r\ncontent-type: text/plain\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
+        stream.write_all(resp.as_bytes()).await?;
+        stream.write_all(body).await?;
+        return Ok(());
+    };
+
+    let focus = resolve_stream_focus(state, query);
+    let headers = "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncache-control: no-store\r\naccess-control-allow-origin: *\r\ntransfer-encoding: chunked\r\nconnection: keep-alive\r\n\r\n";
+    stream.write_all(headers.as_bytes()).await?;
+
+    let started = Instant::now();
+    let mut last_heartbeat = Instant::now();
+    let mut last_payload = String::new();
+
+    loop {
+        if started.elapsed() >= STREAM_MAX_LIFE {
+            break;
+        }
+
+        if last_heartbeat.elapsed() >= STREAM_HEARTBEAT {
+            write_sse_comment(&mut stream, "heartbeat").await?;
+            last_heartbeat = Instant::now();
+        }
+
+        let now_ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos() as i64)
+            .unwrap_or(0);
+        let status = view.status(state);
+        let mut payload = serde_json::json!({
+            "ts_ns": now_ns,
+            "status": status,
+        });
+        if let Some(f) = &focus {
+            payload["focus"] = view.stream_focus(&f.venue, f.instrument, Some(5), 20);
+            if let Some(sym) = &f.symbol {
+                payload["focus"]["symbol"] = serde_json::json!(sym);
+            }
+        }
+
+        let serialized = match serde_json::to_string(&payload) {
+            Ok(s) => s,
+            Err(_) => {
+                tokio::time::sleep(STREAM_INTERVAL).await;
+                continue;
+            }
+        };
+        if serialized != last_payload {
+            write_sse_data(&mut stream, &serialized).await?;
+            last_payload = serialized;
+        }
+
+        tokio::time::sleep(STREAM_INTERVAL).await;
+    }
+
+    write_chunk(&mut stream, b"").await?;
+    Ok(())
+}
+
+async fn write_chunk(stream: &mut TcpStream, data: &[u8]) -> std::io::Result<()> {
+    let header = format!("{:x}\r\n", data.len());
+    stream.write_all(header.as_bytes()).await?;
+    if !data.is_empty() {
+        stream.write_all(data).await?;
+        stream.write_all(b"\r\n").await?;
+    } else {
+        stream.write_all(b"\r\n").await?;
+    }
+    Ok(())
+}
+
+async fn write_sse_data(stream: &mut TcpStream, json: &str) -> std::io::Result<()> {
+    let event = format!("data: {json}\n\n");
+    write_chunk(stream, event.as_bytes()).await
+}
+
+async fn write_sse_comment(stream: &mut TcpStream, comment: &str) -> std::io::Result<()> {
+    let event = format!(": {comment}\n\n");
+    write_chunk(stream, event.as_bytes()).await
 }
 
 fn books(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
@@ -189,7 +520,6 @@ fn resolve_instrument(
             .resolve_instrument(venue, sym)
             .ok_or("unknown symbol");
     }
-    // Default to first instrument (1) for single-symbol venues / synthetic.
     Ok(InstrumentId(1))
 }
 
@@ -226,7 +556,6 @@ fn load_static(state: &DaemonState, path: &str) -> Option<(&'static str, Vec<u8>
     embedded_asset(rel)
 }
 
-/// Reject path escapes before joining onto `ui_static_dir`.
 #[cfg(feature = "ui")]
 fn is_safe_static_rel(rel: &str) -> bool {
     if rel.is_empty() || rel.starts_with('/') || rel.starts_with('\\') {
@@ -244,7 +573,6 @@ fn is_safe_static_rel(rel: &str) -> bool {
     })
 }
 
-/// Read `rel` only when the resolved path stays under `root` (symlink-safe).
 #[cfg(feature = "ui")]
 fn read_static_under_root(root: &str, rel: &str) -> Option<Vec<u8>> {
     use std::path::Path;
@@ -260,7 +588,6 @@ fn read_static_under_root(root: &str, rel: &str) -> Option<Vec<u8>> {
 
 #[cfg(feature = "ui")]
 fn embedded_asset(rel: &str) -> Option<(&'static str, Vec<u8>)> {
-    // Fixed Vite output names (see ui/vite.config.js).
     match rel {
         "index.html" => Some((
             "text/html; charset=utf-8",
@@ -294,13 +621,13 @@ fn content_type(rel: &str) -> &'static str {
 }
 
 fn json_ok<T: serde::Serialize>(value: &T) -> (u16, &'static str, Vec<u8>) {
+    (200, "application/json; charset=utf-8", json_ok_body(value))
+}
+
+fn json_ok_body<T: serde::Serialize>(value: &T) -> Vec<u8> {
     match serde_json::to_vec(value) {
-        Ok(body) => (200, "application/json; charset=utf-8", body),
-        Err(_) => (
-            500,
-            "application/json; charset=utf-8",
-            br#"{"error":"serialize"}"#.to_vec(),
-        ),
+        Ok(body) => body,
+        Err(_) => br#"{"error":"serialize"}"#.to_vec(),
     }
 }
 
@@ -318,6 +645,30 @@ fn parse_request(req: &str) -> Option<(&str, &str, &str)> {
     let path = t.next()?;
     let query = t.next().unwrap_or("");
     Some((method, path, query))
+}
+
+fn request_body(req: &str) -> Option<&str> {
+    let mut parts = req.splitn(2, "\r\n\r\n");
+    let _head = parts.next()?;
+    let body = parts.next()?;
+    let len = content_length(req).unwrap_or(body.len());
+    if len > MAX_POST_BODY {
+        return None;
+    }
+    Some(&body[..body.len().min(len)])
+}
+
+fn content_length(req: &str) -> Option<usize> {
+    for line in req.lines().skip(1) {
+        if line.is_empty() {
+            break;
+        }
+        let lower = line.to_ascii_lowercase();
+        if let Some(v) = lower.strip_prefix("content-length:") {
+            return v.trim().parse().ok();
+        }
+    }
+    None
 }
 
 #[derive(Debug, Default)]
@@ -409,8 +760,102 @@ mod tests {
         (status, body)
     }
 
+    async fn post_json(addr: &str, path: &str, body: &str) -> (u16, String) {
+        let mut stream = TcpStream::connect(addr).await.unwrap();
+        let req = format!(
+            "POST {path} HTTP/1.1\r\nhost: localhost\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        stream.write_all(req.as_bytes()).await.unwrap();
+        let mut buf = Vec::new();
+        stream.read_to_end(&mut buf).await.unwrap();
+        let text = String::from_utf8_lossy(&buf);
+        let status = text
+            .lines()
+            .next()
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        let resp_body = text.split("\r\n\r\n").nth(1).unwrap_or("").to_string();
+        (status, resp_body)
+    }
+
+    fn test_state(cfg: DaemonConfig) -> Arc<DaemonState> {
+        let state = DaemonState::new(cfg);
+        state.mark_supervisor_running();
+        state
+    }
+
     #[tokio::test]
-    async fn status_endpoint_json() {
+    async fn status_endpoint_enriched_json() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            grafana_base_url = "http://127.0.0.1:3000"
+            alert_webhook_url = "http://127.0.0.1:9999/hook"
+            [readiness]
+            require_required_venues = false
+            [[venues]]
+            id = "syn"
+            adapter = "synthetic"
+            required = false
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        let serve_state = Arc::clone(&state);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, serve_state).await;
+        });
+
+        let (st, body) = get(&addr, "/v1/status").await;
+        assert_eq!(st, 200, "{body}");
+        assert!(body.contains("\"live\":true"), "{body}");
+        assert!(body.contains("\"ready\":true"), "{body}");
+        assert!(body.contains("\"grafana_base_url\""), "{body}");
+        assert!(body.contains("\"alert_webhook_configured\":true"), "{body}");
+        assert!(body.contains("\"tape_trades\""), "{body}");
+    }
+
+    #[tokio::test]
+    async fn replay_files_empty_ok() {
+        let dir = std::env::temp_dir().join(format!(
+            "marketfeed-replay-http-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let cfg = DaemonConfig::from_toml_str(&format!(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            replay_dir = "{}"
+            [readiness]
+            require_required_venues = false
+            "#,
+            dir.display()
+        ))
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, state).await;
+        });
+
+        let (st, body) = get(&addr, "/v1/replay/files").await;
+        assert_eq!(st, 200, "{body}");
+        assert!(body.contains("\"files\":[]"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn alert_test_ack_without_webhook() {
         let cfg = DaemonConfig::from_toml_str(
             r#"
             [telemetry]
@@ -423,17 +868,119 @@ mod tests {
         .unwrap();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap().to_string();
-        let state = DaemonState::new(cfg);
-        state.mark_supervisor_running();
-        let serve_state = Arc::clone(&state);
+        let state = test_state(cfg);
         tokio::spawn(async move {
-            let _ = serve_view(listener, serve_state).await;
+            let _ = serve_view(listener, state).await;
         });
 
-        let (st, body) = get(&addr, "/v1/status").await;
+        let (st, body) = post_json(
+            &addr,
+            "/v1/alerts/test",
+            r#"{"kind":"lag","bps":12.5,"message":"test"}"#,
+        )
+        .await;
         assert_eq!(st, 200, "{body}");
-        assert!(body.contains("\"live\":true"), "{body}");
-        assert!(body.contains("\"ready\":true"), "{body}");
+        assert!(body.contains("\"ok\":true"), "{body}");
+        assert!(body.contains("\"forwarded\":false"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn alert_test_forwards_to_mock_webhook() {
+        let hook = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let hook_addr = hook.local_addr().unwrap();
+        let hook_url = format!("http://{hook_addr}/hook");
+        tokio::spawn(async move {
+            if let Ok((mut stream, _)) = hook.accept().await {
+                let mut buf = vec![0u8; 4096];
+                let n = stream.read(&mut buf).await.unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]);
+                assert!(req.contains("POST /hook"), "{req}");
+                assert!(req.contains("\"kind\":\"discrepancy\""), "{req}");
+                let resp = "HTTP/1.1 204 No Content\r\ncontent-length: 0\r\nconnection: close\r\n\r\n";
+                let _ = stream.write_all(resp.as_bytes()).await;
+            }
+        });
+
+        let cfg = DaemonConfig::from_toml_str(&format!(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            alert_webhook_url = "{hook_url}"
+            [readiness]
+            require_required_venues = false
+            "#,
+        ))
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, state).await;
+        });
+
+        let (st, body) = post_json(
+            &addr,
+            "/v1/alerts/test",
+            r#"{"kind":"discrepancy","bps":3.1,"message":"x"}"#,
+        )
+        .await;
+        assert_eq!(st, 200, "{body}");
+        assert!(body.contains("\"forwarded\":true"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn sse_stream_emits_initial_event() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            [readiness]
+            require_required_venues = false
+            [[venues]]
+            id = "syn"
+            adapter = "synthetic"
+            required = false
+            symbols = ["BTC-USD"]
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, state).await;
+        });
+
+        let mut stream = TcpStream::connect(&addr).await.unwrap();
+        let req = "GET /v1/stream?asset=BTC HTTP/1.1\r\nhost: localhost\r\n\r\n";
+        stream.write_all(req.as_bytes()).await.unwrap();
+        let mut buf = vec![0u8; 16384];
+        let mut total = 0usize;
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let text = loop {
+            if Instant::now() >= deadline {
+                panic!("timed out waiting for SSE data");
+            }
+            let n = timeout(Duration::from_millis(500), stream.read(&mut buf[total..]))
+                .await
+                .expect("read timeout")
+                .expect("read");
+            if n == 0 {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                continue;
+            }
+            total += n;
+            let text = String::from_utf8_lossy(&buf[..total]);
+            if text.contains("data:") {
+                break text.into_owned();
+            }
+        };
+        assert!(text.contains("200 OK"), "{text}");
+        assert!(text.contains("text/event-stream"), "{text}");
+        assert!(text.contains("data:"), "{text}");
+        assert!(text.contains("\"status\""), "{text}");
     }
 
     #[cfg(feature = "ui")]
@@ -463,10 +1010,9 @@ mod tests {
             Some(b"ok".as_slice())
         );
         assert!(read_static_under_root(root, "../outside.txt").is_none());
-        // Symlink escape (when the OS allows creating one).
-        let link = dir.join("escape.js");
         #[cfg(unix)]
         {
+            let link = dir.join("escape.js");
             let _ = std::fs::remove_file(&link);
             if std::os::unix::fs::symlink(&outside, &link).is_ok() {
                 assert!(
