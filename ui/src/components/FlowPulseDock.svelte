@@ -8,21 +8,20 @@
     tradeNotional,
     volumeAtPrice,
   } from '../lib/orderflow.js';
-  import DepthChart from './DepthChart.svelte';
 
   let {
     book = null,
     tape = [],
     depth = 16,
-    lastPrice = null,
     windowSec = 300,
     largeUsd = 25000,
     imbalanceHistory = [],
     /**
-     * Show cumulative depth plot in dock. False when Order Flow chart already
-     * owns the DOM ladder + heat depth (avoid conceptual overlap).
+     * When false (Order Flow chart mode), skip full VAP / buy-sell hist —
+     * the heatmap already owns CVD strip + VAP sidebar. Dock keeps a compact
+     * CVD/Imb summary only.
      */
-    showDepthPlot = true,
+    showTapeProfile = true,
     pulse = null,
     history = [],
     alertActive = false,
@@ -46,9 +45,9 @@
   let vap = $derived(volumeAtPrice(tape, { windowSec, maxBuckets: 24 }));
   let heuristics = $derived(detectFlowHeuristics(tape, book, { largeUsd, windowSec }));
 
-  let imbSpark = $derived(sparkPath(imbalanceHistory.map((p) => p.imbalancePct), { w: 100, h: 28 }));
-  let cvdSpark = $derived(sparkPath(cvd.points.map((p) => p.cvd), { w: 120, h: 28 }));
-  let scoreSpark = $derived(sparkPath((history || []).map((p) => p.score), { w: 160, h: 32 }));
+  let imbSpark = $derived(sparkPath(imbalanceHistory.map((p) => p.imbalancePct), { w: 120, h: 36 }));
+  let cvdSpark = $derived(sparkPath(cvd.points.map((p) => p.cvd), { w: 140, h: 36 }));
+  let scoreSpark = $derived(sparkPath((history || []).map((p) => p.score), { w: 200, h: 40 }));
 
   let histMax = $derived(
     Math.max(1, ...cvd.histogram.map((h) => Math.max(h.buyUsd, h.sellUsd))),
@@ -74,9 +73,9 @@
       const usd = price * qty;
       rows.push({ price, buyUsd: 0, sellUsd: usd, delta: -usd });
     }
-    return rows.sort((a, b) => b.price - a.price).slice(0, 18);
+    return rows.sort((a, b) => b.price - a.price).slice(0, 22);
   });
-  let vapRows = $derived(vap.length ? vap.slice(0, 18) : bookVap);
+  let vapRows = $derived(vap.length ? vap.slice(0, 22) : bookVap);
   let vapMaxEff = $derived(
     Math.max(1, ...vapRows.map((r) => Math.max(r.buyUsd || 0, r.sellUsd || 0))),
   );
@@ -85,8 +84,23 @@
     (tape || [])
       .filter((e) => e.kind === 'trade')
       .filter((e) => (tradeNotional(e) ?? 0) >= largeUsd)
-      .slice(0, 8),
+      .slice(0, 24),
   );
+  /** When no prints hit the large threshold, fill Flags with top notional (not a full tape copy). */
+  let topPrints = $derived(
+    (tape || [])
+      .filter((e) => e.kind === 'trade')
+      .map((e) => ({ e, n: tradeNotional(e) ?? 0 }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, 18),
+  );
+  let flagRows = $derived(
+    largeTrades.length
+      ? largeTrades.map((e) => ({ e, n: tradeNotional(e) ?? 0, large: true }))
+      : topPrints.map((x) => ({ ...x, large: false })),
+  );
+  let flagsAreLarge = $derived(largeTrades.length > 0);
 
   let score = $derived(pulse?.score ?? null);
   let chips = $derived.by(() => {
@@ -101,8 +115,6 @@
       list = [...list].sort((a, b) => (b.usdPerMin || 0) - (a.usdPerMin || 0));
     } else if (metricFilter === 'tpm') {
       list = [...list].sort((a, b) => (b.tradesPerMin || 0) - (a.tradesPerMin || 0));
-    } else if (metricFilter === 'cross') {
-      list = [...list].sort((a, b) => (b.heat || 0) - (a.heat || 0));
     }
     return list;
   });
@@ -135,7 +147,7 @@
   }
 </script>
 
-<section class="fp" class:alert={alertActive} aria-label="Flow and Pulse dock">
+<section class="fp" class:alert={alertActive} class:compact={!showTapeProfile} aria-label="Flow and Pulse dock">
   <div class="fp-chrome">
     <div class="chrome-left">
       <span class="brand">Flow &amp; Pulse</span>
@@ -148,7 +160,10 @@
           sort:{metricFilter} ✕
         </button>
       {/if}
-      <span class="chrome-meta">{Math.round(windowSec / 60)}m · {vap.length ? 'tape VAP' : 'book profile'}</span>
+      <span class="chrome-meta">
+        {Math.round(windowSec / 60)}m
+        · {showTapeProfile ? (vap.length ? 'tape VAP' : 'book profile') : 'OF owns VAP/CVD'}
+      </span>
     </div>
     <div class="chrome-right">
       <label class="thresh" title="Large trade threshold (USD)">
@@ -179,11 +194,11 @@
   </div>
 
   <div class="fp-body">
-    <!-- Col 1: Depth / CVD / VAP -->
+    <!-- Col 1: Focus flow (complementary — no Last/Trades/depth; no VAP when OF) -->
     <div class="col flow-col">
       <div class="col-head">
-        <span class="col-title">Depth / CVD</span>
-        <span class="meta">focus book + tape</span>
+        <span class="col-title">Focus flow</span>
+        <span class="meta">{showTapeProfile ? 'CVD · profile' : 'CVD summary'}</span>
       </div>
 
       <div class="stat-row" role="group" aria-label="Flow stats">
@@ -191,8 +206,8 @@
           type="button"
           class="stat clickable"
           title="Cumulative volume delta"
-          onmouseenter={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)} · buys ${fmtUsd(cvd.buyUsd)} · sells ${fmtUsd(cvd.sellUsd)}`)}
-          onmousemove={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)} · buys ${fmtUsd(cvd.buyUsd)} · sells ${fmtUsd(cvd.sellUsd)}`)}
+          onmouseenter={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)} · buys ${fmtUsd(cvd.buyUsd)} · sells ${fmtUsd(cvd.sellUsd)} · ${cvd.trades} trades`)}
+          onmousemove={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)} · buys ${fmtUsd(cvd.buyUsd)} · sells ${fmtUsd(cvd.sellUsd)} · ${cvd.trades} trades`)}
           onmouseleave={hideTip}
         >
           <span class="lbl">CVD</span>
@@ -206,24 +221,16 @@
           <span class="lbl">Sells</span>
           <span class="val ask">{fmtUsd(cvd.sellUsd)}</span>
         </div>
-        <div class="stat">
-          <span class="lbl">Trades</span>
-          <span class="val">{cvd.trades}</span>
-        </div>
         <div
           class="stat"
           role="img"
           aria-label="Book imbalance"
-          onmouseenter={(e) => showTip(e, `Book imbalance ${pressure.imbalancePct.toFixed(1)}%`)}
-          onmousemove={(e) => showTip(e, `Book imbalance ${pressure.imbalancePct.toFixed(1)}%`)}
+          onmouseenter={(e) => showTip(e, `Focus book imbalance ${pressure.imbalancePct.toFixed(1)}% · bid ${fmtUsd(pressure.bidUsd)} · ask ${fmtUsd(pressure.askUsd)}`)}
+          onmousemove={(e) => showTip(e, `Focus book imbalance ${pressure.imbalancePct.toFixed(1)}% · bid ${fmtUsd(pressure.bidUsd)} · ask ${fmtUsd(pressure.askUsd)}`)}
           onmouseleave={hideTip}
         >
           <span class="lbl">Imb</span>
           <span class="val accent">{pressure.imbalancePct.toFixed(1)}%</span>
-        </div>
-        <div class="stat">
-          <span class="lbl">Last</span>
-          <span class="val">{lastPrice != null ? fmtPrice(lastPrice, 2) : '—'}</span>
         </div>
       </div>
 
@@ -255,12 +262,13 @@
           onmousemove={(e) => showTip(e, lastImb != null ? `Imbalance ${Number(lastImb).toFixed(1)}%` : 'Imbalance…')}
           onmouseleave={hideTip}
         >
+          <span class="spark-lbl">Imb</span>
           {#if imbSpark}
-            <svg viewBox="0 0 100 28" preserveAspectRatio="none">
-              <path d={imbSpark} fill="none" stroke="var(--accent)" stroke-width="1.4" />
+            <svg viewBox="0 0 120 36" preserveAspectRatio="none">
+              <path d={imbSpark} fill="none" stroke="var(--accent)" stroke-width="1.5" />
             </svg>
           {:else}
-            <span class="muted">imb…</span>
+            <span class="muted">…</span>
           {/if}
         </div>
         <div
@@ -272,71 +280,68 @@
           onmousemove={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)}`)}
           onmouseleave={hideTip}
         >
+          <span class="spark-lbl">CVD</span>
           {#if cvdSpark}
-            <svg viewBox="0 0 120 28" preserveAspectRatio="none">
-              <path d={cvdSpark} fill="none" stroke={cvd.cvd >= 0 ? 'var(--bid)' : 'var(--ask)'} stroke-width="1.4" />
+            <svg viewBox="0 0 140 36" preserveAspectRatio="none">
+              <path d={cvdSpark} fill="none" stroke={cvd.cvd >= 0 ? 'var(--bid)' : 'var(--ask)'} stroke-width="1.5" />
             </svg>
           {:else}
-            <span class="muted">cvd…</span>
+            <span class="muted">…</span>
           {/if}
         </div>
       </div>
 
-      <div class="hist" aria-label="Buy vs sell histogram">
-        {#each cvd.histogram.slice(-40) as h, i (i)}
-          <button
-            type="button"
-            class="hcol"
-            title={`Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`}
-            onmouseenter={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
-            onmousemove={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
-            onmouseleave={hideTip}
-          >
-            <div class="buy" style={`height:${Math.max(2, (h.buyUsd / histMax) * 100)}%`}></div>
-            <div class="sell" style={`height:${Math.max(2, (h.sellUsd / histMax) * 100)}%`}></div>
-          </button>
-        {:else}
-          <span class="muted">buy/sell hist…</span>
-        {/each}
-      </div>
-
-      {#if showDepthPlot}
-        <div class="depth-block" aria-label="Cumulative depth">
-          <DepthChart {book} {depth} interactive={true} />
-        </div>
-      {/if}
-
-      <div class="vap-mini" aria-label="Volume at price">
-        <div class="vap-cols"><span>Sell</span><span>Px</span><span>Buy</span><span>Δ</span></div>
-        <div class="vap">
-          {#each vapRows as row}
+      {#if showTapeProfile}
+        <div class="hist" aria-label="Buy vs sell histogram">
+          {#each cvd.histogram.slice(-48) as h, i (i)}
             <button
               type="button"
-              class="vrow"
-              title={`${fmtPrice(row.price, 2)} · Δ ${fmtUsd(row.delta)}`}
-              onmouseenter={(e) => showTip(e, `${fmtPrice(row.price, 2)} · buy ${fmtUsd(row.buyUsd)} · sell ${fmtUsd(row.sellUsd)} · Δ ${fmtUsd(row.delta)}`)}
-              onmousemove={(e) => showTip(e, `${fmtPrice(row.price, 2)} · buy ${fmtUsd(row.buyUsd)} · sell ${fmtUsd(row.sellUsd)} · Δ ${fmtUsd(row.delta)}`)}
+              class="hcol"
+              title={`Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`}
+              onmouseenter={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
+              onmousemove={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
               onmouseleave={hideTip}
             >
-              <div class="sell-bar-wrap">
-                <div class="sell-bar" style={`width:${barW(row.sellUsd, vapMaxEff)}`}></div>
-                <span>{fmtUsd(row.sellUsd)}</span>
-              </div>
-              <span class="px">{fmtPrice(row.price, 2)}</span>
-              <div class="buy-bar-wrap">
-                <div class="buy-bar" style={`width:${barW(row.buyUsd, vapMaxEff)}`}></div>
-                <span>{fmtUsd(row.buyUsd)}</span>
-              </div>
-              <span class="delta" class:up={row.delta > 0} class:down={row.delta < 0}>{fmtUsd(row.delta)}</span>
+              <div class="buy" style={`height:${Math.max(2, (h.buyUsd / histMax) * 100)}%`}></div>
+              <div class="sell" style={`height:${Math.max(2, (h.sellUsd / histMax) * 100)}%`}></div>
             </button>
           {:else}
-            <div class="empty">VAP…</div>
+            <span class="muted">buy/sell hist…</span>
           {/each}
         </div>
-      </div>
+
+        <div class="vap-mini" aria-label="Volume at price">
+          <div class="vap-cols"><span>Sell</span><span>Px</span><span>Buy</span><span>Δ</span></div>
+          <div class="vap">
+            {#each vapRows as row}
+              <button
+                type="button"
+                class="vrow"
+                title={`${fmtPrice(row.price, 2)} · Δ ${fmtUsd(row.delta)}`}
+                onmouseenter={(e) => showTip(e, `${fmtPrice(row.price, 2)} · buy ${fmtUsd(row.buyUsd)} · sell ${fmtUsd(row.sellUsd)} · Δ ${fmtUsd(row.delta)}`)}
+                onmousemove={(e) => showTip(e, `${fmtPrice(row.price, 2)} · buy ${fmtUsd(row.buyUsd)} · sell ${fmtUsd(row.sellUsd)} · Δ ${fmtUsd(row.delta)}`)}
+                onmouseleave={hideTip}
+              >
+                <div class="sell-bar-wrap">
+                  <div class="sell-bar" style={`width:${barW(row.sellUsd, vapMaxEff)}`}></div>
+                  <span>{fmtUsd(row.sellUsd)}</span>
+                </div>
+                <span class="px">{fmtPrice(row.price, 2)}</span>
+                <div class="buy-bar-wrap">
+                  <div class="buy-bar" style={`width:${barW(row.buyUsd, vapMaxEff)}`}></div>
+                  <span>{fmtUsd(row.buyUsd)}</span>
+                </div>
+                <span class="delta" class:up={row.delta > 0} class:down={row.delta < 0}>{fmtUsd(row.delta)}</span>
+              </button>
+            {:else}
+              <div class="empty">VAP…</div>
+            {/each}
+          </div>
+        </div>
+      {/if}
     </div>
 
-    <!-- Col 2: Multi-venue heat -->
+    <!-- Col 2: Multi-venue heat (no Cross Δ — header owns it) -->
     <div class="col pulse-col">
       <div class="col-head">
         <span class="col-title">Multi-venue heat</span>
@@ -356,52 +361,45 @@
           <span class="lbl">USD/m</span>
           <span class="val">{pulse?.usdPerMin != null ? fmtUsd(pulse.usdPerMin) : '—'}</span>
         </button>
-        <button type="button" class="metric" class:active={metricActive('cross')} onclick={() => onMetricClick('cross')} title="Cross-venue Δ">
-          <span class="lbl">Cross Δ</span>
-          <span class="val" class:hot={pulse?.crossBps != null && pulse.crossBps > 10}>
-            {pulse?.crossBps != null ? pulse.crossBps.toFixed(1) + 'b' : '—'}
-          </span>
-        </button>
-        <button type="button" class="metric" class:active={metricActive('spread')} onclick={() => onMetricClick('spread')} title="Median spread">
-          <span class="lbl">Spread</span>
+        <button type="button" class="metric" class:active={metricActive('spread')} onclick={() => onMetricClick('spread')} title="Median spread across live venues">
+          <span class="lbl">Med spread</span>
           <span class="val">
             {pulse?.medianSpread != null ? pulse.medianSpread.toFixed(2) + 'b' : '—'}
           </span>
         </button>
-        <button type="button" class="metric" class:active={metricActive('imb')} onclick={() => onMetricClick('imb')} title="Book imbalance">
-          <span class="lbl">Book imb</span>
+        <button type="button" class="metric" class:active={metricActive('imb')} onclick={() => onMetricClick('imb')} title="Avg book imbalance across venues">
+          <span class="lbl">Avg imb</span>
           <span class="val" class:up={pulse?.bookImbalance > 5} class:down={pulse?.bookImbalance < -5}>
             {pulse?.bookImbalance != null ? pulse.bookImbalance.toFixed(1) + '%' : '—'}
           </span>
         </button>
       </div>
 
-      <div
-        class="spark pulse-spark"
-        role="img"
-        aria-label="Pulse score history"
-        title="Pulse score history"
-        onmouseenter={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
-        onmousemove={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
-        onmouseleave={hideTip}
-      >
-        {#if scoreSpark}
-          <svg viewBox="0 0 160 32" preserveAspectRatio="none">
+      {#if scoreSpark}
+        <div
+          class="spark pulse-spark"
+          role="img"
+          aria-label="Pulse score history"
+          title="Pulse score history"
+          onmouseenter={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
+          onmousemove={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
+          onmouseleave={hideTip}
+        >
+          <span class="spark-lbl">Pulse</span>
+          <svg viewBox="0 0 200 40" preserveAspectRatio="none">
             <line
               x1="0"
-              y1={32 - (spikeThreshold / 100) * 30 - 1}
-              x2="160"
-              y2={32 - (spikeThreshold / 100) * 30 - 1}
+              y1={40 - (spikeThreshold / 100) * 36 - 2}
+              x2="200"
+              y2={40 - (spikeThreshold / 100) * 36 - 2}
               stroke="rgba(246,70,93,0.45)"
               stroke-dasharray="2,2"
               stroke-width="0.7"
             />
-            <path d={scoreSpark} fill="none" stroke="var(--accent)" stroke-width="1.5" />
+            <path d={scoreSpark} fill="none" stroke="var(--accent)" stroke-width="1.6" />
           </svg>
-        {:else}
-          <span class="muted">pulse history…</span>
-        {/if}
-      </div>
+        </div>
+      {/if}
 
       <div class="chips" aria-label="Per-venue activity heat">
         {#each chips as c (c.venue + '|' + (c.symbol || ''))}
@@ -412,15 +410,16 @@
             class:focus={c.venue === focusVenue}
             class:spike={(c.heat || 0) >= spikeThreshold}
             style={`--heat:${Math.round(c.heat)}; --vc:${c.color || 'var(--accent)'}; --heatpct:${Math.max(6, ((c.heat || 0) / maxHeat) * 100)}`}
-            title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m"
+            title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m · imb {(c.imbalancePct ?? 0).toFixed?.(1) ?? c.imbalancePct}%"
             onclick={() => onChipClick(c.venue, c.symbol)}
-            onmouseenter={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm`)}
-            onmousemove={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm`)}
+            onmouseenter={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · ${c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m`)}
+            onmousemove={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · ${c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m`)}
             onmouseleave={hideTip}
           >
             <span class="heat-bar" style={`width:var(--heatpct)%`}></span>
             <span class="vname">{c.venue}</span>
             <span class="vheat">{c.heat.toFixed(0)}</span>
+            <span class="vmeta">{c.tradesPerMin != null ? c.tradesPerMin.toFixed(0) + '/m' : ''}</span>
           </button>
         {:else}
           <div class="empty">waiting for multi-venue tape/books…</div>
@@ -428,14 +427,14 @@
       </div>
     </div>
 
-    <!-- Col 3: Flags / large prints -->
+    <!-- Col 3: Flags / large or top prints -->
     <div class="col alerts-col">
       <div class="col-head">
-        <span class="col-title">Flags</span>
-        <span class="meta">≥{fmtUsd(largeUsd)}</span>
+        <span class="col-title">{flagsAreLarge ? 'Large' : 'Top prints'}</span>
+        <span class="meta">{flagsAreLarge ? `≥${fmtUsd(largeUsd)}` : 'by USD'} · {flagRows.length}</span>
       </div>
       <div class="heuristics">
-        {#each heuristics.slice(-10) as h}
+        {#each heuristics.slice(-12) as h}
           <span class="badge" class:buy={h.side === 'buy'} class:sell={h.side === 'sell'} title={h.label}>
             {h.kind}
           </span>
@@ -443,20 +442,24 @@
           <span class="muted">no sweep/absorption</span>
         {/each}
       </div>
-      <div class="large-list" aria-label="Large prints">
-        {#each largeTrades as e}
+      <div class="large-head">
+        <span>Px</span><span>USD</span><span>Side</span>
+      </div>
+      <div class="large-list" aria-label={flagsAreLarge ? 'Large prints' : 'Top prints by notional'}>
+        {#each flagRows as row}
           <div
             class="lt"
-            class:buy={e.aggressor === 'buy'}
-            class:sell={e.aggressor === 'sell'}
-            title={`${fmtPrice(e.price, 2)} · ${fmtUsd(tradeNotional(e))} · ${e.aggressor || '?'}`}
+            class:buy={row.e.aggressor === 'buy'}
+            class:sell={row.e.aggressor === 'sell'}
+            class:dim={!row.large}
+            title={`${fmtPrice(row.e.price, 2)} · ${fmtUsd(row.n)} · ${row.e.aggressor || '?'}`}
           >
-            <span>{fmtPrice(e.price, 2)}</span>
-            <span>{fmtUsd(tradeNotional(e))}</span>
-            <span>{e.aggressor || '?'}</span>
+            <span>{fmtPrice(row.e.price, 2)}</span>
+            <span>{fmtUsd(row.n)}</span>
+            <span>{row.e.aggressor || '?'}</span>
           </div>
         {:else}
-          <div class="empty">no large prints</div>
+          <div class="empty">no prints</div>
         {/each}
       </div>
     </div>
@@ -484,8 +487,8 @@
   .fp-chrome {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
-    padding: 0.22rem 0.55rem;
+    gap: 0.45rem;
+    padding: 0.16rem 0.45rem;
     border-bottom: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(30, 35, 41, 0.95), var(--panel-2));
     flex-shrink: 0;
@@ -493,36 +496,36 @@
   .chrome-left {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.35rem;
     min-width: 0;
     flex-wrap: wrap;
   }
   .brand {
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.02em;
     color: var(--text);
   }
   .asset {
     font-family: var(--mono);
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     color: var(--accent);
-    padding: 0.05rem 0.3rem;
+    padding: 0.02rem 0.28rem;
     border: 1px solid rgba(240, 185, 11, 0.3);
     border-radius: 2px;
   }
   .chrome-meta {
     font-family: var(--mono);
-    font-size: 0.52rem;
+    font-size: 0.5rem;
     color: var(--muted);
   }
   .spike-badge {
     font-family: var(--mono);
-    font-size: 0.55rem;
+    font-size: 0.52rem;
     font-weight: 700;
     color: var(--ask);
     border: 1px solid rgba(246, 70, 93, 0.5);
-    padding: 0.05rem 0.3rem;
+    padding: 0.02rem 0.28rem;
     border-radius: 2px;
     animation: blink 1.2s ease-in-out infinite;
   }
@@ -531,11 +534,11 @@
   }
   .filter-clear {
     font-family: var(--mono);
-    font-size: 0.55rem;
+    font-size: 0.52rem;
     color: var(--accent);
     background: rgba(240, 185, 11, 0.08);
     border: 1px solid rgba(240, 185, 11, 0.35);
-    padding: 0.05rem 0.3rem;
+    padding: 0.02rem 0.28rem;
     cursor: pointer;
     border-radius: 2px;
   }
@@ -543,33 +546,33 @@
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.45rem;
     flex-shrink: 0;
   }
   .thresh {
-    font-size: 0.58rem;
+    font-size: 0.55rem;
     color: var(--muted);
     font-family: var(--mono);
     display: flex;
     align-items: center;
-    gap: 0.15rem;
+    gap: 0.12rem;
   }
   .thresh input {
-    width: 3.6rem;
+    width: 3.4rem;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 2px;
-    padding: 0.08rem 0.2rem;
+    padding: 0.06rem 0.18rem;
     font-family: var(--mono);
-    font-size: 0.58rem;
+    font-size: 0.55rem;
     color: var(--text);
   }
   .hide-btn {
     background: transparent;
     border: 1px solid transparent;
     color: var(--muted);
-    font-size: 0.72rem;
-    padding: 0.05rem 0.35rem;
+    font-size: 0.7rem;
+    padding: 0.02rem 0.3rem;
     cursor: pointer;
     border-radius: 2px;
   }
@@ -579,9 +582,12 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(280px, 1.25fr) minmax(300px, 1.35fr) minmax(150px, 0.65fr);
+    grid-template-columns: minmax(240px, 1.1fr) minmax(300px, 1.4fr) minmax(132px, 0.52fr);
     gap: 0;
     align-items: stretch;
+  }
+  .fp.compact .fp-body {
+    grid-template-columns: minmax(168px, 0.58fr) minmax(360px, 1.7fr) minmax(140px, 0.58fr);
   }
 
   .col {
@@ -589,7 +595,7 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    padding: 0.35rem 0.5rem;
+    padding: 0.28rem 0.4rem;
     border-right: 1px solid var(--border);
   }
   .col:last-child { border-right: none; }
@@ -597,12 +603,12 @@
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    gap: 0.35rem;
-    margin-bottom: 0.22rem;
+    gap: 0.3rem;
+    margin-bottom: 0.16rem;
     flex-shrink: 0;
   }
   .col-title {
-    font-size: 0.62rem;
+    font-size: 0.58rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -610,38 +616,42 @@
   }
   .meta, .muted {
     color: var(--muted);
-    font-size: 0.55rem;
+    font-size: 0.52rem;
     font-family: var(--mono);
   }
 
   .stat-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.65rem;
-    margin-bottom: 0.28rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.2rem 0.35rem;
+    margin-bottom: 0.2rem;
     flex-shrink: 0;
   }
   .stat {
     display: flex;
     flex-direction: column;
-    gap: 0.02rem;
+    gap: 0;
     background: transparent;
     border: none;
     padding: 0;
     color: inherit;
     text-align: left;
+    min-width: 0;
   }
   .stat.clickable { cursor: help; }
   .stat .lbl {
-    font-size: 0.5rem;
+    font-size: 0.48rem;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
   .stat .val {
     font-family: var(--mono);
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .stat .val.up, .delta.up { color: var(--bid); }
   .stat .val.down, .delta.down { color: var(--ask); }
@@ -649,16 +659,16 @@
   .stat .val.ask { color: var(--ask); }
   .stat .val.accent { color: var(--accent); }
 
-  .pressure { margin-bottom: 0.25rem; flex-shrink: 0; cursor: help; }
-  .pressure .bar { display: flex; height: 7px; border-radius: 1px; overflow: hidden; }
+  .pressure { margin-bottom: 0.18rem; flex-shrink: 0; cursor: help; }
+  .pressure .bar { display: flex; height: 6px; border-radius: 1px; overflow: hidden; }
   .pressure .bid { background: rgba(2, 192, 118, 0.55); }
   .pressure .ask { background: rgba(246, 70, 93, 0.55); }
   .plabels {
     display: flex;
     justify-content: space-between;
     font-family: var(--mono);
-    font-size: 0.52rem;
-    margin-top: 0.1rem;
+    font-size: 0.5rem;
+    margin-top: 0.06rem;
   }
   .plabels .bid { color: var(--bid); }
   .plabels .ask { color: var(--ask); }
@@ -666,22 +676,35 @@
   .plots-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.28rem;
-    margin-bottom: 0.25rem;
+    gap: 0.2rem;
+    margin-bottom: 0.18rem;
     flex-shrink: 0;
   }
+  .fp.compact .plots-row { margin-bottom: 0.14rem; }
   .spark {
-    height: 28px;
+    position: relative;
+    height: 36px;
     min-height: 28px;
     background: var(--panel-2);
     border: 1px solid var(--border);
     cursor: help;
   }
+  .spark-lbl {
+    position: absolute;
+    top: 1px;
+    left: 3px;
+    z-index: 1;
+    font-size: 0.42rem;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    pointer-events: none;
+  }
   .spark svg { width: 100%; height: 100%; display: block; }
   .pulse-spark {
-    height: 32px;
+    height: 36px;
     min-height: 32px;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.18rem;
     flex-shrink: 0;
   }
 
@@ -689,20 +712,30 @@
     display: flex;
     align-items: flex-end;
     gap: 1px;
-    height: 44px;
+    height: 52px;
     min-height: 44px;
     background: var(--panel-2);
     border: 1px solid var(--border);
     padding: 2px;
-    margin-bottom: 0.28rem;
+    margin-bottom: 0.18rem;
     flex-shrink: 0;
+  }
+  .fp.compact .flow-col .plots-row {
+    flex: 1;
+    min-height: 0;
+    align-content: stretch;
+    margin-bottom: 0;
+  }
+  .fp.compact .flow-col .spark {
+    height: 100%;
+    min-height: 56px;
   }
   .hcol {
     flex: 1 1 0;
     display: flex;
     flex-direction: column-reverse;
     min-width: 2px;
-    max-width: 10px;
+    max-width: 8px;
     height: 100%;
     padding: 0;
     border: none;
@@ -712,42 +745,34 @@
   .hcol .buy { background: rgba(2, 192, 118, 0.65); width: 100%; }
   .hcol .sell { background: rgba(246, 70, 93, 0.65); width: 100%; }
 
-  .depth-block {
-    flex-shrink: 0;
-    min-height: 80px;
-    margin-bottom: 0.28rem;
-    border: 1px solid var(--border);
-    background: var(--panel-2);
-    overflow: hidden;
-  }
-
   .vap-mini {
     flex: 1;
-    min-height: 72px;
+    min-height: 0;
     display: flex;
     flex-direction: column;
   }
   .vap-cols {
     display: grid;
-    grid-template-columns: 1fr 0.65fr 1fr 0.6fr;
-    font-size: 0.5rem;
+    grid-template-columns: 1fr 0.65fr 1fr 0.55fr;
+    font-size: 0.48rem;
     color: var(--muted);
     text-transform: uppercase;
     flex-shrink: 0;
+    padding-bottom: 0.04rem;
   }
   .vap {
     overflow: auto;
     flex: 1;
     min-height: 0;
     font-family: var(--mono);
-    font-size: 0.58rem;
+    font-size: 0.56rem;
   }
   .vrow {
     display: grid;
-    grid-template-columns: 1fr 0.65fr 1fr 0.6fr;
+    grid-template-columns: 1fr 0.65fr 1fr 0.55fr;
     align-items: center;
-    gap: 0.15rem;
-    padding: 0.02rem 0;
+    gap: 0.12rem;
+    padding: 0.01rem 0;
     width: 100%;
     border: none;
     background: transparent;
@@ -759,7 +784,7 @@
   .vrow:hover { background: rgba(240, 185, 11, 0.04); }
   .sell-bar-wrap, .buy-bar-wrap {
     position: relative;
-    height: 12px;
+    height: 11px;
     display: flex;
     align-items: center;
   }
@@ -774,31 +799,32 @@
   .sell-bar-wrap span, .buy-bar-wrap span {
     position: relative;
     z-index: 1;
-    font-size: 0.52rem;
+    font-size: 0.5rem;
   }
   .vrow .px { text-align: center; font-weight: 600; }
-  .vrow .delta { text-align: right; font-size: 0.52rem; }
+  .vrow .delta { text-align: right; font-size: 0.5rem; }
 
   .pulse-metrics {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 0.25rem;
-    margin-bottom: 0.28rem;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.18rem;
+    margin-bottom: 0.18rem;
     flex-shrink: 0;
   }
   .metric {
     display: flex;
     flex-direction: column;
-    gap: 0.02rem;
+    gap: 0;
     align-items: flex-start;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 2px;
-    padding: 0.22rem 0.3rem;
+    padding: 0.16rem 0.22rem;
     cursor: pointer;
     color: inherit;
     text-align: left;
-    min-height: 2.4rem;
+    min-height: 2.15rem;
+    min-width: 0;
   }
   .metric:hover { border-color: rgba(240, 185, 11, 0.35); }
   .metric.active {
@@ -806,44 +832,49 @@
     box-shadow: inset 0 0 0 1px rgba(240, 185, 11, 0.15);
   }
   .metric .lbl {
-    font-size: 0.48rem;
+    font-size: 0.46rem;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
   .metric .val {
     font-family: var(--mono);
-    font-size: 0.78rem;
+    font-size: 0.72rem;
     font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
-  .metric .val.big { font-size: 1.05rem; color: var(--accent); }
-  .metric .val.hot { color: var(--ask); }
+  .metric .val.big { font-size: 0.95rem; color: var(--accent); }
   .metric .val.up { color: var(--bid); }
   .metric .val.down { color: var(--ask); }
 
   .chips {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(6.6rem, 1fr));
-    gap: 0.22rem;
-    flex: 1;
-    align-content: start;
+    grid-template-columns: repeat(auto-fill, minmax(8.4rem, 1fr));
+    gap: 0.16rem;
+    flex: 1 1 auto;
+    align-content: stretch;
     justify-content: stretch;
-    min-height: 64px;
+    min-height: 0;
     overflow: auto;
-    padding-bottom: 0.15rem;
+    grid-auto-rows: 1fr;
   }
   .chip {
     position: relative;
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 0.3rem 0.4rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    align-content: center;
+    gap: 0 0.25rem;
+    padding: 0.28rem 0.35rem;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 2px;
     cursor: pointer;
     overflow: hidden;
-    min-height: 1.85rem;
+    min-height: 2.35rem;
   }
   .chip:hover { border-color: var(--vc); }
   .chip.focus {
@@ -864,31 +895,47 @@
   }
   .vname {
     position: relative;
+    grid-column: 1;
+    grid-row: 1;
     font-family: var(--mono);
-    font-size: 0.62rem;
+    font-size: 0.6rem;
     color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .vheat {
     position: relative;
-    margin-left: auto;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
     font-family: var(--mono);
-    font-size: 0.65rem;
+    font-size: 0.72rem;
     font-weight: 700;
     color: var(--accent);
+  }
+  .vmeta {
+    position: relative;
+    grid-column: 1;
+    grid-row: 2;
+    font-family: var(--mono);
+    font-size: 0.48rem;
+    color: var(--muted);
   }
 
   .alerts-col { background: var(--panel-2); }
   .heuristics {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.2rem;
-    margin-bottom: 0.3rem;
+    gap: 0.15rem;
+    margin-bottom: 0.2rem;
     flex-shrink: 0;
+    min-height: 1.1rem;
   }
   .badge {
     font-family: var(--mono);
-    font-size: 0.52rem;
-    padding: 0.04rem 0.25rem;
+    font-size: 0.5rem;
+    padding: 0.02rem 0.22rem;
     border: 1px solid var(--border);
     border-radius: 2px;
     background: var(--panel);
@@ -896,26 +943,36 @@
   }
   .badge.buy { border-color: rgba(2, 192, 118, 0.4); color: var(--bid); }
   .badge.sell { border-color: rgba(246, 70, 93, 0.4); color: var(--ask); }
+  .large-head {
+    display: grid;
+    grid-template-columns: 1fr 1fr 0.45fr;
+    font-size: 0.46rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    flex-shrink: 0;
+    padding-bottom: 0.04rem;
+  }
   .large-list {
     overflow: auto;
     flex: 1;
     min-height: 0;
     font-family: var(--mono);
-    font-size: 0.58rem;
+    font-size: 0.56rem;
   }
   .lt {
     display: grid;
     grid-template-columns: 1fr 1fr 0.45fr;
-    padding: 0.05rem 0;
+    padding: 0.04rem 0;
     color: var(--text-dim, var(--muted));
   }
   .lt.buy { color: var(--bid); }
   .lt.sell { color: var(--ask); }
+  .lt.dim { opacity: 0.72; }
   .empty {
     color: var(--muted);
     font-family: var(--mono);
-    font-size: 0.58rem;
-    padding: 0.35rem 0;
+    font-size: 0.55rem;
+    padding: 0.25rem 0;
   }
 
   .fp-tip {
@@ -923,32 +980,36 @@
     z-index: 80;
     pointer-events: none;
     max-width: 22rem;
-    padding: 0.28rem 0.45rem;
+    padding: 0.25rem 0.4rem;
     background: rgba(18, 22, 28, 0.96);
     border: 1px solid rgba(240, 185, 11, 0.35);
     border-radius: 2px;
     color: var(--text);
     font-family: var(--mono);
-    font-size: 0.58rem;
+    font-size: 0.55rem;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
   }
 
   @media (max-width: 1100px) {
-    .fp-body {
+    .fp-body,
+    .fp.compact .fp-body {
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: minmax(160px, 1.15fr) minmax(100px, 0.85fr);
+      grid-template-rows: minmax(140px, 1.2fr) minmax(96px, 0.8fr);
     }
     .alerts-col {
       grid-column: 1 / -1;
-      max-height: 110px;
+      max-height: 100px;
       border-right: none;
       border-top: 1px solid var(--border);
     }
-    .pulse-metrics { grid-template-columns: repeat(3, 1fr); }
+    .pulse-metrics { grid-template-columns: repeat(5, 1fr); }
+    .stat-row { grid-template-columns: repeat(4, 1fr); }
     .chrome-right .thresh:first-child { display: none; }
+    .chips { grid-auto-rows: minmax(1.85rem, auto); }
   }
   @media (max-width: 720px) {
-    .fp-body {
+    .fp-body,
+    .fp.compact .fp-body {
       grid-template-columns: 1fr;
       grid-template-rows: none;
       overflow: auto;
@@ -956,12 +1017,13 @@
     .col {
       border-right: none;
       border-bottom: 1px solid var(--border);
-      min-height: 180px;
+      min-height: 160px;
     }
     .alerts-col {
       grid-column: auto;
       max-height: none;
-      min-height: 120px;
+      min-height: 110px;
     }
+    .pulse-metrics { grid-template-columns: repeat(3, 1fr); }
   }
 </style>

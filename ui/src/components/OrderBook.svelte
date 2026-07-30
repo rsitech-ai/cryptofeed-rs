@@ -8,6 +8,8 @@
     priceDir = 0,
     depth = 16,
     onDepth = null,
+    /** Hide cumulative depth plot when Order Flow DOM already shows resting size. */
+    showDepthChart = true,
   } = $props();
 
   /**
@@ -83,7 +85,9 @@
 </script>
 
 <section class="book">
-  <DepthChart {book} {depth} />
+  {#if showDepthChart}
+    <DepthChart {book} {depth} />
+  {/if}
   <div class="book-head">
     <div class="title-row">
       <span class="title">Order Book</span>
