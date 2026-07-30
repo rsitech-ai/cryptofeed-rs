@@ -1323,7 +1323,14 @@
 
   <div class="workspace">
     <aside class="col-book">
-      <OrderBook {book} {lastPrice} {priceDir} depth={bookDepth} onDepth={setBookDepth} />
+      <OrderBook
+        {book}
+        {lastPrice}
+        {priceDir}
+        depth={bookDepth}
+        onDepth={setBookDepth}
+        showDepthChart={chartMode !== 'orderflow'}
+      />
     </aside>
 
     <section class="col-chart">
@@ -1467,7 +1474,7 @@
           windowSec={ofViewSec ?? sessionSec}
           largeUsd={largeTradeUsd}
           {imbalanceHistory}
-          showDepthPlot={chartMode !== 'orderflow'}
+          showTapeProfile={chartMode !== 'orderflow'}
           {pulse}
           history={pulseHistory}
           alertActive={pulseAlertActive}
@@ -1548,9 +1555,9 @@
     background: var(--panel-2);
     display: flex;
     flex-direction: column;
-    max-height: 42vh;
+    max-height: 38vh;
   }
-  .analytics-dock.open { min-height: 260px; }
+  .analytics-dock.open { min-height: 220px; height: 32vh; }
   .dock-tabs {
     display: flex;
     align-items: center;
@@ -1603,7 +1610,7 @@
       border-top: 1px solid var(--border);
     }
     .markets-pane, .trades-pane { flex: 1; }
-    .analytics-dock.open { max-height: 36vh; min-height: 220px; }
+    .analytics-dock.open { max-height: 34vh; min-height: 200px; height: 30vh; }
     .dock-hint { display: none; }
     .of-chart-stack { grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); }
   }
