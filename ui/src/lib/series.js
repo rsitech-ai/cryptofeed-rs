@@ -163,9 +163,21 @@ export class MultiVenueTracker {
     let aggTrades = 0;
     let aggQty = 0;
 
+    // Clip to session window ending at latest *data* time (not wall clock) so
+    // the chart stays pinned to the live edge without empty future whitespace.
+    let latestSec = 0;
     for (const st of this.venues.values()) {
-      const win = this.venueWindowStats(st, windowSec);
+      for (const t of st.buckets.keys()) {
+        if (t > latestSec) latestSec = t;
+      }
+    }
+    const sinceSec =
+      windowSec > 0 && latestSec > 0 ? latestSec - Math.max(1, windowSec) : 0;
+
+    for (const st of this.venues.values()) {
+      const win = this.venueWindowStats(st, windowSec, latestSec || undefined);
       const points = [...st.buckets.entries()]
+        .filter(([time]) => time >= sinceSec)
         .sort((a, b) => a[0] - b[0])
         .map(([time, price]) => ({ time, price }));
 
@@ -186,6 +198,7 @@ export class MultiVenueTracker {
           hidden: hidden.has(st.venue),
           data: [],
           last: st.lastPrice,
+          lastTime: null,
           pct: null,
           baseline: st.baseline,
           tradeVolume: st.tradeVolume,
@@ -194,7 +207,7 @@ export class MultiVenueTracker {
           tradesPerMin: tpm,
           windowNotional: win.notional,
           windowTrades: win.trades,
-          volumeData: volumeSeries(st),
+          volumeData: volumeSeries(st, sinceSec),
         });
         continue;
       }
@@ -212,6 +225,7 @@ export class MultiVenueTracker {
             }));
 
       const last = points[points.length - 1].price;
+      const lastTime = points[points.length - 1].time;
       const pct = baseline ? (last / baseline - 1) * 100 : null;
       pointCount += data.length;
       if (!hidden.has(st.venue)) lasts.push(last);
@@ -224,6 +238,7 @@ export class MultiVenueTracker {
         hidden: hidden.has(st.venue),
         data: hidden.has(st.venue) ? [] : data,
         last,
+        lastTime,
         pct,
         baseline,
         tradeVolume: st.tradeVolume,
@@ -232,7 +247,7 @@ export class MultiVenueTracker {
         tradesPerMin: tpm,
         windowNotional: win.notional,
         windowTrades: win.trades,
-        volumeData: hidden.has(st.venue) ? [] : volumeSeries(st),
+        volumeData: hidden.has(st.venue) ? [] : volumeSeries(st, sinceSec),
       });
     }
 
@@ -347,8 +362,9 @@ function applyPrice(st, sec, price, intervalSec, recordSample = true, orderNs = 
   }
 }
 
-function volumeSeries(st) {
+function volumeSeries(st, sinceSec = 0) {
   return [...st.volBuckets.entries()]
+    .filter(([time]) => time >= sinceSec)
     .sort((a, b) => a[0] - b[0])
     .map(([time, value]) => ({ time, value, color: 'rgba(240,185,11,0.55)' }));
 }

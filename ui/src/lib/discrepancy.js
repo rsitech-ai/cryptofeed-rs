@@ -18,15 +18,39 @@ export class DiscrepancyTracker {
   }
 
   /**
+   * Latest series sample time (exchange/bucket sec). Prefer this over wall clock
+   * so the bps pane does not extend the shared time scale into empty future.
+   * @param {Array<{ data?: Array<{ time: number }>, lastTime?: number|null }>} series
+   */
+  static dataTimeSec(series) {
+    let maxT = 0;
+    for (const s of series || []) {
+      if (s?.lastTime != null && Number.isFinite(s.lastTime) && s.lastTime > maxT) {
+        maxT = s.lastTime;
+      }
+      const data = s?.data;
+      if (data?.length) {
+        const t = data[data.length - 1]?.time;
+        if (Number.isFinite(t) && t > maxT) maxT = t;
+      }
+    }
+    return maxT > 0 ? maxT : null;
+  }
+
+  /**
    * Record a snapshot from MultiVenueTracker discrepancy + series.
    * @param {object|null} discrepancy
-   * @param {Array<{ venue: string, last: number|null, hidden?: boolean }>} series
-   * @param {number} [nowSec]
+   * @param {Array<{ venue: string, last: number|null, hidden?: boolean, data?: Array<{time:number}>, lastTime?: number|null }>} series
+   * @param {number} [nowSec] data-domain seconds; defaults to series last time (not wall clock)
    */
-  push(discrepancy, series, nowSec = Math.floor(Date.now() / 1000)) {
+  push(discrepancy, series, nowSec) {
     if (discrepancy?.bps == null) return;
     const bps = discrepancy?.bps;
     if (bps == null || !Number.isFinite(bps)) return;
+
+    if (nowSec == null || !Number.isFinite(nowSec)) {
+      nowSec = DiscrepancyTracker.dataTimeSec(series) ?? Math.floor(Date.now() / 1000);
+    }
 
     const visible = (series || []).filter((s) => !s.hidden && s.last != null);
     let highVenue = null;

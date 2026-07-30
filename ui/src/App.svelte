@@ -84,8 +84,16 @@
   let tapeMinUsd = $state(initial.tapeMinUsd || 0);
   let tapeSideFilter = $state(initial.tapeSideFilter || 'all');
   let tapeAggregatePrints = $state(initial.tapeAggregatePrints || false);
-  let analyticsTab = $state(normalizeDockTab(initial.analyticsTab) || 'both');
-  let analyticsOpen = $state(initial.analyticsOpen !== false);
+  // Force unified Both dock on boot (stale localStorage/URL pulse|flow → both).
+  // Users can still switch via F/B/P; default + persist target is Both.
+  let analyticsTab = $state(
+    normalizeDockTab(initial.analyticsTab) === 'hidden' ? 'hidden' : 'both',
+  );
+  let analyticsOpen = $state(
+    normalizeDockTab(initial.analyticsTab) === 'hidden'
+      ? false
+      : initial.analyticsOpen !== false,
+  );
   let largeTradeUsd = $state(initial.largeTradeUsd ?? 25000);
   let pulseSpikeThreshold = $state(initial.pulseSpikeThreshold ?? 72);
   let ofTick = $state(initial.ofTick ?? 'auto');
@@ -145,7 +153,7 @@
       imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
       pendingFocusBook = null;
     }
-  }, { minIntervalMs: 70 });
+  }, { minIntervalMs: 120 });
 
   const tapePaint = createPaintGate(() => {
     if (pendingFocusTape) {
@@ -1088,7 +1096,14 @@
   }
 
   onMount(() => {
-    syncUrl(loadSettings());
+    // Force unified Both dock on boot (ignore stale pulse/flow prefs).
+    if (analyticsTab !== 'hidden') {
+      analyticsTab = 'both';
+      analyticsOpen = true;
+      persist({ analyticsTab: 'both', analyticsOpen: true });
+    } else {
+      syncUrl(loadSettings());
+    }
     const tfSec = TIMEFRAMES.find((t) => t.id === timeframe)?.sec || 1;
     tracker.setInterval(tfSec);
     candleBuilder.setInterval(tfSec);

@@ -266,7 +266,7 @@ for venue, symbol in samples:
             else:
                 warn(f"book pressure empty {venue}")
 
-# SPA bundle embeds Order Flow / Pulse dock markers
+# SPA bundle embeds Order Flow / Flow & Pulse dock markers
 try:
     spa = urllib.request.urlopen(base + "/", timeout=5).read().decode("utf-8", "replace")
     # Embedded assets referenced from index
@@ -276,11 +276,17 @@ try:
     if m:
         js = urllib.request.urlopen(base + m.group(1), timeout=5).read().decode("utf-8", "replace")
     blob = spa + js
-    for needle in ("Order Flow", "Market Pulse", "orderflow", "pulse"):
+    # "Market Pulse" was renamed to unified "Flow & Pulse" / "Flow and Pulse" dock (#15).
+    needles = ("Order Flow", "orderflow", "pulse")
+    for needle in needles:
         if needle in blob:
             ok(f"SPA embeds '{needle}'")
         else:
             bad(f"SPA missing '{needle}'")
+    if "Flow and Pulse" in blob or "Flow & Pulse" in blob:
+        ok("SPA embeds Flow & Pulse dock")
+    else:
+        bad("SPA missing Flow & Pulse dock marker")
 except Exception as e:
     bad(f"SPA order-flow/pulse embed check: {e}")
 
