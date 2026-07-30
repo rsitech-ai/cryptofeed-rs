@@ -142,15 +142,15 @@ Poll endpoints remain available for clients that do not use SSE.
   - Controls (URL + localStorage): `ofTick`, `ofHeat`, `ofBubble`, `ofLayers`, plus session window.
   - Hover tooltips with resting size + print delta; **no L2** badge when book missing.
   - Paint: offscreen blit, EMA y-scale, ~9 Hz heat gate (see flicker paint-gate branch).
-- **Flow & Pulse** bottom dock (single panel): focus-instrument depth/CVD/VAP +
-  multi-venue pulse heat chips + large-print flags in one Binance/Bookmap-style bar.
-  Internal sections: **Both** (default), **Flow**, **Pulse**. Chart Order Flow mode
-  keeps the DOM ladder beside the heatmap (dock skips duplicate ladder).
-  Keys: `F` flow, `B` both, `P` pulse, `Esc` hide. URL: `tab=both|flow|pulse`,
-  `largeUsd=…`, `pulseAlert=72`, `dock=0|1` (`tab=orderflow` still accepted as flow).
-  Venue chips focus book/tape; pulse metrics sort chips; pulse-score sparkline + spike toast.
-  Pulse alerts use the in-app toast and optional SPA webhook; daemon alert kinds remain
-  discrepancy/lag only.
+- **Flow & Pulse** bottom dock (single fixed panel — no Flow/Both/Pulse tabs):
+  focus-instrument depth/CVD/VAP + multi-venue pulse heat chips + large-print flags
+  in one Binance/Bookmap-style bar. Chart Order Flow mode keeps the DOM ladder beside
+  the heatmap (dock skips the duplicate ladder / depth plot). Keyboard: `F`/`B`/`P`
+  open the dock, `Esc` hides. URL: legacy `tab=flow|pulse|both|orderflow` maps to the
+  open single view; `tab=hidden` or `dock=0` hides; `largeUsd=…`, `pulseAlert=72`,
+  `dock=0|1`. Venue chips focus book/tape; pulse metrics sort chips; plots/sparklines/
+  VAP/depth support hover tooltips. Pulse alerts use the in-app toast and optional SPA
+  webhook; daemon alert kinds remain discrepancy/lag only.
 
 ## Venue feed notes
 

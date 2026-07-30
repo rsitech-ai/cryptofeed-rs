@@ -57,8 +57,16 @@ export function parseUrlState() {
   if (grafana) out.grafanaUrl = grafana;
 
   const tab = p.get('tab');
-  if (tab === 'orderflow' || tab === 'flow') out.analyticsTab = 'flow';
-  else if (tab === 'pulse' || tab === 'both' || tab === 'hidden') out.analyticsTab = tab;
+  // Legacy tab=flow|pulse|orderflow|both → open single pane; only hidden stays hidden.
+  if (tab === 'hidden') out.analyticsTab = 'hidden';
+  else if (
+    tab === 'orderflow' ||
+    tab === 'flow' ||
+    tab === 'pulse' ||
+    tab === 'both'
+  ) {
+    out.analyticsTab = 'both';
+  }
 
   const dock = p.get('dock');
   if (dock === '0' || dock === 'false') out.analyticsOpen = false;
@@ -124,9 +132,10 @@ export function buildUrlState(state) {
     p.set('hidden', s.hiddenVenues.join(','));
   }
   if (s.grafanaUrl) p.set('grafana', s.grafanaUrl);
-  if (s.analyticsTab && s.analyticsTab !== DEFAULTS.analyticsTab) {
-    p.set('tab', String(s.analyticsTab));
+  if (s.analyticsTab === 'hidden') {
+    p.set('tab', 'hidden');
   }
+  // Do not emit legacy flow|pulse section params; open pane is the default.
   if (s.analyticsOpen === false) p.set('dock', '0');
   if (s.largeTradeUsd != null && s.largeTradeUsd !== DEFAULTS.largeTradeUsd) {
     p.set('largeUsd', String(s.largeTradeUsd));

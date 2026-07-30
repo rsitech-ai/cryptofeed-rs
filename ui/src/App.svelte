@@ -84,8 +84,7 @@
   let tapeMinUsd = $state(initial.tapeMinUsd || 0);
   let tapeSideFilter = $state(initial.tapeSideFilter || 'all');
   let tapeAggregatePrints = $state(initial.tapeAggregatePrints || false);
-  // Force unified Both dock on boot (stale localStorage/URL pulse|flow → both).
-  // Users can still switch via F/B/P; default + persist target is Both.
+  // Single fixed Flow & Pulse panel: only open vs hidden (legacy flow|pulse → open).
   let analyticsTab = $state(
     normalizeDockTab(initial.analyticsTab) === 'hidden' ? 'hidden' : 'both',
   );
@@ -322,17 +321,22 @@
   /** Deep L2 poll for Order Flow even when SSE focus is fresh (walls need depth). */
   const HEAT_BOOK_DEPTH = 50;
 
-  /** Normalize dock section ids (`orderflow` legacy → `flow`). */
+  /**
+   * Dock visibility only: legacy `flow`/`pulse`/`orderflow`/`both` → open panel;
+   * `hidden` stays hidden. No mutually exclusive layouts.
+   */
   function normalizeDockTab(tab) {
-    if (tab === 'orderflow' || tab === 'flow') return 'flow';
-    if (tab === 'pulse' || tab === 'both' || tab === 'hidden') return tab;
+    if (tab === 'hidden') return 'hidden';
+    if (
+      tab === 'orderflow' ||
+      tab === 'flow' ||
+      tab === 'pulse' ||
+      tab === 'both'
+    ) {
+      return 'both';
+    }
     return 'both';
   }
-
-  /** Active Flow & Pulse section when dock is open. */
-  let dockSection = $derived(
-    analyticsOpen && analyticsTab !== 'hidden' ? normalizeDockTab(analyticsTab) : 'both',
-  );
   let lastHeatBookAt = 0;
   async function refreshHeatBook() {
     if (chartMode !== 'orderflow' || !selectedVenue || !selectedSymbol || replayMode) return;
@@ -776,7 +780,7 @@
   function setChartMode(m) {
     chartMode = m;
     const patch = { chartMode: m };
-    // Order Flow chart keeps the unified Flow & Pulse dock open (Both section).
+    // Order Flow chart keeps the Flow & Pulse dock open (single pane).
     if (m === 'orderflow') {
       analyticsTab = 'both';
       analyticsOpen = true;
@@ -1028,21 +1032,15 @@
       ev.preventDefault();
       marketSearchRef?.focus();
     }
-    if (ev.key === 'f' || ev.key === 'F') {
-      ev.preventDefault();
-      setAnalyticsTab('flow');
-    }
-    if (ev.key === 'p' || ev.key === 'P') {
-      ev.preventDefault();
-      setAnalyticsTab('pulse');
-    }
-    if (ev.key === 'b' || ev.key === 'B') {
+    // Legacy F/B/P: open the single pane (no layout swap). Esc hides.
+    if (ev.key === 'f' || ev.key === 'F' || ev.key === 'b' || ev.key === 'B' || ev.key === 'p' || ev.key === 'P') {
       ev.preventDefault();
       setAnalyticsTab('both');
     }
     if (ev.key === 'Escape' && analyticsOpen) {
       analyticsOpen = false;
-      persist({ analyticsOpen: false });
+      analyticsTab = 'hidden';
+      persist({ analyticsOpen: false, analyticsTab: 'hidden' });
     }
     const idx = Number(ev.key);
     if (idx >= 1 && idx <= TIMEFRAMES.length) {
@@ -1057,17 +1055,16 @@
       persist({ analyticsOpen: false, analyticsTab: 'hidden' });
       return;
     }
-    const next = normalizeDockTab(tab);
     analyticsOpen = true;
-    analyticsTab = next;
-    persist({ analyticsOpen: true, analyticsTab: next });
+    analyticsTab = 'both';
+    persist({ analyticsOpen: true, analyticsTab: 'both' });
   }
 
   function toggleAnalyticsDock() {
     if (analyticsOpen && analyticsTab !== 'hidden') {
       setAnalyticsTab('hidden');
     } else {
-      setAnalyticsTab(analyticsTab === 'hidden' ? 'both' : normalizeDockTab(analyticsTab));
+      setAnalyticsTab('both');
     }
   }
 
@@ -1096,7 +1093,7 @@
   }
 
   onMount(() => {
-    // Force unified Both dock on boot (ignore stale pulse/flow prefs).
+    // Single-pane dock: coerce legacy flow|pulse prefs to open unified view.
     if (analyticsTab !== 'hidden') {
       analyticsTab = 'both';
       analyticsOpen = true;
@@ -1364,13 +1361,12 @@
     {#if !(analyticsOpen && analyticsTab !== 'hidden')}
       <div class="dock-tabs collapsed">
         <span class="dock-title">Flow &amp; Pulse</span>
-        <span class="dock-hint">F / B / P · Esc</span>
+        <span class="dock-hint">F show · Esc hide</span>
         <button type="button" class="dock-toggle" onclick={toggleAnalyticsDock}>▴ Show</button>
       </div>
     {:else}
       <div class="dock-body">
         <FlowPulseDock
-          section={dockSection === 'hidden' ? 'both' : dockSection}
           {book}
           {tape}
           depth={Math.max(bookDepth, 32)}
@@ -1378,8 +1374,7 @@
           windowSec={ofViewSec ?? sessionSec}
           largeUsd={largeTradeUsd}
           {imbalanceHistory}
-          tickOpt={ofTick}
-          showLadder={chartMode !== 'orderflow'}
+          showDepthPlot={chartMode !== 'orderflow'}
           {pulse}
           history={pulseHistory}
           alertActive={pulseAlertActive}
@@ -1388,13 +1383,11 @@
           focusVenue={selectedVenue}
           metricFilter={pulseMetricFilter}
           onLargeUsd={(n) => { largeTradeUsd = n; persist({ largeTradeUsd: n }); }}
-          onDepth={setBookDepth}
           onSpikeThreshold={(n) => { pulseSpikeThreshold = n; persist({ pulseSpikeThreshold: n }); }}
           onChipClick={(v, s) => { if (v && s) selectMarket(v, s); }}
           onMetricClick={(m) => {
             pulseMetricFilter = pulseMetricFilter === m ? '' : m;
           }}
-          onSection={(s) => setAnalyticsTab(s)}
           onToggle={toggleAnalyticsDock}
         />
       </div>
@@ -1462,9 +1455,9 @@
     background: var(--panel-2);
     display: flex;
     flex-direction: column;
-    max-height: 38vh;
+    max-height: 42vh;
   }
-  .analytics-dock.open { min-height: 220px; }
+  .analytics-dock.open { min-height: 260px; }
   .dock-tabs {
     display: flex;
     align-items: center;
@@ -1517,7 +1510,7 @@
       border-top: 1px solid var(--border);
     }
     .markets-pane, .trades-pane { flex: 1; }
-    .analytics-dock.open { max-height: 32vh; }
+    .analytics-dock.open { max-height: 36vh; min-height: 220px; }
     .dock-hint { display: none; }
     .of-chart-stack { grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); }
   }
