@@ -81,15 +81,14 @@
   </div>
 
   <div class="footer">
-    <span class="current">
-      now: {currentBps != null ? currentBps.toFixed(2) : '—'} bps
-    </span>
     {#if highlightVenues.length}
       <span class="hl">
         {#each highlightVenues as v}
           <span class="venue-tag">{v}</span>
         {/each}
       </span>
+    {:else}
+      <span class="current muted-note">Δ history · alert threshold above</span>
     {/if}
   </div>
 </section>
@@ -181,6 +180,10 @@
 
   .current {
     color: var(--text-dim);
+  }
+  .muted-note {
+    color: var(--muted);
+    opacity: 0.9;
   }
 
   .hl {
