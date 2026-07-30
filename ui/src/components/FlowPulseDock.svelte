@@ -548,7 +548,8 @@
     gap: 0;
   }
   .fp-body.both {
-    grid-template-columns: minmax(240px, 1.15fr) minmax(280px, 1.35fr) minmax(140px, 0.7fr);
+    /* Balanced Flow | Pulse heat | Alerts — less empty heat whitespace */
+    grid-template-columns: minmax(280px, 1.2fr) minmax(320px, 1.35fr) minmax(150px, 0.7fr);
   }
   .fp-body.flow-only {
     grid-template-columns: minmax(0, 1.6fr) minmax(140px, 0.55fr);
@@ -774,12 +775,22 @@
 
   .chips {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
-    gap: 0.28rem;
+    grid-template-columns: repeat(auto-fill, minmax(6.8rem, 1fr));
+    gap: 0.22rem;
     flex: 1;
-    align-content: flex-start;
+    align-content: start;
+    justify-content: stretch;
     min-height: 0;
     overflow: auto;
+    padding-bottom: 0.15rem;
+  }
+  .fp-body.both .pulse-col {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .fp-body.both .chips {
+    grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr));
   }
   .chip {
     position: relative;
