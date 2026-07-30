@@ -65,18 +65,27 @@
   let markersApi = null;
   let markerSeries = null;
   let fitKey = '';
-  let userInteracted = false;
+  /** When true, keep time scale pinned to the newest bar (scrollToRealTime). */
+  let followLive = $state(true);
   let showSettings = $state(false);
   const rangeActivity = createRangeActivity();
   /** @type {Array<() => void>} */
   let syncDisposers = [];
   let chartInteractionDisposer = null;
   let bpsInteractionDisposer = null;
+  let hostPointerDisposer = null;
   let volMarginsOn = null;
   let lastScrollAt = 0;
+  /** Ignore range-change unfollow until this time (async LWC callbacks). */
+  let programmaticUntil = 0;
+  let userPanUntil = 0;
   let chartPaintRaf = 0;
   /** @type {object|null} pending chart payload for coalesced paint */
   let pendingChart = null;
+  /** @type {Map<string, { first: number, last: number }>} painted window tip per venue */
+  let lastLineWindow = new Map();
+  /** @type {{ first: number, last: number }|null} */
+  let lastCandleWindow = null;
 
   const chartOpts = {
     layout: {
@@ -98,8 +107,9 @@
       borderColor: '#1e2329',
       timeVisible: true,
       secondsVisible: true,
-      rightOffset: 4,
-      barSpacing: 6,
+      // Keep live edge tight — large rightOffset reads as "empty future".
+      rightOffset: 2,
+      barSpacing: 5,
     },
     handleScroll: { mouseWheel: true, pressedMouseMove: true },
     handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
@@ -109,15 +119,49 @@
     for (const dispose of syncDisposers.splice(0)) dispose();
   }
 
+  function markProgrammatic(ms = 180) {
+    programmaticUntil = performance.now() + ms;
+  }
+
   function observeUserRange(target) {
     const timeScale = target.timeScale();
     const onVisibleLogicalRangeChange = () => {
-      if (rangeActivity.isUserDriven()) userInteracted = true;
+      // Programmatic scroll/fitContent and cross-pane sync must not latch unfollow.
+      if (performance.now() < programmaticUntil) return;
+      if (!rangeActivity.isUserDriven()) return;
+      // Only unfollow when the user recently panned/zoomed (wheel/drag).
+      if (performance.now() > userPanUntil) return;
+      followLive = false;
     };
     timeScale.subscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
     return () => {
       timeScale.unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
     };
+  }
+
+  function wireHostPanGestures(el) {
+    if (!el) return () => {};
+    const onWheel = () => {
+      userPanUntil = performance.now() + 800;
+    };
+    const onPointerDown = () => {
+      userPanUntil = performance.now() + 1500;
+    };
+    el.addEventListener('wheel', onWheel, { passive: true });
+    el.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('pointerdown', onPointerDown);
+    };
+  }
+
+  function pinToLive() {
+    followLive = true;
+    markProgrammatic(250);
+    rangeActivity.runProgrammatic(() => {
+      chart?.timeScale().scrollToRealTime();
+      bpsChart?.timeScale().scrollToRealTime();
+    });
   }
 
   function clearMarkers() {
@@ -142,6 +186,8 @@
     chartPaintRaf = 0;
     pendingChart = null;
     unwireSync();
+    hostPointerDisposer?.();
+    hostPointerDisposer = null;
     bpsInteractionDisposer?.();
     bpsInteractionDisposer = null;
     chartInteractionDisposer?.();
@@ -152,11 +198,14 @@
     chart?.remove();
     chart = null;
     lineSeries.clear();
+    lastLineWindow.clear();
+    lastCandleWindow = null;
     candleSeries = null;
     volumeSeries = null;
     bpsLineSeries = null;
     volMarginsOn = null;
     fitKey = '';
+    followLive = true;
   }
 
   // Create/destroy chart when toolbarOnly toggles (single App instance).
@@ -179,6 +228,8 @@
       },
     });
     chartInteractionDisposer = observeUserRange(chart);
+    hostPointerDisposer = wireHostPanGestures(host);
+    followLive = true;
     ready = true;
   });
 
@@ -329,12 +380,41 @@
 
     if (mode === 'candles') {
       clearLines();
+      lastLineWindow.clear();
       ensureCandleSeries();
-      candleSeries.setData(candleRows.length ? candleRows.map((x) => ({ time: x.time, open: x.open, high: x.high, low: x.low, close: x.close })) : []);
+      const mapped = candleRows.length
+        ? candleRows.map((x) => ({
+            time: x.time,
+            open: x.open,
+            high: x.high,
+            low: x.low,
+            close: x.close,
+          }))
+        : [];
+      if (mapped.length) {
+        const first = mapped[0].time;
+        const last = mapped[mapped.length - 1].time;
+        const prev = lastCandleWindow;
+        // update() only when left edge stable (window not sliding) and tip advances.
+        if (prev && prev.first === first && last >= prev.last) {
+          try {
+            candleSeries.update(mapped[mapped.length - 1]);
+          } catch {
+            candleSeries.setData(mapped);
+          }
+        } else {
+          candleSeries.setData(mapped);
+        }
+        lastCandleWindow = { first, last };
+      } else {
+        candleSeries.setData([]);
+        lastCandleWindow = null;
+      }
       applyVolumeData(volBarsIn);
       setHighlight(candleSeries, hl);
     } else if (mode === 'lines') {
       clearCandles();
+      lastCandleWindow = null;
       const want = new Set(rows.map((r) => r.venue));
 
       for (const id of [...lineSeries.keys()]) {
@@ -343,6 +423,7 @@
           if (markerSeries === removed) clearMarkers();
           try { chart.removeSeries(removed); } catch { /* ignore */ }
           lineSeries.delete(id);
+          lastLineWindow.delete(id);
         }
       }
 
@@ -362,6 +443,7 @@
             priceFormat: fmt,
           });
           lineSeries.set(row.venue, s);
+          lastLineWindow.delete(row.venue);
         } else {
           s.applyOptions({
             color: row.color,
@@ -370,10 +452,27 @@
             visible: !row.hidden,
           });
         }
-        if (row.data?.length) s.setData(row.data);
-        else s.setData([]);
-        if (!primary && row.data?.length && !row.hidden) primary = s;
-        if (row.venue === focusVenue && row.data?.length) primary = s;
+        const data = row.data || [];
+        if (!data.length) {
+          s.setData([]);
+          lastLineWindow.delete(row.venue);
+        } else {
+          const first = data[0].time;
+          const last = data[data.length - 1];
+          const prev = lastLineWindow.get(row.venue);
+          if (prev && prev.first === first && last.time >= prev.last) {
+            try {
+              s.update(last);
+            } catch {
+              s.setData(data);
+            }
+          } else {
+            s.setData(data);
+          }
+          lastLineWindow.set(row.venue, { first, last: last.time });
+        }
+        if (!primary && data.length && !row.hidden) primary = s;
+        if (row.venue === focusVenue && data.length) primary = s;
       }
 
       let bars = volBarsIn;
@@ -391,23 +490,52 @@
 
     if (needRefit) {
       fitKey = key;
-      userInteracted = false;
+      followLive = true;
+      markProgrammatic(250);
       requestAnimationFrame(() => {
+        markProgrammatic(250);
         rangeActivity.runProgrammatic(() => {
-          chart?.timeScale().fitContent();
-          bpsChart?.timeScale().fitContent();
+          // Prefer scrollToRealTime over fitContent — fitContent zooms to full
+          // history and fights the live-edge pin as points keep arriving.
+          chart?.timeScale().scrollToRealTime();
+          bpsChart?.timeScale().scrollToRealTime();
         });
       });
-    } else if (!userInteracted) {
-      // Throttle scroll-to-realtime — every-tick scroll causes visible jank.
+    } else if (followLive) {
+      // Keep newest bar at the right edge; throttle to cut jank.
       const now = performance.now();
-      if (now - lastScrollAt > 400) {
+      if (now - lastScrollAt > 250) {
         lastScrollAt = now;
+        markProgrammatic(120);
         rangeActivity.runProgrammatic(() => {
           chart.timeScale().scrollToRealTime();
           bpsChart?.timeScale().scrollToRealTime();
         });
       }
+    }
+
+    // Debug probe for soak/browser proofs (last data tip vs visible logical range).
+    try {
+      let dataLast = null;
+      if (mode === 'candles' && lastCandleWindow) dataLast = lastCandleWindow.last;
+      else {
+        for (const w of lastLineWindow.values()) {
+          if (dataLast == null || w.last > dataLast) dataLast = w.last;
+        }
+      }
+      const logical = chart?.timeScale()?.getVisibleLogicalRange?.() || null;
+      // @ts-ignore
+      globalThis.__mfChartDebug = {
+        mode,
+        followLive,
+        dataLast,
+        logical,
+        wallSec: Math.floor(Date.now() / 1000),
+        gapSec:
+          dataLast != null ? Math.floor(Date.now() / 1000) - dataLast : null,
+      };
+    } catch {
+      /* ignore */
     }
   }
 
@@ -477,6 +605,13 @@
       </div>
       <div class="modes">
         <button type="button" class:active={showVolume} onclick={() => onShowVolume(!showVolume)} title="USD volume subplot">Vol</button>
+        <button
+          type="button"
+          class:active={followLive}
+          class:live-pin={followLive}
+          onclick={() => pinToLive()}
+          title="Pin time scale to live edge (scrollToRealTime)"
+        >Live</button>
         <button type="button" class:active={showSettings} onclick={() => (showSettings = !showSettings)}>⚙</button>
       </div>
       {#if discrepancy}
@@ -584,6 +719,7 @@
   .assets button:hover, .modes button:hover, .tfs button:hover { color: var(--text); background: var(--panel-2); }
   .assets button.active { color: #0b0e11; background: var(--accent); font-weight: 700; }
   .modes button.active, .tfs button.active { color: var(--accent); border-color: rgba(240, 185, 11, 0.35); background: rgba(240, 185, 11, 0.08); }
+  .modes button.live-pin { color: var(--bid); border-color: rgba(2, 192, 118, 0.45); background: rgba(2, 192, 118, 0.1); }
 
   .assets button .cov { margin-left: 0.2rem; font-size: 0.55rem; opacity: 0.75; }
   .assets button:not(.active) .cov.partial { color: var(--ask); }

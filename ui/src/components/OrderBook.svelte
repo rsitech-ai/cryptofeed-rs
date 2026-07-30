@@ -10,33 +10,62 @@
     onDepth = null,
   } = $props();
 
-  let levels = $derived.by(() => {
-    const asks = [...(book?.asks || [])].slice(0, depth);
-    const bids = [...(book?.bids || [])].slice(0, depth);
-    return { asks, bids };
-  });
-
+  /**
+   * Stable slot model: fixed `depth` rows for asks/bids.
+   * Keys prefer price; empty slots use slot ids so Svelte does not remount the list.
+   * Quantities update in place — no full list identity thrash.
+   */
   let withTotals = $derived.by(() => {
+    const n = Math.max(1, depth | 0);
+    const rawAsks = [...(book?.asks || [])].slice(0, n);
+    const rawBids = [...(book?.bids || [])].slice(0, n);
+
     let askCum = 0;
-    const asks = levels.asks.map((l) => {
-      const qty = Number(l.quantity) || 0;
-      askCum += qty;
-      return { ...l, qty, total: askCum, key: String(l.price) };
-    });
+    const asks = [];
+    for (let i = 0; i < n; i++) {
+      const l = rawAsks[i];
+      if (l) {
+        const qty = Number(l.quantity) || 0;
+        askCum += qty;
+        asks.push({
+          key: `a:${String(l.price)}`,
+          price: l.price,
+          qty,
+          total: askCum,
+          empty: false,
+        });
+      } else {
+        asks.push({ key: `a:slot:${i}`, price: null, qty: 0, total: 0, empty: true });
+      }
+    }
+
     let bidCum = 0;
-    const bids = levels.bids.map((l) => {
-      const qty = Number(l.quantity) || 0;
-      bidCum += qty;
-      return { ...l, qty, total: bidCum, key: String(l.price) };
-    });
-    // Precompute reverse for asks display (best ask at bottom) — stable keys.
+    const bids = [];
+    for (let i = 0; i < n; i++) {
+      const l = rawBids[i];
+      if (l) {
+        const qty = Number(l.quantity) || 0;
+        bidCum += qty;
+        bids.push({
+          key: `b:${String(l.price)}`,
+          price: l.price,
+          qty,
+          total: bidCum,
+          empty: false,
+        });
+      } else {
+        bids.push({ key: `b:slot:${i}`, price: null, qty: 0, total: 0, empty: true });
+      }
+    }
+
+    // Best ask at bottom of ask stack.
     const asksDesc = [...asks].reverse();
     const maxTotal = Math.max(
-      asks.length ? asks[asks.length - 1].total : 0,
-      bids.length ? bids[bids.length - 1].total : 0,
+      asks.reduce((m, x) => Math.max(m, x.total), 0),
+      bids.reduce((m, x) => Math.max(m, x.total), 0),
       1e-12,
     );
-    return { asks, asksDesc, bids, maxTotal, askCum, bidCum };
+    return { asksDesc, bids, maxTotal, askCum, bidCum, slots: n };
   });
 
   let pressure = $derived.by(() => {
@@ -73,16 +102,16 @@
     </span>
   </div>
 
-  <div class="asks">
+  <div class="asks" style={`--rows:${withTotals.slots}`}>
     {#each withTotals.asksDesc as lvl (lvl.key)}
-      <div class="row ask">
-        <div class="depth" style={`width:${barPct(lvl.total, withTotals.maxTotal)}`}></div>
-        <span class="px">{fmtPrice(lvl.price, 2)}</span>
-        <span class="qty">{fmtQty(lvl.qty)}</span>
-        <span class="tot">{fmtTotal(lvl.total)}</span>
+      <div class="row ask" class:empty={lvl.empty}>
+        {#if !lvl.empty}
+          <div class="depth" style={`width:${barPct(lvl.total, withTotals.maxTotal)}`}></div>
+          <span class="px">{fmtPrice(lvl.price, 2)}</span>
+          <span class="qty">{fmtQty(lvl.qty)}</span>
+          <span class="tot">{fmtTotal(lvl.total)}</span>
+        {/if}
       </div>
-    {:else}
-      <div class="empty">waiting for asks…</div>
     {/each}
   </div>
 
@@ -102,16 +131,16 @@
     {/if}
   </div>
 
-  <div class="bids">
+  <div class="bids" style={`--rows:${withTotals.slots}`}>
     {#each withTotals.bids as lvl (lvl.key)}
-      <div class="row bid">
-        <div class="depth" style={`width:${barPct(lvl.total, withTotals.maxTotal)}`}></div>
-        <span class="px">{fmtPrice(lvl.price, 2)}</span>
-        <span class="qty">{fmtQty(lvl.qty)}</span>
-        <span class="tot">{fmtTotal(lvl.total)}</span>
+      <div class="row bid" class:empty={lvl.empty}>
+        {#if !lvl.empty}
+          <div class="depth" style={`width:${barPct(lvl.total, withTotals.maxTotal)}`}></div>
+          <span class="px">{fmtPrice(lvl.price, 2)}</span>
+          <span class="qty">{fmtQty(lvl.qty)}</span>
+          <span class="tot">{fmtTotal(lvl.total)}</span>
+        {/if}
       </div>
-    {:else}
-      <div class="empty">waiting for bids…</div>
     {/each}
   </div>
 
@@ -202,11 +231,11 @@
     font-size: 0.72rem;
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .asks {
-    display: flex;
-    flex-direction: column;
     justify-content: flex-end;
   }
 
@@ -214,8 +243,18 @@
     position: relative;
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    padding: 0.04rem 0.5rem;
-    line-height: 1.35;
+    /* Fixed row height — prevents layout shift / badge thrash */
+    height: 18px;
+    min-height: 18px;
+    max-height: 18px;
+    padding: 0 0.5rem;
+    align-items: center;
+    line-height: 18px;
+    flex: 0 0 18px;
+    contain: layout style;
+  }
+  .row.empty {
+    visibility: hidden;
   }
 
   .depth {
@@ -224,7 +263,6 @@
     right: 0;
     bottom: 0;
     pointer-events: none;
-    /* No width transition — fights rapid book updates and causes flicker */
   }
 
   .ask .depth {
@@ -239,6 +277,10 @@
   .tot {
     position: relative;
     z-index: 1;
+    font-variant-numeric: tabular-nums;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .qty,
@@ -264,12 +306,15 @@
     border-bottom: 1px solid var(--border);
     background: var(--panel-2);
     flex-shrink: 0;
+    min-height: 2.1rem;
   }
 
   .last {
     font-family: var(--mono);
     font-size: 1rem;
     font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 7rem;
   }
   .last.up {
     color: var(--bid);
@@ -282,6 +327,7 @@
     font-family: var(--mono);
     font-size: 0.65rem;
     color: var(--muted);
+    font-variant-numeric: tabular-nums;
   }
 
   .pressure {
@@ -315,12 +361,5 @@
   }
   .labels .ask {
     color: var(--ask);
-  }
-
-  .empty {
-    color: var(--muted);
-    font-size: 0.7rem;
-    padding: 0.5rem;
-    font-family: var(--mono);
   }
 </style>
