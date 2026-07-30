@@ -1,20 +1,42 @@
 /** Track cross-venue max−min bps history for sparkline + alerts. */
 
-const MAX_POINTS = 600;
+import { DEFAULT_HISTORY_SECS, bpsMaxPoints, clampHistorySecs, retentionCutoff } from './history.js';
 
 /**
  * @typedef {{ time: number, bps: number, max: number, min: number, highVenue: string|null, lowVenue: string|null }} BpsPoint
  */
 
 export class DiscrepancyTracker {
-  constructor() {
+  /** @param {number} [historySecs] */
+  constructor(historySecs = DEFAULT_HISTORY_SECS) {
     /** @type {BpsPoint[]} */
     this.history = [];
     this.lastAlertAt = 0;
+    this.historySecs = clampHistorySecs(historySecs);
+    this.maxPoints = bpsMaxPoints(this.historySecs);
+  }
+
+  /** @param {unknown} secs */
+  setHistorySecs(secs) {
+    this.historySecs = clampHistorySecs(secs, this.historySecs);
+    this.maxPoints = bpsMaxPoints(this.historySecs);
+    this.trim();
   }
 
   clear() {
     this.history = [];
+  }
+
+  trim() {
+    if (!this.history.length) return;
+    const tip = this.history[this.history.length - 1].time;
+    const cutoff = retentionCutoff(tip, this.historySecs);
+    if (cutoff > 0) {
+      this.history = this.history.filter((p) => p.time >= cutoff);
+    }
+    if (this.history.length > this.maxPoints) {
+      this.history = this.history.slice(-this.maxPoints);
+    }
   }
 
   /**
@@ -89,8 +111,10 @@ export class DiscrepancyTracker {
       });
     }
 
-    if (this.history.length > MAX_POINTS) {
-      this.history = this.history.slice(-MAX_POINTS);
+    if (this.history.length > this.maxPoints) {
+      this.history = this.history.slice(-this.maxPoints);
+    } else {
+      this.trim();
     }
   }
 

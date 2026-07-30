@@ -48,3 +48,18 @@ test('explicit nowSec still wins', () => {
   );
   assert.equal(t.points()[0].time, 777);
 });
+
+test('bps history retains up to historySecs then trims', () => {
+  const t = new DiscrepancyTracker(3600);
+  const series = [
+    { venue: 'a', last: 100, hidden: false, data: [{ time: 1, value: 0 }] },
+    { venue: 'b', last: 101, hidden: false, data: [{ time: 1, value: 0 }] },
+  ];
+  for (let i = 0; i < 4000; i++) {
+    t.push({ bps: 10 + (i % 3), max: 101, min: 100 }, series, 10_000 + i);
+  }
+  const pts = t.points();
+  assert.ok(pts.length <= t.maxPoints, `len ${pts.length} max ${t.maxPoints}`);
+  assert.ok(pts.length >= 3600, `expected ~1h points, got ${pts.length}`);
+  assert.equal(pts[pts.length - 1].time, 10_000 + 3999);
+});
