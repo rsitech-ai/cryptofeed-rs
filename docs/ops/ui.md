@@ -132,6 +132,13 @@ Poll endpoints remain available for clients that do not use SSE.
   - `visibilitychange` forces a live refresh when the tab becomes visible again.
 - Depth chart, time & sales filters, and synchronized multi-pane time ranges.
 - Session presets (1m/5m/1h), keyboard shortcuts (`/` search, `1`–`5` TF), density toggle.
+- **Series history retention** (`historySecs`, default **3600**): shared App-owned buffers
+  keep ~1h of Lines / Candles / BPS / focus tape / OF depth columns across mode switches
+  (Lines ↔ Candles ↔ Order Flow). Session presets and `ofView` only **clip the view**;
+  they do not wipe the underlying ring. URL: `?historySecs=3600` (localStorage key
+  `historySecs`). Older OF heat columns are downsampled (recent ~5 Hz, mid 1 Hz, older
+  0.2 Hz) so 12+ venues × 1h stays memory-conscious — not full tick-density heat for
+  the entire hour.
 - Health strip + data-quality badges; Grafana link-out; replay scrubber (best-effort).
 - **Order Flow chart mode** (`mode=orderflow`, tab next to Lines/Candles): desk-style
   **L2+tape reconstruction** (honest — **not MBO**):

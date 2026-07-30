@@ -51,4 +51,28 @@ describe('newest-first tape batches', () => {
     tracker.ingest('okx', [trade('old', 101, 101_000_000_000)]);
     assert.equal(tracker.snapshot('absolute').series[0].last, 103);
   });
+
+  it('candle view window clips without wiping retained buckets', () => {
+    const b = new CandleBuilder(1, 3600);
+    const tip = 50_000;
+    for (let t = tip - 2000; t <= tip; t += 1) {
+      const ns = t * 1e9;
+      b.ingest([
+        {
+          kind: 'trade',
+          venue: 'okx',
+          trade_id: `t${t}`,
+          price: '100',
+          quantity: '1',
+          exchange_ts_ns: ns,
+          receive_ts_ns: ns,
+        },
+      ]);
+    }
+    assert.ok(b.buckets.size >= 2000);
+    const view = b.candles(300);
+    assert.ok(view.length <= 301);
+    assert.equal(view[view.length - 1].time, tip);
+    assert.ok(b.buckets.has(tip - 1500), 'underlying 1h buffer kept');
+  });
 });

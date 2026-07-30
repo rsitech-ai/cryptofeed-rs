@@ -100,6 +100,9 @@ export function parseUrlState() {
   if (ofFollow === '0' || ofFollow === 'false') out.ofFollowLive = false;
   if (ofFollow === '1' || ofFollow === 'true') out.ofFollowLive = true;
 
+  const historySecs = p.get('historySecs');
+  if (historySecs != null) out.historySecs = Number(historySecs);
+
   return out;
 }
 
@@ -161,6 +164,9 @@ export function buildUrlState(state) {
     p.set('ofView', String(s.ofViewSec));
   }
   if (s.ofFollowLive === false) p.set('ofLive', '0');
+  if (s.historySecs != null && s.historySecs !== DEFAULTS.historySecs) {
+    p.set('historySecs', String(s.historySecs));
+  }
 
   return p.toString();
 }
