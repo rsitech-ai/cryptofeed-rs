@@ -4,6 +4,7 @@
  */
 
 import { nsToSec } from './format.js';
+import { compactDepthHistory, depthHistoryBudget } from './history.js';
 
 /**
  * USD notional for a tape trade (prefer server `notional` when present).
@@ -518,17 +519,22 @@ export function sampleBookDepth(book, opts = {}) {
  * Push a depth sample into a bounded ring (oldest dropped).
  * Brief SSE/poll gaps are filled with hold-last columns so the heat field
  * stays continuous instead of showing vertical black stripes.
+ *
+ * Pass `opts.historySecs` (typically 3600) for tiered ~1h column retention;
+ * older columns are downsampled (recent ~5 Hz, mid 1 Hz, older 0.2 Hz).
+ *
  * @param {Array<object>} history
  * @param {object|null} sample
  * @param {number} [max]
- * @param {{ gapMs?: number, maxFill?: number, maxGapMs?: number }} [opts]
+ * @param {{ historySecs?: number, gapMs?: number, maxFill?: number, maxGapMs?: number }} [opts]
  */
 export function pushDepthHistory(history, sample, max = 240, opts = {}) {
   if (!sample) return history || [];
   const gapMs = opts.gapMs ?? 420;
   const maxFill = opts.maxFill ?? 16;
   const maxGapMs = opts.maxGapMs ?? 10000;
-  const next = [...(history || [])];
+  const historySecs = opts.historySecs;
+  let next = [...(history || [])];
   if (next.length) {
     const last = next[next.length - 1];
     const dt = Number(sample.t) - Number(last.t);
@@ -544,7 +550,16 @@ export function pushDepthHistory(history, sample, max = 240, opts = {}) {
     }
   }
   next.push(sample);
-  return next.length > max ? next.slice(next.length - max) : next;
+
+  let cap = max;
+  if (historySecs != null && Number.isFinite(historySecs) && historySecs > 0) {
+    const budget = depthHistoryBudget(historySecs);
+    cap = Math.max(max, budget.maxCols);
+    if (next.length > budget.maxCols * 1.25) {
+      next = compactDepthHistory(next, historySecs, sample.t);
+    }
+  }
+  return next.length > cap ? next.slice(next.length - cap) : next;
 }
 
 /**

@@ -52,6 +52,12 @@ export const DEFAULTS = {
   ofViewSec: null,
   /** When true, Order Flow time axis tracks live edge. */
   ofFollowLive: true,
+  /**
+   * Underlying SPA series retention (seconds). Session presets only clip the
+   * *view*; buffers keep ~historySecs so Lines↔Candles↔OF mode switches do not
+   * wipe history. Default 1h; URL `historySecs=`.
+   */
+  historySecs: 3600,
 };
 
 /**
@@ -167,6 +173,7 @@ function mergeParsed(parsed) {
         ? null
         : clampInt(parsed.ofViewSec, 15, 3600, null),
     ofFollowLive: parsed?.ofFollowLive !== false,
+    historySecs: clampInt(parsed?.historySecs, 300, 7200, DEFAULTS.historySecs),
   };
 }
 

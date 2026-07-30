@@ -29,4 +29,17 @@ describe('urlState Flow & Pulse dock tabs', () => {
     if (prev === undefined) delete globalThis.window;
     else globalThis.window = prev;
   });
+
+  it('round-trips historySecs in URL state', () => {
+    const qs = buildUrlState({ asset: 'BTC', historySecs: 3600 });
+    // default 3600 is omitted
+    assert.equal(qs.includes('historySecs='), false);
+    const qs2 = buildUrlState({ asset: 'BTC', historySecs: 1800 });
+    assert.match(qs2, /historySecs=1800/);
+    const prev = globalThis.window;
+    globalThis.window = { location: { search: '?historySecs=1800' } };
+    assert.equal(parseUrlState().historySecs, 1800);
+    if (prev === undefined) delete globalThis.window;
+    else globalThis.window = prev;
+  });
 });

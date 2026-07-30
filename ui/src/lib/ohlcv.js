@@ -1,12 +1,20 @@
 import { nsToSec } from './format.js';
+import {
+  DEFAULT_HISTORY_SECS,
+  clampHistorySecs,
+  retentionCutoff,
+  trimTimeMap,
+} from './history.js';
 
 /**
  * Aggregate trades into OHLCV buckets keyed by UTC second buckets.
  * Dedupes by trade_id (or venue+ts+price+qty fallback).
+ * Retains ~historySecs of candles; session window only clips the view.
  */
 export class CandleBuilder {
-  constructor(intervalSec = 1) {
+  constructor(intervalSec = 1, historySecs = DEFAULT_HISTORY_SECS) {
     this.intervalSec = intervalSec;
+    this.historySecs = clampHistorySecs(historySecs);
     this.seen = new Set();
     /** @type {Map<number, { time:number, open:number, high:number, low:number, close:number, volume:number, trades:number, buyVol:number, sellVol:number }>} */
     this.buckets = new Map();
@@ -21,6 +29,14 @@ export class CandleBuilder {
     this.prevPrice = null;
     this._lastAppliedNs = null;
     this._needsChronologicalRebuild = false;
+  }
+
+  /** @param {unknown} secs */
+  setHistorySecs(secs) {
+    const next = clampHistorySecs(secs, this.historySecs);
+    if (next === this.historySecs) return;
+    this.historySecs = next;
+    this.trimHistory();
   }
 
   setInterval(intervalSec) {
@@ -84,21 +100,44 @@ export class CandleBuilder {
       this._applyTrade(trade);
       added += 1;
     }
-    // Cap memory
-    if (this.seen.size > 20000) {
-      const keep = [...this.seen].slice(-10000);
-      this.seen = new Set(keep);
-    }
-    if (this._trades.length > 15000) {
-      this._trades = this._trades.slice(-10000);
-      this._needsChronologicalRebuild = true;
-    }
     if (this._needsChronologicalRebuild) {
       this._trades.sort((a, b) => (a.orderNs || 0) - (b.orderNs || 0));
       this._needsChronologicalRebuild = false;
       this.rebuildFromTrades();
     }
+    this.trimHistory();
     return added;
+  }
+
+  /**
+   * Drop trades/buckets older than historySecs. Prefer keeping raw prints for
+   * the full retention window so timeframe changes can rebuild; if over the
+   * trade-count budget, drop oldest raw prints first (OHLCV buckets still hold
+   * history until a TF rebuild).
+   */
+  trimHistory() {
+    if (!this._trades) this._trades = [];
+    let latest = 0;
+    for (const c of this.buckets.values()) {
+      if (c.time > latest) latest = c.time;
+    }
+    for (const t of this._trades) {
+      if (t.sec > latest) latest = t.sec;
+    }
+    if (!latest) latest = Math.floor(Date.now() / 1000);
+    const cutoff = retentionCutoff(latest, this.historySecs);
+    if (cutoff > 0) {
+      trimTimeMap(this.buckets, cutoff);
+      this._trades = this._trades.filter((t) => t.sec >= cutoff);
+    }
+    // ~15 trades/sec budget across historySecs; hard cap for bursty focus venues.
+    const maxRaw = Math.min(80000, Math.max(12000, Math.floor(this.historySecs * 15)));
+    if (this._trades.length > maxRaw) {
+      this._trades = this._trades.slice(-maxRaw);
+    }
+    if (this.seen.size > 40000) {
+      this.seen = new Set([...this.seen].slice(-20000));
+    }
   }
 
   /** Seed last price from book mid when no trades yet. */
@@ -186,14 +225,18 @@ export class CandleBuilder {
     }
   }
 
-  candles() {
-    return [...this.buckets.values()].sort((a, b) => a.time - b.time);
+  candles(windowSec = 0) {
+    const all = [...this.buckets.values()].sort((a, b) => a.time - b.time);
+    if (!windowSec || windowSec <= 0 || !all.length) return all;
+    const tip = all[all.length - 1].time;
+    const since = tip - Math.max(1, windowSec);
+    return all.filter((c) => c.time >= since);
   }
 
-  volumeBars() {
+  volumeBars(windowSec = 0) {
     const up = '#02c076';
     const down = '#f6465d';
-    return this.candles().map((c) => ({
+    return this.candles(windowSec).map((c) => ({
       time: c.time,
       value: c.notional ?? c.volume,
       color: c.close >= c.open ? up : down,

@@ -1,17 +1,35 @@
 import { nsToSec } from './format.js';
 import { colorForVenue } from './assets.js';
+import {
+  DEFAULT_HISTORY_SECS,
+  clampHistorySecs,
+  downsampleByAge,
+  retentionCutoff,
+  trimTimeMap,
+  venueSampleBudget,
+} from './history.js';
 
 /**
  * Multi-venue last-price series from tape trades + quote mids.
  * Buckets by interval; line value = last price in bucket (stable, no OHLC spikes).
  * Tracks USD notional volume (price * qty) and trade intensity per venue.
+ * Retains ~historySecs of buckets (default 1h); session window only clips snapshots.
  */
 export class MultiVenueTracker {
-  constructor(intervalSec = 1) {
+  constructor(intervalSec = 1, historySecs = DEFAULT_HISTORY_SECS) {
     this.intervalSec = intervalSec;
+    this.historySecs = clampHistorySecs(historySecs);
     /** @type {Map<string, VenueState>} */
     this.venues = new Map();
     this.sessionStartSec = Math.floor(Date.now() / 1000);
+  }
+
+  /** @param {unknown} secs */
+  setHistorySecs(secs) {
+    const next = clampHistorySecs(secs, this.historySecs);
+    if (next === this.historySecs) return;
+    this.historySecs = next;
+    for (const st of this.venues.values()) trimVenue(st, this.intervalSec, this.historySecs);
   }
 
   /**
@@ -111,7 +129,7 @@ export class MultiVenueTracker {
       }
     }
     if (needsChronologicalRebuild) rebuildVenue(st, this.intervalSec);
-    trimSeen(st);
+    trimVenue(st, this.intervalSec, this.historySecs);
     return added;
   }
 
@@ -121,6 +139,7 @@ export class MultiVenueTracker {
     const n = Number(price);
     if (!Number.isFinite(n) || n <= 0) return;
     applyPrice(st, sec, n, this.intervalSec, true, sec * 1e9);
+    trimVenue(st, this.intervalSec, this.historySecs);
   }
 
   /**
@@ -356,9 +375,6 @@ function applyPrice(st, sec, price, intervalSec, recordSample = true, orderNs = 
   if (recordSample) {
     st.samples.push({ sec, price, orderNs });
     if (Number.isFinite(orderNs)) st.lastSampleNs = orderNs;
-    if (st.samples.length > 20000) {
-      st.samples = st.samples.slice(-12000);
-    }
   }
 }
 
@@ -382,18 +398,62 @@ function rebuildVenue(st, intervalSec) {
   }
 }
 
-function trimSeen(st) {
+/**
+ * Time-based retention (~historySecs) + sample downsample for memory.
+ * @param {VenueState} st
+ * @param {number} intervalSec
+ * @param {number} historySecs
+ */
+function trimVenue(st, intervalSec, historySecs) {
+  let latest = 0;
+  for (const t of st.buckets.keys()) {
+    if (t > latest) latest = t;
+  }
+  for (const s of st.samples) {
+    if (s.sec > latest) latest = s.sec;
+  }
+  const cutoff = retentionCutoff(latest || Math.floor(Date.now() / 1000), historySecs);
+
+  if (cutoff > 0) {
+    trimTimeMap(st.buckets, cutoff);
+    trimTimeMap(st.volBuckets, cutoff);
+    if (st.tradeBuckets) trimTimeMap(st.tradeBuckets, cutoff);
+    if (st.samples.length) {
+      st.samples = st.samples.filter((s) => s.sec >= cutoff);
+    }
+  }
+
+  const sampleCap = venueSampleBudget(historySecs);
+  if (st.samples.length > sampleCap) {
+    const tip = latest || st.samples[st.samples.length - 1]?.sec || 0;
+    const asPoints = st.samples.map((s) => ({ time: s.sec, price: s.price, orderNs: s.orderNs }));
+    const sparse = downsampleByAge(asPoints, {
+      tipSec: tip,
+      recentSec: Math.min(600, historySecs),
+      midSec: Math.min(1800, historySecs),
+      recentStep: Math.max(1, intervalSec),
+      midStep: Math.max(5, intervalSec * 5),
+      oldStep: Math.max(15, intervalSec * 15),
+    });
+    st.samples = sparse.map((p) => ({ sec: p.time, price: p.price, orderNs: p.orderNs }));
+    // Re-bucket from downsampled samples so line buckets stay consistent.
+    rebuildVenue(st, intervalSec);
+  }
+
   if (st.seen.size > 30000) {
     st.seen = new Set([...st.seen].slice(-15000));
   }
-  if (st.buckets.size > 5000) {
+
+  // Hard safety if time tip is missing / stalled.
+  const maxBuckets = Math.max(4000, historySecs + 120);
+  if (st.buckets.size > maxBuckets) {
     const keys = [...st.buckets.keys()].sort((a, b) => a - b);
-    const drop = keys.slice(0, keys.length - 4000);
+    const drop = keys.slice(0, keys.length - maxBuckets);
     for (const k of drop) st.buckets.delete(k);
   }
-  if (st.volBuckets.size > 5000) {
+  if (st.volBuckets.size > maxBuckets) {
     const keys = [...st.volBuckets.keys()].sort((a, b) => a - b);
-    const drop = keys.slice(0, keys.length - 4000);
+    const drop = keys.slice(0, keys.length - maxBuckets);
     for (const k of drop) st.volBuckets.delete(k);
   }
 }

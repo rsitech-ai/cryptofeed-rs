@@ -28,6 +28,11 @@
     sampleBookDepth,
   } from './lib/orderflow.js';
   import {
+    clampHistorySecs,
+    DEFAULT_HISTORY_SECS,
+    SeriesHistoryPolicy,
+  } from './lib/history.js';
+  import {
     bookImbalanceFromSnap,
     computePulse,
     pulseSpike,
@@ -106,6 +111,9 @@
     initial.ofViewSec == null ? null : clampViewSec(initial.ofViewSec, sessionWindowSec(initial.sessionPreset || '5m')),
   );
   let ofFollowLive = $state(initial.ofFollowLive !== false);
+  const initialHistorySecs = clampHistorySecs(initial.historySecs, DEFAULT_HISTORY_SECS);
+  let historySecs = $state(initialHistorySecs);
+  const historyPolicy = new SeriesHistoryPolicy(initialHistorySecs);
 
   let lineSeries = $state([]);
   let discrepancy = $state(null);
@@ -136,6 +144,10 @@
   /** Accumulated focus trades for Order Flow vol/CVD/VAP (SSE batches alone are too short). */
   /** @type {Map<string, object>} */
   let focusTapeRing = new Map();
+  /** Mutable depth ring; published to $state on a paint gate to cut identity churn. */
+  /** @type {Array<object>} */
+  let depthRing = [];
+  let depthRingDirty = false;
   /** Temporary venue+symbol 404 backoff; successful responses clear it. */
   const book404Gate = new Book404Gate();
   let focusGeneration = 0;
@@ -173,6 +185,12 @@
     venueBookSnaps = new Map(venueBookSnaps);
   }, { minIntervalMs: 120 });
 
+  const depthPaint = createPaintGate(() => {
+    if (!depthRingDirty) return;
+    depthRingDirty = false;
+    depthHistory = depthRing;
+  }, { minIntervalMs: 120 });
+
   let candles = $state([]);
   let volumeBars = $state([]);
   let eventsPerSec = $state(null);
@@ -189,9 +207,9 @@
 
   let marketSearchRef = $state(null);
 
-  const tracker = new MultiVenueTracker(1);
-  const candleBuilder = new CandleBuilder(1);
-  const discTracker = new DiscrepancyTracker();
+  const tracker = new MultiVenueTracker(1, initialHistorySecs);
+  const candleBuilder = new CandleBuilder(1, initialHistorySecs);
+  const discTracker = new DiscrepancyTracker(initialHistorySecs);
   const stream = new StreamClient({
     onTape: (venue, symbol, entries) => {
       if (replayMode) return;
@@ -269,7 +287,8 @@
   }
 
   /**
-   * Merge SSE/poll tape batches into a session ring so OF vol/CVD/VAP span the window.
+   * Merge SSE/poll tape batches into a ~historySecs ring so OF vol/CVD/VAP
+   * (and candles) survive Lines↔Candles↔Order Flow mode switches.
    * @param {object[]} entries
    */
   function mergeFocusTape(entries) {
@@ -281,19 +300,20 @@
           : `f:${e.exchange_ts_ns}|${e.price}|${e.quantity}|${e.aggressor || ''}`;
       focusTapeRing.set(id, e);
     }
-    const keepSec = Math.max(sessionSec || 300, 120) + 60;
+    const keepSec = historyPolicy.tapeKeepSec();
     const cutoff = Math.floor(Date.now() / 1000) - keepSec;
     for (const [k, e] of focusTapeRing) {
       const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
       if (sec != null && sec < cutoff) focusTapeRing.delete(k);
     }
-    if (focusTapeRing.size > 5000) {
+    const maxEntries = historyPolicy.tapeMaxEntries();
+    if (focusTapeRing.size > maxEntries) {
       const sorted = [...focusTapeRing.entries()].sort(
         (a, b) =>
           (Number(a[1].exchange_ts_ns ?? a[1].receive_ts_ns) || 0) -
           (Number(b[1].exchange_ts_ns ?? b[1].receive_ts_ns) || 0),
       );
-      for (const [k] of sorted.slice(0, sorted.length - 5000)) focusTapeRing.delete(k);
+      for (const [k] of sorted.slice(0, sorted.length - maxEntries)) focusTapeRing.delete(k);
     }
     return [...focusTapeRing.values()].sort(
       (a, b) =>
@@ -314,8 +334,15 @@
       // Prefer deep L2 walls (SSE now sends ~48; poll path uses heatBookDepth).
       maxLevels: Math.min(64, Math.max(48, bookDepth * 3)),
     });
-    // ~5–6m of history at ~200ms so 5m session heat/vol/CVD stay continuous.
-    if (sample) depthHistory = pushDepthHistory(depthHistory, sample, 1800, { gapMs: 400 });
+    if (!sample) return;
+    const budget = historyPolicy.depthBudget();
+    // Mutable ring + throttled publish — avoids remount/jitter from identity churn.
+    depthRing = pushDepthHistory(depthRing, sample, budget.maxCols, {
+      gapMs: 400,
+      historySecs,
+    });
+    depthRingDirty = true;
+    depthPaint.schedule();
   }
 
   /** Deep L2 poll for Order Flow even when SSE focus is fresh (walls need depth). */
@@ -506,6 +533,7 @@
     bpsHistory = discTracker.points();
     checkBpsAlert();
     syncPulseHistory();
+    publishHistoryDebug();
   }
 
   function syncPulseHistory() {
@@ -545,8 +573,9 @@
   }
 
   function syncCandleView() {
-    candles = candleBuilder.candles();
-    volumeBars = candleBuilder.volumeBars();
+    // Clip display to session window; underlying builder retains ~historySecs.
+    candles = candleBuilder.candles(sessionSec);
+    volumeBars = candleBuilder.volumeBars(sessionSec);
     lastTradePrice = candleBuilder.lastPrice;
     sessionHigh = candleBuilder.sessionHigh;
     sessionLow = candleBuilder.sessionLow;
@@ -667,6 +696,8 @@
     highlightSec = null;
     selectedTradeId = null;
     imbalanceHistory = [];
+    depthRing = [];
+    depthRingDirty = false;
     depthHistory = [];
     focusTapeRing = new Map();
     lastDepthSampleAt = 0;
@@ -674,6 +705,7 @@
     pendingFocusTape = null;
     bookPaint.flushNow();
     tapePaint.flushNow();
+    depthPaint.flushNow();
   }
 
   function applyTimeframe(id) {
@@ -778,6 +810,7 @@
   }
 
   function setChartMode(m) {
+    // Mode switches must not wipe series — shared buffers live above PriceChart.
     chartMode = m;
     const patch = { chartMode: m };
     // Order Flow chart keeps the Flow & Pulse dock open (single pane).
@@ -788,6 +821,61 @@
       patch.analyticsOpen = true;
     }
     persist(patch);
+    // Re-project views from retained buffers (no re-fetch from zero).
+    syncLineView(true);
+    syncCandleView();
+    if (depthRing.length) {
+      depthHistory = depthRing;
+      depthRingDirty = false;
+    }
+    publishHistoryDebug();
+  }
+
+  function publishHistoryDebug() {
+    try {
+      let linePts = 0;
+      let lineSpan = 0;
+      for (const st of tracker.venues.values()) {
+        linePts += st.buckets.size;
+        let minT = Infinity;
+        let maxT = 0;
+        for (const t of st.buckets.keys()) {
+          if (t < minT) minT = t;
+          if (t > maxT) maxT = t;
+        }
+        if (maxT > minT && Number.isFinite(minT)) {
+          lineSpan = Math.max(lineSpan, maxT - minT);
+        }
+      }
+      const candleN = candleBuilder.buckets.size;
+      // @ts-ignore
+      globalThis.__mfHistoryDebug = {
+        historySecs,
+        chartMode,
+        lineBucketPts: linePts,
+        lineSpanSec: lineSpan,
+        candleBuckets: candleN,
+        focusTape: focusTapeRing.size,
+        depthCols: depthRing.length || depthHistory.length,
+        bpsPts: discTracker.points().length,
+        sessionSec,
+        wallSec: Math.floor(Date.now() / 1000),
+      };
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function applyHistorySecs(secs) {
+    historySecs = clampHistorySecs(secs, historySecs);
+    historyPolicy.setHistorySecs(historySecs);
+    tracker.setHistorySecs(historySecs);
+    candleBuilder.setHistorySecs(historySecs);
+    discTracker.setHistorySecs(historySecs);
+    persist({ historySecs });
+    syncLineView(true);
+    syncCandleView();
+    publishHistoryDebug();
   }
 
   function forceLiveRefresh() {
@@ -1136,6 +1224,7 @@
       tapePaint.dispose();
       linePaint.dispose();
       snapsPaint.dispose();
+      depthPaint.dispose();
       stream.disconnect({ silent: true });
     };
   });
@@ -1169,7 +1258,11 @@
           : clampViewSec(patch.ofViewSec, sessionSec);
     }
     if (patch.ofFollowLive != null) ofFollowLive = !!patch.ofFollowLive;
-    if (tickChanged) depthHistory = [];
+    if (tickChanged) {
+      depthRing = [];
+      depthRingDirty = false;
+      depthHistory = [];
+    }
     persist({
       ofTick,
       ofHeat,
