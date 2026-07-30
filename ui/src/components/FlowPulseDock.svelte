@@ -8,12 +8,9 @@
     tradeNotional,
     volumeAtPrice,
   } from '../lib/orderflow.js';
-  import DomLadder from './DomLadder.svelte';
   import DepthChart from './DepthChart.svelte';
 
   let {
-    /** @type {'both' | 'flow' | 'pulse'} */
-    section = 'both',
     book = null,
     tape = [],
     depth = 16,
@@ -21,9 +18,11 @@
     windowSec = 300,
     largeUsd = 25000,
     imbalanceHistory = [],
-    tickOpt = 'auto',
-    /** When chart already shows DOM, skip ladder to avoid duplication. */
-    showLadder = true,
+    /**
+     * Show cumulative depth plot in dock. False when Order Flow chart already
+     * owns the DOM ladder + heat depth (avoid conceptual overlap).
+     */
+    showDepthPlot = true,
     pulse = null,
     history = [],
     alertActive = false,
@@ -32,22 +31,24 @@
     focusVenue = '',
     metricFilter = '',
     onLargeUsd = () => {},
-    onDepth = null,
     onSpikeThreshold = () => {},
     onChipClick = () => {},
     onMetricClick = () => {},
-    onSection = () => {},
     onToggle = null,
   } = $props();
+
+  let tip = $state(/** @type {string} */ (''));
+  let tipX = $state(0);
+  let tipY = $state(0);
 
   let pressure = $derived(bookPressure(book, depth));
   let cvd = $derived(computeCvd(tape, { windowSec }));
   let vap = $derived(volumeAtPrice(tape, { windowSec, maxBuckets: 24 }));
   let heuristics = $derived(detectFlowHeuristics(tape, book, { largeUsd, windowSec }));
 
-  let imbSpark = $derived(sparkPath(imbalanceHistory.map((p) => p.imbalancePct), { w: 100, h: 22 }));
-  let cvdSpark = $derived(sparkPath(cvd.points.map((p) => p.cvd), { w: 120, h: 24 }));
-  let scoreSpark = $derived(sparkPath((history || []).map((p) => p.score), { w: 140, h: 28 }));
+  let imbSpark = $derived(sparkPath(imbalanceHistory.map((p) => p.imbalancePct), { w: 100, h: 28 }));
+  let cvdSpark = $derived(sparkPath(cvd.points.map((p) => p.cvd), { w: 120, h: 28 }));
+  let scoreSpark = $derived(sparkPath((history || []).map((p) => p.score), { w: 160, h: 32 }));
 
   let histMax = $derived(
     Math.max(1, ...cvd.histogram.map((h) => Math.max(h.buyUsd, h.sellUsd))),
@@ -84,7 +85,7 @@
     (tape || [])
       .filter((e) => e.kind === 'trade')
       .filter((e) => (tradeNotional(e) ?? 0) >= largeUsd)
-      .slice(0, 6),
+      .slice(0, 8),
   );
 
   let score = $derived(pulse?.score ?? null);
@@ -100,10 +101,19 @@
       list = [...list].sort((a, b) => (b.usdPerMin || 0) - (a.usdPerMin || 0));
     } else if (metricFilter === 'tpm') {
       list = [...list].sort((a, b) => (b.tradesPerMin || 0) - (a.tradesPerMin || 0));
+    } else if (metricFilter === 'cross') {
+      list = [...list].sort((a, b) => (b.heat || 0) - (a.heat || 0));
     }
     return list;
   });
   let maxHeat = $derived(Math.max(1, ...chips.map((c) => c.heat || 0)));
+
+  let lastImb = $derived(
+    imbalanceHistory.length ? imbalanceHistory[imbalanceHistory.length - 1]?.imbalancePct : null,
+  );
+  let lastPulseScore = $derived(
+    history?.length ? history[history.length - 1]?.score : score,
+  );
 
   function barW(v, max) {
     return `${Math.min(100, (v / max) * 100)}%`;
@@ -113,10 +123,16 @@
     return metricFilter === id;
   }
 
-  let showFlow = $derived(section === 'both' || section === 'flow');
-  let showPulse = $derived(section === 'both' || section === 'pulse');
-  let flowWide = $derived(section === 'flow');
-  let pulseWide = $derived(section === 'pulse');
+  /** @param {MouseEvent} e @param {string} text */
+  function showTip(e, text) {
+    tip = text;
+    tipX = e.clientX + 12;
+    tipY = e.clientY + 12;
+  }
+
+  function hideTip() {
+    tip = '';
+  }
 </script>
 
 <section class="fp" class:alert={alertActive} aria-label="Flow and Pulse dock">
@@ -129,35 +145,10 @@
       {/if}
       {#if metricFilter}
         <button type="button" class="filter-clear" onclick={() => onMetricClick(metricFilter)}>
-          {metricFilter} ✕
+          sort:{metricFilter} ✕
         </button>
       {/if}
-    </div>
-    <div class="chrome-tabs" role="tablist" aria-label="Dock section">
-      <button
-        type="button"
-        role="tab"
-        class:active={section === 'flow'}
-        aria-selected={section === 'flow'}
-        title="Flow section (F)"
-        onclick={() => onSection('flow')}
-      >Flow</button>
-      <button
-        type="button"
-        role="tab"
-        class:active={section === 'both'}
-        aria-selected={section === 'both'}
-        title="Unified view"
-        onclick={() => onSection('both')}
-      >Both</button>
-      <button
-        type="button"
-        role="tab"
-        class:active={section === 'pulse'}
-        aria-selected={section === 'pulse'}
-        title="Pulse section (P)"
-        onclick={() => onSection('pulse')}
-      >Pulse</button>
+      <span class="chrome-meta">{Math.round(windowSec / 60)}m · {vap.length ? 'tape VAP' : 'book profile'}</span>
     </div>
     <div class="chrome-right">
       <label class="thresh" title="Large trade threshold (USD)">
@@ -187,237 +178,293 @@
     </div>
   </div>
 
-  <div
-    class="fp-body"
-    class:both={section === 'both'}
-    class:flow-only={section === 'flow'}
-    class:pulse-only={section === 'pulse'}
-  >
-    {#if showFlow}
-      <div class="col flow-col" class:wide={flowWide}>
-        <div class="col-head">
-          <span class="col-title">Depth / CVD</span>
-          <span class="meta">{Math.round(windowSec / 60)}m · {vap.length ? 'tape VAP' : 'book profile'}</span>
+  <div class="fp-body">
+    <!-- Col 1: Depth / CVD / VAP -->
+    <div class="col flow-col">
+      <div class="col-head">
+        <span class="col-title">Depth / CVD</span>
+        <span class="meta">focus book + tape</span>
+      </div>
+
+      <div class="stat-row" role="group" aria-label="Flow stats">
+        <button
+          type="button"
+          class="stat clickable"
+          title="Cumulative volume delta"
+          onmouseenter={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)} · buys ${fmtUsd(cvd.buyUsd)} · sells ${fmtUsd(cvd.sellUsd)}`)}
+          onmousemove={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)} · buys ${fmtUsd(cvd.buyUsd)} · sells ${fmtUsd(cvd.sellUsd)}`)}
+          onmouseleave={hideTip}
+        >
+          <span class="lbl">CVD</span>
+          <span class="val" class:up={cvd.cvd > 0} class:down={cvd.cvd < 0}>{fmtUsd(cvd.cvd)}</span>
+        </button>
+        <div class="stat">
+          <span class="lbl">Buys</span>
+          <span class="val bid">{fmtUsd(cvd.buyUsd)}</span>
         </div>
-
-        <div class="stat-row">
-          <div class="stat">
-            <span class="lbl">CVD</span>
-            <span class="val" class:up={cvd.cvd > 0} class:down={cvd.cvd < 0}>{fmtUsd(cvd.cvd)}</span>
-          </div>
-          <div class="stat">
-            <span class="lbl">Buys</span>
-            <span class="val bid">{fmtUsd(cvd.buyUsd)}</span>
-          </div>
-          <div class="stat">
-            <span class="lbl">Sells</span>
-            <span class="val ask">{fmtUsd(cvd.sellUsd)}</span>
-          </div>
-          <div class="stat">
-            <span class="lbl">Trades</span>
-            <span class="val">{cvd.trades}</span>
-          </div>
-          <div class="stat">
-            <span class="lbl">Imb</span>
-            <span class="val accent">{pressure.imbalancePct.toFixed(1)}%</span>
-          </div>
-          <div class="stat">
-            <span class="lbl">Last</span>
-            <span class="val">{lastPrice != null ? fmtPrice(lastPrice, 2) : '—'}</span>
-          </div>
+        <div class="stat">
+          <span class="lbl">Sells</span>
+          <span class="val ask">{fmtUsd(cvd.sellUsd)}</span>
         </div>
-
-        <div class="pressure">
-          <div class="bar">
-            <div class="bid" style={`width:${pressure.bidPct}%`}></div>
-            <div class="ask" style={`width:${pressure.askPct}%`}></div>
-          </div>
-          <div class="plabels">
-            <span class="bid">Bid {fmtUsd(pressure.bidUsd)}</span>
-            <span class="ask">Ask {fmtUsd(pressure.askUsd)}</span>
-          </div>
+        <div class="stat">
+          <span class="lbl">Trades</span>
+          <span class="val">{cvd.trades}</span>
         </div>
-
-        <div class="sparks">
-          <div class="spark" title="Depth imbalance">
-            {#if imbSpark}
-              <svg viewBox="0 0 100 22" preserveAspectRatio="none">
-                <path d={imbSpark} fill="none" stroke="var(--accent)" stroke-width="1.2" />
-              </svg>
-            {:else}
-              <span class="muted">imb…</span>
-            {/if}
-          </div>
-          <div class="spark" title="CVD">
-            {#if cvdSpark}
-              <svg viewBox="0 0 120 24" preserveAspectRatio="none">
-                <path d={cvdSpark} fill="none" stroke={cvd.cvd >= 0 ? 'var(--bid)' : 'var(--ask)'} stroke-width="1.3" />
-              </svg>
-            {:else}
-              <span class="muted">cvd…</span>
-            {/if}
-          </div>
+        <div
+          class="stat"
+          role="img"
+          aria-label="Book imbalance"
+          onmouseenter={(e) => showTip(e, `Book imbalance ${pressure.imbalancePct.toFixed(1)}%`)}
+          onmousemove={(e) => showTip(e, `Book imbalance ${pressure.imbalancePct.toFixed(1)}%`)}
+          onmouseleave={hideTip}
+        >
+          <span class="lbl">Imb</span>
+          <span class="val accent">{pressure.imbalancePct.toFixed(1)}%</span>
         </div>
-
-        <div class="hist" aria-label="Buy vs sell histogram">
-          {#each cvd.histogram.slice(-36) as h}
-            <div class="hcol">
-              <div class="buy" style={`height:${Math.max(2, (h.buyUsd / histMax) * 100)}%`}></div>
-              <div class="sell" style={`height:${Math.max(2, (h.sellUsd / histMax) * 100)}%`}></div>
-            </div>
-          {:else}
-            <span class="muted">buy/sell hist…</span>
-          {/each}
-        </div>
-
-        {#if showLadder && flowWide}
-          <div class="ladder-block">
-            <DepthChart {book} {depth} />
-            <div class="dom-wrap">
-              <DomLadder {book} {depth} {tickOpt} {lastPrice} onDepth={onDepth} showCum={true} />
-            </div>
-          </div>
-        {:else if showLadder && section === 'both'}
-          <div class="dom-wrap slim">
-            <DomLadder {book} depth={Math.min(depth, 16)} {tickOpt} {lastPrice} onDepth={onDepth} showCum={false} />
-          </div>
-        {/if}
-
-        <div class="vap-mini" aria-label="Volume at price">
-          <div class="vap-cols"><span>Sell</span><span>Px</span><span>Buy</span><span>Δ</span></div>
-          <div class="vap">
-            {#each vapRows as row}
-              <div class="vrow">
-                <div class="sell-bar-wrap">
-                  <div class="sell-bar" style={`width:${barW(row.sellUsd, vapMaxEff)}`}></div>
-                  <span>{fmtUsd(row.sellUsd)}</span>
-                </div>
-                <span class="px">{fmtPrice(row.price, 2)}</span>
-                <div class="buy-bar-wrap">
-                  <div class="buy-bar" style={`width:${barW(row.buyUsd, vapMaxEff)}`}></div>
-                  <span>{fmtUsd(row.buyUsd)}</span>
-                </div>
-                <span class="delta" class:up={row.delta > 0} class:down={row.delta < 0}>{fmtUsd(row.delta)}</span>
-              </div>
-            {:else}
-              <div class="empty">VAP…</div>
-            {/each}
-          </div>
+        <div class="stat">
+          <span class="lbl">Last</span>
+          <span class="val">{lastPrice != null ? fmtPrice(lastPrice, 2) : '—'}</span>
         </div>
       </div>
-    {/if}
 
-    {#if showPulse}
-      <div class="col pulse-col" class:wide={pulseWide}>
-        <div class="col-head">
-          <span class="col-title">Multi-venue heat</span>
-          <span class="meta">{pulse?.venueCount ?? 0} live · click chip → focus</span>
+      <div
+        class="pressure"
+        role="img"
+        aria-label="Bid ask pressure"
+        onmouseenter={(e) => showTip(e, `Bid ${fmtUsd(pressure.bidUsd)} · Ask ${fmtUsd(pressure.askUsd)}`)}
+        onmousemove={(e) => showTip(e, `Bid ${fmtUsd(pressure.bidUsd)} · Ask ${fmtUsd(pressure.askUsd)}`)}
+        onmouseleave={hideTip}
+      >
+        <div class="bar">
+          <div class="bid" style={`width:${pressure.bidPct}%`}></div>
+          <div class="ask" style={`width:${pressure.askPct}%`}></div>
         </div>
-
-        <div class="pulse-metrics">
-          <button type="button" class="metric score" class:active={metricActive('heat')} onclick={() => onMetricClick('heat')} title="Sort by heat">
-            <span class="lbl">Score</span>
-            <span class="val big">{score != null ? score.toFixed(0) : '—'}</span>
-          </button>
-          <button type="button" class="metric" class:active={metricActive('tpm')} onclick={() => onMetricClick('tpm')} title="Sort by trades/min">
-            <span class="lbl">Trades/m</span>
-            <span class="val">{pulse?.tradesPerMin != null ? pulse.tradesPerMin.toFixed(1) : '—'}</span>
-          </button>
-          <button type="button" class="metric" class:active={metricActive('usd')} onclick={() => onMetricClick('usd')} title="Sort by USD/min">
-            <span class="lbl">USD/m</span>
-            <span class="val">{pulse?.usdPerMin != null ? fmtUsd(pulse.usdPerMin) : '—'}</span>
-          </button>
-          <button type="button" class="metric" class:active={metricActive('cross')} onclick={() => onMetricClick('cross')} title="Cross-venue Δ">
-            <span class="lbl">Cross Δ</span>
-            <span class="val" class:hot={pulse?.crossBps != null && pulse.crossBps > 10}>
-              {pulse?.crossBps != null ? pulse.crossBps.toFixed(1) + 'b' : '—'}
-            </span>
-          </button>
-          <button type="button" class="metric" class:active={metricActive('spread')} onclick={() => onMetricClick('spread')} title="Median spread">
-            <span class="lbl">Spread</span>
-            <span class="val">
-              {pulse?.medianSpread != null ? pulse.medianSpread.toFixed(2) + 'b' : '—'}
-            </span>
-          </button>
-          <button type="button" class="metric" class:active={metricActive('imb')} onclick={() => onMetricClick('imb')} title="Book imbalance">
-            <span class="lbl">Book imb</span>
-            <span class="val" class:up={pulse?.bookImbalance > 5} class:down={pulse?.bookImbalance < -5}>
-              {pulse?.bookImbalance != null ? pulse.bookImbalance.toFixed(1) + '%' : '—'}
-            </span>
-          </button>
+        <div class="plabels">
+          <span class="bid">Bid {fmtUsd(pressure.bidUsd)}</span>
+          <span class="ask">Ask {fmtUsd(pressure.askUsd)}</span>
         </div>
+      </div>
 
-        <div class="spark pulse-spark" title="Pulse score history">
-          {#if scoreSpark}
-            <svg viewBox="0 0 140 28" preserveAspectRatio="none">
-              <line
-                x1="0"
-                y1={28 - (spikeThreshold / 100) * 26 - 1}
-                x2="140"
-                y2={28 - (spikeThreshold / 100) * 26 - 1}
-                stroke="rgba(246,70,93,0.45)"
-                stroke-dasharray="2,2"
-                stroke-width="0.6"
-              />
-              <path d={scoreSpark} fill="none" stroke="var(--accent)" stroke-width="1.4" />
+      <div class="plots-row">
+        <div
+          class="spark"
+          role="img"
+          aria-label="Depth imbalance sparkline"
+          title="Depth imbalance"
+          onmouseenter={(e) => showTip(e, lastImb != null ? `Imbalance ${Number(lastImb).toFixed(1)}%` : 'Imbalance…')}
+          onmousemove={(e) => showTip(e, lastImb != null ? `Imbalance ${Number(lastImb).toFixed(1)}%` : 'Imbalance…')}
+          onmouseleave={hideTip}
+        >
+          {#if imbSpark}
+            <svg viewBox="0 0 100 28" preserveAspectRatio="none">
+              <path d={imbSpark} fill="none" stroke="var(--accent)" stroke-width="1.4" />
             </svg>
           {:else}
-            <span class="muted">pulse history…</span>
+            <span class="muted">imb…</span>
           {/if}
         </div>
+        <div
+          class="spark"
+          role="img"
+          aria-label="CVD sparkline"
+          title="CVD"
+          onmouseenter={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)}`)}
+          onmousemove={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)}`)}
+          onmouseleave={hideTip}
+        >
+          {#if cvdSpark}
+            <svg viewBox="0 0 120 28" preserveAspectRatio="none">
+              <path d={cvdSpark} fill="none" stroke={cvd.cvd >= 0 ? 'var(--bid)' : 'var(--ask)'} stroke-width="1.4" />
+            </svg>
+          {:else}
+            <span class="muted">cvd…</span>
+          {/if}
+        </div>
+      </div>
 
-        <div class="chips" aria-label="Per-venue activity heat">
-          {#each chips as c (c.venue + '|' + (c.symbol || ''))}
+      <div class="hist" aria-label="Buy vs sell histogram">
+        {#each cvd.histogram.slice(-40) as h, i (i)}
+          <button
+            type="button"
+            class="hcol"
+            title={`Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`}
+            onmouseenter={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
+            onmousemove={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
+            onmouseleave={hideTip}
+          >
+            <div class="buy" style={`height:${Math.max(2, (h.buyUsd / histMax) * 100)}%`}></div>
+            <div class="sell" style={`height:${Math.max(2, (h.sellUsd / histMax) * 100)}%`}></div>
+          </button>
+        {:else}
+          <span class="muted">buy/sell hist…</span>
+        {/each}
+      </div>
+
+      {#if showDepthPlot}
+        <div class="depth-block" aria-label="Cumulative depth">
+          <DepthChart {book} {depth} interactive={true} />
+        </div>
+      {/if}
+
+      <div class="vap-mini" aria-label="Volume at price">
+        <div class="vap-cols"><span>Sell</span><span>Px</span><span>Buy</span><span>Δ</span></div>
+        <div class="vap">
+          {#each vapRows as row}
             <button
               type="button"
-              class="chip"
-              class:offline={!c.live}
-              class:focus={c.venue === focusVenue}
-              class:spike={(c.heat || 0) >= spikeThreshold}
-              style={`--heat:${Math.round(c.heat)}; --vc:${c.color || 'var(--accent)'}; --heatpct:${Math.max(6, ((c.heat || 0) / maxHeat) * 100)}`}
-              title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m"
-              onclick={() => onChipClick(c.venue, c.symbol)}
+              class="vrow"
+              title={`${fmtPrice(row.price, 2)} · Δ ${fmtUsd(row.delta)}`}
+              onmouseenter={(e) => showTip(e, `${fmtPrice(row.price, 2)} · buy ${fmtUsd(row.buyUsd)} · sell ${fmtUsd(row.sellUsd)} · Δ ${fmtUsd(row.delta)}`)}
+              onmousemove={(e) => showTip(e, `${fmtPrice(row.price, 2)} · buy ${fmtUsd(row.buyUsd)} · sell ${fmtUsd(row.sellUsd)} · Δ ${fmtUsd(row.delta)}`)}
+              onmouseleave={hideTip}
             >
-              <span class="heat-bar" style={`width:var(--heatpct)%`}></span>
-              <span class="vname">{c.venue}</span>
-              <span class="vheat">{c.heat.toFixed(0)}</span>
+              <div class="sell-bar-wrap">
+                <div class="sell-bar" style={`width:${barW(row.sellUsd, vapMaxEff)}`}></div>
+                <span>{fmtUsd(row.sellUsd)}</span>
+              </div>
+              <span class="px">{fmtPrice(row.price, 2)}</span>
+              <div class="buy-bar-wrap">
+                <div class="buy-bar" style={`width:${barW(row.buyUsd, vapMaxEff)}`}></div>
+                <span>{fmtUsd(row.buyUsd)}</span>
+              </div>
+              <span class="delta" class:up={row.delta > 0} class:down={row.delta < 0}>{fmtUsd(row.delta)}</span>
             </button>
           {:else}
-            <div class="empty">waiting for multi-venue tape/books…</div>
+            <div class="empty">VAP…</div>
           {/each}
         </div>
       </div>
-    {/if}
+    </div>
 
-    {#if section === 'both' || section === 'flow'}
-      <div class="col alerts-col">
-        <div class="col-head">
-          <span class="col-title">Flags</span>
-          <span class="meta">≥{fmtUsd(largeUsd)}</span>
-        </div>
-        <div class="heuristics">
-          {#each heuristics.slice(-8) as h}
-            <span class="badge" class:buy={h.side === 'buy'} class:sell={h.side === 'sell'} title={h.label}>
-              {h.kind}
-            </span>
-          {:else}
-            <span class="muted">no sweep/absorption</span>
-          {/each}
-        </div>
-        <div class="large-list">
-          {#each largeTrades as e}
-            <div class="lt" class:buy={e.aggressor === 'buy'} class:sell={e.aggressor === 'sell'}>
-              <span>{fmtPrice(e.price, 2)}</span>
-              <span>{fmtUsd(tradeNotional(e))}</span>
-              <span>{e.aggressor || '?'}</span>
-            </div>
-          {:else}
-            <div class="empty">no large prints</div>
-          {/each}
-        </div>
+    <!-- Col 2: Multi-venue heat -->
+    <div class="col pulse-col">
+      <div class="col-head">
+        <span class="col-title">Multi-venue heat</span>
+        <span class="meta">{pulse?.venueCount ?? 0} live · chip → focus</span>
       </div>
-    {/if}
+
+      <div class="pulse-metrics">
+        <button type="button" class="metric score" class:active={metricActive('heat')} onclick={() => onMetricClick('heat')} title="Sort by heat">
+          <span class="lbl">Score</span>
+          <span class="val big">{score != null ? score.toFixed(0) : '—'}</span>
+        </button>
+        <button type="button" class="metric" class:active={metricActive('tpm')} onclick={() => onMetricClick('tpm')} title="Sort by trades/min">
+          <span class="lbl">Trades/m</span>
+          <span class="val">{pulse?.tradesPerMin != null ? pulse.tradesPerMin.toFixed(1) : '—'}</span>
+        </button>
+        <button type="button" class="metric" class:active={metricActive('usd')} onclick={() => onMetricClick('usd')} title="Sort by USD/min">
+          <span class="lbl">USD/m</span>
+          <span class="val">{pulse?.usdPerMin != null ? fmtUsd(pulse.usdPerMin) : '—'}</span>
+        </button>
+        <button type="button" class="metric" class:active={metricActive('cross')} onclick={() => onMetricClick('cross')} title="Cross-venue Δ">
+          <span class="lbl">Cross Δ</span>
+          <span class="val" class:hot={pulse?.crossBps != null && pulse.crossBps > 10}>
+            {pulse?.crossBps != null ? pulse.crossBps.toFixed(1) + 'b' : '—'}
+          </span>
+        </button>
+        <button type="button" class="metric" class:active={metricActive('spread')} onclick={() => onMetricClick('spread')} title="Median spread">
+          <span class="lbl">Spread</span>
+          <span class="val">
+            {pulse?.medianSpread != null ? pulse.medianSpread.toFixed(2) + 'b' : '—'}
+          </span>
+        </button>
+        <button type="button" class="metric" class:active={metricActive('imb')} onclick={() => onMetricClick('imb')} title="Book imbalance">
+          <span class="lbl">Book imb</span>
+          <span class="val" class:up={pulse?.bookImbalance > 5} class:down={pulse?.bookImbalance < -5}>
+            {pulse?.bookImbalance != null ? pulse.bookImbalance.toFixed(1) + '%' : '—'}
+          </span>
+        </button>
+      </div>
+
+      <div
+        class="spark pulse-spark"
+        role="img"
+        aria-label="Pulse score history"
+        title="Pulse score history"
+        onmouseenter={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
+        onmousemove={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
+        onmouseleave={hideTip}
+      >
+        {#if scoreSpark}
+          <svg viewBox="0 0 160 32" preserveAspectRatio="none">
+            <line
+              x1="0"
+              y1={32 - (spikeThreshold / 100) * 30 - 1}
+              x2="160"
+              y2={32 - (spikeThreshold / 100) * 30 - 1}
+              stroke="rgba(246,70,93,0.45)"
+              stroke-dasharray="2,2"
+              stroke-width="0.7"
+            />
+            <path d={scoreSpark} fill="none" stroke="var(--accent)" stroke-width="1.5" />
+          </svg>
+        {:else}
+          <span class="muted">pulse history…</span>
+        {/if}
+      </div>
+
+      <div class="chips" aria-label="Per-venue activity heat">
+        {#each chips as c (c.venue + '|' + (c.symbol || ''))}
+          <button
+            type="button"
+            class="chip"
+            class:offline={!c.live}
+            class:focus={c.venue === focusVenue}
+            class:spike={(c.heat || 0) >= spikeThreshold}
+            style={`--heat:${Math.round(c.heat)}; --vc:${c.color || 'var(--accent)'}; --heatpct:${Math.max(6, ((c.heat || 0) / maxHeat) * 100)}`}
+            title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m"
+            onclick={() => onChipClick(c.venue, c.symbol)}
+            onmouseenter={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm`)}
+            onmousemove={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm`)}
+            onmouseleave={hideTip}
+          >
+            <span class="heat-bar" style={`width:var(--heatpct)%`}></span>
+            <span class="vname">{c.venue}</span>
+            <span class="vheat">{c.heat.toFixed(0)}</span>
+          </button>
+        {:else}
+          <div class="empty">waiting for multi-venue tape/books…</div>
+        {/each}
+      </div>
+    </div>
+
+    <!-- Col 3: Flags / large prints -->
+    <div class="col alerts-col">
+      <div class="col-head">
+        <span class="col-title">Flags</span>
+        <span class="meta">≥{fmtUsd(largeUsd)}</span>
+      </div>
+      <div class="heuristics">
+        {#each heuristics.slice(-10) as h}
+          <span class="badge" class:buy={h.side === 'buy'} class:sell={h.side === 'sell'} title={h.label}>
+            {h.kind}
+          </span>
+        {:else}
+          <span class="muted">no sweep/absorption</span>
+        {/each}
+      </div>
+      <div class="large-list" aria-label="Large prints">
+        {#each largeTrades as e}
+          <div
+            class="lt"
+            class:buy={e.aggressor === 'buy'}
+            class:sell={e.aggressor === 'sell'}
+            title={`${fmtPrice(e.price, 2)} · ${fmtUsd(tradeNotional(e))} · ${e.aggressor || '?'}`}
+          >
+            <span>{fmtPrice(e.price, 2)}</span>
+            <span>{fmtUsd(tradeNotional(e))}</span>
+            <span>{e.aggressor || '?'}</span>
+          </div>
+        {:else}
+          <div class="empty">no large prints</div>
+        {/each}
+      </div>
+    </div>
   </div>
+
+  {#if tip}
+    <div class="fp-tip" style={`left:${tipX}px;top:${tipY}px`} role="tooltip">{tip}</div>
+  {/if}
 </section>
 
 <style>
@@ -428,6 +475,7 @@
     flex-direction: column;
     background: var(--panel);
     overflow: hidden;
+    position: relative;
   }
   .fp.alert {
     box-shadow: inset 0 0 0 1px rgba(246, 70, 93, 0.4);
@@ -437,7 +485,7 @@
     display: flex;
     align-items: center;
     gap: 0.55rem;
-    padding: 0.2rem 0.5rem;
+    padding: 0.22rem 0.55rem;
     border-bottom: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(30, 35, 41, 0.95), var(--panel-2));
     flex-shrink: 0;
@@ -447,6 +495,7 @@
     align-items: center;
     gap: 0.4rem;
     min-width: 0;
+    flex-wrap: wrap;
   }
   .brand {
     font-size: 0.72rem;
@@ -461,6 +510,11 @@
     padding: 0.05rem 0.3rem;
     border: 1px solid rgba(240, 185, 11, 0.3);
     border-radius: 2px;
+  }
+  .chrome-meta {
+    font-family: var(--mono);
+    font-size: 0.52rem;
+    color: var(--muted);
   }
   .spike-badge {
     font-family: var(--mono);
@@ -485,32 +539,12 @@
     cursor: pointer;
     border-radius: 2px;
   }
-  .chrome-tabs {
-    display: flex;
-    gap: 0.15rem;
-    margin-left: 0.25rem;
-  }
-  .chrome-tabs button {
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--muted);
-    font-family: var(--mono);
-    font-size: 0.62rem;
-    padding: 0.12rem 0.4rem;
-    cursor: pointer;
-    border-radius: 2px;
-  }
-  .chrome-tabs button:hover { color: var(--text); background: var(--panel); }
-  .chrome-tabs button.active {
-    color: var(--accent);
-    border-color: rgba(240, 185, 11, 0.4);
-    background: rgba(240, 185, 11, 0.06);
-  }
   .chrome-right {
     margin-left: auto;
     display: flex;
     align-items: center;
     gap: 0.55rem;
+    flex-shrink: 0;
   }
   .thresh {
     font-size: 0.58rem;
@@ -545,17 +579,9 @@
     flex: 1;
     min-height: 0;
     display: grid;
+    grid-template-columns: minmax(280px, 1.25fr) minmax(300px, 1.35fr) minmax(150px, 0.65fr);
     gap: 0;
-  }
-  .fp-body.both {
-    /* Balanced Flow | Pulse heat | Alerts — less empty heat whitespace */
-    grid-template-columns: minmax(280px, 1.2fr) minmax(320px, 1.35fr) minmax(150px, 0.7fr);
-  }
-  .fp-body.flow-only {
-    grid-template-columns: minmax(0, 1.6fr) minmax(140px, 0.55fr);
-  }
-  .fp-body.pulse-only {
-    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 
   .col {
@@ -563,7 +589,7 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    padding: 0.3rem 0.45rem;
+    padding: 0.35rem 0.5rem;
     border-right: 1px solid var(--border);
   }
   .col:last-child { border-right: none; }
@@ -572,7 +598,7 @@
     justify-content: space-between;
     align-items: baseline;
     gap: 0.35rem;
-    margin-bottom: 0.2rem;
+    margin-bottom: 0.22rem;
     flex-shrink: 0;
   }
   .col-title {
@@ -592,10 +618,20 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.35rem 0.65rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.28rem;
     flex-shrink: 0;
   }
-  .stat { display: flex; flex-direction: column; gap: 0.02rem; }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.02rem;
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: inherit;
+    text-align: left;
+  }
+  .stat.clickable { cursor: help; }
   .stat .lbl {
     font-size: 0.5rem;
     color: var(--muted);
@@ -613,8 +649,8 @@
   .stat .val.ask { color: var(--ask); }
   .stat .val.accent { color: var(--accent); }
 
-  .pressure { margin-bottom: 0.2rem; flex-shrink: 0; }
-  .pressure .bar { display: flex; height: 6px; border-radius: 1px; overflow: hidden; }
+  .pressure { margin-bottom: 0.25rem; flex-shrink: 0; cursor: help; }
+  .pressure .bar { display: flex; height: 7px; border-radius: 1px; overflow: hidden; }
   .pressure .bid { background: rgba(2, 192, 118, 0.55); }
   .pressure .ask { background: rgba(246, 70, 93, 0.55); }
   .plabels {
@@ -627,30 +663,38 @@
   .plabels .bid { color: var(--bid); }
   .plabels .ask { color: var(--ask); }
 
-  .sparks {
+  .plots-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 0.25rem;
-    margin-bottom: 0.2rem;
+    gap: 0.28rem;
+    margin-bottom: 0.25rem;
     flex-shrink: 0;
   }
   .spark {
-    height: 24px;
+    height: 28px;
+    min-height: 28px;
     background: var(--panel-2);
     border: 1px solid var(--border);
+    cursor: help;
   }
   .spark svg { width: 100%; height: 100%; display: block; }
-  .pulse-spark { height: 28px; margin-bottom: 0.25rem; flex-shrink: 0; }
+  .pulse-spark {
+    height: 32px;
+    min-height: 32px;
+    margin-bottom: 0.3rem;
+    flex-shrink: 0;
+  }
 
   .hist {
     display: flex;
     align-items: flex-end;
     gap: 1px;
-    height: 36px;
+    height: 44px;
+    min-height: 44px;
     background: var(--panel-2);
     border: 1px solid var(--border);
     padding: 2px;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.28rem;
     flex-shrink: 0;
   }
   .hcol {
@@ -660,34 +704,29 @@
     min-width: 2px;
     max-width: 10px;
     height: 100%;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: help;
   }
   .hcol .buy { background: rgba(2, 192, 118, 0.65); width: 100%; }
   .hcol .sell { background: rgba(246, 70, 93, 0.65); width: 100%; }
 
-  .ladder-block {
-    display: grid;
-    grid-template-rows: auto minmax(80px, 1fr);
-    gap: 0.2rem;
-    min-height: 0;
-    flex: 1;
-  }
-  .dom-wrap {
-    flex: 1;
-    min-height: 72px;
-    overflow: hidden;
+  .depth-block {
+    flex-shrink: 0;
+    min-height: 80px;
+    margin-bottom: 0.28rem;
     border: 1px solid var(--border);
     background: var(--panel-2);
-    margin-bottom: 0.2rem;
+    overflow: hidden;
   }
-  .dom-wrap.slim { max-height: 120px; flex: 0 1 120px; }
 
   .vap-mini {
     flex: 1;
-    min-height: 0;
+    min-height: 72px;
     display: flex;
     flex-direction: column;
   }
-  .flow-col.wide .vap-mini { flex: 0.85; }
   .vap-cols {
     display: grid;
     grid-template-columns: 1fr 0.65fr 1fr 0.6fr;
@@ -709,7 +748,15 @@
     align-items: center;
     gap: 0.15rem;
     padding: 0.02rem 0;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: help;
+    text-align: left;
   }
+  .vrow:hover { background: rgba(240, 185, 11, 0.04); }
   .sell-bar-wrap, .buy-bar-wrap {
     position: relative;
     height: 12px;
@@ -736,7 +783,7 @@
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 0.25rem;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.28rem;
     flex-shrink: 0;
   }
   .metric {
@@ -747,10 +794,11 @@
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 2px;
-    padding: 0.2rem 0.3rem;
+    padding: 0.22rem 0.3rem;
     cursor: pointer;
     color: inherit;
     text-align: left;
+    min-height: 2.4rem;
   }
   .metric:hover { border-color: rgba(240, 185, 11, 0.35); }
   .metric.active {
@@ -775,35 +823,27 @@
 
   .chips {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(6.8rem, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(6.6rem, 1fr));
     gap: 0.22rem;
     flex: 1;
     align-content: start;
     justify-content: stretch;
-    min-height: 0;
+    min-height: 64px;
     overflow: auto;
     padding-bottom: 0.15rem;
-  }
-  .fp-body.both .pulse-col {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .fp-body.both .chips {
-    grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr));
   }
   .chip {
     position: relative;
     display: flex;
     align-items: center;
     gap: 0.3rem;
-    padding: 0.28rem 0.4rem;
+    padding: 0.3rem 0.4rem;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 2px;
     cursor: pointer;
     overflow: hidden;
-    min-height: 1.7rem;
+    min-height: 1.85rem;
   }
   .chip:hover { border-color: var(--vc); }
   .chip.focus {
@@ -866,7 +906,7 @@
   .lt {
     display: grid;
     grid-template-columns: 1fr 1fr 0.45fr;
-    padding: 0.04rem 0;
+    padding: 0.05rem 0;
     color: var(--text-dim, var(--muted));
   }
   .lt.buy { color: var(--bid); }
@@ -878,21 +918,50 @@
     padding: 0.35rem 0;
   }
 
+  .fp-tip {
+    position: fixed;
+    z-index: 80;
+    pointer-events: none;
+    max-width: 22rem;
+    padding: 0.28rem 0.45rem;
+    background: rgba(18, 22, 28, 0.96);
+    border: 1px solid rgba(240, 185, 11, 0.35);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  }
+
   @media (max-width: 1100px) {
-    .fp-body.both {
+    .fp-body {
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      grid-template-rows: minmax(160px, 1.15fr) minmax(100px, 0.85fr);
     }
-    .fp-body.both .alerts-col { grid-column: 1 / -1; max-height: 90px; }
+    .alerts-col {
+      grid-column: 1 / -1;
+      max-height: 110px;
+      border-right: none;
+      border-top: 1px solid var(--border);
+    }
     .pulse-metrics { grid-template-columns: repeat(3, 1fr); }
     .chrome-right .thresh:first-child { display: none; }
   }
   @media (max-width: 720px) {
-    .fp-body.both,
-    .fp-body.flow-only {
+    .fp-body {
       grid-template-columns: 1fr;
+      grid-template-rows: none;
+      overflow: auto;
     }
-    .fp-body.both .alerts-col { grid-column: auto; }
-    .chrome-tabs { display: none; }
+    .col {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      min-height: 180px;
+    }
+    .alerts-col {
+      grid-column: auto;
+      max-height: none;
+      min-height: 120px;
+    }
   }
 </style>

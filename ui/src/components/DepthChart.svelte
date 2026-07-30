@@ -1,7 +1,11 @@
 <script>
-  import { fmtTotal } from '../lib/format.js';
+  import { fmtPrice, fmtTotal } from '../lib/format.js';
 
-  let { book = null, depth = 16 } = $props();
+  let { book = null, depth = 16, interactive = true } = $props();
+
+  let tip = $state(/** @type {string} */ (''));
+  let tipX = $state(0);
+  let tipY = $state(0);
 
   function xPos(px, data) {
     return ((px - data.minPx) / data.span) * 100;
@@ -32,7 +36,7 @@
       const px = Number(l.price);
       const qty = Number(l.quantity) || 0;
       askCum += qty;
-      return { px, cum: askCum };
+      return { px, cum: askCum, qty };
     });
 
     let bidCum = 0;
@@ -40,7 +44,7 @@
       const px = Number(l.price);
       const qty = Number(l.quantity) || 0;
       bidCum += qty;
-      return { px, cum: bidCum };
+      return { px, cum: bidCum, qty };
     });
 
     const maxCum = Math.max(askCum, bidCum, 1e-12);
@@ -49,11 +53,52 @@
     const maxPx = Math.max(...allPx);
     const span = maxPx - minPx || 1;
 
-    return { askPts, bidPts, maxCum, minPx, span };
+    return { askPts, bidPts, maxCum, minPx, maxPx, span };
   });
+
+  /** @param {MouseEvent & { currentTarget: HTMLElement }} e */
+  function onMove(e) {
+    if (!interactive || !chartData) {
+      tip = '';
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const t = Math.min(1, Math.max(0, (e.clientX - rect.left) / Math.max(1, rect.width)));
+    const px = chartData.minPx + t * chartData.span;
+    const mid = (chartData.minPx + chartData.maxPx) / 2;
+    const side = px <= mid ? 'bid' : 'ask';
+    const pts = side === 'bid' ? chartData.bidPts : chartData.askPts;
+    let nearest = pts[0];
+    let best = Infinity;
+    for (const p of pts) {
+      const d = Math.abs(p.px - px);
+      if (d < best) {
+        best = d;
+        nearest = p;
+      }
+    }
+    if (!nearest) {
+      tip = '';
+      return;
+    }
+    tip = `${side.toUpperCase()} ${fmtPrice(nearest.px, 2)} · size ${fmtTotal(nearest.qty)} · cum ${fmtTotal(nearest.cum)}`;
+    tipX = e.clientX + 12;
+    tipY = e.clientY + 12;
+  }
+
+  function onLeave() {
+    tip = '';
+  }
 </script>
 
-<div class="depth-chart" aria-label="Cumulative depth chart">
+<div
+  class="depth-chart"
+  class:interactive
+  aria-label="Cumulative depth chart"
+  role={interactive ? 'img' : undefined}
+  onmousemove={interactive ? onMove : undefined}
+  onmouseleave={interactive ? onLeave : undefined}
+>
   {#if chartData}
     <svg viewBox="0 0 100 100" preserveAspectRatio="none">
       <defs>
@@ -82,13 +127,20 @@
   {/if}
 </div>
 
+{#if tip}
+  <div class="depth-tip" style={`left:${tipX}px;top:${tipY}px`} role="tooltip">{tip}</div>
+{/if}
+
 <style>
   .depth-chart {
     position: relative;
-    height: 72px;
+    height: 80px;
+    min-height: 80px;
     flex-shrink: 0;
-    border-bottom: 1px solid var(--border);
     background: var(--panel-2);
+  }
+  .depth-chart.interactive {
+    cursor: crosshair;
   }
 
   svg {
@@ -123,5 +175,19 @@
     color: var(--muted);
     font-family: var(--mono);
     font-size: 0.62rem;
+  }
+
+  .depth-tip {
+    position: fixed;
+    z-index: 90;
+    pointer-events: none;
+    padding: 0.28rem 0.45rem;
+    background: rgba(18, 22, 28, 0.96);
+    border: 1px solid rgba(240, 185, 11, 0.35);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
   }
 </style>
