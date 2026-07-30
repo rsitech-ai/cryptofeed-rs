@@ -31,7 +31,7 @@ export const DEFAULTS = {
   tapeMinUsd: 0,
   tapeSideFilter: 'all', // all | buy | sell
   tapeAggregatePrints: false,
-  /** Analytics dock section: both | flow | pulse | hidden (`orderflow` accepted as flow). */
+  /** Analytics dock: open (`both`) or `hidden`. Legacy flow|pulse|orderflow map to open. */
   analyticsTab: 'both',
   analyticsOpen: true,
   /** Large trade / sweep highlight threshold (USD notional). */
@@ -179,8 +179,11 @@ function normalizeArrays(urlPatch, base) {
 
 /** @param {unknown} tab */
 function normalizeAnalyticsTab(tab) {
-  if (tab === 'orderflow' || tab === 'flow') return 'flow';
-  if (tab === 'pulse' || tab === 'both' || tab === 'hidden') return tab;
+  if (tab === 'hidden') return 'hidden';
+  // Legacy flow|pulse|orderflow → single open pane
+  if (tab === 'orderflow' || tab === 'flow' || tab === 'pulse' || tab === 'both') {
+    return 'both';
+  }
   return DEFAULTS.analyticsTab;
 }
 
