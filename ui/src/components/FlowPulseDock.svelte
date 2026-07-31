@@ -7,6 +7,7 @@
     tradeNotional,
     volumeAtPrice,
   } from '../lib/orderflow.js';
+  import { spreadBpsFromBook } from '../lib/pulse.js';
 
   let {
     book = null,
@@ -41,6 +42,16 @@
   let cvd = $derived(computeCvd(tape, { windowSec }));
   let vap = $derived(volumeAtPrice(tape, { windowSec, maxBuckets: 24 }));
   let heuristics = $derived(detectFlowHeuristics(tape, book, { largeUsd, windowSec }));
+  let focusSpreadBps = $derived(spreadBpsFromBook(book));
+  let buySharePct = $derived.by(() => {
+    const tot = (cvd.buyUsd || 0) + (cvd.sellUsd || 0);
+    return tot > 0 ? (cvd.buyUsd / tot) * 100 : null;
+  });
+  let focusTpm = $derived.by(() => {
+    const w = Number(windowSec);
+    if (!Number.isFinite(w) || w <= 0) return null;
+    return (cvd.trades / w) * 60;
+  });
 
   let bookVap = $derived.by(() => {
     if (vap.length) return [];
@@ -214,14 +225,36 @@
           <span class="lbl">Imb</span>
           <span class="val accent">{pressure.imbalancePct.toFixed(1)}%</span>
         </div>
+        <div
+          class="stat"
+          role="img"
+          aria-label="Buy share of tape"
+          title="Aggressor buy share of focus tape notional"
+        >
+          <span class="lbl">Buy%</span>
+          <span class="val" class:up={(buySharePct ?? 50) > 55} class:down={(buySharePct ?? 50) < 45}>
+            {buySharePct != null ? buySharePct.toFixed(0) + '%' : '—'}
+          </span>
+        </div>
+        <div
+          class="stat"
+          role="img"
+          aria-label="Focus BBO spread"
+          title="Focus venue BBO spread"
+        >
+          <span class="lbl">Sprd</span>
+          <span class="val">
+            {focusSpreadBps != null ? focusSpreadBps.toFixed(2) + 'b' : '—'}
+          </span>
+        </div>
       </div>
 
       <div
         class="pressure"
         role="img"
         aria-label="Bid ask pressure"
-        onmouseenter={(e) => showTip(e, `Bid ${fmtUsd(pressure.bidUsd)} · Ask ${fmtUsd(pressure.askUsd)}`)}
-        onmousemove={(e) => showTip(e, `Bid ${fmtUsd(pressure.bidUsd)} · Ask ${fmtUsd(pressure.askUsd)}`)}
+        onmouseenter={(e) => showTip(e, `Bid ${fmtUsd(pressure.bidUsd)} · Ask ${fmtUsd(pressure.askUsd)} · ${focusTpm != null ? focusTpm.toFixed(1) + ' tpm' : ''}`)}
+        onmousemove={(e) => showTip(e, `Bid ${fmtUsd(pressure.bidUsd)} · Ask ${fmtUsd(pressure.askUsd)} · ${focusTpm != null ? focusTpm.toFixed(1) + ' tpm' : ''}`)}
         onmouseleave={hideTip}
       >
         <div class="bar">
@@ -230,6 +263,7 @@
         </div>
         <div class="plabels">
           <span class="bid">Bid {fmtUsd(pressure.bidUsd)}</span>
+          <span class="tpm">{focusTpm != null ? focusTpm.toFixed(1) + ' tpm · ' + cvd.trades + ' trx' : cvd.trades + ' trx'}</span>
           <span class="ask">Ask {fmtUsd(pressure.askUsd)}</span>
         </div>
       </div>
@@ -287,7 +321,7 @@
           <span class="val">{pulse?.usdPerMin != null ? fmtUsd(pulse.usdPerMin) : '—'}</span>
         </button>
         <button type="button" class="metric" class:active={metricActive('spread')} onclick={() => onMetricClick('spread')} title="Median spread across live venues">
-          <span class="lbl">Med spread</span>
+          <span class="lbl">Med sprd</span>
           <span class="val">
             {pulse?.medianSpread != null ? pulse.medianSpread.toFixed(2) + 'b' : '—'}
           </span>
@@ -309,16 +343,21 @@
             class:focus={c.venue === focusVenue}
             class:spike={(c.heat || 0) >= spikeThreshold}
             style={`--heat:${Math.round(c.heat)}; --vc:${c.color || 'var(--accent)'}; --heatpct:${Math.max(6, ((c.heat || 0) / maxHeat) * 100)}`}
-            title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m · imb {(c.imbalancePct ?? 0).toFixed?.(1) ?? c.imbalancePct}%"
+            title="{c.venue} · heat {c.heat.toFixed(0)} · {c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · {c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m · imb {(c.imbalancePct ?? 0).toFixed?.(1) ?? c.imbalancePct}% · sprd {c.spreadBps != null ? c.spreadBps.toFixed(2) + 'b' : '—'}"
             onclick={() => onChipClick(c.venue, c.symbol)}
-            onmouseenter={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · ${c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m`)}
-            onmousemove={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · ${c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m`)}
+            onmouseenter={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · ${c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m · imb ${(c.imbalancePct ?? 0).toFixed?.(1) ?? c.imbalancePct}%`)}
+            onmousemove={(e) => showTip(e, `${c.venue} · heat ${c.heat.toFixed(0)} · ${c.tradesPerMin?.toFixed?.(1) ?? '—'} tpm · ${c.usdPerMin != null ? fmtUsd(c.usdPerMin) : '—'}/m · imb ${(c.imbalancePct ?? 0).toFixed?.(1) ?? c.imbalancePct}%`)}
             onmouseleave={hideTip}
           >
             <span class="heat-bar" style={`width:var(--heatpct)%`}></span>
             <span class="vname">{c.venue}</span>
             <span class="vheat">{c.heat.toFixed(0)}</span>
-            <span class="vmeta">{c.tradesPerMin != null ? c.tradesPerMin.toFixed(0) + '/m' : ''}</span>
+            <span class="vmeta">
+              {c.tradesPerMin != null ? c.tradesPerMin.toFixed(0) + '/m' : '—'}
+              {#if c.usdPerMin != null}
+                · {fmtUsd(c.usdPerMin)}
+              {/if}
+            </span>
           </button>
         {:else}
           <div class="empty">waiting for multi-venue tape/books…</div>
@@ -481,12 +520,13 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(240px, 1.1fr) minmax(300px, 1.4fr) minmax(132px, 0.52fr);
+    /* Focus flow primary; heat compact; prints readable */
+    grid-template-columns: minmax(300px, 1.65fr) minmax(200px, 0.95fr) minmax(148px, 0.55fr);
     gap: 0;
     align-items: stretch;
   }
   .fp.compact .fp-body {
-    grid-template-columns: minmax(168px, 0.58fr) minmax(360px, 1.7fr) minmax(140px, 0.58fr);
+    grid-template-columns: minmax(180px, 0.7fr) minmax(280px, 1.45fr) minmax(148px, 0.58fr);
   }
 
   .col {
@@ -521,9 +561,9 @@
 
   .stat-row {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.2rem 0.35rem;
-    margin-bottom: 0.2rem;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 0.16rem 0.28rem;
+    margin-bottom: 0.18rem;
     flex-shrink: 0;
   }
   .stat {
@@ -546,7 +586,7 @@
   }
   .stat .val {
     font-family: var(--mono);
-    font-size: 0.74rem;
+    font-size: 0.7rem;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -565,12 +605,22 @@
   .plabels {
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
+    gap: 0.35rem;
     font-family: var(--mono);
     font-size: 0.5rem;
     margin-top: 0.06rem;
   }
   .plabels .bid { color: var(--bid); }
   .plabels .ask { color: var(--ask); }
+  .plabels .tpm {
+    color: var(--muted);
+    flex: 1;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   .vap-mini {
     flex: 1;
@@ -634,8 +684,8 @@
   .pulse-metrics {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.18rem;
-    margin-bottom: 0.18rem;
+    gap: 0.1rem;
+    margin-bottom: 0.14rem;
     flex-shrink: 0;
   }
   .metric {
@@ -646,11 +696,11 @@
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 2px;
-    padding: 0.16rem 0.22rem;
+    padding: 0.08rem 0.14rem;
     cursor: pointer;
     color: inherit;
     text-align: left;
-    min-height: 2.15rem;
+    min-height: 0;
     min-width: 0;
   }
   .metric:hover { border-color: rgba(240, 185, 11, 0.35); }
@@ -659,34 +709,36 @@
     box-shadow: inset 0 0 0 1px rgba(240, 185, 11, 0.15);
   }
   .metric .lbl {
-    font-size: 0.46rem;
+    font-size: 0.42rem;
     color: var(--muted);
     text-transform: uppercase;
     letter-spacing: 0.03em;
+    line-height: 1.1;
   }
   .metric .val {
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: 0.62rem;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+    line-height: 1.2;
   }
-  .metric .val.big { font-size: 0.95rem; color: var(--accent); }
+  .metric .val.big { font-size: 0.78rem; color: var(--accent); }
   .metric .val.up { color: var(--bid); }
   .metric .val.down { color: var(--ask); }
 
   .chips {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(8.4rem, 1fr));
-    gap: 0.16rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.1rem;
     flex: 1 1 auto;
-    align-content: stretch;
+    align-content: start;
     justify-content: stretch;
     min-height: 0;
     overflow: auto;
-    grid-auto-rows: 1fr;
+    grid-auto-rows: auto;
   }
   .chip {
     position: relative;
@@ -694,14 +746,15 @@
     grid-template-columns: 1fr auto;
     grid-template-rows: auto auto;
     align-content: center;
-    gap: 0 0.25rem;
-    padding: 0.28rem 0.35rem;
+    gap: 0 0.2rem;
+    padding: 0.14rem 0.28rem;
     background: var(--panel-2);
     border: 1px solid var(--border);
     border-radius: 2px;
     cursor: pointer;
     overflow: hidden;
-    min-height: 2.35rem;
+    min-height: 0;
+    height: 2.05rem;
   }
   .chip:hover { border-color: var(--vc); }
   .chip.focus {
@@ -725,7 +778,7 @@
     grid-column: 1;
     grid-row: 1;
     font-family: var(--mono);
-    font-size: 0.6rem;
+    font-size: 0.52rem;
     color: var(--text);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -737,7 +790,7 @@
     grid-row: 1 / span 2;
     align-self: center;
     font-family: var(--mono);
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 700;
     color: var(--accent);
   }
@@ -746,8 +799,11 @@
     grid-column: 1;
     grid-row: 2;
     font-family: var(--mono);
-    font-size: 0.48rem;
+    font-size: 0.44rem;
     color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .alerts-col { background: var(--panel-2); }
@@ -830,9 +886,12 @@
       border-top: 1px solid var(--border);
     }
     .pulse-metrics { grid-template-columns: repeat(5, 1fr); }
-    .stat-row { grid-template-columns: repeat(4, 1fr); }
+    .stat-row { grid-template-columns: repeat(3, 1fr); }
     .chrome-right .thresh:first-child { display: none; }
-    .chips { grid-auto-rows: minmax(1.85rem, auto); }
+    .chips {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-auto-rows: auto;
+    }
   }
   @media (max-width: 720px) {
     .fp-body,
@@ -852,5 +911,6 @@
       min-height: 110px;
     }
     .pulse-metrics { grid-template-columns: repeat(3, 1fr); }
+    .stat-row { grid-template-columns: repeat(3, 1fr); }
   }
 </style>
