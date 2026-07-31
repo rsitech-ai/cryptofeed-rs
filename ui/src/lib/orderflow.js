@@ -413,6 +413,36 @@ export function sparkPath(values, opts = {}) {
     .join(' ');
 }
 
+/**
+ * Time-aligned sparkline: X maps `[fromSec, toSec]` (or data extent) onto width.
+ * @param {Array<{ t: number, v: number }>} points  `t` in seconds
+ * @param {{ w?: number, h?: number, fromSec?: number|null, toSec?: number|null }} [opts]
+ */
+export function sparkPathTimed(points, opts = {}) {
+  const w = opts.w ?? 100;
+  const h = opts.h ?? 28;
+  const rows = (points || []).filter((p) => p && Number.isFinite(p.t) && Number.isFinite(p.v));
+  if (rows.length < 2) return '';
+  const dataFrom = rows[0].t;
+  const dataTo = rows[rows.length - 1].t;
+  const from = opts.fromSec != null && Number.isFinite(opts.fromSec) ? opts.fromSec : dataFrom;
+  const to = opts.toSec != null && Number.isFinite(opts.toSec) ? opts.toSec : dataTo;
+  const tSpan = Math.max(1e-6, to - from);
+  const clipped = rows.filter((p) => p.t >= from - tSpan * 0.02 && p.t <= to + tSpan * 0.02);
+  const use = clipped.length >= 2 ? clipped : rows;
+  const vals = use.map((p) => p.v);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const vSpan = max - min || 1;
+  return use
+    .map((p, i) => {
+      const x = Math.max(0, Math.min(w, ((p.t - from) / tSpan) * w));
+      const y = h - ((p.v - min) / vSpan) * (h - 2) - 1;
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(' ');
+}
+
 /* ── Liquidity heatmap (L2 snapshot reconstruction — not MBO) ─────────── */
 
 /**
