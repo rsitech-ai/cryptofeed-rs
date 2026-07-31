@@ -141,11 +141,24 @@ describe('detectTopMovers', () => {
     const now = dayStart + 3600;
     const candles = mkCandles([
       [dayStart + 10, 100, 105, 99, 104],
+      [now - 120, 104, 106, 103, 105], // prior to last 1m
       [now - 30, 104, 110, 104, 110],
       [now, 110, 110, 110, 110],
     ]);
     const { statuses } = detectTopMovers({ candles, nowSec: now });
     assert.ok(statuses.some((s) => s.id === 'new_24hr_high'));
+  });
+
+  it('does not flag New High/Low on cold-start (<1m of day history)', () => {
+    const dayStart = Math.floor(2_100_000 / 86400) * 86400;
+    const now = dayStart + 30;
+    const candles = mkCandles([
+      [now - 10, 100, 101, 99, 100],
+      [now, 100, 100, 100, 100],
+    ]);
+    const { statuses } = detectTopMovers({ candles, nowSec: now });
+    assert.equal(statuses.some((s) => s.id === 'new_24hr_high'), false);
+    assert.equal(statuses.some((s) => s.id === 'new_24hr_low'), false);
   });
 
   it('flags Pullback after ≥8% day up with close near high', () => {

@@ -299,7 +299,10 @@ export function detectTopMovers(opts = {}) {
   if (!has30d) notes.push('New 30day High/Low need ≥30d candle history — unavailable');
 
   // --- New High / Low -------------------------------------------------------
-  if (last1mHigh != null && dayHigh != null && last1mHigh >= dayHigh) {
+  // Require day history older than the last minute so a cold start (all prints
+  // inside 1m) does not light both New High and New Low simultaneously.
+  const dayHasPrior = dayCandles.some((c) => c.time < nowSec - 60);
+  if (dayHasPrior && last1mHigh != null && dayHigh != null && last1mHigh >= dayHigh) {
     statuses.push({
       id: 'new_24hr_high',
       label: 'New 24hr High',
@@ -313,7 +316,15 @@ export function detectTopMovers(opts = {}) {
   }
   if (has7d) {
     const weekHigh = extremeInRange(candles, nowSec - 7 * 86400, nowSec, 'high');
-    if (last1mHigh != null && weekHigh != null && last1mHigh >= weekHigh) {
+    const weekHasPrior = candles.some(
+      (c) => c.time >= nowSec - 7 * 86400 && c.time < nowSec - 60,
+    );
+    if (
+      weekHasPrior &&
+      last1mHigh != null &&
+      weekHigh != null &&
+      last1mHigh >= weekHigh
+    ) {
       statuses.push({
         id: 'new_7day_high',
         label: 'New 7day High',
@@ -325,7 +336,15 @@ export function detectTopMovers(opts = {}) {
   }
   if (has30d) {
     const monthHigh = extremeInRange(candles, nowSec - 30 * 86400, nowSec, 'high');
-    if (last1mHigh != null && monthHigh != null && last1mHigh >= monthHigh) {
+    const monthHasPrior = candles.some(
+      (c) => c.time >= nowSec - 30 * 86400 && c.time < nowSec - 60,
+    );
+    if (
+      monthHasPrior &&
+      last1mHigh != null &&
+      monthHigh != null &&
+      last1mHigh >= monthHigh
+    ) {
       statuses.push({
         id: 'new_30day_high',
         label: 'New 30day High',
@@ -335,7 +354,7 @@ export function detectTopMovers(opts = {}) {
       });
     }
   }
-  if (last1mLow != null && dayLow != null && last1mLow <= dayLow) {
+  if (dayHasPrior && last1mLow != null && dayLow != null && last1mLow <= dayLow) {
     statuses.push({
       id: 'new_24hr_low',
       label: 'New 24hr Low',
@@ -349,7 +368,10 @@ export function detectTopMovers(opts = {}) {
   }
   if (has7d) {
     const weekLow = extremeInRange(candles, nowSec - 7 * 86400, nowSec, 'low');
-    if (last1mLow != null && weekLow != null && last1mLow <= weekLow) {
+    const weekHasPrior = candles.some(
+      (c) => c.time >= nowSec - 7 * 86400 && c.time < nowSec - 60,
+    );
+    if (weekHasPrior && last1mLow != null && weekLow != null && last1mLow <= weekLow) {
       statuses.push({
         id: 'new_7day_low',
         label: 'New 7day Low',
@@ -361,7 +383,15 @@ export function detectTopMovers(opts = {}) {
   }
   if (has30d) {
     const monthLow = extremeInRange(candles, nowSec - 30 * 86400, nowSec, 'low');
-    if (last1mLow != null && monthLow != null && last1mLow <= monthLow) {
+    const monthHasPrior = candles.some(
+      (c) => c.time >= nowSec - 30 * 86400 && c.time < nowSec - 60,
+    );
+    if (
+      monthHasPrior &&
+      last1mLow != null &&
+      monthLow != null &&
+      last1mLow <= monthLow
+    ) {
       statuses.push({
         id: 'new_30day_low',
         label: 'New 30day Low',
