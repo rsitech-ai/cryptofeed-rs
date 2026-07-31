@@ -13,10 +13,14 @@
   import {
     applyVisibleTimeRange,
     createRangeActivity,
+    visibleTimeRangesNearlyEqual,
     wireChartTimeScales,
   } from '../lib/chartSync.js';
   import { stepHoldSeries } from '../lib/indicatorSeries.js';
   import ChartHoverLegend from './ChartHoverLegend.svelte';
+
+  /** Shared right-scale width so main + BPS plot areas stay aligned. */
+  const PRICE_SCALE_MIN_WIDTH = 72;
 
   let {
     series = [],
@@ -44,6 +48,11 @@
     sessionWindowSec = 300,
     toolbarOnly = false,
     hoverLegend = null,
+    /**
+     * Parent sets true while the user is inspecting (crosshair hover / pointer
+     * down on the plot stack). Freezes live scroll without latched unfollow.
+     */
+    inspecting = false,
     onTimeframe = () => {},
     onChartMode = () => {},
     onPriceMode = () => {},
@@ -62,6 +71,8 @@
     onMainChart = () => {},
     /** Emit [{id, chart, series}] for multi-pane crosshair sync. */
     onCrosshairHandles = () => {},
+    /** Notify parent when follow-live pin changes (Live button / user pan). */
+    onFollowLive = () => {},
   } = $props();
 
   let host = $state(null);
@@ -101,6 +112,14 @@
   let lastVolFullAt = 0;
   let lastBpsFullAt = 0;
   let lastBpsTip = null;
+  /** @type {{ first: number, last: number, fullAt: number }|null} */
+  let lastBpsWindow = null;
+  /** @type {{ from: number, to: number }|null} last wall range pushed onto BPS */
+  let lastBpsVisibleRange = null;
+  /** Wall-clock window captured when inspect freeze starts. */
+  /** @type {{ from: number, to: number }|null} */
+  let frozenVisibleRange = null;
+  let bpsRangeRaf = 0;
   /** Full setData at most this often when only the left edge slides. */
   const FULL_SET_MIN_MS = 12000;
   let tabHidden = false;
@@ -189,7 +208,14 @@
       if (!rangeActivity.isUserDriven()) return;
       // Only unfollow when the user recently panned/zoomed (wheel/drag).
       if (performance.now() > userPanUntil) return;
-      followLive = false;
+      if (followLive) {
+        followLive = false;
+        try {
+          onFollowLive(false);
+        } catch {
+          /* ignore */
+        }
+      }
     };
     timeScale.subscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
     return () => {
@@ -227,14 +253,95 @@
     };
   }
 
+  /** One-way: mirror main wall-clock window onto BPS only when it actually moves. */
+  function syncBpsVisibleRange(force = false) {
+    if (!chart || !bpsChart) return;
+    try {
+      const r = chart.timeScale().getVisibleRange?.();
+      if (!r) return;
+      const from = Number(r.from);
+      const to = Number(r.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+      const next = { from, to };
+      if (!force && visibleTimeRangesNearlyEqual(lastBpsVisibleRange, next)) return;
+      applyVisibleTimeRange([bpsChart], { fromSec: from, toSec: to }, rangeActivity.syncGuard);
+      lastBpsVisibleRange = next;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function scheduleBpsVisibleRangeSync(force = false) {
+    if (force) {
+      if (bpsRangeRaf) {
+        cancelAnimationFrame(bpsRangeRaf);
+        bpsRangeRaf = 0;
+      }
+      syncBpsVisibleRange(true);
+      return;
+    }
+    if (bpsRangeRaf) return;
+    bpsRangeRaf = requestAnimationFrame(() => {
+      bpsRangeRaf = 0;
+      syncBpsVisibleRange(false);
+    });
+  }
+
   function pinToLive() {
     followLive = true;
+    try {
+      onFollowLive(true);
+    } catch {
+      /* ignore */
+    }
     markProgrammatic(250);
     rangeActivity.runProgrammatic(() => {
       chart?.timeScale().scrollToRealTime();
-      bpsChart?.timeScale().scrollToRealTime();
+      // BPS follows via one-way time sync — do not scrollToRealTime on it
+      // (fights setVisibleRange and jitters the plot area left/right).
+      scheduleBpsVisibleRangeSync(true);
     });
   }
+
+  /** Live edge advances only when pinned and not temporarily inspecting. */
+  function shouldFollowLive() {
+    return followLive && !inspecting;
+  }
+
+  function captureFrozenVisibleRange() {
+    if (!chart) return;
+    try {
+      const r = chart.timeScale().getVisibleRange?.();
+      if (!r) return;
+      const from = Number(r.from);
+      const to = Number(r.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+      frozenVisibleRange = { from, to };
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function applyFrozenVisibleRange() {
+    if (!chart || !frozenVisibleRange) return;
+    markProgrammatic(80);
+    rangeActivity.runProgrammatic(() => {
+      applyVisibleTimeRange(
+        [chart, bpsChart].filter(Boolean),
+        { fromSec: frozenVisibleRange.from, toSec: frozenVisibleRange.to },
+        rangeActivity.syncGuard,
+      );
+      lastBpsVisibleRange = { ...frozenVisibleRange };
+    });
+  }
+
+  $effect(() => {
+    if (inspecting) {
+      if (!frozenVisibleRange) captureFrozenVisibleRange();
+    } else if (frozenVisibleRange) {
+      frozenVisibleRange = null;
+    }
+  });
 
   function clearMarkers() {
     if (markersApi) {
@@ -263,6 +370,8 @@
   function destroyCharts() {
     if (chartPaintRaf) cancelAnimationFrame(chartPaintRaf);
     chartPaintRaf = 0;
+    if (bpsRangeRaf) cancelAnimationFrame(bpsRangeRaf);
+    bpsRangeRaf = 0;
     pendingChart = null;
     unwireSync();
     hostPointerDisposer?.();
@@ -274,6 +383,8 @@
     clearMarkers();
     bpsChart?.remove();
     bpsChart = null;
+    lastBpsWindow = null;
+    lastBpsVisibleRange = null;
     if (chart) {
       chart.remove();
       chart = null;
@@ -316,6 +427,7 @@
         borderColor: '#1e2329',
         scaleMargins: { top: 0.08, bottom: showVolume ? 0.28 : 0.08 },
         entireTextOnly: true,
+        minimumWidth: PRICE_SCALE_MIN_WIDTH,
       },
     });
     chartInteractionDisposer = observeUserRange(chart);
@@ -334,11 +446,15 @@
     if (!ready || chartMode !== 'lines' || !showBpsPane) {
       if (bpsChart) {
         unwireSync();
-        bpsInteractionDisposer?.();
-        bpsInteractionDisposer = null;
+        if (bpsRangeRaf) {
+          cancelAnimationFrame(bpsRangeRaf);
+          bpsRangeRaf = 0;
+        }
         bpsChart.remove();
         bpsChart = null;
         bpsLineSeries = null;
+        lastBpsWindow = null;
+        lastBpsVisibleRange = null;
         publishCrosshairHandles();
       }
       return;
@@ -347,15 +463,27 @@
     bpsChart = createChart(bpsHost, {
       ...chartOpts,
       autoSize: true,
+      // Slave pane: fixed scale chrome so auto-scale label width can't shove the plot.
       rightPriceScale: {
         borderColor: '#1e2329',
-        scaleMargins: { top: 0.1, bottom: 0.1 },
+        scaleMargins: { top: 0.12, bottom: 0.12 },
+        entireTextOnly: true,
+        minimumWidth: PRICE_SCALE_MIN_WIDTH,
       },
+      timeScale: {
+        ...chartOpts.timeScale,
+        // Keep ticks, but BPS never drives interaction — main owns the window.
+        rightOffset: 2,
+        barSpacing: 5,
+      },
+      handleScroll: false,
+      handleScale: false,
     });
     bpsLineSeries = bpsChart.addSeries(LineSeries, {
       color: '#f6465d',
       lineWidth: 1,
-      priceFormat: { type: 'custom', formatter: (v) => v.toFixed(2) + ' bps', minMove: 0.01 },
+      // Fixed-width labels (no " bps" suffix) — width thrash was shifting the plot.
+      priceFormat: { type: 'custom', formatter: (v) => Number(v).toFixed(2), minMove: 0.01 },
     });
     // One-way time sync: logical sync desynced BPS wall-clock from Lines when
     // bar densities differed; bidirectional let BPS yank the main plot.
@@ -365,13 +493,11 @@
         bidirectional: false,
       }),
     ];
-    try {
-      bpsChart.applyOptions({ handleScroll: false, handleScale: false });
-    } catch {
-      /* ignore */
-    }
-    bpsInteractionDisposer = observeUserRange(bpsChart);
+    lastBpsVisibleRange = null;
+    // Do NOT observeUserRange on BPS — async LWC callbacks after sync can
+    // latch unfollow on the main chart when the user recently panned.
     publishCrosshairHandles();
+    scheduleBpsVisibleRangeSync(true);
   });
 
   function ensureCandleSeries() {
@@ -638,27 +764,52 @@
           fromSec != null && toSec != null && toSec >= fromSec
             ? stepHoldSeries(sparse, fromSec, toSec)
             : sparse.map((p) => ({ time: p.t, value: p.v }));
+        let didFullSet = false;
         if (!bpsData.length) {
           bpsLineSeries.setData([]);
           lastBpsTip = null;
+          lastBpsWindow = null;
           lastBpsFullAt = performance.now();
+          didFullSet = true;
         } else {
-          bpsLineSeries.setData(bpsData);
-          lastBpsTip = bpsData[bpsData.length - 1].time;
-          lastBpsFullAt = performance.now();
-        }
-        try {
-          const r = chart?.timeScale()?.getVisibleRange?.();
-          if (r) {
-            applyVisibleTimeRange(
-              [bpsChart],
-              { fromSec: Number(r.from), toSec: Number(r.to) },
-              rangeActivity.syncGuard,
+          const prev = lastBpsWindow;
+          const tip = bpsData[bpsData.length - 1];
+          const now = performance.now();
+          const tipOnly =
+            prev &&
+            tip.time === prev.last &&
+            bpsData[0].time === prev.first &&
+            now - prev.fullAt < FULL_SET_MIN_MS;
+          if (tipOnly) {
+            try {
+              bpsLineSeries.update(tip);
+              lastBpsTip = tip.time;
+              lastBpsWindow = { first: prev.first, last: tip.time, fullAt: prev.fullAt };
+            } catch {
+              bpsLineSeries.setData(bpsData);
+              lastBpsTip = tip.time;
+              lastBpsWindow = { first: bpsData[0].time, last: tip.time, fullAt: now };
+              lastBpsFullAt = now;
+              didFullSet = true;
+            }
+          } else {
+            const next = writeSeriesData(bpsLineSeries, bpsData, prev);
+            lastBpsWindow = next;
+            lastBpsTip = tip.time;
+            lastBpsFullAt = next?.fullAt ?? now;
+            // writeSeriesData may have used update — only force-relock after setData.
+            didFullSet = !(
+              prev &&
+              next &&
+              next.fullAt === prev.fullAt &&
+              next.last >= prev.last
             );
           }
-        } catch {
-          /* ignore */
         }
+        // Full setData resets LWC visible range — re-lock once. Tip updates
+        // rely on the one-way subscribe (coalesced) so we don't fight live pin.
+        if (didFullSet) scheduleBpsVisibleRangeSync(true);
+        else scheduleBpsVisibleRangeSync(false);
       }
     }
 
@@ -672,10 +823,15 @@
           // Prefer scrollToRealTime over fitContent — fitContent zooms to full
           // history and fights the live-edge pin as points keep arriving.
           chart?.timeScale().scrollToRealTime();
-          bpsChart?.timeScale().scrollToRealTime();
+          scheduleBpsVisibleRangeSync(true);
         });
       });
-    } else if (followLive) {
+    } else if (inspecting) {
+      // New bars would otherwise slide a fixed logical window forward in wall
+      // time — re-assert the captured wall-clock range every paint.
+      if (!frozenVisibleRange) captureFrozenVisibleRange();
+      applyFrozenVisibleRange();
+    } else if (shouldFollowLive()) {
       // Keep newest bar at the right edge; throttle to cut jank.
       const now = performance.now();
       if (now - lastScrollAt > 250) {
@@ -698,7 +854,8 @@
             /* ignore */
           }
           chart.timeScale().scrollToRealTime();
-          bpsChart?.timeScale().scrollToRealTime();
+          // Main scrolls; BPS mirrors via sync (never scrollToRealTime on BPS).
+          scheduleBpsVisibleRangeSync(false);
         });
       }
     }
@@ -718,6 +875,9 @@
       globalThis.__mfChartDebug = {
         mode,
         followLive,
+        inspecting,
+        shouldFollow: shouldFollowLive(),
+        frozen: frozenVisibleRange,
         dataLast,
         logical,
         visible: visible
@@ -752,6 +912,8 @@
     };
     highlightVenues;
     focusVenue;
+    inspecting;
+    followLive;
     // Background tabs: paint at most ~2 Hz to cut CPU while retaining buffers.
     if (tabHidden) {
       if (!hiddenPollTimer) {

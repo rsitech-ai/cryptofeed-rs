@@ -3,17 +3,25 @@ import assert from 'node:assert/strict';
 import {
   applyVisibleTimeRange,
   createRangeActivity,
+  setVisibleTimeRangeSafe,
+  visibleTimeRangesNearlyEqual,
   wireChartTimeScales,
   wireVisibleLogicalRangeSync,
   wireVisibleTimeRangeSync,
 } from './chartSync.js';
 
-function fakeChart(kind = 'logical') {
+function fakeChart(kind = 'logical', initialVisible = null) {
   /** @type {Array<(range: any) => void>} */
   let handlers = [];
+  let visible = initialVisible;
   const scale = {
-    setVisibleLogicalRange: mock.fn(),
-    setVisibleRange: mock.fn(),
+    setVisibleLogicalRange: mock.fn((range) => {
+      visible = range;
+    }),
+    setVisibleRange: mock.fn((range) => {
+      visible = range;
+    }),
+    getVisibleRange: mock.fn(() => visible),
     subscribeVisibleLogicalRangeChange: mock.fn((next) => {
       if (kind === 'logical') handlers.push(next);
     }),
@@ -36,6 +44,27 @@ function fakeChart(kind = 'logical') {
     },
   };
 }
+
+describe('visibleTimeRangesNearlyEqual', () => {
+  it('tolerates small float noise and rejects real moves', () => {
+    assert.equal(
+      visibleTimeRangesNearlyEqual({ from: 100, to: 200 }, { from: 100.01, to: 200.02 }, 0.05),
+      true,
+    );
+    assert.equal(
+      visibleTimeRangesNearlyEqual({ from: 100, to: 200 }, { from: 101, to: 201 }, 0.05),
+      false,
+    );
+  });
+});
+
+describe('setVisibleTimeRangeSafe', () => {
+  it('skips setVisibleRange when the scale already shows the window', () => {
+    const target = fakeChart('time', { from: 10, to: 40 });
+    assert.equal(setVisibleTimeRangeSafe(target.scale, 10.01, 40.02), true);
+    assert.equal(target.scale.setVisibleRange.mock.callCount(), 0);
+  });
+});
 
 describe('wireVisibleLogicalRangeSync', () => {
   it('mirrors logical ranges and stops touching the target after disposal', () => {
@@ -82,6 +111,15 @@ describe('wireVisibleTimeRangeSync', () => {
     assert.equal(target.scale.setVisibleRange.mock.callCount(), 1);
   });
 
+  it('suppresses redundant near-identical ranges', () => {
+    const source = fakeChart('time');
+    const target = fakeChart('time');
+    wireVisibleTimeRangeSync(source.chart, target.chart, { active: false });
+    source.emit({ from: 100, to: 200 });
+    source.emit({ from: 100.01, to: 200.01 });
+    assert.equal(target.scale.setVisibleRange.mock.callCount(), 1);
+  });
+
   it('skips invalid ranges', () => {
     const source = fakeChart('time');
     const target = fakeChart('time');
@@ -122,6 +160,12 @@ describe('applyVisibleTimeRange', () => {
     applyVisibleTimeRange([a.chart, b.chart], { fromSec: 10, toSec: 40 });
     assert.deepEqual(a.scale.setVisibleRange.mock.calls[0].arguments, [{ from: 10, to: 40 }]);
     assert.deepEqual(b.scale.setVisibleRange.mock.calls[0].arguments, [{ from: 10, to: 40 }]);
+  });
+
+  it('does not re-apply when charts already show the window', () => {
+    const a = fakeChart('time', { from: 10, to: 40 });
+    applyVisibleTimeRange([a.chart], { fromSec: 10, toSec: 40 });
+    assert.equal(a.scale.setVisibleRange.mock.callCount(), 0);
   });
 });
 
