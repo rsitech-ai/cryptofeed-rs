@@ -152,6 +152,13 @@ Poll endpoints remain available for clients that do not use SSE.
 - **Flow & Pulse** bottom dock (single fixed panel — no Flow/Both/Pulse tabs):
   focus-instrument CVD / pressure / (tape VAP when not in Order Flow) + multi-venue
   pulse heat chips + large-print flags in one Binance/Bookmap-style bar.
+  **Top Movers** (Binance Spot FAQ statuses) live in Focus Flow: Rise/Fall
+  Small/Mid/High (5m & 2h), New 24hr High/Low, Pullback/Rally, Price±High Vol,
+  Large Buy/Sell — formulas match
+  [Understanding Top Movers Statuses](https://www.binance.com/en/support/faq/detail/18c97e8ab67a4e1b824edd590cae9f16).
+  Honest coverage: SPA retains ~`historySecs` (≤2h), so 7d/30d extremes and the
+  full 24×15m / 120h Large-order baselines are marked `partial` until history
+  exists; we do not invent missing bars. Math: `ui/src/lib/topMovers.js`.
   **Dedup rules:** header owns last/vol/trades/cross-Δ; Order Book owns cumulative
   depth (hidden in Order Flow — DOM owns resting size); Order Flow chart owns VAP
   sidebar + CVD strip + DOM — dock then shows a compact CVD/Imb summary only
@@ -192,7 +199,7 @@ With a live daemon on the view bind:
 BASE=http://127.0.0.1:19109 ./scripts/live_ui_smoke.sh
 ```
 
-SPA unit tests (CVD / VAP / imbalance / pulse math + 1h soak caps):
+SPA unit tests (CVD / VAP / imbalance / pulse / Top Movers math + 1h soak caps):
 
 ```bash
 cd ui && npm test
