@@ -1,5 +1,6 @@
 <script>
   import { fmtPrice, fmtQty, fmtUsd, fmtTsUtcLabel } from '../lib/format.js';
+  import { TAPE_DOM_MAX } from '../lib/history.js';
 
   let {
     tape = [],
@@ -36,7 +37,6 @@
         const key = `${e.aggressor || 'x'}|${px}`;
         const cur = m.get(key);
         const qty = Number(e.quantity) || 0;
-        const price = Number(e.price) || 0;
         if (cur) {
           cur.quantity = (Number(cur.quantity) || 0) + qty;
           cur._count = (cur._count || 1) + 1;
@@ -48,7 +48,7 @@
       rows = [...m.values()];
     }
 
-    return rows.slice(0, 120);
+    return rows.slice(0, TAPE_DOM_MAX);
   });
 
   function rowKey(e) {

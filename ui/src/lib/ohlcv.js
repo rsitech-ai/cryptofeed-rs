@@ -130,13 +130,13 @@ export class CandleBuilder {
       trimTimeMap(this.buckets, cutoff);
       this._trades = this._trades.filter((t) => t.sec >= cutoff);
     }
-    // ~15 trades/sec budget across historySecs; hard cap for bursty focus venues.
-    const maxRaw = Math.min(80000, Math.max(12000, Math.floor(this.historySecs * 15)));
+    // ~8 trades/sec budget across historySecs; hard cap for bursty focus venues.
+    const maxRaw = Math.min(12000, Math.max(4000, Math.floor(this.historySecs * 4)));
     if (this._trades.length > maxRaw) {
       this._trades = this._trades.slice(-maxRaw);
     }
-    if (this.seen.size > 40000) {
-      this.seen = new Set([...this.seen].slice(-20000));
+    if (this.seen.size > 16000) {
+      this.seen = new Set([...this.seen].slice(-8000));
     }
   }
 

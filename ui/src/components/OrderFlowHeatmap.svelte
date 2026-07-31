@@ -133,6 +133,7 @@
   let localViewSec = $state(/** @type {number|null} */ (null));
 
   const gate = createPaintGate(() => paint(), { minIntervalMs: 110 });
+  let tabHidden = false;
 
   let zoomFactor = $derived(clampPriceZoom(localPriceZoom ?? priceZoom, 1));
   let viewSec = $derived(clampViewSec(localViewSec ?? windowSec, 300));
@@ -1089,9 +1090,14 @@
   }
 
   $effect(() => {
+    const tipId =
+      tape?.[0]?.trade_id ??
+      tape?.[0]?.receive_ts_ns ??
+      tape?.length ??
+      0;
     const key = [
       depthHistory.length,
-      tape.length,
+      tipId,
       viewSec,
       zoomFactor,
       followLive,
@@ -1115,17 +1121,27 @@
     ofBubbleMinUsd;
     ofLayers;
     if (key !== lastPaintKey) lastPaintKey = key;
+    if (tabHidden) return;
     gate.schedule();
   });
 
   onMount(() => {
+    const onVis = () => {
+      tabHidden = document.visibilityState === 'hidden';
+      if (!tabHidden) gate.schedule();
+    };
+    onVis();
+    document.addEventListener('visibilitychange', onVis);
     gate.schedule();
-    ro = new ResizeObserver(() => gate.schedule());
+    ro = new ResizeObserver(() => {
+      if (!tabHidden) gate.schedule();
+    });
     if (wrap) ro.observe(wrap);
     const el = canvas;
     const onWheelNative = (e) => onWheel(e);
     el?.addEventListener('wheel', onWheelNative, { passive: false });
     return () => {
+      document.removeEventListener('visibilitychange', onVis);
       gate.dispose();
       ro?.disconnect();
       el?.removeEventListener('wheel', onWheelNative);

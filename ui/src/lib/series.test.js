@@ -58,3 +58,43 @@ test('tracker retains ~1h buckets while session snapshot clips view', () => {
   // Full buffer still present after view clip
   assert.ok(st.buckets.has(tip - 3500));
 });
+
+test('1h session snapshot display-downsamples to chart budget', () => {
+  const tr = new MultiVenueTracker(1, 3600);
+  tr.syncTargets([{ venue: 'binance-spot', symbol: 'BTCUSDT', live: true }]);
+  const tip = 200_000;
+  for (let t = tip - 3600; t <= tip; t += 1) {
+    tr.touch('binance-spot', 100 + (t % 9) * 0.01, t);
+  }
+  const view = tr.snapshot('absolute', { windowSec: 3600 });
+  const row = view.series[0];
+  assert.ok(row.data.length <= 900, `display pts ${row.data.length}`);
+  assert.equal(row.data[row.data.length - 1].time, tip);
+  assert.equal(row.last, row.data[row.data.length - 1].value);
+});
+
+test('venue samples downsample under sustained quote/trade flood', () => {
+  const tr = new MultiVenueTracker(1, 3600);
+  tr.syncTargets([{ venue: 'v', symbol: 'BTCUSDT', live: true }]);
+  const tip = 300_000;
+  // Flood with unique trade_ids (simulates hours of prints)
+  for (let i = 0; i < 20000; i++) {
+    const sec = tip - 20000 + i;
+    tr.ingest('v', [
+      {
+        kind: 'trade',
+        venue: 'v',
+        trade_id: `id-${i}`,
+        price: String(100 + (i % 11) * 0.01),
+        quantity: '0.01',
+        exchange_ts_ns: sec * 1e9,
+        receive_ts_ns: sec * 1e9,
+        aggressor: 'buy',
+      },
+    ]);
+  }
+  const st = tr.venues.get('v');
+  assert.ok(st.samples.length <= 8000, `samples ${st.samples.length}`);
+  assert.ok(st.buckets.size <= 4200, `buckets ${st.buckets.size}`);
+  assert.ok(st.seen.size <= 12000, `seen ${st.seen.size}`);
+});

@@ -82,10 +82,17 @@
   let chartPaintRaf = 0;
   /** @type {object|null} pending chart payload for coalesced paint */
   let pendingChart = null;
-  /** @type {Map<string, { first: number, last: number }>} painted window tip per venue */
+  /** @type {Map<string, { first: number, last: number, fullAt: number }>} painted window tip per venue */
   let lastLineWindow = new Map();
-  /** @type {{ first: number, last: number }|null} */
+  /** @type {{ first: number, last: number, fullAt: number }|null} */
   let lastCandleWindow = null;
+  let lastVolFullAt = 0;
+  let lastBpsFullAt = 0;
+  let lastBpsTip = null;
+  /** Full setData at most this often when only the left edge slides. */
+  const FULL_SET_MIN_MS = 12000;
+  let tabHidden = false;
+  let hiddenPollTimer = 0;
 
   const chartOpts = {
     layout: {
@@ -173,10 +180,17 @@
   }
 
   onMount(() => {
+    const onVis = () => {
+      tabHidden = document.visibilityState === 'hidden';
+    };
+    onVis();
+    document.addEventListener('visibilitychange', onVis);
     return () => {
+      document.removeEventListener('visibilitychange', onVis);
       ready = false;
       if (chartPaintRaf) cancelAnimationFrame(chartPaintRaf);
       chartPaintRaf = 0;
+      if (hiddenPollTimer) clearTimeout(hiddenPollTimer);
       destroyCharts();
     };
   });
@@ -337,7 +351,57 @@
       chart.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.28 } } });
       volMarginsOn = true;
     }
-    volumeSeries.setData(bars || []);
+    const list = bars || [];
+    if (!list.length) {
+      volumeSeries.setData([]);
+      lastVolFullAt = performance.now();
+      return;
+    }
+    const now = performance.now();
+    const tip = list[list.length - 1];
+    // Prefer update when tip advances; full replace on a throttle for trim.
+    if (now - lastVolFullAt > FULL_SET_MIN_MS) {
+      volumeSeries.setData(list);
+      lastVolFullAt = now;
+    } else {
+      try {
+        volumeSeries.update(tip);
+      } catch {
+        volumeSeries.setData(list);
+        lastVolFullAt = now;
+      }
+    }
+  }
+
+  /**
+   * Incremental chart write: update tip when possible; throttle full setData
+   * so sliding session windows don't rewrite thousands of points every second.
+   * @param {any} seriesApi
+   * @param {Array<{time:number}>} data
+   * @param {{ first: number, last: number, fullAt: number }|null|undefined} prev
+   * @returns {{ first: number, last: number, fullAt: number }|null}
+   */
+  function writeSeriesData(seriesApi, data, prev) {
+    if (!data.length) {
+      seriesApi.setData([]);
+      return null;
+    }
+    const first = data[0].time;
+    const last = data[data.length - 1];
+    const now = performance.now();
+    const tipAdvanced = prev && last.time >= prev.last;
+    const leftStable = prev && prev.first === first;
+    const recentFull = prev && now - prev.fullAt < FULL_SET_MIN_MS;
+    if (tipAdvanced && (leftStable || recentFull)) {
+      try {
+        seriesApi.update(last);
+        return { first: prev.first, last: last.time, fullAt: prev.fullAt };
+      } catch {
+        /* fall through to setData */
+      }
+    }
+    seriesApi.setData(data);
+    return { first, last: last.time, fullAt: now };
   }
 
   function setHighlight(primarySeries, sec) {
@@ -392,20 +456,7 @@
           }))
         : [];
       if (mapped.length) {
-        const first = mapped[0].time;
-        const last = mapped[mapped.length - 1].time;
-        const prev = lastCandleWindow;
-        // update() only when left edge stable (window not sliding) and tip advances.
-        if (prev && prev.first === first && last >= prev.last) {
-          try {
-            candleSeries.update(mapped[mapped.length - 1]);
-          } catch {
-            candleSeries.setData(mapped);
-          }
-        } else {
-          candleSeries.setData(mapped);
-        }
-        lastCandleWindow = { first, last };
+        lastCandleWindow = writeSeriesData(candleSeries, mapped, lastCandleWindow);
       } else {
         candleSeries.setData([]);
         lastCandleWindow = null;
@@ -457,19 +508,9 @@
           s.setData([]);
           lastLineWindow.delete(row.venue);
         } else {
-          const first = data[0].time;
-          const last = data[data.length - 1];
-          const prev = lastLineWindow.get(row.venue);
-          if (prev && prev.first === first && last.time >= prev.last) {
-            try {
-              s.update(last);
-            } catch {
-              s.setData(data);
-            }
-          } else {
-            s.setData(data);
-          }
-          lastLineWindow.set(row.venue, { first, last: last.time });
+          const next = writeSeriesData(s, data, lastLineWindow.get(row.venue));
+          if (next) lastLineWindow.set(row.venue, next);
+          else lastLineWindow.delete(row.venue);
         }
         if (!primary && data.length && !row.hidden) primary = s;
         if (row.venue === focusVenue && data.length) primary = s;
@@ -484,7 +525,33 @@
       setHighlight(primary, hl);
 
       if (bpsLineSeries && bpsChart) {
-        bpsLineSeries.setData((bps || []).map((p) => ({ time: p.time, value: p.bps })));
+        const bpsData = (bps || []).map((p) => ({ time: p.time, value: p.bps }));
+        if (!bpsData.length) {
+          bpsLineSeries.setData([]);
+          lastBpsTip = null;
+          lastBpsFullAt = performance.now();
+        } else {
+          const tip = bpsData[bpsData.length - 1];
+          const now = performance.now();
+          if (
+            lastBpsTip != null &&
+            tip.time >= lastBpsTip &&
+            now - lastBpsFullAt < FULL_SET_MIN_MS
+          ) {
+            try {
+              bpsLineSeries.update(tip);
+              lastBpsTip = tip.time;
+            } catch {
+              bpsLineSeries.setData(bpsData);
+              lastBpsTip = tip.time;
+              lastBpsFullAt = now;
+            }
+          } else {
+            bpsLineSeries.setData(bpsData);
+            lastBpsTip = tip.time;
+            lastBpsFullAt = now;
+          }
+        }
       }
     }
 
@@ -556,6 +623,16 @@
     };
     highlightVenues;
     focusVenue;
+    // Background tabs: paint at most ~2 Hz to cut CPU while retaining buffers.
+    if (tabHidden) {
+      if (!hiddenPollTimer) {
+        hiddenPollTimer = setTimeout(() => {
+          hiddenPollTimer = 0;
+          paintChart();
+        }, 500);
+      }
+      return;
+    }
     if (!chartPaintRaf) {
       chartPaintRaf = requestAnimationFrame(() => {
         chartPaintRaf = 0;
