@@ -1,12 +1,34 @@
 <script>
+  import { ALERT_AUTO_DISMISS_MS, ALERT_VISIBLE_MAX } from '../lib/alerts.js';
+
   let {
     alerts = [],
     onDismiss = () => {},
+    autoDismissMs = ALERT_AUTO_DISMISS_MS,
+    maxVisible = ALERT_VISIBLE_MAX,
   } = $props();
+
+  let visible = $derived(
+    (alerts || []).filter((a) => !a.dismissed).slice(-maxVisible),
+  );
+
+  // Auto-dismiss each visible toast after ~5s from creation; X still works.
+  $effect(() => {
+    const timers = [];
+    const now = Date.now();
+    for (const a of visible) {
+      const age = now - (Number(a.ts) || now);
+      const remaining = Math.max(0, autoDismissMs - age);
+      timers.push(setTimeout(() => onDismiss(a.id), remaining));
+    }
+    return () => {
+      for (const t of timers) clearTimeout(t);
+    };
+  });
 </script>
 
 <div class="toasts" aria-live="polite">
-  {#each alerts.filter((a) => !a.dismissed).slice(-5) as a (a.id)}
+  {#each visible as a (a.id)}
     <div class="toast" class:bps={a.kind === 'bps'} class:lag={a.kind === 'lag'}>
       <div class="body">
         <strong>{a.title}</strong>
@@ -41,6 +63,7 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     pointer-events: auto;
     font-size: 0.72rem;
+    animation: toast-in 0.18s ease-out;
   }
 
   .toast.bps {
@@ -78,5 +101,20 @@
     font-size: 1rem;
     line-height: 1;
     padding: 0;
+  }
+
+  .x:hover {
+    color: var(--text);
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(0.4rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
   }
 </style>

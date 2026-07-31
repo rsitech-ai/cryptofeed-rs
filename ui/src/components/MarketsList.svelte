@@ -197,6 +197,17 @@
     if (r.asset !== selectedAsset) return null;
     return quoteMap.get(r.venue) || null;
   }
+
+  /** Hover details for market / venue rows. */
+  function rowHoverTitle(r, q) {
+    const parts = [r.venue, r.symbol, kindLabel(r.kind), r.live ? 'live' : 'offline'];
+    if (q?.last != null) parts.push(`last ${fmtPrice(q.last, 2)}`);
+    if (q?.pct != null) parts.push(fmtPct(q.pct, 2));
+    const badges = qualityMap.get(r.venue + '|' + r.symbol)?.badges;
+    if (badges?.length) parts.push(badges.join(','));
+    if (r.asset === selectedAsset) parts.push(`watching ${selectedAsset}`);
+    return parts.join(' · ');
+  }
 </script>
 
 <section class="markets">
@@ -277,6 +288,7 @@
             class:active={r.venue === selectedVenue && r.symbol === selectedSymbol}
             class:asset-match={r.asset === selectedAsset}
             onclick={() => onRowClick(r)}
+            title={rowHoverTitle(r, q)}
           >
             <span class="sym" title={r.symbol}>
               {#if groupMode === 'asset'}

@@ -687,7 +687,8 @@
   }
 
   function dismissAlert(id) {
-    alerts = alerts.map((a) => (a.id === id ? { ...a, dismissed: true } : a));
+    // Hard-remove so auto-dismissed toasts do not pile up under ALERTS_MAX.
+    alerts = alerts.filter((a) => a.id !== id);
   }
 
   function ensureFocusVenue() {
