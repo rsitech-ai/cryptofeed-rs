@@ -15,9 +15,9 @@
     windowSec = 300,
     largeUsd = 25000,
     /**
-     * When false (Order Flow chart mode), skip full VAP —
-     * the heatmap already owns VAP sidebar. Dock keeps CVD/Imb metrics + chips.
-     * Sparks / buy-sell hist live under the main chart (ChartAnalyticsStrip).
+     * When false (Order Flow chart mode), skip full VAP — the heatmap already
+     * owns VAP. Sparks / buy-sell hist live under the main chart as LWC panes
+     * (ChartAnalyticsStrip); dock stays free of duplicate plots.
      */
     showTapeProfile = true,
     pulse = null,
