@@ -34,12 +34,42 @@ ui_tape_max_per_sec = 50
 When `ui_bind` is unset but `ui-api`/`ui` is compiled in, `/v1/*` (and SPA) are
 served on `telemetry.bind` alongside `/live` `/ready` `/metrics`.
 
+## How to run (live market panel)
+
+One-shot helper for macOS/zsh (builds `--features ui` if needed, creates a
+local config under `.local/live-ui/` from the checked-in example):
+
+```bash
+./scripts/run_live_ui.sh
+# open http://127.0.0.1:19109/?asset=BTC&mode=lines&dock=1
+# Ctrl+C to stop
+```
+
+Useful flags:
+
+```bash
+./scripts/run_live_ui.sh --help
+./scripts/run_live_ui.sh --rebuild          # always cargo build --features ui
+./scripts/run_live_ui.sh --force            # kill stale listeners on 19108/19109
+./scripts/run_live_ui.sh --background       # detach; pid/log under .local/live-ui/
+```
+
+Config preference: `.local/live-ui/config.live.ui.toml` if present; otherwise
+copied from [`crates/daemon/config.live.ui.example.toml`](../../crates/daemon/config.live.ui.example.toml)
+(bind `19108`, `ui_bind` `19109`, `ui_static_dir = "./ui/dist"`). No secrets —
+public venues only. Edit the local copy freely (`.local/` is gitignored).
+
 ## Build & run
 
 ```bash
 # Daemon with embedded UI (serves checked-in ui/dist; Node not required)
 cargo run --locked -p marketfeed-daemon --features ui -- run --config crates/daemon/config.offline.toml
 # open http://127.0.0.1:19109/
+
+# Live multi-venue panel (same as run_live_ui.sh without the helper)
+cargo build --locked -p marketfeed-daemon --features ui
+./target/debug/marketfeed run --config crates/daemon/config.live.ui.example.toml
+# or: .local/live-ui/config.live.ui.toml after the helper has created it
 
 # API-only (no SPA embed)
 cargo run --locked -p marketfeed-daemon --features ui-api -- run --config crates/daemon/config.offline.toml

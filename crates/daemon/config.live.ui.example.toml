@@ -1,0 +1,143 @@
+# Example live multi-venue + market panel UI config.
+# Copied to `.local/live-ui/config.live.ui.toml` by `scripts/run_live_ui.sh` when missing.
+#
+# Public venues only — no secrets. Recording disabled for interactive sessions.
+# Edit the local copy freely; it is gitignored under `.local/`.
+#
+# L2 policy (honest):
+# - Keep L2 on binance-spot majors only (SPA depth focus).
+# - Other venues: trades+quote/ticker for multi-venue lines + volume.
+# - Bybit subscribe args are chunked ≤10 (spot rejects larger batches).
+# - Binance USD-M/Coin-M use @trade (fstream/dstream @aggTrade is silent).
+
+[engine]
+runtime_profile = "portable"
+shutdown_deadline_secs = 20
+
+[telemetry]
+log_format = "json"
+log_level = "info"
+bind = "127.0.0.1:19108"
+ui_bind = "127.0.0.1:19109"
+ui_tape_capacity = 1024
+ui_tape_max_per_sec = 200
+ui_static_dir = "./ui/dist"
+# Optional Grafana deep-link for the SPA status bar.
+# grafana_base_url = "http://127.0.0.1:3000"
+
+[readiness]
+require_running = true
+require_required_venues = true
+min_live_sessions = 1
+require_recording_healthy = false
+
+[recording.raw]
+enabled = false
+directory = "./.local/live-ui/raw"
+segment_size = "256MiB"
+segment_duration = "15m"
+queue_capacity = 8192
+overflow = "fail_engine"
+min_free_space = "0"
+
+
+[[venues]]
+id = "binance-spot"
+adapter = "binance"
+segment = "spot"
+required = false
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"]
+channels = ["trades", "quote", "l2"]
+
+[[venues]]
+id = "binance-usdm"
+adapter = "binance"
+segment = "usdm"
+required = false
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT"]
+channels = ["trades", "quote", "funding"]
+
+[[venues]]
+id = "binance-coinm"
+adapter = "binance"
+segment = "coinm"
+required = false
+symbols = ["BTCUSD_PERP", "ETHUSD_PERP", "SOLUSD_PERP", "XRPUSD_PERP", "BNBUSD_PERP"]
+channels = ["trades", "mark", "funding"]
+
+[[venues]]
+id = "okx-spot"
+adapter = "okx"
+segment = "spot"
+required = false
+symbols = ["BTC-USDT", "ETH-USDT", "SOL-USDT", "XRP-USDT", "BNB-USDT"]
+channels = ["trades", "ticker"]
+
+[[venues]]
+id = "okx-swap"
+adapter = "okx"
+segment = "swap"
+required = false
+symbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", "XRP-USDT-SWAP", "BNB-USDT-SWAP"]
+channels = ["trades", "ticker", "funding"]
+
+[[venues]]
+id = "bybit-linear"
+adapter = "bybit"
+segment = "linear"
+required = false
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "bybit-spot"
+adapter = "bybit"
+segment = "spot"
+required = false
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "kraken-spot"
+adapter = "kraken"
+segment = "spot"
+required = false
+symbols = ["BTC/USD", "ETH/USD", "SOL/USD", "XRP/USD", "BNB/USD"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "deribit"
+adapter = "deribit"
+required = false
+symbols = ["BTC-PERPETUAL", "ETH-PERPETUAL"]
+channels = ["trades", "ticker", "mark"]
+
+[[venues]]
+id = "bitstamp"
+adapter = "bitstamp"
+required = false
+symbols = ["btcusd", "ethusd"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "gemini"
+adapter = "gemini"
+required = false
+symbols = ["BTCUSD", "ETHUSD", "SOLUSD", "XRPUSD", "BNBUSD"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "coinbase-spot"
+adapter = "coinbase"
+segment = "spot"
+required = false
+symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "BNB-USD"]
+channels = ["trades", "quote"]
+
+[[venues]]
+id = "bitfinex"
+adapter = "bitfinex"
+segment = "spot"
+required = false
+symbols = ["tBTCUSD", "tETHUSD", "tSOLUSD", "tXRPUSD"]
+channels = ["trades", "quote"]
