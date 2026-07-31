@@ -51,6 +51,8 @@
     onAlertBps = () => {},
     onWebhook = () => {},
     onVisibleTimeRange = () => {},
+    /** Notify parent when the main LWC chart is created/destroyed (for pane sync). */
+    onMainChart = () => {},
   } = $props();
 
   let host = $state(null);
@@ -225,8 +227,15 @@
     clearMarkers();
     bpsChart?.remove();
     bpsChart = null;
-    chart?.remove();
-    chart = null;
+    if (chart) {
+      chart.remove();
+      chart = null;
+      try {
+        onMainChart(null);
+      } catch {
+        /* ignore */
+      }
+    }
     lineSeries.clear();
     lastLineWindow.clear();
     lastCandleWindow = null;
@@ -261,6 +270,11 @@
     hostPointerDisposer = wireHostPanGestures(host);
     followLive = true;
     ready = true;
+    try {
+      onMainChart(chart);
+    } catch {
+      /* ignore */
+    }
   });
 
   $effect(() => {

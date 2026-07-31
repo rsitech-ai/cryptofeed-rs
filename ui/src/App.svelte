@@ -145,6 +145,8 @@
   let pulseHistory = $state([]);
   /** Visible plot time window from Lines/Candles (unix sec); null → session/OF window. */
   let chartVisibleRange = $state(/** @type {{ fromSec: number, toSec: number }|null} */ (null));
+  /** Main LWC chart handle for under-chart pane time-scale sync (null in OF). */
+  let mainPriceChart = $state(/** @type {any} */ (null));
   let pulseAlertActive = $state(false);
   let lastPulseAlertAt = 0;
   let pulseMetricFilter = $state('');
@@ -866,6 +868,7 @@
       patch.analyticsTab = 'both';
       patch.analyticsOpen = true;
       chartVisibleRange = null;
+      mainPriceChart = null;
     }
     persist(patch);
     // Re-project views from retained buffers (no re-fetch from zero).
@@ -1439,6 +1442,9 @@
             chartVisibleRange = r;
           }
         }}
+        onMainChart={(c) => {
+          mainPriceChart = c;
+        }}
       />
       {#if chartMode === 'orderflow'}
         <div class="of-chart-stack">
@@ -1480,6 +1486,7 @@
         visibleRange={stripVisibleRange}
         spikeThreshold={pulseSpikeThreshold}
         showVolumeHist={true}
+        mainChart={chartMode === 'orderflow' ? null : mainPriceChart}
       />
     </section>
 
