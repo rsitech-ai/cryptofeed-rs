@@ -14,6 +14,7 @@
     createRangeActivity,
     wireChartTimeScales,
   } from '../lib/chartSync.js';
+  import { stepHoldSeries, tapeTipSec } from '../lib/indicatorSeries.js';
   import { fmtUsd } from '../lib/format.js';
 
   let {
@@ -75,12 +76,14 @@
   let lastVolFullAt = 0;
   let lastAppliedRangeKey = '';
 
+  // Panes are slaves of the main chart: no independent pan/zoom.
   const paneOpts = {
     layout: {
       background: { type: ColorType.Solid, color: '#12161c' },
       textColor: '#848e9c',
       fontSize: 10,
       fontFamily: 'IBM Plex Mono, SF Mono, Menlo, Consolas, monospace',
+      attributionLogo: false,
     },
     grid: {
       vertLines: { color: '#1a1f27' },
@@ -103,9 +106,21 @@
       rightOffset: 2,
       barSpacing: 5,
     },
-    handleScroll: { mouseWheel: true, pressedMouseMove: true },
-    handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+    handleScroll: false,
+    handleScale: false,
   };
+
+  function tipSec() {
+    const fromTape = tapeTipSec(tape);
+    if (fromTape != null) return fromTape;
+    if (
+      visibleRange &&
+      Number.isFinite(visibleRange.toSec)
+    ) {
+      return Math.floor(visibleRange.toSec);
+    }
+    return Math.floor(Date.now() / 1000);
+  }
 
   function rangeBounds() {
     if (
@@ -116,22 +131,27 @@
     ) {
       return { fromSec: visibleRange.fromSec, toSec: visibleRange.toSec };
     }
-    const toSec = Math.floor(Date.now() / 1000);
+    const toSec = tipSec();
     return { fromSec: toSec - Math.max(1, Number(windowSec) || 300), toSec };
   }
 
   /**
-   * Series retention window — wide enough that pan/zoom still has bars under
-   * the viewport. Visible window is applied separately via time-scale sync.
+   * Live-anchored retention on the exchange tip clock so pan/zoom still has
+   * bars. Visible window is applied separately via one-way time-scale sync.
    */
   function dataBounds() {
+    const end = tipSec();
     const vis = rangeBounds();
-    const span = Math.max(1, Number(windowSec) || 300, vis.toSec - vis.fromSec);
-    return { fromSec: vis.toSec - span, toSec: vis.toSec };
+    const span = Math.max(
+      1,
+      Number(windowSec) || 300,
+      vis.toSec - vis.fromSec,
+      end - vis.fromSec,
+    );
+    return { fromSec: end - span, toSec: end };
   }
 
   /**
-   * Incremental write matching PriceChart #20 discipline.
    * @param {any} seriesApi
    * @param {Array<{time:number,value:number}>} data
    * @param {{ first: number, last: number, fullAt: number }|null|undefined} prev
@@ -148,7 +168,7 @@
     const tipAdvanced = prev && last.time >= prev.last;
     const leftStable = prev && prev.first === first;
     const recentFull = prev && now - prev.fullAt < FULL_SET_MIN_MS;
-    if (tipAdvanced && (leftStable || recentFull)) {
+    if (tipAdvanced && (leftStable || recentFull) && data.length === 1) {
       try {
         seriesApi.update(last);
         return { first: prev.first, last: last.time, fullAt: prev.fullAt };
@@ -156,36 +176,81 @@
         /* fall through */
       }
     }
+    // Step-hold grids change left edge often — full setData keeps LWC happy.
     seriesApi.setData(data);
     return { first, last: last.time, fullAt: now };
   }
 
-  /**
-   * @param {Array<{t:number,v:number}>} pts  `t` in unix seconds
-   * @param {number} fromSec
-   * @param {number} toSec
-   */
-  function toLineData(pts, fromSec, toSec) {
-    const win = Math.max(1, toSec - fromSec);
-    /** @type {Array<{time:number,value:number}>} */
-    const raw = [];
-    let prevT = -Infinity;
-    for (const p of pts || []) {
-      if (!p || !Number.isFinite(p.t) || !Number.isFinite(p.v)) continue;
-      const t = Math.floor(p.t);
-      if (t < fromSec - 2 || t > toSec + 2) continue;
-      if (t === prevT) {
-        raw[raw.length - 1] = { time: t, value: p.v };
-      } else if (t > prevT) {
-        raw.push({ time: t, value: p.v });
-        prevT = t;
-      }
-    }
-    return downsampleForChart(raw, win, CHART_DISPLAY_MAX_POINTS);
-  }
-
   function childCharts() {
     return [pulseChart, imbChart, cvdChart, showVolumeHist ? volChart : null].filter(Boolean);
+  }
+
+  function mainVisibleSec() {
+    if (!mainChart) return null;
+    try {
+      const r = mainChart.timeScale().getVisibleRange?.();
+      if (!r) return null;
+      const fromSec = Number(r.from);
+      const toSec = Number(r.to);
+      if (!Number.isFinite(fromSec) || !Number.isFinite(toSec) || toSec <= fromSec) return null;
+      return { fromSec, toSec };
+    } catch {
+      return null;
+    }
+  }
+
+  /** One-way: force every under-pane onto the main (or OF) visible window. */
+  function lockPanesToMain() {
+    const kids = childCharts();
+    if (!kids.length) return;
+    const fromMain = mainVisibleSec();
+    if (fromMain) {
+      applyVisibleTimeRange(kids, fromMain, rangeActivity.syncGuard);
+      return;
+    }
+    const vis = rangeBounds();
+    applyVisibleTimeRange(kids, vis, rangeActivity.syncGuard);
+  }
+
+  function publishPaneDebug() {
+    try {
+      const read = (c) => {
+        if (!c) return null;
+        const ts = c.timeScale();
+        let visible = null;
+        let logical = null;
+        try {
+          const r = ts.getVisibleRange?.();
+          if (r) {
+            const from = Number(r.from);
+            const to = Number(r.to);
+            if (Number.isFinite(from) && Number.isFinite(to) && to > from) {
+              visible = { from, to };
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        try {
+          const r = ts.getVisibleLogicalRange?.();
+          if (r) logical = { from: Number(r.from), to: Number(r.to) };
+        } catch {
+          /* ignore */
+        }
+        return { visible, logical };
+      };
+      globalThis.__mfPaneDebug = {
+        main: read(mainChart),
+        pulse: read(pulseChart),
+        imb: read(imbChart),
+        cvd: read(cvdChart),
+        vol: read(volChart),
+        tipSec: tipSec(),
+        wallSec: Math.floor(Date.now() / 1000),
+      };
+    } catch {
+      /* ignore */
+    }
   }
 
   function unwireSync() {
@@ -198,24 +263,27 @@
     const kids = childCharts();
     if (!kids.length) return;
     if (mainChart) {
-      // Time-range sync: Pulse/Imb/CVD density ≠ price bars. Bidirectional so
-      // pan/zoom on any under-pane (or main) stays locked.
-      syncDispose = wireChartTimeScales(mainChart, kids, rangeActivity.syncGuard, {
+      // ONE-WAY main → panes. Bidirectional let sparse Pulse/Imb zoom the
+      // main Lines chart down to a 1s window (user-visible desync).
+      const baseDispose = wireChartTimeScales(mainChart, kids, rangeActivity.syncGuard, {
         mode: 'time',
-        bidirectional: true,
+        bidirectional: false,
       });
-      try {
-        const r = mainChart.timeScale().getVisibleRange?.();
-        if (r) {
-          applyVisibleTimeRange(
-            kids,
-            { fromSec: Number(r.from), toSec: Number(r.to) },
-            rangeActivity.syncGuard,
-          );
+      const onMainRange = () => {
+        lockPanesToMain();
+        publishPaneDebug();
+      };
+      mainChart.timeScale().subscribeVisibleTimeRangeChange(onMainRange);
+      syncDispose = () => {
+        try {
+          mainChart.timeScale().unsubscribeVisibleTimeRangeChange(onMainRange);
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
-      }
+        baseDispose();
+      };
+      lockPanesToMain();
+      publishPaneDebug();
     }
   }
 
@@ -358,6 +426,8 @@
     const vis = rangeBounds();
     const win = Math.max(1, range.toSec - range.fromSec);
 
+    // Pulse / Imb: wall/exchange ms → seconds, then step-hold onto 1s grid so
+    // setVisibleRange(main) always has covering bars (no 1s-only panes).
     const pulsePts = (pulseHistory || [])
       .filter((p) => p && Number.isFinite(p.t) && Number.isFinite(p.score))
       .map((p) => ({ t: p.t / 1000, v: Number(p.score) }));
@@ -365,13 +435,28 @@
       .filter((p) => p && Number.isFinite(p.t) && Number.isFinite(p.imbalancePct))
       .map((p) => ({ t: p.t / 1000, v: Number(p.imbalancePct) }));
 
+    const pulseData = downsampleForChart(
+      stepHoldSeries(pulsePts, range.fromSec, range.toSec),
+      win,
+      CHART_DISPLAY_MAX_POINTS,
+    );
+    const imbData = downsampleForChart(
+      stepHoldSeries(imbPts, range.fromSec, range.toSec),
+      win,
+      CHART_DISPLAY_MAX_POINTS,
+    );
+
     const cvd = computeCvd(tape, { windowSec: win, nowSec: range.toSec });
     const cvdPts = (cvd.points || []).map((p) => ({ t: p.sec, v: p.cvd }));
+    // CVD is already ~1s exchange buckets; step-hold fills gaps for lockstep.
+    const cvdData = downsampleForChart(
+      stepHoldSeries(cvdPts, range.fromSec, range.toSec),
+      win,
+      CHART_DISPLAY_MAX_POINTS,
+    );
 
-    lastPulseWin = writeSeriesData(pulseSeries, toLineData(pulsePts, range.fromSec, range.toSec), lastPulseWin);
-    lastImbWin = writeSeriesData(imbSeries, toLineData(imbPts, range.fromSec, range.toSec), lastImbWin);
-
-    const cvdData = toLineData(cvdPts, range.fromSec, range.toSec);
+    lastPulseWin = writeSeriesData(pulseSeries, pulseData, lastPulseWin);
+    lastImbWin = writeSeriesData(imbSeries, imbData, lastImbWin);
     lastCvdWin = writeSeriesData(cvdSeries, cvdData, lastCvdWin);
     if (cvdSeries && cvdData.length) {
       const tip = cvdData[cvdData.length - 1].value;
@@ -392,34 +477,56 @@
         value: -(h.sellUsd || 0),
         color: 'rgba(246,70,93,0.75)',
       }));
-      const buyData = downsampleForChart(buyRaw, win, CHART_DISPLAY_MAX_POINTS);
-      const sellData = downsampleForChart(sellRaw, win, CHART_DISPLAY_MAX_POINTS);
-      const now = performance.now();
-      if (now - lastVolFullAt > FULL_SET_MIN_MS || !buyData.length) {
-        buySeries.setData(buyData);
-        sellSeries.setData(sellData);
-        lastVolFullAt = now;
-      } else {
-        try {
-          if (buyData.length) buySeries.update(buyData[buyData.length - 1]);
-          if (sellData.length) sellSeries.update(sellData[sellData.length - 1]);
-        } catch {
-          buySeries.setData(buyData);
-          sellSeries.setData(sellData);
-          lastVolFullAt = now;
-        }
+      // Histograms: zero-fill missing seconds so vol pane covers main window.
+      const buyByT = new Map(buyRaw.map((b) => [b.time, b]));
+      const sellByT = new Map(sellRaw.map((b) => [b.time, b]));
+      /** @type {Array<{time:number,value:number,color:string}>} */
+      const buyFilled = [];
+      /** @type {Array<{time:number,value:number,color:string}>} */
+      const sellFilled = [];
+      for (let t = Math.floor(range.fromSec); t <= Math.floor(range.toSec); t += 1) {
+        buyFilled.push(
+          buyByT.get(t) || { time: t, value: 0, color: 'rgba(2,192,118,0.75)' },
+        );
+        sellFilled.push(
+          sellByT.get(t) || { time: t, value: 0, color: 'rgba(246,70,93,0.75)' },
+        );
       }
+      const buyData = downsampleForChart(buyFilled, win, CHART_DISPLAY_MAX_POINTS);
+      const sellData = downsampleForChart(sellFilled, win, CHART_DISPLAY_MAX_POINTS);
+      buySeries.setData(buyData);
+      sellSeries.setData(sellData);
+      lastVolFullAt = performance.now();
     }
 
-    // OF / no-main: lock panes to the session/ofView window.
-    if (!mainChart) {
+    // Always re-lock after setData — LWC resets visible range on full writes.
+    if (mainChart) {
+      lockPanesToMain();
+      lastAppliedRangeKey = '';
+    } else {
       const key = `${vis.fromSec}:${vis.toSec}`;
       if (key !== lastAppliedRangeKey) {
         lastAppliedRangeKey = key;
         applyVisibleTimeRange(childCharts(), vis, rangeActivity.syncGuard);
       }
-    } else {
-      lastAppliedRangeKey = '';
+    }
+
+    publishPaneDebug();
+    try {
+      if (globalThis.__mfPaneDebug) {
+        globalThis.__mfPaneDebug.counts = {
+          pulsePts: pulsePts.length,
+          imbPts: imbPts.length,
+          cvdPts: cvdPts.length,
+          pulseBars: pulseData.length,
+          imbBars: imbData.length,
+          cvdBars: cvdData.length,
+        };
+        globalThis.__mfPaneDebug.dataBounds = range;
+        globalThis.__mfPaneDebug.visBounds = vis;
+      }
+    } catch {
+      /* ignore */
     }
   }
 

@@ -10,7 +10,12 @@
   } from 'lightweight-charts';
   import { TIMEFRAMES } from '../lib/series.js';
   import { fmtPrice, fmtPct, fmtUsd, fmtCount, fmtTradesPerMin } from '../lib/format.js';
-  import { createRangeActivity, wireVisibleLogicalRangeSync } from '../lib/chartSync.js';
+  import {
+    applyVisibleTimeRange,
+    createRangeActivity,
+    wireChartTimeScales,
+  } from '../lib/chartSync.js';
+  import { stepHoldSeries } from '../lib/indicatorSeries.js';
 
   let {
     series = [],
@@ -303,10 +308,19 @@
       lineWidth: 1,
       priceFormat: { type: 'custom', formatter: (v) => v.toFixed(2) + ' bps', minMove: 0.01 },
     });
+    // One-way time sync: logical sync desynced BPS wall-clock from Lines when
+    // bar densities differed; bidirectional let BPS yank the main plot.
     syncDisposers = [
-      wireVisibleLogicalRangeSync(chart, bpsChart, rangeActivity.syncGuard),
-      wireVisibleLogicalRangeSync(bpsChart, chart, rangeActivity.syncGuard),
+      wireChartTimeScales(chart, [bpsChart], rangeActivity.syncGuard, {
+        mode: 'time',
+        bidirectional: false,
+      }),
     ];
+    try {
+      bpsChart.applyOptions({ handleScroll: false, handleScale: false });
+    } catch {
+      /* ignore */
+    }
     bpsInteractionDisposer = observeUserRange(bpsChart);
   });
 
@@ -555,32 +569,45 @@
       setHighlight(primary, hl);
 
       if (bpsLineSeries && bpsChart) {
-        const bpsData = (bps || []).map((p) => ({ time: p.time, value: p.bps }));
+        // Cover main retention window with step-hold so time-range sync can
+        // always apply the Lines visible window (no 1s-only BPS pane).
+        let fromSec = null;
+        let toSec = null;
+        for (const row of rows) {
+          for (const pt of row.data || []) {
+            const t = Number(pt.time);
+            if (!Number.isFinite(t)) continue;
+            if (fromSec == null || t < fromSec) fromSec = t;
+            if (toSec == null || t > toSec) toSec = t;
+          }
+        }
+        const sparse = (bps || [])
+          .filter((p) => p && Number.isFinite(p.time) && Number.isFinite(p.bps))
+          .map((p) => ({ t: Number(p.time), v: Number(p.bps) }));
+        const bpsData =
+          fromSec != null && toSec != null && toSec >= fromSec
+            ? stepHoldSeries(sparse, fromSec, toSec)
+            : sparse.map((p) => ({ time: p.t, value: p.v }));
         if (!bpsData.length) {
           bpsLineSeries.setData([]);
           lastBpsTip = null;
           lastBpsFullAt = performance.now();
         } else {
-          const tip = bpsData[bpsData.length - 1];
-          const now = performance.now();
-          if (
-            lastBpsTip != null &&
-            tip.time >= lastBpsTip &&
-            now - lastBpsFullAt < FULL_SET_MIN_MS
-          ) {
-            try {
-              bpsLineSeries.update(tip);
-              lastBpsTip = tip.time;
-            } catch {
-              bpsLineSeries.setData(bpsData);
-              lastBpsTip = tip.time;
-              lastBpsFullAt = now;
-            }
-          } else {
-            bpsLineSeries.setData(bpsData);
-            lastBpsTip = tip.time;
-            lastBpsFullAt = now;
+          bpsLineSeries.setData(bpsData);
+          lastBpsTip = bpsData[bpsData.length - 1].time;
+          lastBpsFullAt = performance.now();
+        }
+        try {
+          const r = chart?.timeScale()?.getVisibleRange?.();
+          if (r) {
+            applyVisibleTimeRange(
+              [bpsChart],
+              { fromSec: Number(r.from), toSec: Number(r.to) },
+              rangeActivity.syncGuard,
+            );
           }
+        } catch {
+          /* ignore */
         }
       }
     }
@@ -605,6 +632,21 @@
         lastScrollAt = now;
         markProgrammatic(120);
         rangeActivity.runProgrammatic(() => {
+          // Recover from accidental 1-bar zoom (e.g. old bidirectional pane sync).
+          try {
+            const logical = chart.timeScale().getVisibleLogicalRange?.();
+            if (logical && Number.isFinite(logical.from) && Number.isFinite(logical.to)) {
+              const span = logical.to - logical.from;
+              if (span > 0 && span < 12) {
+                chart.timeScale().setVisibleLogicalRange({
+                  from: logical.to - 90,
+                  to: logical.to + 2,
+                });
+              }
+            }
+          } catch {
+            /* ignore */
+          }
           chart.timeScale().scrollToRealTime();
           bpsChart?.timeScale().scrollToRealTime();
         });
@@ -622,11 +664,15 @@
       }
       const logical = chart?.timeScale()?.getVisibleLogicalRange?.() || null;
       // @ts-ignore
+      const visible = chart?.timeScale()?.getVisibleRange?.() || null;
       globalThis.__mfChartDebug = {
         mode,
         followLive,
         dataLast,
         logical,
+        visible: visible
+          ? { from: Number(visible.from), to: Number(visible.to) }
+          : null,
         wallSec: Math.floor(Date.now() / 1000),
         gapSec:
           dataLast != null ? Math.floor(Date.now() / 1000) - dataLast : null,
