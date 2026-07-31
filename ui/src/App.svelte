@@ -22,11 +22,18 @@
     bookPressure,
     clampPriceZoom,
     clampViewSec,
+    computeCvd,
     pushDepthHistory,
     pushImbalanceHistory,
     resolveTick,
     sampleBookDepth,
   } from './lib/orderflow.js';
+  import {
+    setCrosshairOnCharts,
+    timeToCoordinateSafe,
+    wireCrosshairSync,
+  } from './lib/chartSync.js';
+  import { buildHoverLegend } from './lib/crosshairLegend.js';
   import {
     ALERTS_MAX,
     clampHistorySecs,
@@ -58,6 +65,7 @@
   import DomLadder from './components/DomLadder.svelte';
   import FlowPulseDock from './components/FlowPulseDock.svelte';
   import ChartAnalyticsStrip from './components/ChartAnalyticsStrip.svelte';
+  import ChartHoverLegend from './components/ChartHoverLegend.svelte';
 
   const initial = loadSettings();
 
@@ -148,6 +156,19 @@
   let chartVisibleRange = $state(/** @type {{ fromSec: number, toSec: number }|null} */ (null));
   /** Main LWC chart handle for under-chart pane time-scale sync (null in OF). */
   let mainPriceChart = $state(/** @type {any} */ (null));
+  /** @type {Array<{ id: string, chart: any, series: any }>} */
+  let mainCrosshairHandles = $state([]);
+  /** @type {Array<{ id: string, chart: any, series: any }>} */
+  let paneCrosshairHandles = $state([]);
+  /** @type {ReturnType<typeof buildHoverLegend>|null} */
+  let hoverLegend = $state(null);
+  let stackXhairX = $state(/** @type {number|null} */ (null));
+  let stackXhairTop = $state(0);
+  let stackXhairHeight = $state(0);
+  let plotStackEl = $state(/** @type {HTMLElement|null} */ (null));
+  const crosshairGuard = { active: false };
+  /** @type {(() => void)|null} */
+  let crosshairDispose = null;
   let pulseAlertActive = $state(false);
   let lastPulseAlertAt = 0;
   let pulseMetricFilter = $state('');
@@ -464,6 +485,154 @@
     chartMode === 'orderflow' ? null : chartVisibleRange,
   );
   let stripWindowSec = $derived(ofViewSec ?? sessionSec);
+
+  /**
+   * @param {Array<{ id?: string, chart?: any, series?: any }>|null|undefined} a
+   * @param {Array<{ id?: string, chart?: any, series?: any }>|null|undefined} b
+   */
+  function handlesEqual(a, b) {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (a[i]?.id !== b[i]?.id || a[i]?.chart !== b[i]?.chart || a[i]?.series !== b[i]?.series) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function allCrosshairHandles() {
+    return [...(mainCrosshairHandles || []), ...(paneCrosshairHandles || [])].filter(
+      (h) => h?.chart && h?.series,
+    );
+  }
+
+  function clearHoverUi() {
+    hoverLegend = null;
+    stackXhairX = null;
+  }
+
+  /** @param {number|null|undefined} clientX */
+  function updateStackXhair(clientX) {
+    if (!plotStackEl || clientX == null || !Number.isFinite(clientX)) {
+      stackXhairX = null;
+      return;
+    }
+    const rect = plotStackEl.getBoundingClientRect();
+    const x = clientX - rect.left;
+    if (x < 0 || x > rect.width) {
+      stackXhairX = null;
+      return;
+    }
+    stackXhairX = x;
+    stackXhairTop = 0;
+    stackXhairHeight = rect.height;
+  }
+
+  /** @param {number|string|null|undefined} timeSec */
+  function buildLegendAt(timeSec) {
+    const t = Number(timeSec);
+    if (!Number.isFinite(t)) {
+      hoverLegend = null;
+      return;
+    }
+    const tapeSrc = ofTape.length ? ofTape : tape;
+    const cvd = computeCvd(tapeSrc, {
+      windowSec: Math.max(1, Number(stripWindowSec) || sessionSec || 300),
+      nowSec: t,
+    });
+    hoverLegend = buildHoverLegend({
+      timeSec: t,
+      priceMode,
+      venues: (lineSeries || []).map((s) => ({
+        venue: s.venue,
+        color: s.color,
+        hidden: s.hidden,
+        data: s.data,
+        last: s.last,
+        pct: s.pct,
+      })),
+      pulseHistory,
+      imbalanceHistory,
+      cvdPoints: (cvd.points || []).map((p) => ({ time: p.sec, value: p.cvd })),
+      histogram: cvd.histogram || [],
+    });
+  }
+
+  /** @param {{ time: number|string|null, point: { x: number, y: number }|null, source: any, param: any }} payload */
+  function onSharedCrosshairMove(payload) {
+    if (payload?.time == null) {
+      clearHoverUi();
+      return;
+    }
+    buildLegendAt(payload.time);
+    let clientX = null;
+    try {
+      const el = payload.source?.chartElement?.();
+      if (el && payload.point && Number.isFinite(payload.point.x)) {
+        clientX = el.getBoundingClientRect().left + payload.point.x;
+      }
+    } catch {
+      /* ignore */
+    }
+    if (clientX == null) {
+      const main = mainCrosshairHandles?.[0]?.chart || payload.source;
+      const x = timeToCoordinateSafe(main, payload.time);
+      try {
+        const el = main?.chartElement?.();
+        if (el && x != null) clientX = el.getBoundingClientRect().left + x;
+      } catch {
+        /* ignore */
+      }
+    }
+    updateStackXhair(clientX);
+  }
+
+  function rewireCrosshairSync() {
+    crosshairDispose?.();
+    crosshairDispose = null;
+    const panes = (paneCrosshairHandles || []).filter((h) => h?.chart && h?.series);
+    if (chartMode === 'orderflow') {
+      if (panes.length) {
+        crosshairDispose = wireCrosshairSync(panes, crosshairGuard, {
+          onMove: onSharedCrosshairMove,
+        });
+      }
+      return;
+    }
+    const handles = allCrosshairHandles();
+    if (!handles.length) {
+      clearHoverUi();
+      return;
+    }
+    crosshairDispose = wireCrosshairSync(handles, crosshairGuard, {
+      onMove: onSharedCrosshairMove,
+    });
+  }
+
+  /** @param {{ timeSec: number, clientX: number }|null} payload */
+  function onOfCrosshair(payload) {
+    if (!payload || payload.timeSec == null) {
+      clearHoverUi();
+      setCrosshairOnCharts(paneCrosshairHandles, null, crosshairGuard);
+      return;
+    }
+    buildLegendAt(payload.timeSec);
+    updateStackXhair(payload.clientX);
+    setCrosshairOnCharts(paneCrosshairHandles, payload.timeSec, crosshairGuard);
+  }
+
+  $effect(() => {
+    mainCrosshairHandles;
+    paneCrosshairHandles;
+    chartMode;
+    rewireCrosshairSync();
+    return () => {
+      crosshairDispose?.();
+      crosshairDispose = null;
+    };
+  });
+
   let marketQuotes = $derived(
     (lineSeries || []).map((s) => ({
       venue: s.venue,
@@ -889,6 +1058,8 @@
       patch.analyticsOpen = true;
       chartVisibleRange = null;
       mainPriceChart = null;
+      mainCrosshairHandles = [];
+      clearHoverUi();
     }
     persist(patch);
     // Re-project views from retained buffers (no re-fetch from zero).
@@ -1419,6 +1590,7 @@
           onSpikeClick={onSpikeClick}
         />
       {/if}
+      <div class="plot-stack" bind:this={plotStackEl}>
       <!-- Single PriceChart instance — remounting on mode switch caused chart flicker. -->
       <PriceChart
         series={lineSeries}
@@ -1444,6 +1616,7 @@
         {highlightSec}
         sessionWindowSec={sessionSec}
         toolbarOnly={chartMode === 'orderflow'}
+        hoverLegend={chartMode === 'orderflow' ? null : hoverLegend}
         onTimeframe={applyTimeframe}
         onChartMode={setChartMode}
         onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(true); }}
@@ -1465,10 +1638,16 @@
         onMainChart={(c) => {
           mainPriceChart = c;
         }}
+        onCrosshairHandles={(handles) => {
+          if (!handlesEqual(mainCrosshairHandles, handles)) {
+            mainCrosshairHandles = handles;
+          }
+        }}
       />
       {#if chartMode === 'orderflow'}
         <div class="of-chart-stack">
           <div class="of-heat-main">
+            <ChartHoverLegend legend={hoverLegend} />
             <OrderFlowHeatmap
               {depthHistory}
               tape={ofTape}
@@ -1485,6 +1664,7 @@
               priceZoom={ofPriceZoom}
               followLive={ofFollowLive}
               onSettings={patchOfSettings}
+              onCrosshair={onOfCrosshair}
             />
           </div>
           <div class="of-dom-side">
@@ -1507,7 +1687,20 @@
         spikeThreshold={pulseSpikeThreshold}
         showVolumeHist={true}
         mainChart={chartMode === 'orderflow' ? null : mainPriceChart}
+        onCrosshairHandles={(handles) => {
+          if (!handlesEqual(paneCrosshairHandles, handles)) {
+            paneCrosshairHandles = handles;
+          }
+        }}
       />
+      {#if stackXhairX != null}
+        <div
+          class="stack-xhair"
+          style={`left:${stackXhairX}px;top:${stackXhairTop}px;height:${stackXhairHeight}px`}
+          aria-hidden="true"
+        ></div>
+      {/if}
+      </div>
     </section>
 
     <aside class="col-right">
@@ -1614,6 +1807,23 @@
 
   .col-chart { display: flex; flex-direction: column; min-height: 0; }
 
+  .plot-stack {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stack-xhair {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    background: rgba(71, 77, 87, 0.95);
+    pointer-events: none;
+    z-index: 6;
+  }
+
   .of-chart-stack {
     flex: 1;
     min-height: 0;
@@ -1622,6 +1832,7 @@
     border-top: 1px solid var(--border);
   }
   .of-heat-main, .of-dom-side {
+    position: relative;
     min-width: 0;
     min-height: 0;
     overflow: hidden;

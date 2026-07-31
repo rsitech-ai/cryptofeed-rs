@@ -16,6 +16,7 @@
     wireChartTimeScales,
   } from '../lib/chartSync.js';
   import { stepHoldSeries } from '../lib/indicatorSeries.js';
+  import ChartHoverLegend from './ChartHoverLegend.svelte';
 
   let {
     series = [],
@@ -42,6 +43,7 @@
     highlightSec = null,
     sessionWindowSec = 300,
     toolbarOnly = false,
+    hoverLegend = null,
     onTimeframe = () => {},
     onChartMode = () => {},
     onPriceMode = () => {},
@@ -58,6 +60,8 @@
     onVisibleTimeRange = () => {},
     /** Notify parent when the main LWC chart is created/destroyed (for pane sync). */
     onMainChart = () => {},
+    /** Emit [{id, chart, series}] for multi-pane crosshair sync. */
+    onCrosshairHandles = () => {},
   } = $props();
 
   let host = $state(null);
@@ -115,7 +119,14 @@
     },
     crosshair: {
       mode: 0,
-      vertLine: { color: '#474d57', labelBackgroundColor: '#2b3139', width: 1 },
+      // Vert line drawn by App `.stack-xhair` overlay across panes.
+      vertLine: {
+        visible: false,
+        labelVisible: true,
+        labelBackgroundColor: '#2b3139',
+        color: '#474d57',
+        width: 1,
+      },
       horzLine: { color: '#474d57', labelBackgroundColor: '#2b3139', width: 1 },
     },
     timeScale: {
@@ -132,6 +143,37 @@
 
   function unwireSync() {
     for (const dispose of syncDisposers.splice(0)) dispose();
+  }
+
+  /** Primary series used for setCrosshairPosition on the main chart. */
+  function primarySeriesApi() {
+    if (!chart) return null;
+    if (chartMode === 'candles') return candleSeries;
+    if (focusVenue && lineSeries.has(focusVenue)) return lineSeries.get(focusVenue);
+    for (const row of series) {
+      if (row?.hidden) continue;
+      const s = lineSeries.get(row.venue);
+      if (s) return s;
+    }
+    for (const s of lineSeries.values()) return s;
+    return null;
+  }
+
+  function publishCrosshairHandles() {
+    /** @type {Array<{ id: string, chart: any, series: any }>} */
+    const handles = [];
+    const mainSeries = primarySeriesApi();
+    if (chart && mainSeries) {
+      handles.push({ id: 'main', chart, series: mainSeries });
+    }
+    if (bpsChart && bpsLineSeries) {
+      handles.push({ id: 'bps', chart: bpsChart, series: bpsLineSeries });
+    }
+    try {
+      onCrosshairHandles(handles);
+    } catch {
+      /* ignore */
+    }
   }
 
   function markProgrammatic(ms = 180) {
@@ -250,6 +292,11 @@
     volMarginsOn = null;
     fitKey = '';
     followLive = true;
+    try {
+      onCrosshairHandles([]);
+    } catch {
+      /* ignore */
+    }
   }
 
   // Create/destroy chart when toolbarOnly toggles (single App instance).
@@ -280,6 +327,7 @@
     } catch {
       /* ignore */
     }
+    publishCrosshairHandles();
   });
 
   $effect(() => {
@@ -291,6 +339,7 @@
         bpsChart.remove();
         bpsChart = null;
         bpsLineSeries = null;
+        publishCrosshairHandles();
       }
       return;
     }
@@ -322,6 +371,7 @@
       /* ignore */
     }
     bpsInteractionDisposer = observeUserRange(bpsChart);
+    publishCrosshairHandles();
   });
 
   function ensureCandleSeries() {
@@ -682,6 +732,7 @@
     }
 
     emitVisibleTimeRange();
+    publishCrosshairHandles();
   }
 
   $effect(() => {
@@ -856,6 +907,7 @@
     {/if}
 
     <div class="chart-wrap">
+      <ChartHoverLegend legend={hoverLegend} />
       <div class="chart-host" bind:this={host}></div>
       {#if chartMode === 'lines' && showBpsPane}
         <div class="bps-host" bind:this={bpsHost}></div>
@@ -874,7 +926,8 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    height: 100%;
+    flex: 1;
+    height: auto;
     background: var(--panel);
   }
   .chart-panel.toolbar-only {
