@@ -4,7 +4,6 @@
     bookPressure,
     computeCvd,
     detectFlowHeuristics,
-    sparkPath,
     tradeNotional,
     volumeAtPrice,
   } from '../lib/orderflow.js';
@@ -15,15 +14,13 @@
     depth = 16,
     windowSec = 300,
     largeUsd = 25000,
-    imbalanceHistory = [],
     /**
-     * When false (Order Flow chart mode), skip full VAP / buy-sell hist —
-     * the heatmap already owns CVD strip + VAP sidebar. Dock keeps a compact
-     * CVD/Imb summary only.
+     * When false (Order Flow chart mode), skip full VAP —
+     * the heatmap already owns VAP sidebar. Dock keeps CVD/Imb metrics + chips.
+     * Sparks / buy-sell hist live under the main chart (ChartAnalyticsStrip).
      */
     showTapeProfile = true,
     pulse = null,
-    history = [],
     alertActive = false,
     spikeThreshold = 72,
     asset = 'BTC',
@@ -44,14 +41,6 @@
   let cvd = $derived(computeCvd(tape, { windowSec }));
   let vap = $derived(volumeAtPrice(tape, { windowSec, maxBuckets: 24 }));
   let heuristics = $derived(detectFlowHeuristics(tape, book, { largeUsd, windowSec }));
-
-  let imbSpark = $derived(sparkPath(imbalanceHistory.map((p) => p.imbalancePct), { w: 120, h: 36 }));
-  let cvdSpark = $derived(sparkPath(cvd.points.map((p) => p.cvd), { w: 140, h: 36 }));
-  let scoreSpark = $derived(sparkPath((history || []).map((p) => p.score), { w: 200, h: 40 }));
-
-  let histMax = $derived(
-    Math.max(1, ...cvd.histogram.map((h) => Math.max(h.buyUsd, h.sellUsd))),
-  );
 
   let bookVap = $derived.by(() => {
     if (vap.length) return [];
@@ -120,13 +109,6 @@
   });
   let maxHeat = $derived(Math.max(1, ...chips.map((c) => c.heat || 0)));
 
-  let lastImb = $derived(
-    imbalanceHistory.length ? imbalanceHistory[imbalanceHistory.length - 1]?.imbalancePct : null,
-  );
-  let lastPulseScore = $derived(
-    history?.length ? history[history.length - 1]?.score : score,
-  );
-
   function barW(v, max) {
     return `${Math.min(100, (v / max) * 100)}%`;
   }
@@ -162,7 +144,7 @@
       {/if}
       <span class="chrome-meta">
         {Math.round(windowSec / 60)}m
-        · {showTapeProfile ? (vap.length ? 'tape VAP' : 'book profile') : 'OF owns VAP/CVD'}
+        · {showTapeProfile ? (vap.length ? 'tape VAP' : 'book profile') : 'OF owns VAP'}
       </span>
     </div>
     <div class="chrome-right">
@@ -252,64 +234,7 @@
         </div>
       </div>
 
-      <div class="plots-row">
-        <div
-          class="spark"
-          role="img"
-          aria-label="Depth imbalance sparkline"
-          title="Depth imbalance"
-          onmouseenter={(e) => showTip(e, lastImb != null ? `Imbalance ${Number(lastImb).toFixed(1)}%` : 'Imbalance…')}
-          onmousemove={(e) => showTip(e, lastImb != null ? `Imbalance ${Number(lastImb).toFixed(1)}%` : 'Imbalance…')}
-          onmouseleave={hideTip}
-        >
-          <span class="spark-lbl">Imb</span>
-          {#if imbSpark}
-            <svg viewBox="0 0 120 36" preserveAspectRatio="none">
-              <path d={imbSpark} fill="none" stroke="var(--accent)" stroke-width="1.5" />
-            </svg>
-          {:else}
-            <span class="muted">…</span>
-          {/if}
-        </div>
-        <div
-          class="spark"
-          role="img"
-          aria-label="CVD sparkline"
-          title="CVD"
-          onmouseenter={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)}`)}
-          onmousemove={(e) => showTip(e, `CVD ${fmtUsd(cvd.cvd)}`)}
-          onmouseleave={hideTip}
-        >
-          <span class="spark-lbl">CVD</span>
-          {#if cvdSpark}
-            <svg viewBox="0 0 140 36" preserveAspectRatio="none">
-              <path d={cvdSpark} fill="none" stroke={cvd.cvd >= 0 ? 'var(--bid)' : 'var(--ask)'} stroke-width="1.5" />
-            </svg>
-          {:else}
-            <span class="muted">…</span>
-          {/if}
-        </div>
-      </div>
-
       {#if showTapeProfile}
-        <div class="hist" aria-label="Buy vs sell histogram">
-          {#each cvd.histogram.slice(-48) as h, i (i)}
-            <button
-              type="button"
-              class="hcol"
-              title={`Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`}
-              onmouseenter={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
-              onmousemove={(e) => showTip(e, `Buy ${fmtUsd(h.buyUsd)} · Sell ${fmtUsd(h.sellUsd)}`)}
-              onmouseleave={hideTip}
-            >
-              <div class="buy" style={`height:${Math.max(2, (h.buyUsd / histMax) * 100)}%`}></div>
-              <div class="sell" style={`height:${Math.max(2, (h.sellUsd / histMax) * 100)}%`}></div>
-            </button>
-          {:else}
-            <span class="muted">buy/sell hist…</span>
-          {/each}
-        </div>
-
         <div class="vap-mini" aria-label="Volume at price">
           <div class="vap-cols"><span>Sell</span><span>Px</span><span>Buy</span><span>Δ</span></div>
           <div class="vap">
@@ -374,32 +299,6 @@
           </span>
         </button>
       </div>
-
-      {#if scoreSpark}
-        <div
-          class="spark pulse-spark"
-          role="img"
-          aria-label="Pulse score history"
-          title="Pulse score history"
-          onmouseenter={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
-          onmousemove={(e) => showTip(e, lastPulseScore != null ? `Pulse ${Number(lastPulseScore).toFixed(0)} · alert ≥${spikeThreshold}` : 'Pulse…')}
-          onmouseleave={hideTip}
-        >
-          <span class="spark-lbl">Pulse</span>
-          <svg viewBox="0 0 200 40" preserveAspectRatio="none">
-            <line
-              x1="0"
-              y1={40 - (spikeThreshold / 100) * 36 - 2}
-              x2="200"
-              y2={40 - (spikeThreshold / 100) * 36 - 2}
-              stroke="rgba(246,70,93,0.45)"
-              stroke-dasharray="2,2"
-              stroke-width="0.7"
-            />
-            <path d={scoreSpark} fill="none" stroke="var(--accent)" stroke-width="1.6" />
-          </svg>
-        </div>
-      {/if}
 
       <div class="chips" aria-label="Per-venue activity heat">
         {#each chips as c (c.venue + '|' + (c.symbol || ''))}
@@ -672,78 +571,6 @@
   }
   .plabels .bid { color: var(--bid); }
   .plabels .ask { color: var(--ask); }
-
-  .plots-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.2rem;
-    margin-bottom: 0.18rem;
-    flex-shrink: 0;
-  }
-  .fp.compact .plots-row { margin-bottom: 0.14rem; }
-  .spark {
-    position: relative;
-    height: 36px;
-    min-height: 28px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    cursor: help;
-  }
-  .spark-lbl {
-    position: absolute;
-    top: 1px;
-    left: 3px;
-    z-index: 1;
-    font-size: 0.42rem;
-    font-family: var(--mono);
-    color: var(--muted);
-    text-transform: uppercase;
-    pointer-events: none;
-  }
-  .spark svg { width: 100%; height: 100%; display: block; }
-  .pulse-spark {
-    height: 36px;
-    min-height: 32px;
-    margin-bottom: 0.18rem;
-    flex-shrink: 0;
-  }
-
-  .hist {
-    display: flex;
-    align-items: flex-end;
-    gap: 1px;
-    height: 52px;
-    min-height: 44px;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    padding: 2px;
-    margin-bottom: 0.18rem;
-    flex-shrink: 0;
-  }
-  .fp.compact .flow-col .plots-row {
-    flex: 1;
-    min-height: 0;
-    align-content: stretch;
-    margin-bottom: 0;
-  }
-  .fp.compact .flow-col .spark {
-    height: 100%;
-    min-height: 56px;
-  }
-  .hcol {
-    flex: 1 1 0;
-    display: flex;
-    flex-direction: column-reverse;
-    min-width: 2px;
-    max-width: 8px;
-    height: 100%;
-    padding: 0;
-    border: none;
-    background: transparent;
-    cursor: help;
-  }
-  .hcol .buy { background: rgba(2, 192, 118, 0.65); width: 100%; }
-  .hcol .sell { background: rgba(246, 70, 93, 0.65); width: 100%; }
 
   .vap-mini {
     flex: 1;
