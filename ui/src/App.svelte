@@ -525,8 +525,20 @@
       return;
     }
     stackXhairX = x;
-    stackXhairTop = 0;
-    stackXhairHeight = rect.height;
+    const hosts = plotStackEl.querySelectorAll('.chart-host, .of-heat-main, .cas');
+    let top = rect.height;
+    let bottom = 0;
+    for (const node of hosts) {
+      const r = node.getBoundingClientRect();
+      top = Math.min(top, r.top - rect.top);
+      bottom = Math.max(bottom, r.bottom - rect.top);
+    }
+    if (!(bottom > top)) {
+      top = 0;
+      bottom = rect.height;
+    }
+    stackXhairTop = Math.max(0, top);
+    stackXhairHeight = Math.max(0, bottom - top);
   }
 
   /** @param {number|string|null|undefined} timeSec */
@@ -627,6 +639,34 @@
     paneCrosshairHandles;
     chartMode;
     rewireCrosshairSync();
+    try {
+      globalThis.__mfCrosshairDebug = {
+        chartMode,
+        mainHandles: (mainCrosshairHandles || []).map((h) => h.id),
+        paneHandles: (paneCrosshairHandles || []).map((h) => h.id),
+        hasLegend: !!hoverLegend,
+        xhairX: stackXhairX,
+        /** Soak/browser proof helper — drives legend + overlay + LWC sync. */
+        force(timeSec, clientX = null) {
+          const t = Math.floor(Number(timeSec));
+          if (!Number.isFinite(t)) {
+            clearHoverUi();
+            setCrosshairOnCharts(allCrosshairHandles(), null, crosshairGuard);
+            return false;
+          }
+          buildLegendAt(t);
+          if (clientX != null) updateStackXhair(clientX);
+          else if (plotStackEl) {
+            const rect = plotStackEl.getBoundingClientRect();
+            updateStackXhair(rect.left + rect.width * 0.58);
+          }
+          setCrosshairOnCharts(allCrosshairHandles(), t, crosshairGuard);
+          return true;
+        },
+      };
+    } catch {
+      /* ignore */
+    }
     return () => {
       crosshairDispose?.();
       crosshairDispose = null;
@@ -1819,7 +1859,8 @@
     position: absolute;
     top: 0;
     width: 1px;
-    background: rgba(71, 77, 87, 0.95);
+    background: rgba(234, 236, 239, 0.82);
+    box-shadow: 0 0 0 0.5px rgba(15, 19, 24, 0.4);
     pointer-events: none;
     z-index: 6;
   }

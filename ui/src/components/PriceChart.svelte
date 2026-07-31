@@ -926,7 +926,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
-    flex: 1;
+    flex: 1 1 0;
     height: auto;
     background: var(--panel);
   }
