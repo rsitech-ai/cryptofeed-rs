@@ -60,6 +60,6 @@ test('bps history retains up to historySecs then trims', () => {
   }
   const pts = t.points();
   assert.ok(pts.length <= t.maxPoints, `len ${pts.length} max ${t.maxPoints}`);
-  assert.ok(pts.length >= 3600, `expected ~1h points, got ${pts.length}`);
+  assert.ok(pts.length >= Math.min(600, t.maxPoints - 5), `expected capped history, got ${pts.length}`);
   assert.equal(pts[pts.length - 1].time, 10_000 + 3999);
 });

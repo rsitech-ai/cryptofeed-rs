@@ -1,14 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ALERTS_MAX,
+  CHART_DISPLAY_MAX_POINTS,
   DEFAULT_HISTORY_SECS,
   SeriesHistoryPolicy,
+  TAPE_DOM_MAX,
+  TAPE_OF_MAX,
   bpsMaxPoints,
   clampHistorySecs,
   compactDepthHistory,
   depthHistoryBudget,
   downsampleByAge,
+  downsampleForChart,
   retentionCutoff,
+  strideDownsample,
   tapeMaxEntries,
   trimTimeMap,
   venueSampleBudget,
@@ -63,11 +69,46 @@ test('downsampleByAge keeps dense recent and coarser older', () => {
   assert.ok(old.length < oldSpan / 2, `old denser than expected: ${old.length}`);
 });
 
-test('depthHistoryBudget targets ~1h with column downsample', () => {
+test('downsampleByAge respects maxPoints hard cap', () => {
+  const tip = 50_000;
+  const pts = [];
+  for (let t = tip - 3600; t <= tip; t += 1) pts.push({ time: t, v: t });
+  const out = downsampleByAge(pts, {
+    tipSec: tip,
+    recentSec: 600,
+    midSec: 1800,
+    recentStep: 1,
+    midStep: 2,
+    oldStep: 3,
+    maxPoints: 500,
+  });
+  assert.ok(out.length <= 500, `got ${out.length}`);
+  assert.equal(out[out.length - 1].time, tip);
+});
+
+test('downsampleForChart caps 1h window to CHART_DISPLAY_MAX_POINTS', () => {
+  const tip = 100_000;
+  const pts = [];
+  for (let t = tip - 3600; t <= tip; t += 1) pts.push({ time: t, value: t });
+  const out = downsampleForChart(pts, 3600, CHART_DISPLAY_MAX_POINTS);
+  assert.ok(out.length <= CHART_DISPLAY_MAX_POINTS, `${out.length} > ${CHART_DISPLAY_MAX_POINTS}`);
+  assert.equal(out[out.length - 1].time, tip);
+  assert.ok(out[0].time >= tip - 3600);
+});
+
+test('strideDownsample preserves ends', () => {
+  const pts = Array.from({ length: 100 }, (_, i) => ({ time: i }));
+  const out = strideDownsample(pts, 10);
+  assert.ok(out.length <= 11);
+  assert.equal(out[0].time, 0);
+  assert.equal(out[out.length - 1].time, 99);
+});
+
+test('depthHistoryBudget targets ~1h with tight column cap', () => {
   const b = depthHistoryBudget(3600);
   assert.equal(b.historySecs, 3600);
-  assert.ok(b.maxCols >= 2000 && b.maxCols <= 4200, `maxCols ${b.maxCols}`);
-  assert.equal(b.recentStepMs, 200);
+  assert.ok(b.maxCols >= 360 && b.maxCols <= 1800, `maxCols ${b.maxCols}`);
+  assert.equal(b.recentStepMs, 250);
   assert.equal(b.oldStepMs, 5000);
 });
 
@@ -84,6 +125,15 @@ test('compactDepthHistory trims to budget and preserves tip', () => {
   assert.ok(out.length <= budget.maxCols, `${out.length} > ${budget.maxCols}`);
   assert.equal(out[out.length - 1].t, tip);
   assert.ok(out[0].t >= tip - 3_600_000);
+});
+
+test('tape/bps/sample budgets stay hard-capped for 24/7', () => {
+  assert.ok(tapeMaxEntries(3600) <= TAPE_OF_MAX);
+  assert.ok(tapeMaxEntries(7200) <= TAPE_OF_MAX);
+  assert.ok(bpsMaxPoints(3600) <= CHART_DISPLAY_MAX_POINTS + 120);
+  assert.ok(venueSampleBudget(3600) <= 8000);
+  assert.ok(TAPE_DOM_MAX <= 200);
+  assert.ok(ALERTS_MAX <= 40);
 });
 
 test('SeriesHistoryPolicy exposes tape/bps/depth knobs', () => {

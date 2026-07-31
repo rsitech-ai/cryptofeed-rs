@@ -2,8 +2,10 @@ import { nsToSec } from './format.js';
 import { colorForVenue } from './assets.js';
 import {
   DEFAULT_HISTORY_SECS,
+  CHART_DISPLAY_MAX_POINTS,
   clampHistorySecs,
   downsampleByAge,
+  downsampleForChart,
   retentionCutoff,
   trimTimeMap,
   venueSampleBudget,
@@ -232,7 +234,7 @@ export class MultiVenueTracker {
       }
 
       const baseline = st.baseline ?? points[0].price;
-      const data =
+      const rawData =
         mode === 'percent'
           ? points.map((p) => ({
               time: p.time,
@@ -242,12 +244,17 @@ export class MultiVenueTracker {
               time: p.time,
               value: p.price,
             }));
+      // Display downsample — keep chart paint ≤ CHART_DISPLAY_MAX_POINTS even on 1h view.
+      const data = downsampleForChart(rawData, windowSec, CHART_DISPLAY_MAX_POINTS);
 
       const last = points[points.length - 1].price;
       const lastTime = points[points.length - 1].time;
       const pct = baseline ? (last / baseline - 1) * 100 : null;
       pointCount += data.length;
       if (!hidden.has(st.venue)) lasts.push(last);
+
+      const volRaw = hidden.has(st.venue) ? [] : volumeSeries(st, sinceSec);
+      const volumeData = downsampleForChart(volRaw, windowSec, CHART_DISPLAY_MAX_POINTS);
 
       series.push({
         venue: st.venue,
@@ -266,7 +273,7 @@ export class MultiVenueTracker {
         tradesPerMin: tpm,
         windowNotional: win.notional,
         windowTrades: win.trades,
-        volumeData: hidden.has(st.venue) ? [] : volumeSeries(st, sinceSec),
+        volumeData,
       });
     }
 
@@ -424,28 +431,31 @@ function trimVenue(st, intervalSec, historySecs) {
   }
 
   const sampleCap = venueSampleBudget(historySecs);
-  if (st.samples.length > sampleCap) {
+  // Proactive downsample once past 85% of budget (avoid waiting for cliff).
+  if (st.samples.length > Math.floor(sampleCap * 0.85)) {
     const tip = latest || st.samples[st.samples.length - 1]?.sec || 0;
     const asPoints = st.samples.map((s) => ({ time: s.sec, price: s.price, orderNs: s.orderNs }));
     const sparse = downsampleByAge(asPoints, {
       tipSec: tip,
-      recentSec: Math.min(600, historySecs),
-      midSec: Math.min(1800, historySecs),
+      recentSec: Math.min(300, historySecs),
+      midSec: Math.min(1200, historySecs),
       recentStep: Math.max(1, intervalSec),
       midStep: Math.max(5, intervalSec * 5),
       oldStep: Math.max(15, intervalSec * 15),
+      maxPoints: sampleCap,
     });
     st.samples = sparse.map((p) => ({ sec: p.time, price: p.price, orderNs: p.orderNs }));
     // Re-bucket from downsampled samples so line buckets stay consistent.
     rebuildVenue(st, intervalSec);
   }
 
-  if (st.seen.size > 30000) {
-    st.seen = new Set([...st.seen].slice(-15000));
+  // Dedup keys grow with every quote tick — trim aggressively.
+  if (st.seen.size > 12000) {
+    st.seen = new Set([...st.seen].slice(-6000));
   }
 
   // Hard safety if time tip is missing / stalled.
-  const maxBuckets = Math.max(4000, historySecs + 120);
+  const maxBuckets = Math.min(4200, Math.max(900, historySecs + 120));
   if (st.buckets.size > maxBuckets) {
     const keys = [...st.buckets.keys()].sort((a, b) => a - b);
     const drop = keys.slice(0, keys.length - maxBuckets);
@@ -455,6 +465,11 @@ function trimVenue(st, intervalSec, historySecs) {
     const keys = [...st.volBuckets.keys()].sort((a, b) => a - b);
     const drop = keys.slice(0, keys.length - maxBuckets);
     for (const k of drop) st.volBuckets.delete(k);
+  }
+  if (st.tradeBuckets && st.tradeBuckets.size > maxBuckets) {
+    const keys = [...st.tradeBuckets.keys()].sort((a, b) => a - b);
+    const drop = keys.slice(0, keys.length - maxBuckets);
+    for (const k of drop) st.tradeBuckets.delete(k);
   }
 }
 

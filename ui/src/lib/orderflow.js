@@ -531,10 +531,11 @@ export function sampleBookDepth(book, opts = {}) {
 export function pushDepthHistory(history, sample, max = 240, opts = {}) {
   if (!sample) return history || [];
   const gapMs = opts.gapMs ?? 420;
-  const maxFill = opts.maxFill ?? 16;
+  const maxFill = opts.maxFill ?? 12;
   const maxGapMs = opts.maxGapMs ?? 10000;
   const historySecs = opts.historySecs;
-  let next = [...(history || [])];
+  // Mutate a shared array when possible to avoid copying thousands of Map-heavy columns.
+  let next = history || [];
   if (next.length) {
     const last = next[next.length - 1];
     const dt = Number(sample.t) - Number(last.t);
@@ -555,11 +556,19 @@ export function pushDepthHistory(history, sample, max = 240, opts = {}) {
   if (historySecs != null && Number.isFinite(historySecs) && historySecs > 0) {
     const budget = depthHistoryBudget(historySecs);
     cap = Math.max(max, budget.maxCols);
-    if (next.length > budget.maxCols * 1.25) {
+    if (next.length > budget.maxCols * 1.15) {
       next = compactDepthHistory(next, historySecs, sample.t);
     }
   }
-  return next.length > cap ? next.slice(next.length - cap) : next;
+  if (next.length > cap) {
+    // Prefer in-place splice over slice-copy when we still hold the original array.
+    if (next === history) {
+      next.splice(0, next.length - cap);
+      return next;
+    }
+    return next.slice(next.length - cap);
+  }
+  return next;
 }
 
 /**
