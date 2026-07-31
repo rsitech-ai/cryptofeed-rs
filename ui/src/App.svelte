@@ -56,6 +56,7 @@
   import OrderFlowHeatmap from './components/OrderFlowHeatmap.svelte';
   import DomLadder from './components/DomLadder.svelte';
   import FlowPulseDock from './components/FlowPulseDock.svelte';
+  import ChartAnalyticsStrip from './components/ChartAnalyticsStrip.svelte';
 
   const initial = loadSettings();
 
@@ -142,6 +143,8 @@
   /** @type {Array<object>} L2 depth ring for order-flow heatmap */
   let depthHistory = $state([]);
   let pulseHistory = $state([]);
+  /** Visible plot time window from Lines/Candles (unix sec); null → session/OF window. */
+  let chartVisibleRange = $state(/** @type {{ fromSec: number, toSec: number }|null} */ (null));
   let pulseAlertActive = $state(false);
   let lastPulseAlertAt = 0;
   let pulseMetricFilter = $state('');
@@ -167,7 +170,12 @@
     if (pendingFocusBook) {
       book = pendingFocusBook;
       const pressure = bookPressure(book, bookDepth);
-      imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct);
+      const last = imbalanceHistory[imbalanceHistory.length - 1];
+      // ~1 Hz samples so ring can span the session window without thrashing.
+      if (!last || Date.now() - last.t >= 1000) {
+        const maxPts = Math.min(900, Math.max(180, Math.ceil(sessionSec) + 30));
+        imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct, maxPts);
+      }
       pendingFocusBook = null;
     }
   }, { minIntervalMs: 120 });
@@ -432,6 +440,11 @@
   let mapped = $derived(mapAssetToVenues(instruments, selectedAsset, status));
   let liveMapped = $derived(mapped.filter((m) => m.live).length);
   let sessionSec = $derived(sessionWindowSec(sessionPreset));
+  /** Shared time window for under-chart Pulse/Imb/CVD/hist strip. */
+  let stripVisibleRange = $derived(
+    chartMode === 'orderflow' ? null : chartVisibleRange,
+  );
+  let stripWindowSec = $derived(ofViewSec ?? sessionSec);
   let marketQuotes = $derived(
     (lineSeries || []).map((s) => ({
       venue: s.venue,
@@ -570,11 +583,15 @@
     if (!p || p.score == null) return;
     const last = pulseHistory[pulseHistory.length - 1];
     if (last && Date.now() - last.t < 1500) return;
-    pulseHistory = pushPulseHistory(pulseHistory, {
-      score: p.score,
-      tradesPerMin: p.tradesPerMin,
-      usdPerMin: p.usdPerMin,
-    });
+    pulseHistory = pushPulseHistory(
+      pulseHistory,
+      {
+        score: p.score,
+        tradesPerMin: p.tradesPerMin,
+        usdPerMin: p.usdPerMin,
+      },
+      Math.min(800, Math.max(120, Math.ceil(sessionSec / 1.5) + 40)),
+    );
     checkPulseAlert();
   }
 
@@ -848,6 +865,7 @@
       analyticsOpen = true;
       patch.analyticsTab = 'both';
       patch.analyticsOpen = true;
+      chartVisibleRange = null;
     }
     persist(patch);
     // Re-project views from retained buffers (no re-fetch from zero).
@@ -1416,6 +1434,11 @@
         onPollMulti={rescheduleMulti}
         onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
         onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
+        onVisibleTimeRange={(r) => {
+          if (r && Number.isFinite(r.fromSec) && Number.isFinite(r.toSec)) {
+            chartVisibleRange = r;
+          }
+        }}
       />
       {#if chartMode === 'orderflow'}
         <div class="of-chart-stack">
@@ -1449,6 +1472,15 @@
           </div>
         </div>
       {/if}
+      <ChartAnalyticsStrip
+        tape={ofTape.length ? ofTape : tape}
+        {imbalanceHistory}
+        {pulseHistory}
+        windowSec={stripWindowSec}
+        visibleRange={stripVisibleRange}
+        spikeThreshold={pulseSpikeThreshold}
+        showVolumeHist={true}
+      />
     </section>
 
     <aside class="col-right">
@@ -1504,13 +1536,10 @@
           {book}
           tape={ofTape.length ? ofTape : tape}
           depth={Math.max(bookDepth, 32)}
-          {lastPrice}
           windowSec={ofViewSec ?? sessionSec}
           largeUsd={largeTradeUsd}
-          {imbalanceHistory}
           showTapeProfile={chartMode !== 'orderflow'}
           {pulse}
-          history={pulseHistory}
           alertActive={pulseAlertActive}
           spikeThreshold={pulseSpikeThreshold}
           asset={selectedAsset}

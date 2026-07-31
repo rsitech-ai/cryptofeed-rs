@@ -38,6 +38,7 @@ import {
   volumeAtPrice,
   volumeBarsFromTape,
   sparkPath,
+  sparkPathTimed,
 } from './orderflow.js';
 import {
   bookImbalanceFromSnap,
@@ -169,6 +170,25 @@ describe('sparkPath', () => {
   });
   it('empty for short series', () => {
     assert.equal(sparkPath([1]), '');
+  });
+});
+
+describe('sparkPathTimed', () => {
+  it('maps time onto width', () => {
+    const d = sparkPathTimed(
+      [
+        { t: 100, v: 0 },
+        { t: 200, v: 10 },
+      ],
+      { w: 100, h: 36, fromSec: 100, toSec: 200 },
+    );
+    assert.match(d, /^M/);
+    assert.ok(d.includes('L'));
+    // Second point should land near right edge (x≈100).
+    assert.match(d, /100\.0 /);
+  });
+  it('empty for short series', () => {
+    assert.equal(sparkPathTimed([{ t: 1, v: 1 }]), '');
   });
 });
 

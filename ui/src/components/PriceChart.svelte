@@ -50,6 +50,7 @@
     onPollMulti = () => {},
     onAlertBps = () => {},
     onWebhook = () => {},
+    onVisibleTimeRange = () => {},
   } = $props();
 
   let host = $state(null);
@@ -133,6 +134,7 @@
   function observeUserRange(target) {
     const timeScale = target.timeScale();
     const onVisibleLogicalRangeChange = () => {
+      emitVisibleTimeRange();
       // Programmatic scroll/fitContent and cross-pane sync must not latch unfollow.
       if (performance.now() < programmaticUntil) return;
       if (!rangeActivity.isUserDriven()) return;
@@ -144,6 +146,20 @@
     return () => {
       timeScale.unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
     };
+  }
+
+  function emitVisibleTimeRange() {
+    if (!chart || toolbarOnly) return;
+    try {
+      const r = chart.timeScale().getVisibleRange?.();
+      if (!r) return;
+      const fromSec = Number(r.from);
+      const toSec = Number(r.to);
+      if (!Number.isFinite(fromSec) || !Number.isFinite(toSec) || toSec <= fromSec) return;
+      onVisibleTimeRange({ fromSec, toSec });
+    } catch {
+      /* ignore */
+    }
   }
 
   function wireHostPanGestures(el) {
@@ -604,6 +620,8 @@
     } catch {
       /* ignore */
     }
+
+    emitVisibleTimeRange();
   }
 
   $effect(() => {
