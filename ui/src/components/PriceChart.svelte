@@ -736,6 +736,32 @@
     }
     onToggleVenue(row.venue);
   }
+
+  /** Rich hover details for venue legend rows (Δ role, last, flow). */
+  function legendHoverTitle(row) {
+    const parts = [row.venue];
+    if (row.symbol) parts.push(row.symbol);
+    parts.push(row.live ? 'live' : 'offline');
+    if (row.hidden) parts.push('hidden');
+    if (row.last != null) parts.push(`last ${fmtPrice(row.last, 2)}`);
+    if (row.pct != null) parts.push(fmtPct(row.pct, 3));
+    parts.push(`USD ${fmtUsd(row.windowNotional ?? row.tradeNotional ?? 0)}`);
+    parts.push(`qty ${row.tradeVolume ?? 0}`);
+    parts.push(fmtTradesPerMin(row.windowTrades ?? row.tradeCount ?? 0, sessionWindowSec));
+    if (discrepancy?.bps != null) {
+      if (row.venue === discrepancy.highVenue) {
+        parts.push(`Δ high · ${discrepancy.bps.toFixed(2)} bps`);
+      } else if (row.venue === discrepancy.lowVenue) {
+        parts.push(`Δ low · ${discrepancy.bps.toFixed(2)} bps`);
+      } else {
+        parts.push(`cross Δ ${discrepancy.bps.toFixed(2)} bps (alert ≥ ${alertBpsThreshold})`);
+      }
+    } else if (highlightVenues.includes(row.venue)) {
+      parts.push('Δ highlight');
+    }
+    if (row.venue === focusVenue) parts.push('focus');
+    return parts.join(' · ');
+  }
 </script>
 
 <section class="chart-panel" class:toolbar-only={toolbarOnly}>
@@ -770,7 +796,17 @@
         <button type="button" class:active={showSettings} onclick={() => (showSettings = !showSettings)}>⚙</button>
       </div>
       {#if discrepancy}
-        <span class="disc" class:alert={discrepancy.bps != null && discrepancy.bps > alertBpsThreshold}>
+        <span
+          class="disc"
+          class:alert={discrepancy.bps != null && discrepancy.bps > alertBpsThreshold}
+          title={[
+            discrepancy.bps != null ? `Δ ${discrepancy.bps.toFixed(2)} bps` : null,
+            `abs ${fmtPrice(discrepancy.abs, 2)}`,
+            `high ${discrepancy.highVenue || '—'} @ ${fmtPrice(discrepancy.max, 2)}`,
+            `low ${discrepancy.lowVenue || '—'} @ ${fmtPrice(discrepancy.min, 2)}`,
+            `alert ≥ ${alertBpsThreshold} bps`,
+          ].filter(Boolean).join(' · ')}
+        >
           Δ {fmtPrice(discrepancy.abs, 2)}
           {#if discrepancy.bps != null}<span class="muted">({discrepancy.bps.toFixed(2)} bps)</span>{/if}
         </span>
@@ -806,7 +842,7 @@
             class:focus={row.venue === focusVenue}
             class:hl={highlightVenues.includes(row.venue)}
             onclick={(e) => onLegendClick(row, e)}
-            title="USD {fmtUsd(row.tradeNotional ?? 0)} · raw qty {row.tradeVolume ?? 0}"
+            title={legendHoverTitle(row)}
           >
             <span class="swatch" style={`background:${row.color}`}></span>
             <span class="name">{row.venue}</span>
