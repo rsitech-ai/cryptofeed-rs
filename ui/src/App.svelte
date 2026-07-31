@@ -250,6 +250,8 @@
   }, { minIntervalMs: 120 });
 
   let candles = $state([]);
+  /** Full-retention candles for Top Movers (not session-clipped). */
+  let historyCandles = $state([]);
   let volumeBars = $state([]);
   let eventsPerSec = $state(null);
   let priceDir = $state(0);
@@ -850,6 +852,7 @@
   function syncCandleView() {
     // Clip display to session window; underlying builder retains ~historySecs.
     candles = candleBuilder.candles(sessionSec);
+    historyCandles = candleBuilder.candles(0);
     volumeBars = candleBuilder.volumeBars(sessionSec);
     lastTradePrice = candleBuilder.lastPrice;
     sessionHigh = candleBuilder.sessionHigh;
@@ -956,6 +959,7 @@
     focusGeneration += 1;
     candleBuilder.reset();
     candles = [];
+    historyCandles = [];
     volumeBars = [];
     lastTradePrice = null;
     sessionHigh = null;
@@ -1795,6 +1799,8 @@
         <FlowPulseDock
           {book}
           tape={ofTape.length ? ofTape : tape}
+          candles={historyCandles}
+          {historySecs}
           depth={Math.max(bookDepth, 32)}
           windowSec={ofViewSec ?? sessionSec}
           largeUsd={largeTradeUsd}
