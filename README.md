@@ -38,7 +38,8 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
   CI gate yet.
 - Daemon health endpoints (`/live`, `/ready`) and Prometheus-format `/metrics`.
 - Optional loopback view API + SPA (`--features ui`): see
-  [`docs/ops/ui.md`](docs/ops/ui.md). Grafana/Prometheus ops:
+  [`docs/ops/ui.md`](docs/ops/ui.md). Run the live panel with
+  `./scripts/run_live_ui.sh`. Grafana/Prometheus ops:
   [`docs/ops/grafana/README.md`](docs/ops/grafana/README.md).
 
 The authoritative architecture and behavior specification is
@@ -105,6 +106,15 @@ For live public sessions, start from
 enable only the venues and channels you need. Exchange APIs are unreliable;
 operators must monitor reconnects, book validity, drops, rate limits, and sink
 health.
+
+Live market panel (SPA + multi-venue public feeds):
+
+```bash
+./scripts/run_live_ui.sh
+# → http://127.0.0.1:19109/?asset=BTC&mode=lines&dock=1
+```
+
+See [`docs/ops/ui.md`](docs/ops/ui.md) for flags, config, and manual commands.
 
 Private feeds use environment variables only. Never place credentials in TOML,
 logs, recordings, issues, or test fixtures. The private-account module does not
