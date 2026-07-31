@@ -107,6 +107,8 @@
       borderColor: '#1e2329',
       scaleMargins: { top: 0.12, bottom: 0.12 },
       entireTextOnly: true,
+      // Match main/BPS so stacked plot areas share the same left edge.
+      minimumWidth: 72,
     },
     timeScale: {
       borderColor: '#1e2329',
