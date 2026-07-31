@@ -1859,7 +1859,8 @@
     position: absolute;
     top: 0;
     width: 1px;
-    background: rgba(71, 77, 87, 0.95);
+    background: rgba(234, 236, 239, 0.82);
+    box-shadow: 0 0 0 0.5px rgba(15, 19, 24, 0.4);
     pointer-events: none;
     z-index: 6;
   }
