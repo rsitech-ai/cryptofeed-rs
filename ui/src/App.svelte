@@ -43,6 +43,7 @@
     spreadBpsFromBook,
   } from './lib/pulse.js';
   import { createPaintGate } from './lib/paint.js';
+  import { tapeTipSec } from './lib/indicatorSeries.js';
   import { Book404Gate, isCurrentMarket } from './lib/contracts.js';
   import HeaderBar from './components/HeaderBar.svelte';
   import OrderBook from './components/OrderBook.svelte';
@@ -168,15 +169,31 @@
   let snapsDirty = false;
   let tabHidden = false;
 
+  /** Exchange/receive tip in epoch ms — shared clock with Lines/CVD. */
+  function exchangeTipMs() {
+    const tip = tapeTipSec(ofTape.length ? ofTape : tape);
+    if (tip != null) return tip * 1000;
+    if (chartVisibleRange && Number.isFinite(chartVisibleRange.toSec)) {
+      return Number(chartVisibleRange.toSec) * 1000;
+    }
+    return Date.now();
+  }
+
   const bookPaint = createPaintGate(() => {
     if (pendingFocusBook) {
       book = pendingFocusBook;
       const pressure = bookPressure(book, bookDepth);
       const last = imbalanceHistory[imbalanceHistory.length - 1];
+      const tipMs = exchangeTipMs();
       // ~1 Hz samples so ring can span the session window without thrashing.
-      if (!last || Date.now() - last.t >= 1000) {
+      if (!last || tipMs - last.t >= 1000) {
         const maxPts = Math.min(900, Math.max(180, Math.ceil(sessionSec) + 30));
-        imbalanceHistory = pushImbalanceHistory(imbalanceHistory, pressure.imbalancePct, maxPts);
+        imbalanceHistory = pushImbalanceHistory(
+          imbalanceHistory,
+          pressure.imbalancePct,
+          maxPts,
+          tipMs,
+        );
       }
       pendingFocusBook = null;
     }
@@ -583,8 +600,9 @@
     // pulse is derived; sample current score into history (throttled by callers).
     const p = pulse;
     if (!p || p.score == null) return;
+    const tipMs = exchangeTipMs();
     const last = pulseHistory[pulseHistory.length - 1];
-    if (last && Date.now() - last.t < 1500) return;
+    if (last && tipMs - last.t < 1500) return;
     pulseHistory = pushPulseHistory(
       pulseHistory,
       {
@@ -593,6 +611,7 @@
         usdPerMin: p.usdPerMin,
       },
       Math.min(800, Math.max(120, Math.ceil(sessionSec / 1.5) + 40)),
+      tipMs,
     );
     checkPulseAlert();
   }

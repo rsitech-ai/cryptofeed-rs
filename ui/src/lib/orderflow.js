@@ -285,12 +285,16 @@ export function levelImbalancePct(bidQty, askQty) {
 
 /**
  * Push depth imbalance sample into a bounded ring.
+ * Prefer exchange-tip `tMs` so Imb shares the Lines chart clock.
+ *
  * @param {Array<{ t: number, imbalancePct: number }>} history
  * @param {number} imbalancePct
  * @param {number} [max]
+ * @param {number} [tMs] unix epoch ms (exchange tip); defaults to wall clock
  */
-export function pushImbalanceHistory(history, imbalancePct, max = 90) {
-  const next = [...(history || []), { t: Date.now(), imbalancePct }];
+export function pushImbalanceHistory(history, imbalancePct, max = 90, tMs = Date.now()) {
+  const t = Number.isFinite(tMs) ? Number(tMs) : Date.now();
+  const next = [...(history || []), { t, imbalancePct }];
   return next.length > max ? next.slice(next.length - max) : next;
 }
 

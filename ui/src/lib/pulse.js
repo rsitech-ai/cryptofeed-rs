@@ -132,15 +132,19 @@ export function spreadBpsFromBook(book) {
 
 /**
  * Push pulse score into history ring.
+ * Prefer exchange-tip `tMs` so Pulse shares the Lines chart clock.
+ *
  * @param {Array<{ t: number, score: number, tradesPerMin: number, usdPerMin: number }>} history
  * @param {{ score: number, tradesPerMin: number, usdPerMin: number }} point
  * @param {number} [max]
+ * @param {number} [tMs] unix epoch ms (exchange tip); defaults to wall clock
  */
-export function pushPulseHistory(history, point, max = 120) {
+export function pushPulseHistory(history, point, max = 120, tMs = Date.now()) {
+  const t = Number.isFinite(tMs) ? Number(tMs) : Date.now();
   const next = [
     ...(history || []),
     {
-      t: Date.now(),
+      t,
       score: point.score,
       tradesPerMin: point.tradesPerMin,
       usdPerMin: point.usdPerMin,

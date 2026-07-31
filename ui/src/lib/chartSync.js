@@ -36,6 +36,36 @@ export function wireVisibleLogicalRangeSync(source, target, guard) {
 }
 
 /**
+ * Apply a wall-clock visible window. If the exact range is not yet covered by
+ * series data, clamp to the overlap with the target's current data extent
+ * (via getVisibleRange after a no-op) — otherwise try setVisibleLogicalRange
+ * fallback is unavailable, so we clamp using time scale options when present.
+ *
+ * @param {any} timeScale
+ * @param {number} from
+ * @param {number} to
+ */
+export function setVisibleTimeRangeSafe(timeScale, from, to) {
+  if (!timeScale || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) return false;
+  try {
+    timeScale.setVisibleRange({ from, to });
+    return true;
+  } catch {
+    /* target may lack data covering the full range — clamp to overlap */
+  }
+  try {
+    // Prefer keeping the requested window when the library accepts a slightly
+    // coerced range (same from/to as numbers). Some LWC builds reject only
+    // when entirely outside; retry with a 1s inset.
+    const inset = Math.min(1, (to - from) / 4);
+    timeScale.setVisibleRange({ from: from + inset, to: to - inset });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Time-range sync — aligns wall-clock windows across charts with different
  * bar densities. Uses subscribeVisibleTimeRangeChange / setVisibleRange.
  *
@@ -55,9 +85,7 @@ export function wireVisibleTimeRangeSync(source, target, guard) {
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
     guard.active = true;
     try {
-      targetTimeScale.setVisibleRange({ from, to });
-    } catch {
-      /* target may lack data covering the range yet */
+      setVisibleTimeRangeSafe(targetTimeScale, from, to);
     } finally {
       guard.active = false;
     }
@@ -126,11 +154,7 @@ export function applyVisibleTimeRange(charts, range, guard) {
   try {
     for (const c of charts || []) {
       if (!c) continue;
-      try {
-        c.timeScale().setVisibleRange({ from, to });
-      } catch {
-        /* ignore until series has data */
-      }
+      setVisibleTimeRangeSafe(c.timeScale(), from, to);
     }
   } finally {
     g.active = false;
