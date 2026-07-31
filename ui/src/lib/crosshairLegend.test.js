@@ -1,6 +1,7 @@
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  normalizeCrosshairTime,
   setCrosshairOnCharts,
   wireCrosshairSync,
 } from './chartSync.js';
@@ -41,8 +42,20 @@ function fakeCrosshairChart() {
   };
 }
 
+function flushFrame() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe('normalizeCrosshairTime', () => {
+  it('floors unix seconds and rejects invalid input', () => {
+    assert.equal(normalizeCrosshairTime(1000.9), 1000);
+    assert.equal(normalizeCrosshairTime(null), null);
+    assert.equal(normalizeCrosshairTime(''), null);
+  });
+});
+
 describe('wireCrosshairSync', () => {
-  it('fans setCrosshairPosition to peer charts and clears on leave', () => {
+  it('fans setCrosshairPosition to peer charts and clears on leave', async () => {
     const a = fakeCrosshairChart();
     const b = fakeCrosshairChart();
     const guard = { active: false };
@@ -53,26 +66,29 @@ describe('wireCrosshairSync', () => {
         { chart: b.chart, series: b.series },
       ],
       guard,
-      { onMove: (p) => moves.push(p.time) },
+      { onMove: (p) => moves.push(p.time), echoQuietMs: 0 },
     );
 
     const seriesData = new Map([[a.series, { value: 10 }]]);
-    a.emit({ time: 1000, point: { x: 40, y: 20 }, seriesData });
+    a.emit({ time: 1000.7, point: { x: 40, y: 20 }, seriesData });
+    await flushFrame();
     assert.equal(b.chart.setCrosshairPosition.mock.callCount(), 1);
     assert.deepEqual(b.chart.setCrosshairPosition.mock.calls[0].arguments[1], 1000);
     assert.equal(moves.at(-1), 1000);
 
     a.emit({ time: null, point: undefined, seriesData: new Map() });
+    await flushFrame();
     assert.equal(a.chart.clearCrosshairPosition.mock.callCount(), 1);
     assert.equal(b.chart.clearCrosshairPosition.mock.callCount(), 1);
     assert.equal(moves.at(-1), null);
 
     dispose();
     a.emit({ time: 2000, point: { x: 1, y: 1 }, seriesData });
+    await flushFrame();
     assert.equal(b.chart.setCrosshairPosition.mock.callCount(), 1);
   });
 
-  it('ignores re-entrant moves while guard.active', () => {
+  it('ignores re-entrant moves while guard.active', async () => {
     const a = fakeCrosshairChart();
     const b = fakeCrosshairChart();
     const guard = { active: true };
@@ -84,7 +100,27 @@ describe('wireCrosshairSync', () => {
       guard,
     );
     a.emit({ time: 5, point: { x: 1, y: 1 }, seriesData: new Map() });
+    await flushFrame();
     assert.equal(b.chart.setCrosshairPosition.mock.callCount(), 0);
+  });
+
+  it('coalesces bursty moves to one fan-out per frame', async () => {
+    const a = fakeCrosshairChart();
+    const b = fakeCrosshairChart();
+    wireCrosshairSync(
+      [
+        { chart: a.chart, series: a.series },
+        { chart: b.chart, series: b.series },
+      ],
+      { active: false },
+      { echoQuietMs: 0 },
+    );
+    a.emit({ time: 10, point: { x: 1, y: 1 }, seriesData: new Map() });
+    a.emit({ time: 11, point: { x: 2, y: 1 }, seriesData: new Map() });
+    a.emit({ time: 12, point: { x: 3, y: 1 }, seriesData: new Map() });
+    await flushFrame();
+    assert.equal(b.chart.setCrosshairPosition.mock.callCount(), 1);
+    assert.equal(b.chart.setCrosshairPosition.mock.calls[0].arguments[1], 12);
   });
 });
 

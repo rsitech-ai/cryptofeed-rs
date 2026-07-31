@@ -166,6 +166,10 @@
   let stackXhairTop = $state(0);
   let stackXhairHeight = $state(0);
   let plotStackEl = $state(/** @type {HTMLElement|null} */ (null));
+  /** True while hovering/pointing the plot stack — freezes live scroll. */
+  let plotInspecting = $state(false);
+  /** @type {ReturnType<typeof setTimeout>|0} */
+  let inspectResumeTimer = 0;
   const crosshairGuard = { active: false };
   /** @type {(() => void)|null} */
   let crosshairDispose = null;
@@ -514,6 +518,30 @@
     stackXhairX = null;
   }
 
+  function beginPlotInspect() {
+    if (inspectResumeTimer) {
+      clearTimeout(inspectResumeTimer);
+      inspectResumeTimer = 0;
+    }
+    plotInspecting = true;
+  }
+
+  function schedulePlotInspectEnd() {
+    if (inspectResumeTimer) clearTimeout(inspectResumeTimer);
+    inspectResumeTimer = setTimeout(() => {
+      inspectResumeTimer = 0;
+      plotInspecting = false;
+    }, 350);
+  }
+
+  function clearPlotInspect() {
+    if (inspectResumeTimer) {
+      clearTimeout(inspectResumeTimer);
+      inspectResumeTimer = 0;
+    }
+    plotInspecting = false;
+  }
+
   /** @param {number|null|undefined} clientX */
   function updateStackXhair(clientX) {
     if (!plotStackEl || clientX == null || !Number.isFinite(clientX)) {
@@ -527,7 +555,7 @@
       return;
     }
     stackXhairX = x;
-    const hosts = plotStackEl.querySelectorAll('.chart-host, .of-heat-main, .cas');
+    const hosts = plotStackEl.querySelectorAll('.chart-host, .bps-host, .of-heat-main, .cas .pane-host');
     let top = rect.height;
     let bottom = 0;
     for (const node of hosts) {
@@ -541,6 +569,25 @@
     }
     stackXhairTop = Math.max(0, top);
     stackXhairHeight = Math.max(0, bottom - top);
+  }
+
+  /**
+   * Stack overlay X from the MAIN chart's time→pixel mapping only.
+   * Source-pane point.x differs when price-scale widths / hosts diverge.
+   * @param {number} timeSec
+   */
+  function stackClientXForTime(timeSec) {
+    const main = mainCrosshairHandles?.[0]?.chart || mainPriceChart;
+    if (!main) return null;
+    const xLocal = timeToCoordinateSafe(main, timeSec);
+    if (xLocal == null) return null;
+    try {
+      const el = main.chartElement?.();
+      if (!el) return null;
+      return el.getBoundingClientRect().left + xLocal;
+    } catch {
+      return null;
+    }
   }
 
   /** @param {number|string|null|undefined} timeSec */
@@ -577,29 +624,18 @@
   function onSharedCrosshairMove(payload) {
     if (payload?.time == null) {
       clearHoverUi();
+      schedulePlotInspectEnd();
       return;
     }
-    buildLegendAt(payload.time);
-    let clientX = null;
-    try {
-      const el = payload.source?.chartElement?.();
-      if (el && payload.point && Number.isFinite(payload.point.x)) {
-        clientX = el.getBoundingClientRect().left + payload.point.x;
-      }
-    } catch {
-      /* ignore */
+    beginPlotInspect();
+    const t = Math.floor(Number(payload.time));
+    if (!Number.isFinite(t)) {
+      clearHoverUi();
+      return;
     }
-    if (clientX == null) {
-      const main = mainCrosshairHandles?.[0]?.chart || payload.source;
-      const x = timeToCoordinateSafe(main, payload.time);
-      try {
-        const el = main?.chartElement?.();
-        if (el && x != null) clientX = el.getBoundingClientRect().left + x;
-      } catch {
-        /* ignore */
-      }
-    }
-    updateStackXhair(clientX);
+    buildLegendAt(t);
+    // Always map through main so the vertical line is one straight stack axis.
+    updateStackXhair(stackClientXForTime(t));
   }
 
   function rewireCrosshairSync() {
@@ -628,12 +664,15 @@
   function onOfCrosshair(payload) {
     if (!payload || payload.timeSec == null) {
       clearHoverUi();
+      schedulePlotInspectEnd();
       setCrosshairOnCharts(paneCrosshairHandles, null, crosshairGuard);
       return;
     }
-    buildLegendAt(payload.timeSec);
+    beginPlotInspect();
+    const t = Math.floor(Number(payload.timeSec));
+    buildLegendAt(t);
     updateStackXhair(payload.clientX);
-    setCrosshairOnCharts(paneCrosshairHandles, payload.timeSec, crosshairGuard);
+    setCrosshairOnCharts(paneCrosshairHandles, t, crosshairGuard);
   }
 
   $effect(() => {
@@ -648,20 +687,20 @@
         paneHandles: (paneCrosshairHandles || []).map((h) => h.id),
         hasLegend: !!hoverLegend,
         xhairX: stackXhairX,
+        inspecting: plotInspecting,
         /** Soak/browser proof helper — drives legend + overlay + LWC sync. */
         force(timeSec, clientX = null) {
           const t = Math.floor(Number(timeSec));
           if (!Number.isFinite(t)) {
             clearHoverUi();
+            schedulePlotInspectEnd();
             setCrosshairOnCharts(allCrosshairHandles(), null, crosshairGuard);
             return false;
           }
+          beginPlotInspect();
           buildLegendAt(t);
           if (clientX != null) updateStackXhair(clientX);
-          else if (plotStackEl) {
-            const rect = plotStackEl.getBoundingClientRect();
-            updateStackXhair(rect.left + rect.width * 0.58);
-          }
+          else updateStackXhair(stackClientXForTime(t));
           setCrosshairOnCharts(allCrosshairHandles(), t, crosshairGuard);
           return true;
         },
@@ -1634,7 +1673,15 @@
           onSpikeClick={onSpikeClick}
         />
       {/if}
-      <div class="plot-stack" bind:this={plotStackEl}>
+      <div
+        class="plot-stack"
+        role="group"
+        aria-label="Price and indicator charts"
+        bind:this={plotStackEl}
+        onpointerenter={beginPlotInspect}
+        onpointerdown={beginPlotInspect}
+        onpointerleave={() => schedulePlotInspectEnd()}
+      >
       <!-- Single PriceChart instance — remounting on mode switch caused chart flicker. -->
       <PriceChart
         series={lineSeries}
@@ -1661,6 +1708,7 @@
         sessionWindowSec={sessionSec}
         toolbarOnly={chartMode === 'orderflow'}
         hoverLegend={chartMode === 'orderflow' ? null : hoverLegend}
+        inspecting={plotInspecting}
         onTimeframe={applyTimeframe}
         onChartMode={setChartMode}
         onPriceMode={(m) => { priceMode = m; persist({ priceMode: m }); syncLineView(true); }}
@@ -1687,6 +1735,9 @@
             mainCrosshairHandles = handles;
           }
         }}
+        onFollowLive={(live) => {
+          if (live) clearPlotInspect();
+        }}
       />
       {#if chartMode === 'orderflow'}
         <div class="of-chart-stack">
@@ -1706,7 +1757,7 @@
               {ofLayers}
               {largeTradeUsd}
               priceZoom={ofPriceZoom}
-              followLive={ofFollowLive}
+              followLive={ofFollowLive && !plotInspecting}
               onSettings={patchOfSettings}
               onCrosshair={onOfCrosshair}
             />

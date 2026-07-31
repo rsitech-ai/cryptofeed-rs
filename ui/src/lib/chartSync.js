@@ -36,17 +36,43 @@ export function wireVisibleLogicalRangeSync(source, target, guard) {
 }
 
 /**
- * Apply a wall-clock visible window. If the exact range is not yet covered by
- * series data, clamp to the overlap with the target's current data extent
- * (via getVisibleRange after a no-op) — otherwise try setVisibleLogicalRange
- * fallback is unavailable, so we clamp using time scale options when present.
+ * True when two wall-clock ranges match within `eps` seconds.
+ * Used to suppress redundant setVisibleRange that otherwise fights
+ * scrollToRealTime / auto-scale and jitters stacked panes.
+ *
+ * @param {{ from?: number, to?: number }|null|undefined} a
+ * @param {{ from?: number, to?: number }|null|undefined} b
+ * @param {number} [eps]
+ */
+export function visibleTimeRangesNearlyEqual(a, b, eps = 0.05) {
+  if (!a || !b) return false;
+  const af = Number(a.from);
+  const at = Number(a.to);
+  const bf = Number(b.from);
+  const bt = Number(b.to);
+  if (![af, at, bf, bt].every(Number.isFinite)) return false;
+  return Math.abs(af - bf) <= eps && Math.abs(at - bt) <= eps;
+}
+
+/**
+ * Apply a wall-clock visible window. Skips the write when the target already
+ * shows nearly the same range (avoids left/right plot-area jitter). If the
+ * exact range is not yet covered by series data, retry with a small inset.
  *
  * @param {any} timeScale
  * @param {number} from
  * @param {number} to
+ * @param {{ eps?: number }} [opts]
  */
-export function setVisibleTimeRangeSafe(timeScale, from, to) {
+export function setVisibleTimeRangeSafe(timeScale, from, to, opts = {}) {
   if (!timeScale || !Number.isFinite(from) || !Number.isFinite(to) || to <= from) return false;
+  const eps = Number.isFinite(opts.eps) ? opts.eps : 0.05;
+  try {
+    const cur = timeScale.getVisibleRange?.();
+    if (visibleTimeRangesNearlyEqual(cur, { from, to }, eps)) return true;
+  } catch {
+    /* proceed to set */
+  }
   try {
     timeScale.setVisibleRange({ from, to });
     return true;
@@ -77,15 +103,22 @@ export function setVisibleTimeRangeSafe(timeScale, from, to) {
 export function wireVisibleTimeRangeSync(source, target, guard) {
   const sourceTimeScale = source.timeScale();
   const targetTimeScale = target.timeScale();
+  /** @type {{ from: number, to: number }|null} */
+  let lastPushed = null;
 
   const onVisibleTimeRangeChange = (range) => {
     if (!range || guard.active) return;
     const from = Number(range.from);
     const to = Number(range.to);
     if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+    const next = { from, to };
+    // Skip no-op / float-noise updates so slave panes don't thrash.
+    if (visibleTimeRangesNearlyEqual(lastPushed, next)) return;
     guard.active = true;
     try {
-      setVisibleTimeRangeSafe(targetTimeScale, from, to);
+      if (setVisibleTimeRangeSafe(targetTimeScale, from, to)) {
+        lastPushed = next;
+      }
     } finally {
       guard.active = false;
     }
@@ -182,6 +215,21 @@ export function createRangeActivity() {
 }
 
 /**
+ * Normalize LWC crosshair times to integer unix seconds so every pane
+ * samples the same bar and the stack overlay X stays stable.
+ *
+ * @param {number|string|null|undefined} time
+ * @returns {number|null}
+ */
+export function normalizeCrosshairTime(time) {
+  if (time == null || time === '') return null;
+  if (typeof time === 'object') return null;
+  const n = Number(time);
+  if (!Number.isFinite(n)) return null;
+  return Math.floor(n);
+}
+
+/**
  * Resolve a Y price for setCrosshairPosition on a target series.
  * Prefers the bar at the shared logical index; falls back to 0 so the
  * vertical line still paints at `time`.
@@ -193,8 +241,9 @@ export function createRangeActivity() {
  */
 export function crosshairPriceForSeries(chart, series, time, fallbackPrice = 0) {
   if (!chart || !series) return fallbackPrice;
+  const t = normalizeCrosshairTime(time) ?? time;
   try {
-    const logical = chart.timeScale().timeToIndex?.(time, true);
+    const logical = chart.timeScale().timeToIndex?.(t, true);
     if (logical != null && Number.isFinite(logical)) {
       const bar = series.dataByIndex?.(logical, -1);
       if (bar) {
@@ -233,10 +282,11 @@ export function setCrosshairOnCharts(entries, time, guard, priceHint = 0) {
       }
       return;
     }
+    const t = normalizeCrosshairTime(time) ?? time;
     for (const e of list) {
       try {
-        const price = crosshairPriceForSeries(e.chart, e.series, time, priceHint);
-        e.chart.setCrosshairPosition(price, time, e.series);
+        const price = crosshairPriceForSeries(e.chart, e.series, t, priceHint);
+        e.chart.setCrosshairPosition(price, t, e.series);
       } catch {
         /* series may be empty */
       }
@@ -248,8 +298,9 @@ export function setCrosshairOnCharts(entries, time, guard, priceHint = 0) {
 
 /**
  * Sync crosshairs across independent Lightweight Charts instances.
- * Any chart's subscribeCrosshairMove fans out via setCrosshairPosition.
- * Does not touch time-scale sync — compose with wireChartTimeScales separately.
+ * Coalesces to one fan-out per animation frame, snaps to unix seconds, and
+ * briefly ignores echo callbacks from setCrosshairPosition so the line
+ * does not wiggle between panes.
  *
  * @param {Array<{ chart: any, series: any }|null|undefined>} entries
  * @param {{ active: boolean }} guard
@@ -260,44 +311,66 @@ export function setCrosshairOnCharts(entries, time, guard, priceHint = 0) {
  *     source: any,
  *     param: any,
  *   }) => void,
+ *   echoQuietMs?: number,
  * }} [opts]
  * @returns {() => void}
  */
 export function wireCrosshairSync(entries, guard, opts = {}) {
   const list = (entries || []).filter((e) => e?.chart && e?.series);
   const onMove = typeof opts.onMove === 'function' ? opts.onMove : null;
+  const echoQuietMs = Number.isFinite(opts.echoQuietMs) ? opts.echoQuietMs : 48;
   if (!list.length) return () => {};
 
   /** @type {Array<{ chart: any, handler: (param: any) => void }>} */
   const subs = [];
+  let quietUntil = 0;
+  /** @type {number|null} */
+  let lastTime = null;
+  let raf = 0;
+  /** @type {{ entry: any, param: any, time: number|null, left: boolean }|null} */
+  let pending = null;
 
-  for (const entry of list) {
-    const handler = (param) => {
-      if (guard.active) return;
-      const left =
-        !param ||
-        param.time == null ||
-        !param.point ||
-        param.point.x < 0 ||
-        param.point.y < 0;
-      if (left) {
-        setCrosshairOnCharts(list, null, guard);
-        onMove?.({ time: null, point: null, source: entry.chart, param });
-        return;
-      }
+  const schedule =
+    typeof requestAnimationFrame === 'function'
+      ? (fn) => requestAnimationFrame(fn)
+      : (fn) => setTimeout(fn, 0);
+  const cancelSchedule =
+    typeof cancelAnimationFrame === 'function'
+      ? (id) => cancelAnimationFrame(id)
+      : (id) => clearTimeout(id);
 
-      const time = param.time;
-      const own = param.seriesData?.get?.(entry.series);
-      const priceHint = Number.isFinite(own?.value)
-        ? Number(own.value)
-        : Number.isFinite(own?.close)
-          ? Number(own.close)
-          : 0;
+  const flush = () => {
+    raf = 0;
+    const job = pending;
+    pending = null;
+    if (!job || guard.active) return;
 
+    if (job.left) {
+      lastTime = null;
+      quietUntil = performance.now() + echoQuietMs;
+      setCrosshairOnCharts(list, null, guard);
+      onMove?.({ time: null, point: null, source: job.entry.chart, param: job.param });
+      return;
+    }
+
+    const time = job.time;
+    if (time == null) return;
+    const own = job.param?.seriesData?.get?.(job.entry.series);
+    const priceHint = Number.isFinite(own?.value)
+      ? Number(own.value)
+      : Number.isFinite(own?.close)
+        ? Number(own.close)
+        : 0;
+
+    // Same second: still notify for overlay X, but skip peer setCrosshair churn.
+    const timeChanged = lastTime !== time;
+    lastTime = time;
+    if (timeChanged) {
+      quietUntil = performance.now() + echoQuietMs;
       guard.active = true;
       try {
         for (const e of list) {
-          if (e.chart === entry.chart) continue;
+          if (e.chart === job.entry.chart) continue;
           try {
             const price = crosshairPriceForSeries(e.chart, e.series, time, priceHint);
             e.chart.setCrosshairPosition(price, time, e.series);
@@ -308,13 +381,32 @@ export function wireCrosshairSync(entries, guard, opts = {}) {
       } finally {
         guard.active = false;
       }
+    }
 
-      onMove?.({
-        time,
-        point: param.point ? { x: param.point.x, y: param.point.y } : null,
-        source: entry.chart,
-        param,
-      });
+    onMove?.({
+      time,
+      point: job.param?.point
+        ? { x: job.param.point.x, y: job.param.point.y }
+        : null,
+      source: job.entry.chart,
+      param: job.param,
+    });
+  };
+
+  for (const entry of list) {
+    const handler = (param) => {
+      if (guard.active) return;
+      if (performance.now() < quietUntil) return;
+      const left =
+        !param ||
+        param.time == null ||
+        !param.point ||
+        param.point.x < 0 ||
+        param.point.y < 0;
+      const time = left ? null : normalizeCrosshairTime(param.time);
+      if (!left && time == null) return;
+      pending = { entry, param, time, left };
+      if (!raf) raf = schedule(flush);
     };
 
     entry.chart.subscribeCrosshairMove(handler);
@@ -325,6 +417,9 @@ export function wireCrosshairSync(entries, guard, opts = {}) {
   return () => {
     if (disposed) return;
     disposed = true;
+    if (raf) cancelSchedule(raf);
+    raf = 0;
+    pending = null;
     for (const s of subs) {
       try {
         s.chart.unsubscribeCrosshairMove(s.handler);
