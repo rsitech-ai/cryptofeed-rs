@@ -43,6 +43,8 @@
     priceZoom = 1,
     followLive = true,
     onSettings = () => {},
+    /** Notify parent of heatmap crosshair time (unix sec) + clientX for stack overlay. */
+    onCrosshair = () => {},
   } = $props();
 
   let wrap = $state(null);
@@ -50,6 +52,8 @@
   let layersOpen = $state(false);
   /** @type {{ x: number, y: number, lines: string[] }|null} */
   let hover = $state(null);
+  /** Canvas-space X for the shared vertical crosshair overlay. */
+  let crosshairCanvasX = $state(null);
 
   const TICK_OPTS = [
     { v: 'auto', label: 'auto' },
@@ -880,6 +884,17 @@
       h - 12 * dpr,
     );
 
+    if (crosshairCanvasX != null && Number.isFinite(crosshairCanvasX)) {
+      octx.save();
+      octx.strokeStyle = 'rgba(71, 77, 87, 0.95)';
+      octx.lineWidth = Math.max(1, dpr);
+      octx.beginPath();
+      octx.moveTo(crosshairCanvasX + 0.5, 0);
+      octx.lineTo(crosshairCanvasX + 0.5, h);
+      octx.stroke();
+      octx.restore();
+    }
+
     ctx.drawImage(frameBuf, 0, 0);
 
     el._layout = {
@@ -988,6 +1003,15 @@
     const y = ((ev.clientY - rect.top) / rect.height) * el.height;
     if (x < L.padL || x > L.padL + L.heatW || y < L.padT || y > L.padT + L.heatH) {
       hover = null;
+      if (crosshairCanvasX != null) {
+        crosshairCanvasX = null;
+        try {
+          onCrosshair(null);
+        } catch {
+          /* ignore */
+        }
+        gate.schedule();
+      }
       return;
     }
     const spanP = L.priceMax - L.priceMin || 1;
@@ -1060,10 +1084,24 @@
       y: ev.clientY - rect.top + 12,
       lines,
     };
+    crosshairCanvasX = x;
+    try {
+      onCrosshair({ timeSec: t / 1000, clientX: ev.clientX });
+    } catch {
+      /* ignore */
+    }
+    gate.schedule();
   }
 
   function onLeave() {
     hover = null;
+    crosshairCanvasX = null;
+    try {
+      onCrosshair(null);
+    } catch {
+      /* ignore */
+    }
+    gate.schedule();
   }
 
   function patchSettings(patch) {
