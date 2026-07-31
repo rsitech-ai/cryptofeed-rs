@@ -1,14 +1,26 @@
 /**
- * Shared ~1h history retention for SPA series buffers.
+ * Shared history retention for SPA series buffers (24/7-safe budgets).
  *
  * Session presets (1m/5m/1h) remain *view* windows; this module owns the
  * underlying retention SLA so Lines / Candles / Order Flow can switch modes
- * without wiping buffered history.
+ * without wiping buffered history — while hard-capping memory/CPU.
  */
 
 export const DEFAULT_HISTORY_SECS = 3600;
 export const HISTORY_SECS_MIN = 300;
 export const HISTORY_SECS_MAX = 7200;
+
+/** Max DOM rows for Market Trades tape (virtualization substitute). */
+export const TAPE_DOM_MAX = 160;
+
+/** Max focus-tape trades retained for OF/CVD (separate from DOM). */
+export const TAPE_OF_MAX = 4000;
+
+/** Max in-app alert objects retained. */
+export const ALERTS_MAX = 24;
+
+/** Max points lightweight-charts should paint per venue (display downsample). */
+export const CHART_DISPLAY_MAX_POINTS = 900;
 
 /**
  * @param {unknown} v
@@ -63,6 +75,7 @@ export function trimTimeMap(map, cutoffSec) {
  *   recentStep?: number,
  *   midStep?: number,
  *   oldStep?: number,
+ *   maxPoints?: number,
  * }} [opts]
  * @returns {T[]}
  */
@@ -102,32 +115,89 @@ export function downsampleByAge(points, opts = {}) {
     }
   }
 
-  return [
+  let out = [
     ...[...oldBuckets.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v),
     ...[...midBuckets.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v),
     ...[...recentBuckets.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => v),
   ];
+
+  const maxPoints = opts.maxPoints;
+  if (maxPoints != null && Number.isFinite(maxPoints) && maxPoints > 0 && out.length > maxPoints) {
+    out = strideDownsample(out, maxPoints);
+  }
+  return out;
+}
+
+/**
+ * Uniform stride downsample preserving first + last.
+ * @template {unknown} T
+ * @param {T[]} points
+ * @param {number} maxPoints
+ * @returns {T[]}
+ */
+export function strideDownsample(points, maxPoints) {
+  const list = Array.isArray(points) ? points : [];
+  const cap = Math.max(2, Math.floor(maxPoints));
+  if (list.length <= cap) return list.slice();
+  const out = [];
+  const last = list.length - 1;
+  const step = last / (cap - 1);
+  let prev = -1;
+  for (let i = 0; i < cap; i++) {
+    const idx = i === cap - 1 ? last : Math.round(i * step);
+    if (idx === prev) continue;
+    out.push(list[idx]);
+    prev = idx;
+  }
+  if (out[out.length - 1] !== list[last]) out.push(list[last]);
+  return out;
+}
+
+/**
+ * Chart display downsample: dense recent + sparse older, hard-capped.
+ * @template {{ time: number }} T
+ * @param {T[]} points
+ * @param {number} [windowSec]
+ * @param {number} [maxPoints]
+ * @returns {T[]}
+ */
+export function downsampleForChart(points, windowSec = 300, maxPoints = CHART_DISPLAY_MAX_POINTS) {
+  const list = Array.isArray(points) ? points : [];
+  if (list.length <= maxPoints) return list;
+  const tip = list[list.length - 1]?.time;
+  const win = Math.max(1, Number(windowSec) || 300);
+  const recentSec = Math.min(180, Math.max(60, Math.floor(win * 0.2)));
+  const midSec = Math.min(win, Math.max(recentSec * 2, Math.floor(win * 0.55)));
+  return downsampleByAge(list, {
+    tipSec: tip,
+    recentSec,
+    midSec,
+    recentStep: 1,
+    midStep: Math.max(2, Math.ceil(win / maxPoints)),
+    oldStep: Math.max(5, Math.ceil((win * 2) / maxPoints)),
+    maxPoints,
+  });
 }
 
 /**
  * Column budget for L2 depth heat rings over `historySecs`.
- * Full-rate recent (~5 Hz), 1 Hz mid, 0.2 Hz older — honest density limit.
+ * Aggressive 24/7 caps: dense recent, sparse older.
  *
  * @param {number} [historySecs]
  */
 export function depthHistoryBudget(historySecs = DEFAULT_HISTORY_SECS) {
   const hs = clampHistorySecs(historySecs);
-  const recentSec = Math.min(300, hs);
-  const midSec = Math.min(900, Math.max(0, hs - recentSec));
+  const recentSec = Math.min(120, hs);
+  const midSec = Math.min(480, Math.max(0, hs - recentSec));
   const oldSec = Math.max(0, hs - recentSec - midSec);
   const cols =
-    Math.ceil(recentSec * 5) + Math.ceil(midSec * 1) + Math.ceil(oldSec / 5);
+    Math.ceil(recentSec * 4) + Math.ceil(midSec * 1) + Math.ceil(oldSec / 5);
   return {
     historySecs: hs,
-    maxCols: Math.min(4200, Math.max(480, cols + 64)),
+    maxCols: Math.min(1800, Math.max(360, cols + 48)),
     recentMs: recentSec * 1000,
     midMs: (recentSec + midSec) * 1000,
-    recentStepMs: 200,
+    recentStepMs: 250,
     midStepMs: 1000,
     oldStepMs: 5000,
   };
@@ -174,21 +244,22 @@ export function compactDepthHistory(history, historySecs = DEFAULT_HISTORY_SECS,
 
 /**
  * Max raw focus-tape trades to retain for OF/CVD/VAP over historySecs.
+ * Hard-capped for 24/7 — DOM uses TAPE_DOM_MAX; OF uses TAPE_OF_MAX.
  * @param {number} historySecs
  */
 export function tapeMaxEntries(historySecs = DEFAULT_HISTORY_SECS) {
   const hs = clampHistorySecs(historySecs);
-  // ~8 trades/sec average budget; hard cap for bursty venues.
-  return Math.min(40000, Math.max(8000, Math.floor(hs * 8)));
+  // ~2 trades/sec average budget; hard cap well below previous 40k.
+  return Math.min(TAPE_OF_MAX, Math.max(1500, Math.floor(hs * 2)));
 }
 
 /**
- * Max BPS sparkline points for historySecs (~1 Hz).
+ * Max BPS sparkline points for historySecs (~1 Hz, display-capped).
  * @param {number} historySecs
  */
 export function bpsMaxPoints(historySecs = DEFAULT_HISTORY_SECS) {
   const hs = clampHistorySecs(historySecs);
-  return Math.min(HISTORY_SECS_MAX + 120, Math.max(600, hs + 120));
+  return Math.min(CHART_DISPLAY_MAX_POINTS + 120, Math.max(300, Math.min(hs + 60, 1200)));
 }
 
 /**
@@ -197,7 +268,7 @@ export function bpsMaxPoints(historySecs = DEFAULT_HISTORY_SECS) {
  */
 export function venueSampleBudget(historySecs = DEFAULT_HISTORY_SECS) {
   const hs = clampHistorySecs(historySecs);
-  return Math.min(24000, Math.max(4000, hs * 4));
+  return Math.min(8000, Math.max(2000, Math.floor(hs * 1.5)));
 }
 
 /**

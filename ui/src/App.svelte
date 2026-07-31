@@ -28,9 +28,12 @@
     sampleBookDepth,
   } from './lib/orderflow.js';
   import {
+    ALERTS_MAX,
     clampHistorySecs,
     DEFAULT_HISTORY_SECS,
     SeriesHistoryPolicy,
+    TAPE_DOM_MAX,
+    TAPE_OF_MAX,
   } from './lib/history.js';
   import {
     bookImbalanceFromSnap,
@@ -60,6 +63,8 @@
   let instruments = $state({ venues: [] });
   let book = $state(null);
   let tape = $state([]);
+  /** Order-flow tape projection (hard-capped; not the full retention Map). */
+  let ofTape = $state([]);
   let error = $state('');
   let connected = $state(false);
 
@@ -153,9 +158,10 @@
   let focusGeneration = 0;
   /** @type {object|null} */
   let pendingFocusBook = null;
-  /** @type {object[]|null} */
+  /** @type {{ display: object[], of: object[], delta: object[] }|null} */
   let pendingFocusTape = null;
   let snapsDirty = false;
+  let tabHidden = false;
 
   const bookPaint = createPaintGate(() => {
     if (pendingFocusBook) {
@@ -168,12 +174,16 @@
 
   const tapePaint = createPaintGate(() => {
     if (pendingFocusTape) {
-      tape = pendingFocusTape;
-      candleBuilder.ingest(tape);
-      syncCandleView();
+      // Display tape is DOM-capped; OF gets a separate hard-capped projection.
+      tape = pendingFocusTape.display;
+      ofTape = pendingFocusTape.of;
+      if (pendingFocusTape.delta?.length) {
+        candleBuilder.ingest(pendingFocusTape.delta);
+        syncCandleView();
+      }
       pendingFocusTape = null;
     }
-  }, { minIntervalMs: 80 });
+  }, { minIntervalMs: 100 });
 
   const linePaint = createPaintGate(() => {
     flushLineView();
@@ -287,26 +297,30 @@
   }
 
   /**
-   * Merge SSE/poll tape batches into a ~historySecs ring so OF vol/CVD/VAP
-   * (and candles) survive Lines↔Candles↔Order Flow mode switches.
+   * Merge SSE/poll tape batches into a capped ring so OF vol/CVD/VAP
+   * (and candles) survive mode switches — without publishing 10k+ rows to DOM.
    * @param {object[]} entries
+   * @returns {{ display: object[], of: object[], delta: object[] }}
    */
   function mergeFocusTape(entries) {
+    /** @type {object[]} */
+    const delta = [];
     for (const e of entries || []) {
       if (!e || e.kind !== 'trade') continue;
       const id =
         e.trade_id != null
           ? `t:${e.trade_id}`
           : `f:${e.exchange_ts_ns}|${e.price}|${e.quantity}|${e.aggressor || ''}`;
+      if (!focusTapeRing.has(id)) delta.push(e);
       focusTapeRing.set(id, e);
     }
-    const keepSec = historyPolicy.tapeKeepSec();
+    const keepSec = Math.min(historyPolicy.tapeKeepSec(), 1800);
     const cutoff = Math.floor(Date.now() / 1000) - keepSec;
     for (const [k, e] of focusTapeRing) {
       const sec = nsToSec(e.exchange_ts_ns ?? e.receive_ts_ns);
       if (sec != null && sec < cutoff) focusTapeRing.delete(k);
     }
-    const maxEntries = historyPolicy.tapeMaxEntries();
+    const maxEntries = Math.min(historyPolicy.tapeMaxEntries(), TAPE_OF_MAX);
     if (focusTapeRing.size > maxEntries) {
       const sorted = [...focusTapeRing.entries()].sort(
         (a, b) =>
@@ -315,30 +329,44 @@
       );
       for (const [k] of sorted.slice(0, sorted.length - maxEntries)) focusTapeRing.delete(k);
     }
-    return [...focusTapeRing.values()].sort(
+    const newestFirst = [...focusTapeRing.values()].sort(
       (a, b) =>
         (Number(b.exchange_ts_ns ?? b.receive_ts_ns) || 0) -
         (Number(a.exchange_ts_ns ?? a.receive_ts_ns) || 0),
     );
+    const domCap = Math.min(TAPE_DOM_MAX, Math.max(40, tapeLimit || 120));
+    return {
+      display: newestFirst.slice(0, domCap),
+      of: newestFirst.slice(0, TAPE_OF_MAX),
+      delta,
+    };
+  }
+
+  function pushAlert(alert) {
+    const next = [...alerts, alert];
+    alerts = next.length > ALERTS_MAX ? next.slice(next.length - ALERTS_MAX) : next;
   }
 
   function sampleDepth(data) {
+    if (tabHidden) return;
     const now = Date.now();
     // Cap sample rate so the heatmap ring stays smooth without thrashing.
-    if (now - lastDepthSampleAt < 180) return;
+    // Slower when OF chart isn't visible.
+    const minGap = chartMode === 'orderflow' ? 200 : 400;
+    if (now - lastDepthSampleAt < minGap) return;
     lastDepthSampleAt = now;
     const tick = resolveTick(ofTick, data);
     const sample = sampleBookDepth(data, {
       t: now,
       tick,
       // Prefer deep L2 walls (SSE now sends ~48; poll path uses heatBookDepth).
-      maxLevels: Math.min(64, Math.max(48, bookDepth * 3)),
+      maxLevels: Math.min(48, Math.max(32, bookDepth * 2)),
     });
     if (!sample) return;
     const budget = historyPolicy.depthBudget();
     // Mutable ring + throttled publish — avoids remount/jitter from identity churn.
     depthRing = pushDepthHistory(depthRing, sample, budget.maxCols, {
-      gapMs: 400,
+      gapMs: 450,
       historySecs,
     });
     depthRingDirty = true;
@@ -562,7 +590,7 @@
       `Pulse spike ${score != null ? score.toFixed(0) : '?'}`,
       `${selectedAsset} multi-venue activity heat · in-app/webhook only`,
     );
-    alerts = [...alerts, a];
+    pushAlert(a);
     fireAlert(a, {
       type: 'pulse',
       kind: 'pulse',
@@ -608,7 +636,7 @@
       `Cross-venue Δ ${hit.bps.toFixed(2)} bps`,
       `High: ${hit.highVenue || '?'} · Low: ${hit.lowVenue || '?'}`,
     );
-    alerts = [...alerts, a];
+    pushAlert(a);
     fireAlert(a, { type: 'bps', bps: hit.bps, threshold: alertBpsThreshold });
   }
 
@@ -693,6 +721,7 @@
     priceDir = 0;
     book = null;
     tape = [];
+    ofTape = [];
     highlightSec = null;
     selectedTradeId = null;
     imbalanceHistory = [];
@@ -856,10 +885,14 @@
         lineSpanSec: lineSpan,
         candleBuckets: candleN,
         focusTape: focusTapeRing.size,
+        tapeDom: tape.length,
+        ofTape: ofTape.length,
         depthCols: depthRing.length || depthHistory.length,
         bpsPts: discTracker.points().length,
+        alerts: alerts.length,
         sessionSec,
         wallSec: Math.floor(Date.now() / 1000),
+        tabHidden,
       };
     } catch {
       /* ignore */
@@ -903,7 +936,7 @@
         const existing = alerts.find((a) => a.kind === 'lag' && !a.dismissed);
         if (!existing) {
           const a = createAlert('lag', `Feed lag ${lag}ms`, selectedVenue);
-          alerts = [...alerts, a];
+          pushAlert(a);
           fireAlert(a, { type: 'lag', venue: selectedVenue, lagMs: lag });
         }
       }
@@ -987,7 +1020,7 @@
   }
 
   async function tickMulti() {
-    if (replayMode || multiBusy) return;
+    if (replayMode || multiBusy || tabHidden) return;
     const targets = mapped.filter((m) => m.live || m.live == null);
     if (!targets.length) return;
     multiBusy = true;
@@ -1079,7 +1112,7 @@
   }
 
   async function tickFocus() {
-    if (replayMode) return;
+    if (replayMode || tabHidden) return;
     try {
       await Promise.all([refreshBook(), refreshFocusTape(), refreshHeatBook()]);
     } catch (e) {
@@ -1195,7 +1228,8 @@
 
     window.addEventListener('keydown', onKeydown);
     const onVisibility = () => {
-      if (document.visibilityState === 'visible') forceLiveRefresh();
+      tabHidden = document.visibilityState === 'hidden';
+      if (!tabHidden) forceLiveRefresh();
     };
     document.addEventListener('visibilitychange', onVisibility);
 
@@ -1388,7 +1422,7 @@
           <div class="of-heat-main">
             <OrderFlowHeatmap
               {depthHistory}
-              {tape}
+              tape={ofTape}
               windowSec={ofViewSec ?? sessionSec}
               venue={selectedVenue}
               symbol={selectedSymbol}
@@ -1468,7 +1502,7 @@
       <div class="dock-body">
         <FlowPulseDock
           {book}
-          {tape}
+          tape={ofTape.length ? ofTape : tape}
           depth={Math.max(bookDepth, 32)}
           {lastPrice}
           windowSec={ofViewSec ?? sessionSec}

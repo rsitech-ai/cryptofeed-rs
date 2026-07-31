@@ -192,11 +192,24 @@ With a live daemon on the view bind:
 BASE=http://127.0.0.1:19109 ./scripts/live_ui_smoke.sh
 ```
 
-SPA unit tests (CVD / VAP / imbalance / pulse math):
+SPA unit tests (CVD / VAP / imbalance / pulse math + 1h soak caps):
 
 ```bash
 cd ui && npm test
 ```
+
+### 24/7 SPA performance
+
+The SPA keeps ~`historySecs` (default 3600) of series for mode switches, but
+**display** paths are hard-capped so a multi-hour session stays responsive:
+
+- Chart paints ≤ ~900 pts/venue (tiered downsample); LWC uses tip `update()` with throttled `setData`
+- Market Trades DOM ≤ 160 rows; OF tape ≤ 4k; depth heat ≤ ~1800 columns
+- Candles ingest only new trades (not the full ring); alerts capped
+- Hidden tabs pause focus/multi polls and slow chart/OF paints
+
+Probe live buffer sizes in DevTools: `globalThis.__mfHistoryDebug`.
+Audit notes: `.local/live-ui/PERF_1H_AUDIT.md` (local).
 
 See also `docs/ops/live_ui_audit.md` and `docs/ops/live_ui_coverage.md`.
 
