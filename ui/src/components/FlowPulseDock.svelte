@@ -8,10 +8,14 @@
     volumeAtPrice,
   } from '../lib/orderflow.js';
   import { spreadBpsFromBook } from '../lib/pulse.js';
+  import { detectTopMovers } from '../lib/topMovers.js';
 
   let {
     book = null,
     tape = [],
+    /** Full-retention OHLCV for Top Movers (not session-clipped). */
+    candles = [],
+    historySecs = 3600,
     depth = 16,
     windowSec = 300,
     largeUsd = 25000,
@@ -43,6 +47,9 @@
   let vap = $derived(volumeAtPrice(tape, { windowSec, maxBuckets: 24 }));
   let heuristics = $derived(detectFlowHeuristics(tape, book, { largeUsd, windowSec }));
   let focusSpreadBps = $derived(spreadBpsFromBook(book));
+  let topMovers = $derived(
+    detectTopMovers({ candles, tape, historySecs }),
+  );
   let buySharePct = $derived.by(() => {
     const tot = (cvd.buyUsd || 0) + (cvd.sellUsd || 0);
     return tot > 0 ? (cvd.buyUsd / tot) * 100 : null;
@@ -52,6 +59,31 @@
     if (!Number.isFinite(w) || w <= 0) return null;
     return (cvd.trades / w) * 60;
   });
+
+  /** @param {import('../lib/topMovers.js').TopMoverStatus} s */
+  function statusTone(s) {
+    switch (s.kind) {
+      case 'high':
+      case 'rise':
+      case 'vol_up':
+      case 'large_buy':
+      case 'rally':
+        return 'up';
+      case 'low':
+      case 'fall':
+      case 'vol_down':
+      case 'large_sell':
+      case 'pullback':
+        return 'down';
+      default:
+        return '';
+    }
+  }
+
+  function statusTip(s) {
+    const lim = s.limited ? ' · limited history' : '';
+    return `${s.label}${s.pct != null ? ` ${s.pct >= 0 ? '+' : ''}${s.pct.toFixed(2)}%` : ''}${s.detail ? ` — ${s.detail}` : ''}${lim}`;
+  }
 
   let bookVap = $derived.by(() => {
     if (vap.length) return [];
@@ -191,7 +223,53 @@
     <div class="col flow-col">
       <div class="col-head">
         <span class="col-title">Focus flow</span>
-        <span class="meta">{showTapeProfile ? 'CVD · profile' : 'CVD summary'}</span>
+        <span class="meta">CVD · Top Movers</span>
+      </div>
+
+      <div class="movers" aria-label="Binance Top Movers statuses">
+        <div class="movers-head">
+          <span class="movers-title">Top Movers</span>
+          <span
+            class="movers-meta"
+            title={(topMovers.coverage.notes || []).join(' · ') || 'Binance Spot Top Movers formulas'}
+          >
+            {#if topMovers.metrics.pct5m != null}
+              5m {topMovers.metrics.pct5m >= 0 ? '+' : ''}{topMovers.metrics.pct5m.toFixed(2)}%
+            {:else}
+              5m —
+            {/if}
+            {#if topMovers.metrics.pct2h != null}
+              · 2h {topMovers.metrics.pct2h >= 0 ? '+' : ''}{topMovers.metrics.pct2h.toFixed(2)}%
+            {/if}
+            {#if !topMovers.coverage.has7d || !topMovers.coverage.highVolReady || topMovers.coverage.largeAvgLimited}
+              · <span class="lim">partial</span>
+            {/if}
+          </span>
+        </div>
+        <div class="mover-chips">
+          {#each topMovers.statuses as s (s.id)}
+            <button
+              type="button"
+              class="mover"
+              class:up={statusTone(s) === 'up'}
+              class:down={statusTone(s) === 'down'}
+              class:limited={s.limited}
+              title={statusTip(s)}
+              onmouseenter={(e) => showTip(e, statusTip(s))}
+              onmousemove={(e) => showTip(e, statusTip(s))}
+              onmouseleave={hideTip}
+            >
+              {s.label}
+              {#if s.pct != null}
+                <span class="mpct">{s.pct >= 0 ? '+' : ''}{s.pct.toFixed(1)}%</span>
+              {/if}
+            </button>
+          {:else}
+            <span class="movers-empty" title={(topMovers.coverage.notes || []).join(' · ')}>
+              no Top Movers status
+            </span>
+          {/each}
+        </div>
       </div>
 
       <div class="stat-row" role="group" aria-label="Flow stats">
@@ -547,12 +625,98 @@
     flex-shrink: 0;
   }
   .col-title {
-    font-size: 0.58rem;
-    font-weight: 600;
-    text-transform: uppercase;
+    font-size: 0.62rem;
+    font-weight: 700;
     letter-spacing: 0.04em;
-    color: var(--text-dim, var(--muted));
+    text-transform: uppercase;
+    color: var(--muted);
   }
+  .meta {
+    font-family: var(--mono);
+    font-size: 0.5rem;
+    color: var(--muted);
+  }
+
+  .movers {
+    flex-shrink: 0;
+    margin-bottom: 0.28rem;
+    padding: 0.22rem 0.28rem 0.26rem;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(240, 185, 11, 0.18);
+    border-radius: 3px;
+  }
+  .movers-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.35rem;
+    margin-bottom: 0.18rem;
+  }
+  .movers-title {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #f0b90b;
+  }
+  .movers-meta {
+    font-family: var(--mono);
+    font-size: 0.48rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .movers-meta .lim {
+    color: #f0b90b;
+    opacity: 0.85;
+  }
+  .mover-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.18rem;
+    max-height: 3.6rem;
+    overflow-y: auto;
+  }
+  .mover {
+    font-family: var(--mono);
+    font-size: 0.5rem;
+    font-weight: 600;
+    padding: 0.1rem 0.28rem;
+    border-radius: 2px;
+    border: 1px solid rgba(132, 142, 156, 0.35);
+    background: rgba(30, 35, 41, 0.9);
+    color: var(--text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    line-height: 1.2;
+  }
+  .mover.up {
+    border-color: rgba(2, 192, 118, 0.55);
+    color: #02c076;
+    background: rgba(2, 192, 118, 0.08);
+  }
+  .mover.down {
+    border-color: rgba(246, 70, 93, 0.55);
+    color: #f6465d;
+    background: rgba(246, 70, 93, 0.08);
+  }
+  .mover.limited {
+    opacity: 0.72;
+    border-style: dashed;
+  }
+  .mover .mpct {
+    opacity: 0.85;
+    font-weight: 500;
+  }
+  .movers-empty {
+    font-family: var(--mono);
+    font-size: 0.5rem;
+    color: var(--muted);
+  }
+
   .meta, .muted {
     color: var(--muted);
     font-size: 0.52rem;
