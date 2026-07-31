@@ -32,6 +32,8 @@
      * @type {any}
      */
     mainChart = null,
+    /** Emit [{id, chart, series}] for multi-pane crosshair sync. */
+    onCrosshairHandles = () => {},
   } = $props();
 
   let pulseHost = $state(null);
@@ -91,7 +93,14 @@
     },
     crosshair: {
       mode: 0,
-      vertLine: { color: '#474d57', labelBackgroundColor: '#2b3139', width: 1 },
+      // Vert line drawn by App `.stack-xhair` overlay across panes.
+      vertLine: {
+        visible: false,
+        labelVisible: true,
+        labelBackgroundColor: '#2b3139',
+        color: '#474d57',
+        width: 1,
+      },
       horzLine: { color: '#474d57', labelBackgroundColor: '#2b3139', width: 1 },
     },
     rightPriceScale: {
@@ -258,6 +267,24 @@
     syncDispose = null;
   }
 
+  function paneCrosshairHandles() {
+    /** @type {Array<{ id: string, chart: any, series: any }>} */
+    const out = [];
+    if (pulseChart && pulseSeries) out.push({ id: 'pulse', chart: pulseChart, series: pulseSeries });
+    if (imbChart && imbSeries) out.push({ id: 'imb', chart: imbChart, series: imbSeries });
+    if (cvdChart && cvdSeries) out.push({ id: 'cvd', chart: cvdChart, series: cvdSeries });
+    if (volChart && buySeries) out.push({ id: 'vol', chart: volChart, series: buySeries });
+    return out;
+  }
+
+  function publishCrosshairHandles() {
+    try {
+      onCrosshairHandles(paneCrosshairHandles());
+    } catch {
+      /* ignore */
+    }
+  }
+
   function rewireSync() {
     unwireSync();
     const kids = childCharts();
@@ -307,6 +334,11 @@
     lastVolFullAt = 0;
     lastAppliedRangeKey = '';
     ready = false;
+    try {
+      onCrosshairHandles([]);
+    } catch {
+      /* ignore */
+    }
   }
 
   function createPane(host, { timeVisible }) {
@@ -389,6 +421,7 @@
 
     ready = true;
     rewireSync();
+    publishCrosshairHandles();
     schedulePaint();
   });
 

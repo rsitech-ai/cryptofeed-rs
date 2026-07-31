@@ -180,3 +180,176 @@ export function createRangeActivity() {
     },
   };
 }
+
+/**
+ * Resolve a Y price for setCrosshairPosition on a target series.
+ * Prefers the bar at the shared logical index; falls back to 0 so the
+ * vertical line still paints at `time`.
+ *
+ * @param {any} chart
+ * @param {any} series
+ * @param {number|string} time
+ * @param {number} [fallbackPrice]
+ */
+export function crosshairPriceForSeries(chart, series, time, fallbackPrice = 0) {
+  if (!chart || !series) return fallbackPrice;
+  try {
+    const logical = chart.timeScale().timeToIndex?.(time, true);
+    if (logical != null && Number.isFinite(logical)) {
+      const bar = series.dataByIndex?.(logical, -1);
+      if (bar) {
+        if (Number.isFinite(bar.value)) return bar.value;
+        if (Number.isFinite(bar.close)) return bar.close;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return fallbackPrice;
+}
+
+/**
+ * Programmatically place (or clear) the crosshair on every entry.
+ *
+ * @param {Array<{ chart: any, series: any }|null|undefined>} entries
+ * @param {number|string|null|undefined} time
+ * @param {{ active: boolean }} [guard]
+ * @param {number} [priceHint]
+ */
+export function setCrosshairOnCharts(entries, time, guard, priceHint = 0) {
+  const list = (entries || []).filter((e) => e?.chart && e?.series);
+  if (!list.length) return;
+  const g = guard || { active: false };
+  if (g.active) return;
+  g.active = true;
+  try {
+    if (time == null) {
+      for (const e of list) {
+        try {
+          e.chart.clearCrosshairPosition();
+        } catch {
+          /* ignore */
+        }
+      }
+      return;
+    }
+    for (const e of list) {
+      try {
+        const price = crosshairPriceForSeries(e.chart, e.series, time, priceHint);
+        e.chart.setCrosshairPosition(price, time, e.series);
+      } catch {
+        /* series may be empty */
+      }
+    }
+  } finally {
+    g.active = false;
+  }
+}
+
+/**
+ * Sync crosshairs across independent Lightweight Charts instances.
+ * Any chart's subscribeCrosshairMove fans out via setCrosshairPosition.
+ * Does not touch time-scale sync — compose with wireChartTimeScales separately.
+ *
+ * @param {Array<{ chart: any, series: any }|null|undefined>} entries
+ * @param {{ active: boolean }} guard
+ * @param {{
+ *   onMove?: (payload: {
+ *     time: number|string|null,
+ *     point: { x: number, y: number }|null,
+ *     source: any,
+ *     param: any,
+ *   }) => void,
+ * }} [opts]
+ * @returns {() => void}
+ */
+export function wireCrosshairSync(entries, guard, opts = {}) {
+  const list = (entries || []).filter((e) => e?.chart && e?.series);
+  const onMove = typeof opts.onMove === 'function' ? opts.onMove : null;
+  if (!list.length) return () => {};
+
+  /** @type {Array<{ chart: any, handler: (param: any) => void }>} */
+  const subs = [];
+
+  for (const entry of list) {
+    const handler = (param) => {
+      if (guard.active) return;
+      const left =
+        !param ||
+        param.time == null ||
+        !param.point ||
+        param.point.x < 0 ||
+        param.point.y < 0;
+      if (left) {
+        setCrosshairOnCharts(list, null, guard);
+        onMove?.({ time: null, point: null, source: entry.chart, param });
+        return;
+      }
+
+      const time = param.time;
+      const own = param.seriesData?.get?.(entry.series);
+      const priceHint = Number.isFinite(own?.value)
+        ? Number(own.value)
+        : Number.isFinite(own?.close)
+          ? Number(own.close)
+          : 0;
+
+      guard.active = true;
+      try {
+        for (const e of list) {
+          if (e.chart === entry.chart) continue;
+          try {
+            const price = crosshairPriceForSeries(e.chart, e.series, time, priceHint);
+            e.chart.setCrosshairPosition(price, time, e.series);
+          } catch {
+            /* ignore */
+          }
+        }
+      } finally {
+        guard.active = false;
+      }
+
+      onMove?.({
+        time,
+        point: param.point ? { x: param.point.x, y: param.point.y } : null,
+        source: entry.chart,
+        param,
+      });
+    };
+
+    entry.chart.subscribeCrosshairMove(handler);
+    subs.push({ chart: entry.chart, handler });
+  }
+
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    for (const s of subs) {
+      try {
+        s.chart.unsubscribeCrosshairMove(s.handler);
+      } catch {
+        /* ignore */
+      }
+    }
+    subs.length = 0;
+  };
+}
+
+/**
+ * Map a unix-second (or business-day string) to an X pixel inside the chart
+ * container, or null when off-scale.
+ *
+ * @param {any} chart
+ * @param {number|string} time
+ * @returns {number|null}
+ */
+export function timeToCoordinateSafe(chart, time) {
+  if (!chart || time == null) return null;
+  try {
+    const x = chart.timeScale().timeToCoordinate(time);
+    return x == null || !Number.isFinite(x) ? null : x;
+  } catch {
+    return null;
+  }
+}
