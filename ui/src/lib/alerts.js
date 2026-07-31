@@ -4,6 +4,12 @@
  * @typedef {{ id: string, kind: 'bps'|'lag'|'info', title: string, body: string, ts: number, dismissed?: boolean }} Alert
  */
 
+/** Auto-dismiss toast lifetime (ms). */
+export const ALERT_AUTO_DISMISS_MS = 5000;
+
+/** Max toasts shown at once (newest). */
+export const ALERT_VISIBLE_MAX = 3;
+
 let nextId = 1;
 
 /**

@@ -85,6 +85,13 @@ export function fmtUtcClock(date = new Date()) {
   return date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
 }
 
+/** Format unix-seconds as UTC clock HH:MM:SSZ. */
+export function fmtSecClock(sec) {
+  const n = Number(sec);
+  if (!Number.isFinite(n) || n <= 0) return '—';
+  return new Date(n * 1000).toISOString().slice(11, 19) + 'Z';
+}
+
 export function nsToSec(ns) {
   const n = Number(ns);
   if (!Number.isFinite(n)) return null;
