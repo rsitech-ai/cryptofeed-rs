@@ -9,6 +9,7 @@
   } from '../lib/orderflow.js';
   import { spreadBpsFromBook } from '../lib/pulse.js';
   import { detectTopMovers } from '../lib/topMovers.js';
+  import { numericCommit } from '../lib/numericInput.js';
 
   let {
     book = null,
@@ -197,8 +198,7 @@
           type="number"
           min="0"
           step="1000"
-          value={largeUsd}
-          onchange={(e) => onLargeUsd(Number(e.currentTarget.value))}
+          use:numericCommit={{ value: largeUsd, min: 0, max: 1_000_000_000, onCommit: onLargeUsd }}
         />
       </label>
       <label class="thresh" title="Pulse spike alert (0–100)">
@@ -208,8 +208,7 @@
           min="10"
           max="100"
           step="1"
-          value={spikeThreshold}
-          onchange={(e) => onSpikeThreshold(Number(e.currentTarget.value))}
+          use:numericCommit={{ value: spikeThreshold, min: 10, max: 100, onCommit: onSpikeThreshold }}
         />
       </label>
       {#if onToggle}

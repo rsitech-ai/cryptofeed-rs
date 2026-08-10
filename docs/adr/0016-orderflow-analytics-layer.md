@@ -27,8 +27,9 @@ that surface under `marketfeed::analytics`.
 
 ## Consequences
 
-- This layer does not claim structural-level detection, trading signals, or
-  order execution.
+- This layer may derive deterministic structural reference levels from finalized
+  candles and server bubbles. Those references do not claim predictive support,
+  resistance, trading-signal, or order-execution semantics.
 - Callers choose and enforce snapshot cadence, persistence, and lifecycle.
 - Any daemon or UI integration is a separate change with its own runtime and
   interaction evidence.

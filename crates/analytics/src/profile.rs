@@ -251,7 +251,7 @@ impl SessionProfileBuilder {
         if timestamp_ns >= session_end {
             self.preflight_close_current_tpo()?;
             self.apply_close_current_tpo()?;
-            let finalized = self.snapshot(ProfileState::Final)?;
+            let finalized = self.snapshot(ProfileState::Final, self.config.basis)?;
             self.clear_active();
             self.last_timestamp_ns = Some(timestamp_ns);
             return Ok(Some(finalized));
@@ -273,13 +273,23 @@ impl SessionProfileBuilder {
     }
 
     pub fn live_snapshot(&self) -> Result<Option<SessionProfile>, AnalyticsError> {
+        self.live_snapshot_with_basis(self.config.basis)
+    }
+
+    /// Snapshot the same exact accumulator with a caller-selected value-area
+    /// weighting basis. Volume and TPO activity are accumulated together, so
+    /// switching basis does not require duplicate hot-path builders.
+    pub fn live_snapshot_with_basis(
+        &self,
+        basis: ValueAreaBasis,
+    ) -> Result<Option<SessionProfile>, AnalyticsError> {
         if self.session_start.is_none() {
             return Ok(None);
         }
         let mut snapshot = self.clone();
         snapshot.preflight_close_current_tpo()?;
         snapshot.apply_close_current_tpo()?;
-        snapshot.snapshot(ProfileState::Live).map(Some)
+        snapshot.snapshot(ProfileState::Live, basis).map(Some)
     }
 
     pub fn finish(&mut self) -> Result<Option<SessionProfile>, AnalyticsError> {
@@ -288,7 +298,7 @@ impl SessionProfileBuilder {
         }
         self.preflight_close_current_tpo()?;
         self.apply_close_current_tpo()?;
-        let finalized = self.snapshot(ProfileState::Final)?;
+        let finalized = self.snapshot(ProfileState::Final, self.config.basis)?;
         self.clear_active();
         Ok(Some(finalized))
     }
@@ -490,10 +500,14 @@ impl SessionProfileBuilder {
         let mut old = self.clone();
         old.preflight_close_current_tpo()?;
         old.apply_close_current_tpo()?;
-        old.snapshot(ProfileState::Final)
+        old.snapshot(ProfileState::Final, self.config.basis)
     }
 
-    fn snapshot(&self, state: ProfileState) -> Result<SessionProfile, AnalyticsError> {
+    fn snapshot(
+        &self,
+        state: ProfileState,
+        basis: ValueAreaBasis,
+    ) -> Result<SessionProfile, AnalyticsError> {
         let start_ts = self
             .session_start
             .ok_or_else(|| AnalyticsError::CorruptSnapshot {
@@ -515,7 +529,7 @@ impl SessionProfileBuilder {
             }
             _ => None,
         };
-        let (poc_bucket, val_bucket, vah_bucket) = self.value_area()?;
+        let (poc_bucket, val_bucket, vah_bucket) = self.value_area(basis)?;
         let levels = self
             .volume_by_level
             .iter()
@@ -534,7 +548,7 @@ impl SessionProfileBuilder {
         Ok(SessionProfile {
             schema_version: Self::SCHEMA_VERSION,
             state,
-            basis: self.config.basis,
+            basis,
             value_area_bps: self.config.value_area_bps,
             start_ts,
             end_ts,
@@ -561,6 +575,7 @@ impl SessionProfileBuilder {
 
     fn value_area(
         &self,
+        basis: ValueAreaBasis,
     ) -> Result<
         (
             Option<PriceBucket>,
@@ -587,7 +602,7 @@ impl SessionProfileBuilder {
         let mut poc_activity = -1i128;
         let mut poc_distance = u128::MAX;
         for (index, bucket) in buckets.iter().enumerate() {
-            let activity = self.activity(*bucket)?;
+            let activity = self.activity(*bucket, basis)?;
             let distance = bucket
                 .0
                 .checked_mul(2)
@@ -608,7 +623,7 @@ impl SessionProfileBuilder {
 
         let total_activity = buckets.iter().try_fold(0i128, |total, bucket| {
             total
-                .checked_add(self.activity(*bucket)?)
+                .checked_add(self.activity(*bucket, basis)?)
                 .ok_or_else(|| overflow("summing value-area activity"))
         })?;
         let scaled_target = total_activity
@@ -624,12 +639,12 @@ impl SessionProfileBuilder {
         let mut upper = poc_index;
         while selected < target {
             let lower_activity = if lower > 0 {
-                Some(self.activity(buckets[lower - 1])?)
+                Some(self.activity(buckets[lower - 1], basis)?)
             } else {
                 None
             };
             let upper_activity = if upper + 1 < buckets.len() {
-                Some(self.activity(buckets[upper + 1])?)
+                Some(self.activity(buckets[upper + 1], basis)?)
             } else {
                 None
             };
@@ -680,8 +695,8 @@ impl SessionProfileBuilder {
         ))
     }
 
-    fn activity(&self, bucket: PriceBucket) -> Result<i128, AnalyticsError> {
-        match self.config.basis {
+    fn activity(&self, bucket: PriceBucket, basis: ValueAreaBasis) -> Result<i128, AnalyticsError> {
+        match basis {
             ValueAreaBasis::Volume => Ok(self.volume_by_level.get(&bucket).copied().unwrap_or(0)),
             ValueAreaBasis::Tpo => Ok(i128::from(
                 self.tpo_by_level.get(&bucket).copied().unwrap_or(0),

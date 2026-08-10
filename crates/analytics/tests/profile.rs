@@ -79,6 +79,31 @@ fn tpo_profile_counts_each_price_once_per_period_and_scores_rotation() {
 }
 
 #[test]
+fn one_accumulator_can_snapshot_both_value_area_bases() {
+    let mut profile =
+        SessionProfileBuilder::new(grid(), time(), config(ValueAreaBasis::Volume)).unwrap();
+    profile.ingest(1, price(100), quantity(10)).unwrap();
+    profile.ingest(2, price(101), quantity(1)).unwrap();
+    profile.ingest(61, price(101), quantity(1)).unwrap();
+
+    let volume = profile
+        .live_snapshot_with_basis(ValueAreaBasis::Volume)
+        .unwrap()
+        .unwrap();
+    let tpo = profile
+        .live_snapshot_with_basis(ValueAreaBasis::Tpo)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(volume.basis, ValueAreaBasis::Volume);
+    assert_eq!(volume.poc, Some(price(100)));
+    assert_eq!(tpo.basis, ValueAreaBasis::Tpo);
+    assert_eq!(tpo.poc, Some(price(101)));
+    assert_eq!(volume.total_volume, tpo.total_volume);
+    assert_eq!(volume.tpo_count, tpo.tpo_count);
+}
+
+#[test]
 fn rollover_returns_final_session_and_starts_the_next_one() {
     let mut profile =
         SessionProfileBuilder::new(grid(), time(), config(ValueAreaBasis::Volume)).unwrap();

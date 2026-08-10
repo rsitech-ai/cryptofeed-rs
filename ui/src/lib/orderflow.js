@@ -1245,12 +1245,15 @@ export function buildHeatmapGrid(history, opts = {}) {
     if (fillNearest) {
       const bookLo = levels[0][0];
       const bookHi = levels[levels.length - 1][0];
+      const interpolated = interpolateDepthColumn(levels, priceMin, priceMax, rows);
+      let levelMaxUsd = 0;
+      for (const level of levels) levelMaxUsd = Math.max(levelMaxUsd, level[1]);
       // Wide falloff so resting size paints across the full visible Y — Bookmap field, not a strip.
       const falloff = Math.max(span * 0.55, (bookHi - bookLo) * 1.2, span / Math.max(8, rows / 4));
       let colMax = 0;
       for (let r = 0; r < rows; r++) {
         const px = priceMax - ((r + 0.5) / rows) * span;
-        let val = interpolateDepthUsd(levels, px);
+        let val = interpolated[r];
         if (!(val > 0)) {
           const edgePx = px < bookLo ? bookLo : px > bookHi ? bookHi : px;
           const edgeUsd =
@@ -1263,7 +1266,7 @@ export function buildHeatmapGrid(history, opts = {}) {
           val = edgeUsd * Math.exp(-dist / falloff) * 0.9;
         }
         // Absolute floor so far-from-book rows stay dark-blue, never black void.
-        const floor = Math.max(...levels.map((l) => l[1])) * 0.04 * Math.exp(-Math.abs(px - (bookLo + bookHi) / 2) / (span * 0.7));
+        const floor = levelMaxUsd * 0.04 * Math.exp(-Math.abs(px - (bookLo + bookHi) / 2) / (span * 0.7));
         val = Math.max(val, floor);
         const idx = r * cols + c;
         grid[idx] = val;
@@ -1309,25 +1312,47 @@ export function buildHeatmapGrid(history, opts = {}) {
 }
 
 /**
- * Linear interpolate resting USD between sorted [price, usd] levels.
+ * Linear-interpolate one top-to-bottom price column from sorted
+ * [price, usd] levels. Because requested prices descend monotonically, the
+ * level cursor moves only once through the book instead of rescanning it for
+ * every heatmap row.
  * @param {Array<[number, number]>} levels
- * @param {number} px
+ * @param {number} priceMin
+ * @param {number} priceMax
+ * @param {number} rows
+ * @returns {Float32Array}
  */
-function interpolateDepthUsd(levels, px) {
-  if (!levels.length) return 0;
-  if (px <= levels[0][0]) return px === levels[0][0] ? levels[0][1] : 0;
-  const last = levels[levels.length - 1];
-  if (px >= last[0]) return px === last[0] ? last[1] : 0;
-  for (let i = 0; i < levels.length - 1; i++) {
-    const [p0, u0] = levels[i];
-    const [p1, u1] = levels[i + 1];
-    if (px >= p0 && px <= p1) {
-      if (p1 === p0) return Math.max(u0, u1);
-      const u = (px - p0) / (p1 - p0);
-      return u0 * (1 - u) + u1 * u;
+export function interpolateDepthColumn(levels, priceMin, priceMax, rows) {
+  const count = Math.max(0, Math.floor(rows));
+  const values = new Float32Array(count);
+  if (!levels.length || count === 0) return values;
+  const span = priceMax - priceMin || 1;
+  const lastIndex = levels.length - 1;
+  const firstPrice = levels[0][0];
+  const lastPrice = levels[lastIndex][0];
+  let hi = lastIndex;
+  for (let r = 0; r < count; r++) {
+    const px = priceMax - ((r + 0.5) / count) * span;
+    if (px < firstPrice || px > lastPrice) continue;
+    if (px === firstPrice) {
+      values[r] = levels[0][1];
+      continue;
     }
+    if (px === lastPrice) {
+      values[r] = levels[lastIndex][1];
+      continue;
+    }
+    while (hi > 0 && px < levels[hi - 1][0]) hi--;
+    const [p0, u0] = levels[hi - 1];
+    const [p1, u1] = levels[hi];
+    if (p1 === p0) {
+      values[r] = Math.max(u0, u1);
+      continue;
+    }
+    const u = (px - p0) / (p1 - p0);
+    values[r] = u0 * (1 - u) + u1 * u;
   }
-  return 0;
+  return values;
 }
 
 /**
@@ -1358,6 +1383,39 @@ export function heatIntensity(value, maxVal, gain = 1) {
   // Slight floor so thin books / soft falloff still paint a field, not a void.
   const shaped = Math.pow(base, 1 / Math.max(0.35, gain));
   return Math.max(0, Math.min(1, 0.12 + shaped * 0.88));
+}
+
+/**
+ * Convert a scalar heat grid into a compact one-pixel-per-cell RGBA texture.
+ * The canvas scales this texture to the viewport, avoiding a full
+ * device-pixel raster pass on every live book update.
+ * @param {Float32Array|number[]} grid
+ * @param {number} maxVal
+ * @param {number} [gain]
+ * @returns {Uint8ClampedArray}
+ */
+export function heatmapRgbaGrid(grid, maxVal, gain = 1) {
+  const rgba = new Uint8ClampedArray(grid.length * 4);
+  const [bR, bG, bB, bA] = heatmapBaselineRgba();
+  for (let i = 0; i < grid.length; i++) {
+    const offset = i * 4;
+    const value = grid[i];
+    if (!(value > 0)) {
+      rgba[offset] = bR;
+      rgba[offset + 1] = bG;
+      rgba[offset + 2] = bB;
+      rgba[offset + 3] = bA;
+      continue;
+    }
+    const intensity = heatIntensity(value, maxVal, gain);
+    const [r, g, b, a8] = heatmapColor(intensity);
+    const alpha = a8 / 255;
+    rgba[offset] = Math.round(bR * (1 - alpha) + r * alpha);
+    rgba[offset + 1] = Math.round(bG * (1 - alpha) + g * alpha);
+    rgba[offset + 2] = Math.round(bB * (1 - alpha) + b * alpha);
+    rgba[offset + 3] = 255;
+  }
+  return rgba;
 }
 
 /**

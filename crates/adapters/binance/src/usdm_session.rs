@@ -597,6 +597,7 @@ impl BinanceUsdmSession {
                     output.push(SessionAction::MarkLive);
                 }
             }
+            UsdmDecoded::Ignored => {}
             UsdmDecoded::Unknown => {
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "binance-usdm".into(),

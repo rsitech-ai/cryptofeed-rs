@@ -44,14 +44,23 @@ export const DEFAULTS = {
   ofHeat: 1,
   /** Min bubble notional (USD) to draw. */
   ofBubbleMinUsd: 50,
-  /** Visible layers csv: heat,bubbles,mid,vap,cvd,vol,cob,candles,footprint,markers */
-  ofLayers: 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
+  /** Server-backed Rust bubble signal mode. */
+  ofBubbleMode: 'volume',
+  /** Market Profile value-area weighting basis. */
+  profileBasis: 'volume',
+  /** Visible layers csv: heat,bubbles,levels,mid,vap,cvd,vol,cob,candles,footprint,markers */
+  ofLayers: 'heat,bubbles,levels,mid,vap,cvd,vol,cob,candles,markers',
+  ofLayersVersion: 2,
   /** Order Flow price zoom (1=auto book window; <1 zoom in; >1 zoom out). */
   ofPriceZoom: 1,
   /** Order Flow visible time window seconds (null = use session preset). */
   ofViewSec: null,
   /** When true, Order Flow time axis tracks live edge. */
   ofFollowLive: true,
+  ofDomWidth: 260,
+  domShowCum: true,
+  domShowMbp: true,
+  domShowExec: true,
   /**
    * Underlying SPA series retention (seconds). Session presets only clip the
    * *view*; buffers keep ~historySecs so Lines↔Candles↔OF mode switches do not
@@ -164,17 +173,30 @@ function mergeParsed(parsed) {
         : DEFAULTS.ofTick,
     ofHeat: clampNum(parsed?.ofHeat, 0.5, 2.5, DEFAULTS.ofHeat),
     ofBubbleMinUsd: clampNum(parsed?.ofBubbleMinUsd, 0, 1e9, DEFAULTS.ofBubbleMinUsd),
-    ofLayers: typeof parsed?.ofLayers === 'string' && parsed.ofLayers
-      ? parsed.ofLayers
-      : DEFAULTS.ofLayers,
+    ofBubbleMode: parsed?.ofBubbleMode === 'delta' ? 'delta' : 'volume',
+    profileBasis: parsed?.profileBasis === 'tpo' ? 'tpo' : 'volume',
+    ofLayers: normalizeOfLayers(parsed?.ofLayers, parsed?.ofLayersVersion),
+    ofLayersVersion: DEFAULTS.ofLayersVersion,
     ofPriceZoom: clampNum(parsed?.ofPriceZoom, 0.25, 6, DEFAULTS.ofPriceZoom),
     ofViewSec:
       parsed?.ofViewSec == null || parsed?.ofViewSec === ''
         ? null
         : clampInt(parsed.ofViewSec, 15, 3600, null),
     ofFollowLive: parsed?.ofFollowLive !== false,
+    ofDomWidth: clampInt(parsed?.ofDomWidth, 200, 520, DEFAULTS.ofDomWidth),
+    domShowCum: parsed?.domShowCum !== false,
+    domShowMbp: parsed?.domShowMbp !== false,
+    domShowExec: parsed?.domShowExec !== false,
     historySecs: clampInt(parsed?.historySecs, 300, 7200, DEFAULTS.historySecs),
   };
+}
+
+export function normalizeOfLayers(value, version) {
+  const layers = typeof value === 'string' && value ? value : DEFAULTS.ofLayers;
+  if (Number(version) >= DEFAULTS.ofLayersVersion || layers.split(',').includes('levels')) {
+    return layers;
+  }
+  return `${layers},levels`;
 }
 
 function normalizeArrays(urlPatch, base) {
