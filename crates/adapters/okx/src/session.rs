@@ -39,6 +39,9 @@ pub struct OkxSessionConfig {
     pub enable_l2: bool,
     pub price_scale: u8,
     pub qty_scale: u8,
+    /// Exact catalog scales per native symbol. The scalar fields remain the
+    /// single-symbol fallback for programmatic/test configurations.
+    pub book_scales: HashMap<String, (u8, u8)>,
     /// Envelope venue id; distinguishes okx-spot/okx-swap/okx-futures sessions.
     pub venue: VenueId,
     /// Subscribe mark/index/funding/OI/liquidation channels (SWAP/Futures only).
@@ -60,6 +63,7 @@ impl Default for OkxSessionConfig {
             // BTC-USDT tickSz=0.1, lotSz=1e-8
             price_scale: 1,
             qty_scale: 8,
+            book_scales: HashMap::new(),
             venue: OKX_SPOT_VENUE_ID,
             subscribe_mark_funding: false,
             candle_intervals: Vec::new(),
@@ -116,7 +120,12 @@ impl OkxSession {
         let mut books = HashMap::new();
         if cfg.enable_l2 {
             for (sym, id) in &cfg.instrument_ids {
-                let book = OrderBook::new(cfg.price_scale, cfg.qty_scale, Some(BOOKS_DEPTH));
+                let (price_scale, qty_scale) = cfg
+                    .book_scales
+                    .get(sym)
+                    .copied()
+                    .unwrap_or((cfg.price_scale, cfg.qty_scale));
+                let book = OrderBook::new(price_scale, qty_scale, Some(BOOKS_DEPTH));
                 let mut sync = BookSynchronizer::new(*id, book, SyncLimits::default());
                 sync.request_snapshot();
                 books.insert(sym.clone(), SymbolBook { sync });

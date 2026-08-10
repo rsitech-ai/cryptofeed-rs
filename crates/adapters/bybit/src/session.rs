@@ -37,6 +37,9 @@ pub struct BybitSessionConfig {
     pub l2_depth: u32,
     pub price_scale: u8,
     pub qty_scale: u8,
+    /// Exact catalog scales per native symbol. The scalar fields remain the
+    /// single-symbol fallback for programmatic/test configurations.
+    pub book_scales: HashMap<String, (u8, u8)>,
     /// Native `kline.{interval}.{symbol}` subscriptions. Empty = no candles.
     pub candle_intervals: Vec<CandleInterval>,
 }
@@ -55,6 +58,7 @@ impl Default for BybitSessionConfig {
             l2_depth: 50,
             price_scale: 2,
             qty_scale: 3,
+            book_scales: HashMap::new(),
             candle_intervals: Vec::new(),
         }
     }
@@ -84,7 +88,12 @@ impl BybitSession {
         let mut books = HashMap::new();
         if cfg.enable_l2 {
             for (sym, id) in &cfg.instrument_ids {
-                let book = OrderBook::new(cfg.price_scale, cfg.qty_scale, Some(cfg.l2_depth));
+                let (price_scale, qty_scale) = cfg
+                    .book_scales
+                    .get(sym)
+                    .copied()
+                    .unwrap_or((cfg.price_scale, cfg.qty_scale));
+                let book = OrderBook::new(price_scale, qty_scale, Some(cfg.l2_depth));
                 let mut sync = BookSynchronizer::new(*id, book, SyncLimits::default());
                 sync.request_snapshot();
                 books.insert(sym.clone(), SymbolBook { sync, last_u: None });

@@ -10,11 +10,11 @@ its evidence in [`live_ui_audit.md`](./live_ui_audit.md).
 | Venue | Assets | Channels | Notes |
 |---|---|---|---|
 | binance-spot | BTC ETH SOL BNB | trades quote **l2** | XRP omitted (4dp vs stub scale=2) |
-| binance-usdm | BTC ETH SOL XRP BNB | trades quote funding OI liq | |
+| binance-usdm | BTC ETH SOL XRP BNB | trades quote funding OI liq **l2** | Exact live catalog; current BTC L2 qualification passed |
 | binance-coinm | BTC ETH SOL XRP BNB | trades mark funding | `*USD_PERP` |
 | okx-spot | BTC ETH SOL XRP BNB | trades ticker | L2 dropped (stub-scale thrash) |
-| okx-swap | BTC ETH SOL XRP BNB | trades ticker funding | L2 dropped |
-| bybit-linear | BTC ETH SOL XRP BNB | trades quote | L2 dropped |
+| okx-swap | BTC ETH SOL XRP BNB | trades ticker funding **l2** | Current BTC L2 qualification passed |
+| bybit-linear | BTC ETH SOL XRP BNB | trades quote **l2** | Current BTC L2 qualification passed |
 | bybit-spot | BTC ETH SOL XRP BNB | trades quote | |
 | kraken-spot | BTC ETH SOL XRP BNB | trades quote | WS `BTC/USD` |
 | deribit | BTC ETH | trades ticker mark | coin perps only |
@@ -35,7 +35,13 @@ L2 on symbols whose wire scales differ (XRP 4dp, many alts) emits
 `BookInvalidated` and reconnect-storms the **whole** venue session — taking
 BTC/ETH down with them. Trades/quotes stay healthy without L2.
 
-Depth books in the SPA: use **binance-spot** focus (BTC/ETH/SOL/BNB).
+Depth books in the SPA: **binance-spot** remains the broad spot fallback.
+Binance USD-M, OKX Swap, and Bybit Linear now request L2 with venue-discovered
+price/quantity grids. A 2026-08-10 three-venue BTC qualification observed all
+three live and ready for 3 minutes with ordered non-empty books, populated 100ms
+history, zero reconnects, zero book invalidations, zero dispatched-event drops,
+and clean coordinated shutdown. This is current runtime smoke evidence, not a
+scheduled canary or long-duration soak.
 
 ## Intentional omissions
 

@@ -84,7 +84,7 @@
         class:soft={streamReconnecting && streamMode === 'sse'}
         title={streamReconnecting ? 'SSE reconnecting (UI stays mounted)' : 'Data transport'}
       >{streamMode === 'sse' ? 'SSE' : 'poll'}</span>
-      <span class="coming-soon" title="Not implemented">Funding · OI · Liq</span>
+      <span class="coming-soon" title="Exchange-reported derivatives state is shown below the chart">Funding · OI · Liq</span>
     </div>
   </div>
 
@@ -396,5 +396,43 @@
   .icon-btn.grafana {
     color: var(--accent);
     border-color: rgba(240, 185, 11, 0.35);
+  }
+
+  @media (max-width: 720px) {
+    .header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.6rem 0.8rem;
+    }
+
+    .pair-block {
+      min-width: 0;
+    }
+
+    .last-block {
+      border-right: none;
+      padding-right: 0;
+    }
+
+    .stats {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.55rem 0.75rem;
+      width: 100%;
+    }
+
+    .stat,
+    .session-presets,
+    .icon-btn {
+      min-width: 0;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 </style>

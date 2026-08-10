@@ -61,6 +61,7 @@ fn session_config_from_catalog(
     let mut symbols = Vec::new();
     let mut price_scale = None;
     let mut qty_scale = None;
+    let mut book_scales = HashMap::new();
     for item in &request.items {
         if instrument_ids.values().any(|id| *id == item.instrument) {
             continue;
@@ -80,6 +81,10 @@ fn session_config_from_catalog(
             qty_scale = Some(instrument.quantity_scale);
         }
         symbols.push(instrument.key.native_symbol.clone());
+        book_scales.insert(
+            instrument.key.native_symbol.clone(),
+            (instrument.price_scale, instrument.quantity_scale),
+        );
         instrument_ids.insert(instrument.key.native_symbol.clone(), instrument.id);
     }
 
@@ -93,6 +98,7 @@ fn session_config_from_catalog(
             .any(|item| matches!(&item.channel, Channel::L2Book { .. })),
         price_scale: price_scale.expect("nonempty request selects an instrument"),
         qty_scale: qty_scale.expect("nonempty request selects an instrument"),
+        book_scales,
         candle_intervals,
         ..BybitSessionConfig::default()
     })
@@ -245,7 +251,46 @@ mod tests {
         assert_eq!(cfg.instrument_ids.get("ETHUSDT"), Some(&InstrumentId(42)));
         assert_eq!(cfg.price_scale, 4);
         assert_eq!(cfg.qty_scale, 6);
+        assert_eq!(cfg.book_scales.get("ETHUSDT"), Some(&(4, 6)));
         assert!(!cfg.enable_l2);
         assert_eq!(cfg.candle_intervals, vec![CandleInterval::M1]);
+    }
+
+    #[test]
+    fn linear_session_config_preserves_each_symbols_catalog_scales() {
+        let eth = instrument();
+        let mut xrp = eth.clone();
+        xrp.id = InstrumentId(43);
+        xrp.key.native_symbol = "XRPUSDT".into();
+        xrp.base = AssetCode("XRP".into());
+        xrp.price_scale = 5;
+        xrp.quantity_scale = 1;
+        xrp.price_increment = Fixed::new(1, 5);
+        xrp.quantity_increment = Fixed::new(1, 1);
+        let request = ConcreteSubscriptionSet {
+            items: [InstrumentId(42), InstrumentId(43)]
+                .into_iter()
+                .map(|instrument| ConcreteSubscription {
+                    instrument,
+                    channel: Channel::L2Book {
+                        depth: None,
+                        cadence: None,
+                    },
+                    delivery: DeliveryOptions::default(),
+                })
+                .collect(),
+        };
+
+        let cfg = session_config_from_catalog(
+            &catalog(vec![eth, xrp]),
+            &request,
+            BybitCategory::Linear,
+            true,
+        )
+        .expect("multi-symbol catalog-backed request");
+
+        assert_eq!(cfg.book_scales.get("ETHUSDT"), Some(&(4, 6)));
+        assert_eq!(cfg.book_scales.get("XRPUSDT"), Some(&(5, 1)));
+        assert!(cfg.enable_l2);
     }
 }

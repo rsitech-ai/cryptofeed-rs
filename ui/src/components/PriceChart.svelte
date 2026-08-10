@@ -17,6 +17,7 @@
     wireChartTimeScales,
   } from '../lib/chartSync.js';
   import { stepHoldSeries } from '../lib/indicatorSeries.js';
+  import { numericCommit } from '../lib/numericInput.js';
   import ChartHoverLegend from './ChartHoverLegend.svelte';
 
   /** Shared right-scale width so main + BPS plot areas stay aligned. */
@@ -1034,11 +1035,11 @@
 
   {#if showSettings}
     <div class="settings">
-      <label>Book depth <input type="number" min="5" max="50" value={bookDepth} onchange={(e) => onBookDepth(Number(e.currentTarget.value))} /></label>
-      <label>Tape limit <input type="number" min="20" max="500" value={tapeLimit} onchange={(e) => onTapeLimit(Number(e.currentTarget.value))} /></label>
-      <label>Focus poll ms <input type="number" min="80" max="2000" step="20" value={pollFocusMs} onchange={(e) => onPollFocus(Number(e.currentTarget.value))} /></label>
-      <label>Multi poll ms <input type="number" min="100" max="5000" step="20" value={pollMultiMs} onchange={(e) => onPollMulti(Number(e.currentTarget.value))} /></label>
-      <label>Alert bps <input type="number" min="1" max="500" value={alertBpsThreshold} onchange={(e) => onAlertBps(Number(e.currentTarget.value))} /></label>
+      <label>Book depth <input type="number" min="5" max="50" use:numericCommit={{ value: bookDepth, min: 5, max: 50, integer: true, onCommit: onBookDepth }} /></label>
+      <label>Tape limit <input type="number" min="20" max="500" use:numericCommit={{ value: tapeLimit, min: 20, max: 500, integer: true, onCommit: onTapeLimit }} /></label>
+      <label>Focus poll ms <input type="number" min="80" max="2000" step="20" use:numericCommit={{ value: pollFocusMs, min: 80, max: 2000, integer: true, onCommit: onPollFocus }} /></label>
+      <label>Multi poll ms <input type="number" min="100" max="5000" step="20" use:numericCommit={{ value: pollMultiMs, min: 100, max: 5000, integer: true, onCommit: onPollMulti }} /></label>
+      <label>Alert bps <input type="number" min="1" max="500" use:numericCommit={{ value: alertBpsThreshold, min: 1, max: 500, onCommit: onAlertBps }} /></label>
       <label>Webhook <input type="url" placeholder="https://…" value={webhookUrl} onchange={(e) => onWebhook(e.currentTarget.value)} /></label>
       <span class="hint">Legend: USD vol · trades/min · raw qty in tooltip · Telegram skipped</span>
     </div>

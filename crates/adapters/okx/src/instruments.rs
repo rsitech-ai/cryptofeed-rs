@@ -138,6 +138,12 @@ fn parse_row(
     inst_type: OkxInstType,
 ) -> Result<Option<InstrumentDefinition>, AdapterError> {
     let status = map_state(&row.state);
+    // OKX publishes placeholder `preopen` rows before scale and contract
+    // metadata exist. They are not tradable catalog entries yet; rejecting one
+    // must not discard valid live instruments from the same response.
+    if status != InstrumentStatus::Active && (row.tick_sz.is_empty() || row.lot_sz.is_empty()) {
+        return Ok(None);
+    }
     let price_inc = Fixed::parse_str(&row.tick_sz)
         .map_err(|e| AdapterError::Catalog(format!("tickSz {}: {e}", row.tick_sz)))?;
     let qty_inc = Fixed::parse_str(&row.lot_sz)
@@ -336,6 +342,60 @@ mod tests {
         assert_eq!(inv.settlement, Some(AssetCode("BTC".into())));
         assert!(inv.inverse);
         assert_eq!(inv.contract_size, Some(Fixed::new(100, 0)));
+    }
+
+    #[test]
+    fn skips_incomplete_preopen_swap_rows_without_losing_live_catalog() {
+        let body = br#"{
+          "code":"0",
+          "data":[{
+            "instId":"JP225-USDT-SWAP",
+            "instType":"SWAP",
+            "tickSz":"",
+            "lotSz":"",
+            "state":"preopen",
+            "ctType":"",
+            "settleCcy":"",
+            "uly":""
+          },{
+            "instId":"BTC-USDT-SWAP",
+            "instType":"SWAP",
+            "tickSz":"0.1",
+            "lotSz":"1",
+            "minSz":"1",
+            "state":"live",
+            "ctType":"linear",
+            "ctVal":"0.01",
+            "settleCcy":"USDT",
+            "uly":"BTC-USDT"
+          }]
+        }"#;
+
+        let defs = parse_instruments_response(&[resp(body)], OkxInstType::Swap).unwrap();
+        assert_eq!(defs.len(), 1);
+        assert_eq!(defs[0].key.native_symbol, "BTC-USDT-SWAP");
+        assert_eq!(defs[0].price_increment, Fixed::new(1, 1));
+    }
+
+    #[test]
+    fn rejects_incomplete_live_swap_rows() {
+        let body = br#"{
+          "code":"0",
+          "data":[{
+            "instId":"BTC-USDT-SWAP",
+            "instType":"SWAP",
+            "tickSz":"",
+            "lotSz":"1",
+            "state":"live",
+            "ctType":"linear",
+            "settleCcy":"USDT",
+            "uly":"BTC-USDT"
+          }]
+        }"#;
+
+        let err = parse_instruments_response(&[resp(body)], OkxInstType::Swap)
+            .expect_err("live instruments must retain valid scales");
+        assert!(err.to_string().contains("tickSz"));
     }
 
     #[test]

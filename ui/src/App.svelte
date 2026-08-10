@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { bookQuery, fetchJson, tapeQuery } from './lib/api.js';
+  import { bookQuery, bubblesQuery, depthHistoryQuery, derivativesQuery, domQuery, fetchJson, profileQuery, structuralLevelsQuery, tapeQuery } from './lib/api.js';
   import { assetCoverage, colorForVenue, listAssets, mapAssetToVenues } from './lib/assets.js';
   import { CandleBuilder } from './lib/ohlcv.js';
   import { MultiVenueTracker, TIMEFRAMES } from './lib/series.js';
@@ -52,6 +52,13 @@
   import { createPaintGate } from './lib/paint.js';
   import { tapeTipSec } from './lib/indicatorSeries.js';
   import { Book404Gate, isCurrentMarket } from './lib/contracts.js';
+  import { emptyMarketProfile, normalizeMarketProfile } from './lib/marketProfile.js';
+  import { emptyBubbleSnapshot, normalizeBubbleSnapshot } from './lib/serverBubbles.js';
+  import { emptyStructuralLevelSnapshot, normalizeStructuralLevelSnapshot } from './lib/structuralLevels.js';
+  import { emptyDerivatives, normalizeDerivatives } from './lib/derivatives.js';
+  import { normalizeDepthHistory } from './lib/serverDepthHistory.js';
+  import { emptyDomSnapshot, normalizeDomSnapshot } from './lib/serverDom.js';
+  import { LiveCadence } from './lib/liveCadence.js';
   import HeaderBar from './components/HeaderBar.svelte';
   import OrderBook from './components/OrderBook.svelte';
   import PriceChart from './components/PriceChart.svelte';
@@ -66,6 +73,8 @@
   import FlowPulseDock from './components/FlowPulseDock.svelte';
   import ChartAnalyticsStrip from './components/ChartAnalyticsStrip.svelte';
   import ChartHoverLegend from './components/ChartHoverLegend.svelte';
+  import MarketProfileStats from './components/MarketProfileStats.svelte';
+  import DerivativesStats from './components/DerivativesStats.svelte';
 
   const initial = loadSettings();
 
@@ -75,8 +84,19 @@
   let tape = $state([]);
   /** Order-flow tape projection (hard-capped; not the full retention Map). */
   let ofTape = $state([]);
+  /** Exact but slower projection for the duplicate lower analytics dock. */
+  let dockTape = $state([]);
+  let dockCandles = $state([]);
+  let dockBook = $state(null);
   let error = $state('');
   let connected = $state(false);
+  let marketProfile = $state(emptyMarketProfile());
+  let profileBasis = $state(initial.profileBasis === 'tpo' ? 'tpo' : 'volume');
+  let bubblesVolume = $state(emptyBubbleSnapshot('volume'));
+  let bubblesDelta = $state(emptyBubbleSnapshot('delta'));
+  let structuralLevels = $state(emptyStructuralLevelSnapshot());
+  let derivatives = $state(emptyDerivatives());
+  let domSnapshot = $state(emptyDomSnapshot());
 
   let selectedAsset = $state(initial.asset || 'BTC');
   let selectedVenue = $state('');
@@ -118,14 +138,20 @@
   let ofTick = $state(initial.ofTick ?? 'auto');
   let ofHeat = $state(initial.ofHeat ?? 1);
   let ofBubbleMinUsd = $state(initial.ofBubbleMinUsd ?? 50);
+  let ofBubbleMode = $state(initial.ofBubbleMode === 'delta' ? 'delta' : 'volume');
   let ofLayers = $state(
-    initial.ofLayers ?? 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
+    initial.ofLayers ?? 'heat,bubbles,levels,mid,vap,cvd,vol,cob,candles,markers',
   );
   let ofPriceZoom = $state(clampPriceZoom(initial.ofPriceZoom, 1));
   let ofViewSec = $state(
     initial.ofViewSec == null ? null : clampViewSec(initial.ofViewSec, sessionWindowSec(initial.sessionPreset || '5m')),
   );
   let ofFollowLive = $state(initial.ofFollowLive !== false);
+  let ofDomWidth = $state(Math.min(520, Math.max(200, initial.ofDomWidth || 260)));
+  let domShowExec = $state(initial.domShowExec !== false);
+  let domShowCum = $state(initial.domShowCum !== false);
+  let domShowMbp = $state(initial.domShowMbp !== false);
+  let splitDragging = $state(false);
   const initialHistorySecs = clampHistorySecs(initial.historySecs, DEFAULT_HISTORY_SECS);
   let historySecs = $state(initialHistorySecs);
   const historyPolicy = new SeriesHistoryPolicy(initialHistorySecs);
@@ -189,8 +215,13 @@
   let focusGeneration = 0;
   /** @type {object|null} */
   let pendingFocusBook = null;
-  /** @type {{ display: object[], of: object[], delta: object[] }|null} */
-  let pendingFocusTape = null;
+  let pendingDockBook = null;
+  let pendingDockTape = [];
+  let pendingDockCandles = [];
+  /** New unique trades accumulated between bounded tape publications. */
+  /** @type {object[]} */
+  let pendingFocusDelta = [];
+  let focusTapeDirty = false;
   let snapsDirty = false;
   let tabHidden = false;
 
@@ -220,38 +251,54 @@
           tipMs,
         );
       }
+      pendingDockBook = book;
+      dockPaint.schedule();
       pendingFocusBook = null;
     }
-  }, { minIntervalMs: 120 });
+  }, { minIntervalMs: 200 });
 
   const tapePaint = createPaintGate(() => {
-    if (pendingFocusTape) {
+    if (focusTapeDirty) {
+      const projected = projectFocusTape();
       // Display tape is DOM-capped; OF gets a separate hard-capped projection.
-      tape = pendingFocusTape.display;
-      ofTape = pendingFocusTape.of;
-      if (pendingFocusTape.delta?.length) {
-        candleBuilder.ingest(pendingFocusTape.delta);
+      tape = projected.display;
+      ofTape = projected.of;
+      if (pendingFocusDelta.length) {
+        candleBuilder.ingest(pendingFocusDelta);
         syncCandleView();
       }
-      pendingFocusTape = null;
+      pendingDockTape = projected.of;
+      pendingDockCandles = historyCandles;
+      dockPaint.schedule();
+      pendingFocusDelta = [];
+      focusTapeDirty = false;
     }
-  }, { minIntervalMs: 100 });
+  }, { minIntervalMs: 250 });
+
+  // The lower Flow & Pulse dock duplicates several tape analytics already
+  // rendered in the main stack. Keep its exact inputs, but publish at 1 Hz so
+  // 4k-trade scans do not run on every high-rate Order Flow frame.
+  const dockPaint = createPaintGate(() => {
+    dockTape = pendingDockTape;
+    dockCandles = pendingDockCandles;
+    if (pendingDockBook) dockBook = pendingDockBook;
+  }, { minIntervalMs: 1000 });
 
   const linePaint = createPaintGate(() => {
     flushLineView();
-  }, { minIntervalMs: 100 });
+  }, { minIntervalMs: 250 });
 
   const snapsPaint = createPaintGate(() => {
     if (!snapsDirty) return;
     snapsDirty = false;
     venueBookSnaps = new Map(venueBookSnaps);
-  }, { minIntervalMs: 120 });
+  }, { minIntervalMs: 250 });
 
   const depthPaint = createPaintGate(() => {
     if (!depthRingDirty) return;
     depthRingDirty = false;
     depthHistory = depthRing;
-  }, { minIntervalMs: 120 });
+  }, { minIntervalMs: 200 });
 
   let candles = $state([]);
   /** Full-retention candles for Top Movers (not session-clipped). */
@@ -272,6 +319,7 @@
   let marketSearchRef = $state(null);
 
   const tracker = new MultiVenueTracker(1, initialHistorySecs);
+  const liveCadence = new LiveCadence({ status: 1000, analytics: 500, series: 250 });
   const candleBuilder = new CandleBuilder(1, initialHistorySecs);
   const discTracker = new DiscrepancyTracker(initialHistorySecs);
   const stream = new StreamClient({
@@ -291,15 +339,25 @@
       const expected = mapped.some((m) => m.venue === f.venue && m.symbol === f.symbol);
       if (!expected) return;
       if (f.book) applyFocusBook(f.venue, f.symbol, f.book);
+      const now = Date.now();
+      if (liveCadence.allow('analytics', now)) {
+        if (f.profile) applyMarketProfile(f.venue, f.symbol, f.profile);
+        if (f.bubblesVolume) bubblesVolume = normalizeBubbleSnapshot(f.bubblesVolume);
+        if (f.bubblesDelta) bubblesDelta = normalizeBubbleSnapshot(f.bubblesDelta);
+        if (f.structuralLevels) structuralLevels = normalizeStructuralLevelSnapshot(f.structuralLevels);
+        if (f.derivatives) derivatives = normalizeDerivatives(f.derivatives);
+      }
       if (f.tape?.length) {
         applyFocusTape(f.venue, f.symbol, f.tape);
-        tracker.ingest(f.venue, f.tape);
-        updateFreshness(f.venue, f.symbol, f.tape);
-        syncLineView();
+        if (liveCadence.allow('series', now)) {
+          tracker.ingest(f.venue, f.tape);
+          updateFreshness(f.venue, f.symbol, f.tape);
+          syncLineView();
+        }
       }
     },
     onStatus: (s) => {
-      applyStatus(s);
+      if (liveCadence.allow('status')) applyStatus(s);
     },
     onConnect: () => {
       if (streamDisconnectTimer) {
@@ -345,29 +403,40 @@
 
   function applyFocusTape(venue, symbol, entries) {
     if (venue === selectedVenue && symbol === selectedSymbol) {
-      pendingFocusTape = mergeFocusTape(entries || []);
+      ingestFocusTape(entries || []);
       tapePaint.schedule();
     }
+  }
+
+  function applyMarketProfile(venue, symbol, raw) {
+    if (venue !== selectedVenue || symbol !== selectedSymbol) return;
+    if (raw?.basis && raw.basis !== profileBasis) return;
+    marketProfile = normalizeMarketProfile(raw);
   }
 
   /**
    * Merge SSE/poll tape batches into a capped ring so OF vol/CVD/VAP
    * (and candles) survive mode switches — without publishing 10k+ rows to DOM.
    * @param {object[]} entries
-   * @returns {{ display: object[], of: object[], delta: object[] }}
+   * High-rate callbacks only mutate the dedupe Map. Sorting and projecting the
+   * 4k retained trades happens once per UI publication, not once per socket
+   * message.
    */
-  function mergeFocusTape(entries) {
-    /** @type {object[]} */
-    const delta = [];
+  function ingestFocusTape(entries) {
     for (const e of entries || []) {
       if (!e || e.kind !== 'trade') continue;
       const id =
         e.trade_id != null
           ? `t:${e.trade_id}`
           : `f:${e.exchange_ts_ns}|${e.price}|${e.quantity}|${e.aggressor || ''}`;
-      if (!focusTapeRing.has(id)) delta.push(e);
+      if (!focusTapeRing.has(id)) pendingFocusDelta.push(e);
       focusTapeRing.set(id, e);
     }
+    focusTapeDirty = true;
+  }
+
+  /** @returns {{ display: object[], of: object[] }} */
+  function projectFocusTape() {
     const keepSec = Math.min(historyPolicy.tapeKeepSec(), 1800);
     const cutoff = Math.floor(Date.now() / 1000) - keepSec;
     for (const [k, e] of focusTapeRing) {
@@ -392,7 +461,6 @@
     return {
       display: newestFirst.slice(0, domCap),
       of: newestFirst.slice(0, TAPE_OF_MAX),
-      delta,
     };
   }
 
@@ -447,6 +515,11 @@
     return 'both';
   }
   let lastHeatBookAt = 0;
+  let lastProfileAt = 0;
+  let lastBubbleAt = 0;
+  let lastDerivativesAt = 0;
+  let lastServerDepthAt = 0;
+  let lastDomAt = 0;
   async function refreshHeatBook() {
     if (chartMode !== 'orderflow' || !selectedVenue || !selectedSymbol || replayMode) return;
     const requestVenue = selectedVenue;
@@ -996,6 +1069,7 @@
     if (!force && key === focusKey) return;
     focusKey = key;
     focusGeneration += 1;
+    liveCadence.reset();
     candleBuilder.reset();
     candles = [];
     historyCandles = [];
@@ -1013,6 +1087,9 @@
     book = null;
     tape = [];
     ofTape = [];
+    dockTape = [];
+    dockCandles = [];
+    dockBook = null;
     highlightSec = null;
     selectedTradeId = null;
     imbalanceHistory = [];
@@ -1020,11 +1097,27 @@
     depthRingDirty = false;
     depthHistory = [];
     focusTapeRing = new Map();
+    marketProfile = emptyMarketProfile(replayMode ? 'replay_profile_unavailable' : 'profile_loading');
+    bubblesVolume = emptyBubbleSnapshot('volume', replayMode ? 'replay_bubbles_unavailable' : 'bubble_loading');
+    bubblesDelta = emptyBubbleSnapshot('delta', replayMode ? 'replay_bubbles_unavailable' : 'bubble_loading');
+    structuralLevels = emptyStructuralLevelSnapshot(replayMode ? 'replay_levels_unavailable' : 'structural_level_loading');
+    derivatives = emptyDerivatives(replayMode ? 'replay_derivatives_unavailable' : 'derivatives_loading');
+    domSnapshot = emptyDomSnapshot(replayMode ? 'replay_dom_unavailable' : 'dom_loading');
+    lastProfileAt = 0;
+    lastBubbleAt = 0;
+    lastDerivativesAt = 0;
+    lastServerDepthAt = 0;
+    lastDomAt = 0;
     lastDepthSampleAt = 0;
     pendingFocusBook = null;
-    pendingFocusTape = null;
+    pendingDockBook = null;
+    pendingDockTape = [];
+    pendingDockCandles = [];
+    pendingFocusDelta = [];
+    focusTapeDirty = false;
     bookPaint.flushNow();
     tapePaint.flushNow();
+    dockPaint.flushNow();
     depthPaint.flushNow();
   }
 
@@ -1314,6 +1407,116 @@
     }
   }
 
+  async function refreshMarketProfile() {
+    if (!selectedVenue || !selectedSymbol || replayMode) return;
+    // SSE intentionally carries the default volume projection. TPO selection
+    // uses the explicit query so a fresh stream cannot overwrite that basis.
+    if (profileBasis === 'volume' && streamMode === 'sse' && stream.focusFresh(1200)) return;
+    const now = Date.now();
+    if (now - lastProfileAt < 1000) return;
+    lastProfileAt = now;
+    const requestVenue = selectedVenue;
+    const requestSymbol = selectedSymbol;
+    const requestGeneration = focusGeneration;
+    try {
+      const data = await fetchJson(profileQuery(requestVenue, requestSymbol, profileBasis));
+      if (
+        requestGeneration !== focusGeneration ||
+        !isCurrentMarket(requestVenue, requestSymbol, selectedVenue, selectedSymbol)
+      ) return;
+      applyMarketProfile(requestVenue, requestSymbol, data);
+    } catch {
+      if (requestGeneration === focusGeneration) {
+        marketProfile = emptyMarketProfile('profile_request_failed');
+      }
+    }
+  }
+
+  async function refreshServerBubbles() {
+    if (!selectedVenue || !selectedSymbol || replayMode) return;
+    if (streamMode === 'sse' && stream.focusFresh(1200)) return;
+    const now = Date.now();
+    if (now - lastBubbleAt < 1000) return;
+    lastBubbleAt = now;
+    const venue = selectedVenue;
+    const symbol = selectedSymbol;
+    const generation = focusGeneration;
+    try {
+      const [volume, delta, levels] = await Promise.all([
+        fetchJson(bubblesQuery(venue, symbol, 'volume')),
+        fetchJson(bubblesQuery(venue, symbol, 'delta')),
+        fetchJson(structuralLevelsQuery(venue, symbol)),
+      ]);
+      if (generation !== focusGeneration || !isCurrentMarket(venue, symbol, selectedVenue, selectedSymbol)) return;
+      bubblesVolume = normalizeBubbleSnapshot(volume);
+      bubblesDelta = normalizeBubbleSnapshot(delta);
+      structuralLevels = normalizeStructuralLevelSnapshot(levels);
+    } catch {
+      if (generation === focusGeneration) {
+        bubblesVolume = emptyBubbleSnapshot('volume', 'bubble_request_failed');
+        bubblesDelta = emptyBubbleSnapshot('delta', 'bubble_request_failed');
+        structuralLevels = emptyStructuralLevelSnapshot('structural_level_request_failed');
+      }
+    }
+  }
+
+  async function refreshDerivatives() {
+    if (!selectedVenue || !selectedSymbol || replayMode) return;
+    if (streamMode === 'sse' && stream.focusFresh(1200)) return;
+    const now = Date.now();
+    if (now - lastDerivativesAt < 1000) return;
+    lastDerivativesAt = now;
+    const venue = selectedVenue;
+    const symbol = selectedSymbol;
+    const generation = focusGeneration;
+    try {
+      const data = await fetchJson(derivativesQuery(venue, symbol));
+      if (generation !== focusGeneration || !isCurrentMarket(venue, symbol, selectedVenue, selectedSymbol)) return;
+      derivatives = normalizeDerivatives(data);
+    } catch {
+      if (generation === focusGeneration) derivatives = emptyDerivatives('derivatives_request_failed');
+    }
+  }
+
+  async function refreshServerDepthHistory() {
+    if (chartMode !== 'orderflow' || !selectedVenue || !selectedSymbol || replayMode) return;
+    const now = Date.now();
+    if (now - lastServerDepthAt < 1000) return;
+    lastServerDepthAt = now;
+    const venue = selectedVenue;
+    const symbol = selectedSymbol;
+    const generation = focusGeneration;
+    try {
+      const data = await fetchJson(depthHistoryQuery(venue, symbol, 600));
+      if (generation !== focusGeneration || !isCurrentMarket(venue, symbol, selectedVenue, selectedSymbol)) return;
+      const serverHistory = normalizeDepthHistory(data);
+      if (serverHistory.length) {
+        depthRing = serverHistory;
+        depthHistory = serverHistory;
+        depthRingDirty = false;
+      }
+    } catch {
+      /* retain last client/server history */
+    }
+  }
+
+  async function refreshServerDom() {
+    if (chartMode !== 'orderflow' || !selectedVenue || !selectedSymbol || replayMode) return;
+    const now = Date.now();
+    if (now - lastDomAt < 500) return;
+    lastDomAt = now;
+    const venue = selectedVenue;
+    const symbol = selectedSymbol;
+    const generation = focusGeneration;
+    try {
+      const data = await fetchJson(domQuery(venue, symbol, Math.max(bookDepth, 32), 300));
+      if (generation !== focusGeneration || !isCurrentMarket(venue, symbol, selectedVenue, selectedSymbol)) return;
+      domSnapshot = normalizeDomSnapshot(data);
+    } catch {
+      if (generation === focusGeneration) domSnapshot = emptyDomSnapshot('dom_request_failed');
+    }
+  }
+
   async function tickMulti() {
     if (replayMode || multiBusy || tabHidden) return;
     const targets = mapped.filter((m) => m.live || m.live == null);
@@ -1409,7 +1612,16 @@
   async function tickFocus() {
     if (replayMode || tabHidden) return;
     try {
-      await Promise.all([refreshBook(), refreshFocusTape(), refreshHeatBook()]);
+      await Promise.all([
+        refreshBook(),
+        refreshFocusTape(),
+        refreshHeatBook(),
+        refreshMarketProfile(),
+        refreshServerBubbles(),
+        refreshDerivatives(),
+        refreshServerDepthHistory(),
+        refreshServerDom(),
+      ]);
     } catch (e) {
       error = String(e.message || e);
     }
@@ -1551,6 +1763,7 @@
       if (streamDisconnectTimer) clearTimeout(streamDisconnectTimer);
       bookPaint.dispose();
       tapePaint.dispose();
+      dockPaint.dispose();
       linePaint.dispose();
       snapsPaint.dispose();
       depthPaint.dispose();
@@ -1578,6 +1791,9 @@
     if (patch.ofTick != null) ofTick = String(patch.ofTick);
     if (patch.ofHeat != null) ofHeat = Number(patch.ofHeat);
     if (patch.ofBubbleMinUsd != null) ofBubbleMinUsd = Number(patch.ofBubbleMinUsd);
+    if (patch.ofBubbleMode === 'volume' || patch.ofBubbleMode === 'delta') {
+      ofBubbleMode = patch.ofBubbleMode;
+    }
     if (patch.ofLayers != null) ofLayers = String(patch.ofLayers);
     if (patch.ofPriceZoom != null) ofPriceZoom = clampPriceZoom(patch.ofPriceZoom, ofPriceZoom);
     if (patch.ofViewSec !== undefined) {
@@ -1596,11 +1812,48 @@
       ofTick,
       ofHeat,
       ofBubbleMinUsd,
+      ofBubbleMode,
       ofLayers,
       ofPriceZoom,
       ofViewSec,
       ofFollowLive,
     });
+  }
+
+  function setDomWidth(value) {
+    ofDomWidth = Math.min(520, Math.max(200, Math.round(Number(value) || 260)));
+    persist({ ofDomWidth });
+  }
+
+  function beginSplitDrag(event) {
+    event.preventDefault();
+    splitDragging = true;
+    const startX = event.clientX;
+    const startWidth = ofDomWidth;
+    const move = (ev) => setDomWidth(startWidth + startX - ev.clientX);
+    const stop = () => {
+      splitDragging = false;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop, { once: true });
+  }
+
+  function splitKey(event) {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setDomWidth(ofDomWidth + 16);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setDomWidth(ofDomWidth - 16);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setDomWidth(200);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setDomWidth(520);
+    }
   }
   let venueLive = $derived(!!(status?.venues || []).find((v) => v.id === selectedVenue)?.live);
   let crossBps = $derived(discrepancy?.bps ?? null);
@@ -1740,7 +1993,7 @@
         }}
       />
       {#if chartMode === 'orderflow'}
-        <div class="of-chart-stack">
+        <div class="of-chart-stack" class:dragging={splitDragging} style={`--dom-width:${ofDomWidth}px`}>
           <div class="of-heat-main">
             <ChartHoverLegend legend={hoverLegend} />
             <OrderFlowHeatmap
@@ -1754,6 +2007,9 @@
               {ofTick}
               {ofHeat}
               {ofBubbleMinUsd}
+              serverBubbles={ofBubbleMode === 'delta' ? bubblesDelta : bubblesVolume}
+              {structuralLevels}
+              {ofBubbleMode}
               {ofLayers}
               {largeTradeUsd}
               priceZoom={ofPriceZoom}
@@ -1762,13 +2018,29 @@
               onCrosshair={onOfCrosshair}
             />
           </div>
+          <button
+            type="button"
+            class="of-splitter"
+            aria-label="Resize order-flow chart and DOM"
+            title={`DOM width ${ofDomWidth}px · drag or use arrow keys`}
+            tabindex="0"
+            onpointerdown={beginSplitDrag}
+            onkeydown={splitKey}
+          ></button>
           <div class="of-dom-side">
             <DomLadder
               {book}
+              serverDom={domSnapshot}
               depth={Math.max(bookDepth, 32)}
               tickOpt={ofTick}
               {lastPrice}
               onDepth={setBookDepth}
+              showCum={domShowCum}
+              showMbp={domShowMbp}
+              showExec={domShowExec}
+              onShowCum={(value) => { domShowCum = value; persist({ domShowCum: value }); }}
+              onShowMbp={(value) => { domShowMbp = value; persist({ domShowMbp: value }); }}
+              onShowExec={(value) => { domShowExec = value; persist({ domShowExec: value }); }}
             />
           </div>
         </div>
@@ -1788,6 +2060,20 @@
           }
         }}
       />
+      <MarketProfileStats
+        profile={marketProfile}
+        {replayMode}
+        {profileBasis}
+        onBasis={(basis) => {
+          if (basis !== 'volume' && basis !== 'tpo') return;
+          profileBasis = basis;
+          marketProfile = emptyMarketProfile('profile_loading');
+          lastProfileAt = 0;
+          persist({ profileBasis: basis });
+          void refreshMarketProfile();
+        }}
+      />
+      <DerivativesStats data={derivatives} />
       {#if stackXhairX != null}
         <div
           class="stack-xhair"
@@ -1848,9 +2134,9 @@
     {:else}
       <div class="dock-body">
         <FlowPulseDock
-          {book}
-          tape={ofTape.length ? ofTape : tape}
-          candles={historyCandles}
+          book={dockBook ?? book}
+          tape={dockTape.length ? dockTape : tape}
+          candles={dockCandles.length ? dockCandles : historyCandles}
           {historySecs}
           depth={Math.max(bookDepth, 32)}
           windowSec={ofViewSec ?? sessionSec}
@@ -1881,7 +2167,7 @@
     onPosition={() => {}}
   />
 
-  <StatusBar {status} {error} {connected} {streamMode} streamReconnecting={streamReconnecting} {venueHealth} />
+  <StatusBar {status} {error} {connected} {streamMode} streamReconnecting={streamReconnecting} {replayMode} {venueHealth} />
 </div>
 
 <style>
@@ -1923,10 +2209,10 @@
   }
 
   .of-chart-stack {
-    flex: 1;
-    min-height: 0;
+    flex: 2 1 180px;
+    min-height: 120px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 300px);
+    grid-template-columns: minmax(0, 1fr) 7px minmax(200px, var(--dom-width, 260px));
     border-top: 1px solid var(--border);
   }
   .of-heat-main, .of-dom-side {
@@ -1938,6 +2224,17 @@
   .of-dom-side {
     border-left: 1px solid var(--border);
   }
+  .of-splitter {
+    padding: 0;
+    cursor: col-resize;
+    background: #171c23;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    outline: none;
+  }
+  .of-splitter:hover,
+  .of-splitter:focus-visible,
+  .of-chart-stack.dragging .of-splitter { background: rgba(240, 185, 11, 0.22); }
 
   .col-right {
     display: flex;
@@ -1954,9 +2251,9 @@
     background: var(--panel-2);
     display: flex;
     flex-direction: column;
-    max-height: 38vh;
+    max-height: 30vh;
   }
-  .analytics-dock.open { min-height: 220px; height: 32vh; }
+  .analytics-dock.open { min-height: 180px; height: 24vh; }
   .dock-tabs {
     display: flex;
     align-items: center;
@@ -1997,10 +2294,16 @@
   }
 
   @media (max-width: 1100px) {
+    .terminal {
+      height: auto;
+      min-height: 100%;
+    }
     .workspace {
+      flex: none;
       grid-template-columns: minmax(200px, 240px) minmax(0, 1fr);
-      grid-template-rows: minmax(220px, 1fr) minmax(160px, 40%);
-      overflow-y: auto;
+      grid-template-rows: 360px 200px;
+      min-height: 560px;
+      overflow: visible;
     }
     .col-right {
       grid-column: 1 / -1;
@@ -2009,21 +2312,29 @@
       border-top: 1px solid var(--border);
     }
     .markets-pane, .trades-pane { flex: 1; }
-    .analytics-dock.open { max-height: 34vh; min-height: 200px; height: 30vh; }
+    .analytics-dock.open { max-height: 28vh; min-height: 180px; height: 24vh; }
     .dock-hint { display: none; }
-    .of-chart-stack { grid-template-columns: minmax(0, 1fr) minmax(180px, 240px); }
+    .of-chart-stack { grid-template-columns: minmax(0, 1fr) 7px minmax(200px, var(--dom-width, 240px)); }
   }
 
   @media (max-width: 720px) {
     .workspace {
       grid-template-columns: 1fr;
-      grid-template-rows: minmax(300px, 45vh) minmax(300px, 40vh) minmax(320px, 50vh);
+      grid-template-rows: 300px minmax(620px, 70vh) 320px;
+      min-height: 1240px;
+      overflow: visible;
     }
     .col-right { flex-direction: column; max-height: 50vh; }
     .of-chart-stack {
       grid-template-columns: 1fr;
       grid-template-rows: minmax(180px, 1fr) minmax(120px, 38%);
     }
+    .of-splitter { display: none; }
     .of-dom-side { border-left: none; border-top: 1px solid var(--border); }
+    .analytics-dock.open {
+      height: 300px;
+      min-height: 300px;
+      max-height: none;
+    }
   }
 </style>

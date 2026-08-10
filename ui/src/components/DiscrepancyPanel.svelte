@@ -1,5 +1,6 @@
 <script>
   import { fmtPrice, fmtSecClock } from '../lib/format.js';
+  import { numericCommit } from '../lib/numericInput.js';
 
   let {
     history = [],
@@ -85,8 +86,7 @@
         min="1"
         max="500"
         step="1"
-        value={threshold}
-        onchange={(e) => onThreshold(Number(e.currentTarget.value))}
+        use:numericCommit={{ value: threshold, min: 1, max: 500, onCommit: onThreshold }}
       />
       bps
     </label>

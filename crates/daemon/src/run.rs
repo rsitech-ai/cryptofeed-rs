@@ -50,6 +50,8 @@ use crate::config::{TransportMode, VenueConfig, VenueKind};
 use crate::sinks::SharedDaemonSinks;
 use crate::state::DaemonState;
 use crate::subscriptions::expand_concrete_subscriptions;
+#[cfg(feature = "ui-api")]
+use crate::view::CatalogAuthority;
 
 fn shared_sinks(state: &DaemonState, venue: VenueId) -> SharedDaemonSinks {
     #[cfg(feature = "ui-api")]
@@ -656,10 +658,10 @@ async fn resolve_live_catalog<F: VenueFactory>(
     venue_code: &str,
     kind: InstrumentKind,
     symbols: &[String],
-) -> CatalogView {
+) -> (CatalogView, bool) {
     let stub = catalog_for_venue(venue_id, venue_code, kind, symbols);
     if symbols.is_empty() {
-        return stub;
+        return (stub, false);
     }
     let http = match ReqwestHttpTransport::new() {
         Ok(h) => h,
@@ -669,7 +671,7 @@ async fn resolve_live_catalog<F: VenueFactory>(
                 error = %e,
                 "live catalog HTTP transport unavailable; using stub scales"
             );
-            return stub;
+            return (stub, false);
         }
     };
     match discover_catalog(
@@ -688,7 +690,7 @@ async fn resolve_live_catalog<F: VenueFactory>(
                     instruments = filtered.instruments.len(),
                     "live catalog resolved"
                 );
-                filtered
+                (filtered, true)
             }
             Err(e) => {
                 tracing::warn!(
@@ -696,7 +698,7 @@ async fn resolve_live_catalog<F: VenueFactory>(
                     error = %e,
                     "live catalog missing configured symbols; using stub scales"
                 );
-                stub
+                (stub, false)
             }
         },
         Err(e) => {
@@ -705,7 +707,7 @@ async fn resolve_live_catalog<F: VenueFactory>(
                 error = %e,
                 "live catalog discovery failed; using stub scales"
             );
-            stub
+            (stub, false)
         }
     }
 }
@@ -947,7 +949,25 @@ async fn run_live_ws<F: VenueFactory>(
     }
 
     let max_frame_bytes = factory.specification().max_frame_bytes;
-    let catalog = resolve_live_catalog(&factory, venue_id, venue_code, kind, &venue.symbols).await;
+    let (catalog, catalog_authoritative) =
+        resolve_live_catalog(&factory, venue_id, venue_code, kind, &venue.symbols).await;
+    #[cfg(feature = "ui-api")]
+    {
+        register_view_venue(state, venue_id, venue);
+        if let Some(view) = &state.view {
+            view.register_catalog(
+                &venue.id,
+                &catalog,
+                if catalog_authoritative {
+                    CatalogAuthority::Authoritative
+                } else {
+                    CatalogAuthority::Placeholder
+                },
+            );
+        }
+    }
+    #[cfg(not(feature = "ui-api"))]
+    let _ = catalog_authoritative;
     let request = expand_concrete_subscriptions(venue, &catalog).map_err(|e| e.to_string())?;
     let plan = factory
         .plan(&request, &catalog)

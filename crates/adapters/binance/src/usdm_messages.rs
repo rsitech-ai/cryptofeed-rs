@@ -100,6 +100,9 @@ pub enum UsdmDecoded {
     SubscribeAck {
         id: Option<u64>,
     },
+    /// Recognized exchange administrative record that is intentionally not a
+    /// canonical market event.
+    Ignored,
     Unknown,
 }
 
@@ -330,6 +333,11 @@ fn decode_kline(v: &Value) -> Result<UsdmDecoded, String> {
 
 fn decode_agg_trade(v: &Value) -> Result<UsdmDecoded, String> {
     let m: AggTradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+    let price = Price(parse_fixed(&m.p)?);
+    let quantity = Quantity(parse_fixed(&m.q)?);
+    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+        return Ok(UsdmDecoded::Ignored);
+    }
     let aggressor = if m.m {
         AggressorSide::Sell
     } else {
@@ -338,8 +346,8 @@ fn decode_agg_trade(v: &Value) -> Result<UsdmDecoded, String> {
     Ok(UsdmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.a,
-        price: Price(parse_fixed(&m.p)?),
-        quantity: Quantity(parse_fixed(&m.q)?),
+        price,
+        quantity,
         aggressor,
         exchange_ts_ms: m.trade_time,
     })
@@ -347,6 +355,14 @@ fn decode_agg_trade(v: &Value) -> Result<UsdmDecoded, String> {
 
 fn decode_trade(v: &Value) -> Result<UsdmDecoded, String> {
     let m: TradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+    let price = Price(parse_fixed(&m.p)?);
+    let quantity = Quantity(parse_fixed(&m.q)?);
+    // USD-M occasionally publishes administrative `trade` records with
+    // p="0", q="0", X="NA". They carry an id but are not executable tape
+    // prints and must not contaminate profiles or order-flow analytics.
+    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+        return Ok(UsdmDecoded::Ignored);
+    }
     let aggressor = if m.m {
         AggressorSide::Sell
     } else {
@@ -356,8 +372,8 @@ fn decode_trade(v: &Value) -> Result<UsdmDecoded, String> {
     Ok(UsdmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.t,
-        price: Price(parse_fixed(&m.p)?),
-        quantity: Quantity(parse_fixed(&m.q)?),
+        price,
+        quantity,
         aggressor,
         exchange_ts_ms: m.trade_time,
     })
@@ -575,6 +591,12 @@ mod tests {
         };
         assert_eq!(symbol, "BTCUSDT");
         assert_eq!(price.0, Fixed::new(6499100, 2));
+    }
+
+    #[test]
+    fn non_positive_trade_records_are_not_canonical_tape_prints() {
+        let raw = br#"{"e":"trade","E":1786371578176,"T":1786371578176,"s":"BTCUSDT","t":7963476844,"p":"0","q":"0","X":"NA","m":true,"st":1}"#;
+        assert_eq!(decode_text(raw).unwrap(), UsdmDecoded::Ignored);
     }
 
     #[test]

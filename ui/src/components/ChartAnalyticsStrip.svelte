@@ -600,7 +600,9 @@
 
 <style>
   .cas {
-    flex-shrink: 0;
+    flex: 1 1 160px;
+    min-height: 112px;
+    overflow: hidden;
     border-top: 1px solid var(--border);
     background: var(--panel);
     display: flex;
@@ -610,8 +612,8 @@
 
   .pane {
     position: relative;
-    flex-shrink: 0;
-    height: 52px;
+    flex: 1 1 52px;
+    min-height: 24px;
     border-top: 1px solid var(--border);
     background: var(--panel);
   }
@@ -621,7 +623,7 @@
   }
 
   .pane.vol {
-    height: 64px;
+    flex-basis: 64px;
   }
 
   .pane-lbl {
