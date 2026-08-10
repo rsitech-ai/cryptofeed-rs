@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/model",
+    "crates/analytics",
     "crates/adapter-api",
     "crates/adapter-testkit",
     "crates/book",
@@ -28,6 +29,7 @@ members = [
 ]
 default-members = [
     "crates/model",
+    "crates/analytics",
     "crates/adapter-api",
     "crates/adapter-testkit",
     "crates/book",
@@ -89,6 +91,7 @@ tokio = { version = "1", default-features = false, features = [
 # Spec baseline: rustls + hostname/cert verification; no insecure fallback.
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 marketfeed-model = { path = "crates/model" }
+marketfeed-analytics = { path = "crates/analytics" }
 marketfeed-adapter-api = { path = "crates/adapter-api" }
 marketfeed-adapter-testkit = { path = "crates/adapter-testkit" }
 marketfeed-book = { path = "crates/book" }

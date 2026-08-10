@@ -8,6 +8,7 @@
 //!
 //! - **Model:** [`Fixed`], market/system events, ids, overflow policy
 //! - **Adapter contracts:** [`SessionMachine`], [`VenueFactory`], subscriptions
+//! - **Analytics:** exact Market Profile and order-flow contracts under [`analytics`]
 //! - **Engine control:** [`EngineControl`], [`EngineSupervisor`], health / rotate
 //! - **Sinks:** [`sinks::EventSink`] and common sink types under [`sinks`]
 //!
@@ -56,6 +57,11 @@ pub use marketfeed_engine::{
     ControlError, EngineControl, EngineError, EngineLifecycle, EngineSupervisor, HealthSnapshot,
     RecordingRotateHandle, RollingReplace, SessionHealth, SessionLifecycle, SessionRunnerConfig,
 };
+
+/// Exact, deterministic Market Profile and order-flow analytics.
+pub mod analytics {
+    pub use marketfeed_analytics::*;
+}
 
 /// Bounded external sinks (spec §17.4). Prefer these over depending on
 /// `marketfeed-sinks` directly for common embed paths.
