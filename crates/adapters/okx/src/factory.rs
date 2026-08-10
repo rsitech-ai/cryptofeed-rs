@@ -79,6 +79,7 @@ fn session_config_from_catalog(
     let mut symbols = Vec::new();
     let mut price_scale = None;
     let mut qty_scale = None;
+    let mut book_scales = HashMap::new();
     for item in &request.items {
         if instrument_ids.values().any(|id| *id == item.instrument) {
             continue;
@@ -98,6 +99,10 @@ fn session_config_from_catalog(
             qty_scale = Some(instrument.quantity_scale);
         }
         symbols.push(instrument.key.native_symbol.clone());
+        book_scales.insert(
+            instrument.key.native_symbol.clone(),
+            (instrument.price_scale, instrument.quantity_scale),
+        );
         instrument_ids.insert(instrument.key.native_symbol.clone(), instrument.id);
     }
 
@@ -110,6 +115,7 @@ fn session_config_from_catalog(
             .any(|item| matches!(&item.channel, Channel::L2Book { .. })),
         price_scale: price_scale.expect("nonempty request selects an instrument"),
         qty_scale: qty_scale.expect("nonempty request selects an instrument"),
+        book_scales,
         candle_intervals,
         ..OkxSessionConfig::default()
     })
@@ -421,11 +427,38 @@ mod tests {
         );
         assert_eq!(cfg.price_scale, 5);
         assert_eq!(cfg.qty_scale, 7);
+        assert_eq!(cfg.book_scales.get("ETH-USDT-260925"), Some(&(5, 7)));
         assert!(cfg.enable_l2);
         assert_eq!(
             cfg.candle_intervals,
             vec![CandleInterval::M5, CandleInterval::H1]
         );
+    }
+
+    #[test]
+    fn session_config_preserves_each_symbols_catalog_scales() {
+        let eth = instrument(InstrumentId(41), "ETH-USDT-260925", 5, 7);
+        let xrp = instrument(InstrumentId(42), "XRP-USDT-260925", 4, 1);
+        let request = ConcreteSubscriptionSet {
+            items: [InstrumentId(41), InstrumentId(42)]
+                .into_iter()
+                .map(|instrument| ConcreteSubscription {
+                    instrument,
+                    channel: Channel::L2Book {
+                        depth: None,
+                        cadence: None,
+                    },
+                    delivery: DeliveryOptions::default(),
+                })
+                .collect(),
+        };
+
+        let cfg = session_config_from_catalog(&catalog(vec![eth, xrp]), &request, false)
+            .expect("multi-symbol catalog-backed request");
+
+        assert_eq!(cfg.book_scales.get("ETH-USDT-260925"), Some(&(5, 7)));
+        assert_eq!(cfg.book_scales.get("XRP-USDT-260925"), Some(&(4, 1)));
+        assert!(cfg.enable_l2);
     }
 
     #[test]

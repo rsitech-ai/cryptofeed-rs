@@ -1,5 +1,6 @@
 <script>
   import { fmtUtcClock } from '../lib/format.js';
+  import { statusPresentation } from '../lib/statusPresentation.js';
 
   let {
     status = null,
@@ -7,6 +8,7 @@
     connected = false,
     streamMode = 'poll',
     streamReconnecting = false,
+    replayMode = false,
     venueHealth = [],
   } = $props();
 
@@ -21,19 +23,26 @@
 
   let liveVenues = $derived((status?.venues || []).filter((v) => v.live).length);
   let totalVenues = $derived((status?.venues || []).length);
+  let presentation = $derived(statusPresentation({
+    replayMode,
+    connected,
+    status,
+    streamMode,
+    streamReconnecting,
+  }));
 </script>
 
 <footer class="status">
   <div class="left">
-    <span class="dot" class:on={connected} class:off={!connected}></span>
-    <span>{connected ? 'connected' : 'disconnected'}</span>
+    <span class="dot" class:on={presentation.connectionOn} class:off={!presentation.connectionOn}></span>
+    <span>{presentation.connectionLabel}</span>
     <span class="sep">|</span>
     <span title={streamReconnecting ? 'SSE reconnecting (UI stays mounted)' : ''}>
-      {streamMode === 'sse' ? (streamReconnecting ? 'SSE…' : 'SSE') : 'poll'}
+      {presentation.transportLabel}
     </span>
-    {#if status}
-      <span class="sep">|</span>
-      <span>lifecycle {status.lifecycle}</span>
+    <span class="sep">|</span>
+    <span>lifecycle {presentation.lifecycleLabel}</span>
+    {#if presentation.showLiveStatus}
       <span class="sep">|</span>
       <span>venues {liveVenues}/{totalVenues} live</span>
       <span class="sep">|</span>
@@ -45,7 +54,7 @@
     {/if}
   </div>
 
-  {#if venueHealth.length}
+  {#if presentation.showLiveStatus && venueHealth.length}
     <div class="health-strip" title="Per-venue feed health">
       {#each venueHealth as v}
         <span class="vh" class:bad={v.bad} title="{v.venue}: reconnects={v.reconnects ?? 0} gaps={v.gaps ?? 0} invalidations={v.invalidations ?? 0} lag={v.lagMs ?? '—'}ms">

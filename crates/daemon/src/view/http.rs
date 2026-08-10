@@ -9,6 +9,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Semaphore;
 use tokio::time::timeout;
 
+use marketfeed_analytics::BubbleMode;
 use marketfeed_model::InstrumentId;
 
 use crate::state::DaemonState;
@@ -218,6 +219,12 @@ async fn route(state: &DaemonState, path: &str, query: &str) -> (u16, &'static s
         "/v1/instruments" => json_ok(&view.instruments_json(state)),
         "/v1/books" => books(view, query),
         "/v1/tape" => tape(view, query),
+        "/v1/analytics/profile" => profile(view, query),
+        "/v1/analytics/bubbles" => bubbles(view, query),
+        "/v1/analytics/levels" => structural_levels(view, query),
+        "/v1/derivatives" => derivatives(view, query),
+        "/v1/depth/history" => depth_history(view, query),
+        "/v1/dom" => dom(view, query),
         "/v1/replay/files" | "/v1/replay/list" => replay_files(state).await,
         "/v1/replay" => replay_read(state, query).await,
         "/live" => {
@@ -565,10 +572,10 @@ fn books(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
     let Some(venue) = params.get("venue") else {
         return bad_request("missing venue");
     };
-    let depth = params
-        .get("depth")
-        .and_then(|s| s.parse::<u32>().ok())
-        .or(Some(25));
+    let depth = match bounded_u32(&params, "depth", 25, 1, 100) {
+        Ok(value) => Some(value),
+        Err(message) => return bad_request(message),
+    };
     let instrument = match resolve_instrument(view, venue, &params) {
         Ok(id) => id,
         Err(msg) => return bad_request(msg),
@@ -588,17 +595,22 @@ fn tape(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
     let Some(venue) = params.get("venue") else {
         return bad_request("missing venue");
     };
-    let limit = params
-        .get("limit")
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(50)
-        .clamp(1, 500);
-    let kind = params.get("kind").filter(|k| {
-        matches!(
-            *k,
-            "trade" | "trades" | "quote" | "quotes" | "all" | "mixed"
-        )
-    });
+    let limit = match bounded_usize(&params, "limit", 50, 1, 500) {
+        Ok(value) => value,
+        Err(message) => return bad_request(message),
+    };
+    let kind = match params.get("kind") {
+        None => None,
+        Some(value)
+            if matches!(
+                value,
+                "trade" | "trades" | "quote" | "quotes" | "all" | "mixed"
+            ) =>
+        {
+            Some(value)
+        }
+        Some(_) => return bad_request("kind must be trade, quote, or all"),
+    };
     let kind = match kind {
         Some("all") | Some("mixed") => None,
         other => other,
@@ -616,6 +628,100 @@ fn tape(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
     }))
 }
 
+fn profile(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
+    let params = Query::parse(query);
+    let Some(venue) = params.get("venue") else {
+        return bad_request("missing venue");
+    };
+    let instrument = match resolve_instrument(view, venue, &params) {
+        Ok(id) => id,
+        Err(msg) => return bad_request(msg),
+    };
+    let basis = match params.get("basis") {
+        None | Some("volume") => marketfeed_analytics::ValueAreaBasis::Volume,
+        Some("tpo") => marketfeed_analytics::ValueAreaBasis::Tpo,
+        Some(_) => return bad_request("basis must be volume or tpo"),
+    };
+    json_ok(&view.profile_snapshot(venue, instrument, basis))
+}
+
+fn bubbles(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
+    let params = Query::parse(query);
+    let Some(venue) = params.get("venue") else {
+        return bad_request("missing venue");
+    };
+    let instrument = match resolve_instrument(view, venue, &params) {
+        Ok(id) => id,
+        Err(msg) => return bad_request(msg),
+    };
+    let mode = match params.get("mode") {
+        None | Some("volume") => BubbleMode::Volume,
+        Some("delta") => BubbleMode::Delta,
+        Some(_) => return bad_request("mode must be volume or delta"),
+    };
+    json_ok(&view.bubble_snapshot(venue, instrument, mode))
+}
+
+fn structural_levels(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
+    let params = Query::parse(query);
+    let Some(venue) = params.get("venue") else {
+        return bad_request("missing venue");
+    };
+    let instrument = match resolve_instrument(view, venue, &params) {
+        Ok(id) => id,
+        Err(msg) => return bad_request(msg),
+    };
+    json_ok(&view.structural_level_snapshot(venue, instrument))
+}
+
+fn derivatives(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
+    let params = Query::parse(query);
+    let Some(venue) = params.get("venue") else {
+        return bad_request("missing venue");
+    };
+    let instrument = match resolve_instrument(view, venue, &params) {
+        Ok(id) => id,
+        Err(msg) => return bad_request(msg),
+    };
+    json_ok(&view.derivatives_snapshot(venue, instrument))
+}
+
+fn depth_history(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
+    let params = Query::parse(query);
+    let Some(venue) = params.get("venue") else {
+        return bad_request("missing venue");
+    };
+    let instrument = match resolve_instrument(view, venue, &params) {
+        Ok(id) => id,
+        Err(msg) => return bad_request(msg),
+    };
+    let limit = match bounded_usize(&params, "limit", 600, 1, 3_000) {
+        Ok(value) => value,
+        Err(message) => return bad_request(message),
+    };
+    json_ok(&view.depth_history(venue, instrument, limit))
+}
+
+fn dom(view: &ViewPlane, query: &str) -> (u16, &'static str, Vec<u8>) {
+    let params = Query::parse(query);
+    let Some(venue) = params.get("venue") else {
+        return bad_request("missing venue");
+    };
+    let instrument = match resolve_instrument(view, venue, &params) {
+        Ok(id) => id,
+        Err(msg) => return bad_request(msg),
+    };
+    let depth = match bounded_usize(&params, "depth", 32, 1, 100) {
+        Ok(value) => value,
+        Err(message) => return bad_request(message),
+    };
+    let window_sec = match bounded_u64(&params, "window_sec", 300, 1, 3_600) {
+        Ok(value) => value,
+        Err(message) => return bad_request(message),
+    };
+    json_ok(&view.dom_snapshot(venue, instrument, depth, window_sec))
+}
+
 fn resolve_instrument(
     view: &ViewPlane,
     venue: &str,
@@ -628,7 +734,64 @@ fn resolve_instrument(
     if let Some(sym) = params.get("symbol") {
         return view.resolve_instrument(venue, sym).ok_or("unknown symbol");
     }
-    Ok(InstrumentId(1))
+    Err("missing instrument or symbol")
+}
+
+fn bounded_u32(
+    params: &Query,
+    key: &'static str,
+    default: u32,
+    min: u32,
+    max: u32,
+) -> Result<u32, &'static str> {
+    let Some(raw) = params.get(key) else {
+        return Ok(default);
+    };
+    let value = raw
+        .parse::<u32>()
+        .map_err(|_| "invalid numeric query value")?;
+    if !(min..=max).contains(&value) {
+        return Err("numeric query value out of range");
+    }
+    Ok(value)
+}
+
+fn bounded_u64(
+    params: &Query,
+    key: &'static str,
+    default: u64,
+    min: u64,
+    max: u64,
+) -> Result<u64, &'static str> {
+    let Some(raw) = params.get(key) else {
+        return Ok(default);
+    };
+    let value = raw
+        .parse::<u64>()
+        .map_err(|_| "invalid numeric query value")?;
+    if !(min..=max).contains(&value) {
+        return Err("numeric query value out of range");
+    }
+    Ok(value)
+}
+
+fn bounded_usize(
+    params: &Query,
+    key: &'static str,
+    default: usize,
+    min: usize,
+    max: usize,
+) -> Result<usize, &'static str> {
+    let Some(raw) = params.get(key) else {
+        return Ok(default);
+    };
+    let value = raw
+        .parse::<usize>()
+        .map_err(|_| "invalid numeric query value")?;
+    if !(min..=max).contains(&value) {
+        return Err("numeric query value out of range");
+    }
+    Ok(value)
 }
 
 fn static_or_404(state: &DaemonState, path: &str) -> (u16, &'static str, Vec<u8>) {
@@ -928,6 +1091,95 @@ mod tests {
         assert!(body.contains("\"grafana_base_url\""), "{body}");
         assert!(body.contains("\"alert_webhook_configured\":true"), "{body}");
         assert!(body.contains("\"tape_trades\""), "{body}");
+    }
+
+    #[tokio::test]
+    async fn profile_endpoint_reports_unavailable_without_catalog_truth() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            [readiness]
+            require_required_venues = false
+            [[venues]]
+            id = "syn"
+            adapter = "synthetic"
+            symbols = ["BTC-USD"]
+            required = false
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        state.view.as_ref().unwrap().register_venue(
+            marketfeed_model::VenueId(1),
+            "syn",
+            &["BTC-USD".into()],
+        );
+        let serve_state = Arc::clone(&state);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, serve_state).await;
+        });
+
+        let (status, body) = get(&addr, "/v1/analytics/profile?venue=syn&symbol=BTC-USD").await;
+        assert_eq!(status, 200, "{body}");
+        assert!(body.contains("\"status\":\"unavailable\""), "{body}");
+        assert!(body.contains("catalog_metadata_unavailable"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn dom_route_exists_and_numeric_or_enum_query_errors_fail_closed() {
+        let cfg = DaemonConfig::from_toml_str(
+            r#"
+            [telemetry]
+            bind = "127.0.0.1:0"
+            ui_bind = "127.0.0.1:0"
+            [readiness]
+            require_required_venues = false
+            [[venues]]
+            id = "syn"
+            adapter = "synthetic"
+            symbols = ["BTC-USD"]
+            required = false
+            "#,
+        )
+        .unwrap();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let state = test_state(cfg);
+        state.view.as_ref().unwrap().register_venue(
+            marketfeed_model::VenueId(1),
+            "syn",
+            &["BTC-USD".into()],
+        );
+        let serve_state = Arc::clone(&state);
+        tokio::spawn(async move {
+            let _ = serve_view(listener, serve_state).await;
+        });
+
+        let (status, body) = get(
+            &addr,
+            "/v1/dom?venue=syn&symbol=BTC-USD&depth=32&window_sec=300",
+        )
+        .await;
+        assert_eq!(status, 200, "{body}");
+        assert!(body.contains("\"schema_version\":1"), "{body}");
+        assert!(body.contains("\"status\":\"unavailable\""), "{body}");
+
+        for path in [
+            "/v1/books?venue=syn&symbol=BTC-USD&depth=bad",
+            "/v1/tape?venue=syn&symbol=BTC-USD&limit=bad",
+            "/v1/tape?venue=syn&symbol=BTC-USD&kind=orders",
+            "/v1/depth/history?venue=syn&symbol=BTC-USD&limit=bad",
+            "/v1/dom?venue=syn&symbol=BTC-USD&depth=bad",
+            "/v1/dom?venue=syn&symbol=BTC-USD&window_sec=bad",
+            "/v1/analytics/profile?venue=syn&symbol=BTC-USD&basis=time",
+        ] {
+            let (status, body) = get(&addr, path).await;
+            assert_eq!(status, 400, "{path}: {body}");
+        }
     }
 
     #[tokio::test]

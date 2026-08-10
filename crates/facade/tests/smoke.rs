@@ -29,3 +29,13 @@ fn facade_smoke_fixed_control_sink() {
     sink.push_system(SystemEvent::HeartbeatMissed)
         .expect("bounded memory sink accepts system event");
 }
+
+#[test]
+fn facade_exposes_exact_analytics_grid() {
+    let grid = marketfeed::analytics::GridSpec::new(2, 3, Fixed::new(25, 2), 4)
+        .expect("valid exact analytics grid");
+    let bucket = grid
+        .price_bucket(Price(Fixed::new(100_25, 2)))
+        .expect("aligned price maps to a grouped bucket");
+    assert_eq!(bucket.0, 100);
+}

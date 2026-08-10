@@ -19,17 +19,19 @@ describe('dispatchStreamMessage', () => {
           symbol: 'BTCUSDT',
           book: { venue: 'binance-spot', bids: [{ price: '1', quantity: '2' }], asks: [] },
           tape: [{ kind: 'trade', price: '1', quantity: '0.1' }],
+          profile: { schema_version: 1, status: 'live', revision: 1 },
         },
       },
       {
         onStatus: (s) => calls.push(['status', s]),
-        onFocus: (f) => calls.push(['focus', f.venue, f.symbol, !!f.book, f.tape.length]),
+        onFocus: (f) => calls.push(['focus', f.venue, f.symbol, !!f.book, f.tape.length, f.profile?.revision]),
         onBook: (v, s, b) => calls.push(['book', v, s, b.bids?.length]),
         onTape: (v, s, e) => calls.push(['tape', v, s, e.length]),
       },
     );
     assert.deepEqual(calls[0], ['status', { live: true }]);
     assert.ok(calls.some((c) => c[0] === 'focus'));
+    assert.ok(calls.some((c) => c[0] === 'focus' && c[5] === 1));
     // Combined focus must not also fire onBook/onTape (double-apply → flicker).
     assert.equal(calls.filter((c) => c[0] === 'book').length, 0);
     assert.equal(calls.filter((c) => c[0] === 'tape').length, 0);

@@ -25,6 +25,9 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
   Bitstamp, Gemini, Coinbase, and Bitfinex across supported spot and derivatives
   segments.
 - Exact fixed-point price and quantity representation.
+- Pure, bounded market-profile and order-flow analytics for session profiles,
+  candle delta, cumulative delta, and three-tier bubbles; see
+  [`crates/analytics/README.md`](crates/analytics/README.md).
 - Sequence-aware L2 order books with fail-closed validation and resynchronization.
 - Bounded queues with explicit overflow policies and observable drop counters.
 - Reconnect supervision with graceful cancellation and bounded shutdown.
@@ -125,6 +128,7 @@ place orders.
 | Area | Purpose |
 |---|---|
 | `crates/model`, `book`, `dispatch` | Exact domain types, L2 state, bounded delivery |
+| `crates/analytics` | Pure, bounded profile and order-flow aggregation |
 | `crates/adapter-api`, `adapters/*` | Network-free adapter contracts and venue protocols |
 | `crates/transport`, `engine` | Rustls transport, supervision, reconnects, lifecycle |
 | `crates/recording`, `replay` | Versioned capture and deterministic replay |

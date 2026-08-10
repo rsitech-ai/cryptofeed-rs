@@ -1,6 +1,7 @@
 <script>
   import { fmtPrice, fmtQty, fmtUsd, fmtTsUtcLabel } from '../lib/format.js';
   import { TAPE_DOM_MAX } from '../lib/history.js';
+  import { numericCommit } from '../lib/numericInput.js';
 
   let {
     tape = [],
@@ -79,8 +80,12 @@
           type="number"
           min="0"
           step="100"
-          value={minUsd}
-          onchange={(e) => onFilters({ minUsd: Number(e.currentTarget.value) })}
+          use:numericCommit={{
+            value: minUsd,
+            min: 0,
+            max: 1_000_000_000,
+            onCommit: (value) => onFilters({ minUsd: value }),
+          }}
         />
       </label>
       <select

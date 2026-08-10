@@ -5,8 +5,8 @@
 # Edit the local copy freely; it is gitignored under `.local/`.
 #
 # L2 policy (honest):
-# - Keep L2 on binance-spot majors only (SPA depth focus).
-# - Other venues: trades+quote/ticker for multi-venue lines + volume.
+# - L2 is enabled on the public spot fallback and the three qualified BTC/major
+#   perpetual paths (Binance USD-M, OKX Swap, Bybit Linear).
 # - Bybit subscribe args are chunked ≤10 (spot rejects larger batches).
 # - Binance USD-M/Coin-M use @trade (fstream/dstream @aggTrade is silent).
 
@@ -55,7 +55,7 @@ adapter = "binance"
 segment = "usdm"
 required = false
 symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT"]
-channels = ["trades", "quote", "funding"]
+channels = ["trades", "quote", "funding", "l2"]
 
 [[venues]]
 id = "binance-coinm"
@@ -79,7 +79,7 @@ adapter = "okx"
 segment = "swap"
 required = false
 symbols = ["BTC-USDT-SWAP", "ETH-USDT-SWAP", "SOL-USDT-SWAP", "XRP-USDT-SWAP", "BNB-USDT-SWAP"]
-channels = ["trades", "ticker", "funding"]
+channels = ["trades", "ticker", "funding", "l2"]
 
 [[venues]]
 id = "bybit-linear"
@@ -87,7 +87,7 @@ adapter = "bybit"
 segment = "linear"
 required = false
 symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT"]
-channels = ["trades", "quote"]
+channels = ["trades", "quote", "l2"]
 
 [[venues]]
 id = "bybit-spot"

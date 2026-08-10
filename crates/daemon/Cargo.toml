@@ -21,7 +21,7 @@ default = []
 kafka = ["marketfeed-sinks/kafka"]
 nats = ["marketfeed-sinks/nats"]
 # Loopback JSON view API (`/v1/status`, books, tape).
-ui-api = ["dep:marketfeed-book"]
+ui-api = ["dep:marketfeed-analytics", "dep:marketfeed-book"]
 # View API + embedded SPA (build `ui/` first; see docs/ops/ui.md).
 ui = ["ui-api"]
 
@@ -29,6 +29,7 @@ ui = ["ui-api"]
 bytes = { workspace = true }
 futures-util = { workspace = true }
 marketfeed-adapter-api = { workspace = true }
+marketfeed-analytics = { path = "../analytics", optional = true }
 marketfeed-adapter-binance = { path = "../adapters/binance" }
 marketfeed-adapter-bitstamp = { path = "../adapters/bitstamp" }
 marketfeed-adapter-bybit = { path = "../adapters/bybit" }

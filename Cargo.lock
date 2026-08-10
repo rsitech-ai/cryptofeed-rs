@@ -645,6 +645,7 @@ name = "marketfeed"
 version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-adapter-api",
+ "marketfeed-analytics",
  "marketfeed-engine",
  "marketfeed-model",
  "marketfeed-sinks",
@@ -843,6 +844,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "marketfeed-analytics"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "marketfeed-model",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "marketfeed-book"
 version = "0.1.0-alpha.1"
 dependencies = [
@@ -867,6 +878,7 @@ dependencies = [
  "marketfeed-adapter-kraken",
  "marketfeed-adapter-okx",
  "marketfeed-adapter-synthetic",
+ "marketfeed-analytics",
  "marketfeed-book",
  "marketfeed-dispatch",
  "marketfeed-engine",

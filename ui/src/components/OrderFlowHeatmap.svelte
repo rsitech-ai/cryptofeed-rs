@@ -12,9 +12,7 @@
     densifyDepthHistory,
     flowMarkers,
     footprintClusters,
-    heatIntensity,
-    heatmapBaselineRgba,
-    heatmapColor,
+    heatmapRgbaGrid,
     nearestWalls,
     ohlcBucketsFromTape,
     parseOfLayers,
@@ -22,7 +20,6 @@
     resolveTick,
     restingAtPrice,
     serializeOfLayers,
-    tradeBubbles,
     volumeAtPrice,
     volumeBarsFromTape,
   } from '../lib/orderflow.js';
@@ -38,7 +35,10 @@
     ofTick = 'auto',
     ofHeat = 1,
     ofBubbleMinUsd = 50,
-    ofLayers = 'heat,bubbles,mid,vap,cvd,vol,cob,candles,markers',
+    serverBubbles = { available: false, bubbles: [] },
+    structuralLevels = { available: false, levels: [] },
+    ofBubbleMode = 'volume',
+    ofLayers = 'heat,bubbles,levels,mid,vap,cvd,vol,cob,candles,markers',
     largeTradeUsd = 15000,
     priceZoom = 1,
     followLive = true,
@@ -68,6 +68,7 @@
   const LAYER_KEYS = [
     { k: 'heat', label: 'Heat' },
     { k: 'bubbles', label: 'Bubbles' },
+    { k: 'levels', label: 'Levels' },
     { k: 'mid', label: 'Bid/Ask' },
     { k: 'candles', label: 'Candles' },
     { k: 'footprint', label: 'Footprint' },
@@ -98,9 +99,12 @@
   let tick = $derived(resolveTick(ofTick, latestBookFromHistory(depthHistory)));
 
   let bubbles = $derived(
-    tradeBubbles(tape, { windowSec, tick, bucketMs: 350, maxBubbles: 280 }).filter(
-      (b) => b.totalUsd >= ofBubbleMinUsd,
-    ),
+    Array.isArray(serverBubbles?.bubbles) ? serverBubbles.bubbles : [],
+  );
+  let levels = $derived(
+    Array.isArray(structuralLevels?.levels)
+      ? structuralLevels.levels.filter((level) => level.state === 'active')
+      : [],
   );
   let volBars = $derived(volumeBarsFromTape(tape, { windowSec, bucketSec: 1 }));
   let cvdData = $derived(computeCvd(tape, { windowSec }));
@@ -136,7 +140,9 @@
   let localPriceZoom = $state(/** @type {number|null} */ (null));
   let localViewSec = $state(/** @type {number|null} */ (null));
 
-  const gate = createPaintGate(() => paint(), { minIntervalMs: 110 });
+  // L2 snapshots arrive at 5 Hz. Match that source cadence so multiple tape,
+  // analytics, and depth publications coalesce into one deterministic frame.
+  const gate = createPaintGate(() => paint(), { minIntervalMs: 250 });
   let tabHidden = false;
 
   let zoomFactor = $derived(clampPriceZoom(localPriceZoom ?? priceZoom, 1));
@@ -200,48 +206,17 @@
 
   function paintHeatLayer(octx, grid, layout, dpr) {
     const { padL, padT, heatW, heatH, ofHeatGain } = layout;
-    const heatWInt = Math.max(1, Math.ceil(heatW));
-    const heatHInt = Math.max(1, Math.ceil(heatH));
     const { priceMin, priceMax, tMin, tMax, maxVal } = grid;
     const spanT = Math.max(1, tMax - tMin);
-    const cellW = heatW / grid.cols;
-    const cellH = heatH / grid.rows;
-    const img = ensureImageData(heatWInt, heatHInt);
-    const data = img.data;
-    const [bR, bG, bB, bA] = heatmapBaselineRgba();
+    const textureW = Math.max(1, grid.cols);
+    const textureH = Math.max(1, grid.rows);
+    const img = ensureImageData(textureW, textureH);
+    const rgba = heatmapRgbaGrid(grid.grid, maxVal, ofHeatGain);
+    img.data.set(rgba);
 
-    for (let i = 0; i < data.length; i += 4) {
-      data[i] = bR;
-      data[i + 1] = bG;
-      data[i + 2] = bB;
-      data[i + 3] = bA;
-    }
-
-    for (let r = 0; r < grid.rows; r++) {
-      for (let c = 0; c < grid.cols; c++) {
-        const v = grid.grid[r * grid.cols + c];
-        if (!(v > 0)) continue;
-        const intensity = heatIntensity(v, maxVal, ofHeatGain);
-        const [R, G, B, A] = heatmapColor(intensity);
-        const x0 = Math.floor(c * cellW);
-        const x1 = Math.floor((c + 1) * cellW);
-        const y0 = Math.floor(r * cellH);
-        const y1 = Math.floor((r + 1) * cellH);
-        const a = A / 255;
-        for (let y = y0; y < y1 && y < img.height; y++) {
-          for (let x = x0; x < x1 && x < img.width; x++) {
-            const idx = (y * img.width + x) * 4;
-            data[idx] = Math.round(data[idx] * (1 - a) + R * a);
-            data[idx + 1] = Math.round(data[idx + 1] * (1 - a) + G * a);
-            data[idx + 2] = Math.round(data[idx + 2] * (1 - a) + B * a);
-            data[idx + 3] = 255;
-          }
-        }
-      }
-    }
-
-    heatLayer = ensureCanvas(heatLayer, heatWInt, heatHInt);
+    heatLayer = ensureCanvas(heatLayer, textureW, textureH);
     heatLayer.getContext('2d').putImageData(img, 0, 0);
+    octx.imageSmoothingEnabled = true;
     octx.drawImage(heatLayer, padL, padT, heatW, heatH);
 
     // Soft BBO spread ribbon (bidAskPath)
@@ -307,44 +282,70 @@
   function paintBubbles(octx, layout, dpr) {
     const { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax } = layout;
     const spanT = Math.max(1, tMax - tMin);
-    const maxBubbleUsd = Math.max(1, ...bubbles.map((b) => b.totalUsd), ofBubbleMinUsd || 1);
-
     for (const b of bubbles) {
       if (b.t < tMin || b.t > tMax) continue;
       if (b.price < priceMin || b.price > priceMax) continue;
       const x = timeX(b.t, tMin, spanT, padL, heatW);
       const y = priceY(b.price, priceMin, priceMax, padT, heatH);
-      // Log-ish sizing so mid-size prints stay visible next to whales.
-      const r = Math.max(
-        3.5 * dpr,
-        Math.min(26 * dpr, (Math.log1p(b.totalUsd) / Math.log1p(maxBubbleUsd)) * 22 * dpr),
-      );
-      const buyFrac = b.totalUsd > 0 ? b.buyUsd / b.totalUsd : 0.5;
-
+      const r = Math.max(4 * dpr, Math.min(28 * dpr, (b.visualSize / 2) * dpr));
       octx.beginPath();
-      octx.arc(x, y, r, Math.PI, 0, false);
-      octx.closePath();
-      octx.fillStyle = `rgba(246,70,93,${0.4 + (1 - buyFrac) * 0.45})`;
+      if (b.shape === 'square') {
+        octx.rect(x - r, y - r, r * 2, r * 2);
+      } else if (b.shape === 'diamond') {
+        octx.moveTo(x, y - r);
+        octx.lineTo(x + r, y);
+        octx.lineTo(x, y + r);
+        octx.lineTo(x - r, y);
+        octx.closePath();
+      } else {
+        octx.arc(x, y, r, 0, Math.PI * 2);
+      }
+      octx.fillStyle = b.direction === 'buy'
+        ? 'rgba(2,192,118,0.72)'
+        : b.direction === 'sell'
+          ? 'rgba(246,70,93,0.72)'
+          : 'rgba(132,142,156,0.68)';
       octx.fill();
-
-      octx.beginPath();
-      octx.arc(x, y, r, 0, Math.PI, false);
-      octx.closePath();
-      octx.fillStyle = `rgba(2,192,118,${0.4 + buyFrac * 0.45})`;
-      octx.fill();
-
-      octx.beginPath();
-      octx.moveTo(x - r, y);
-      octx.lineTo(x + r, y);
-      octx.strokeStyle = 'rgba(12,16,22,0.55)';
-      octx.lineWidth = 1;
+      octx.strokeStyle = b.tier === 'f3'
+        ? '#f0b90b'
+        : b.tier === 'f2'
+          ? '#d7dde7'
+          : 'rgba(255,255,255,0.38)';
+      octx.lineWidth = (b.tier === 'f3' ? 2 : 1) * dpr;
       octx.stroke();
+    }
+  }
 
+  function paintStructuralLevels(octx, layout, dpr) {
+    const { padL, padT, heatW, heatH, priceMin, priceMax, tMin, tMax } = layout;
+    const spanT = Math.max(1, tMax - tMin);
+    for (const level of levels) {
+      if (level.price < priceMin || level.price > priceMax) continue;
+      const y = priceY(level.price, priceMin, priceMax, padT, heatH);
+      const start = Math.max(padL, timeX(level.createdAt, tMin, spanT, padL, heatW));
+      if (start > padL + heatW) continue;
+      octx.save();
+      if (level.kind === 'top_day' || level.kind === 'top_week') {
+        const zoneH = Math.max(3 * dpr, Math.min(8 * dpr, 2 + Math.log1p(Math.abs(level.strength)) * dpr));
+        const color = level.direction === 'buy' ? '2,192,118' : level.direction === 'sell' ? '246,70,93' : '240,185,11';
+        octx.fillStyle = `rgba(${color},${level.kind === 'top_week' ? 0.18 : 0.11})`;
+        octx.fillRect(start, y - zoneH / 2, padL + heatW - start, zoneH);
+        octx.strokeStyle = `rgba(${color},${level.kind === 'top_week' ? 0.86 : 0.62})`;
+        octx.lineWidth = (level.kind === 'top_week' ? 2 : 1.25) * dpr;
+      } else {
+        octx.strokeStyle = level.kind === 'reaction_high'
+          ? 'rgba(246,70,93,0.78)'
+          : level.kind === 'reaction_low'
+            ? 'rgba(2,192,118,0.78)'
+            : 'rgba(240,185,11,0.72)';
+        octx.lineWidth = (level.kind === 'naked' ? 1 : 1.4) * dpr;
+        if (level.kind === 'naked') octx.setLineDash([5 * dpr, 4 * dpr]);
+      }
       octx.beginPath();
-      octx.arc(x, y, r, 0, Math.PI * 2);
-      octx.strokeStyle = 'rgba(255,255,255,0.28)';
-      octx.lineWidth = 1;
+      octx.moveTo(start, y);
+      octx.lineTo(padL + heatW, y);
       octx.stroke();
+      octx.restore();
     }
   }
 
@@ -849,6 +850,7 @@
 
       if (layers.candles) paintCandles(octx, layout, dpr);
       if (layers.footprint) paintFootprint(octx, layout, dpr);
+      if (layers.levels) paintStructuralLevels(octx, layout, dpr);
       if (layers.bubbles) paintBubbles(octx, layout, dpr);
       if (layers.markers) paintMarkers(octx, layout, dpr);
       if (layers.cob) paintCobColumn(octx, layout, dpr);
@@ -1055,8 +1057,15 @@
     ];
     if (bub && best < 0.006) {
       lines.push(
-        `Print Δ ${fmtUsd(bub.delta)} · buy ${fmtUsd(bub.buyUsd)} / sell ${fmtUsd(bub.sellUsd)}`,
+        `${bub.tier.toUpperCase()} ${bub.phase} · ${ofBubbleMode} ${bub.exactStrength} · Δ ${bub.exactDelta} · vol ${bub.exactTotal}`,
       );
+    }
+    const levelHit = levels
+      .map((level) => ({ level, distance: Math.abs(level.price - price) }))
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (levelHit && levelHit.distance <= qTick * 2) {
+      const label = levelHit.level.kind.replaceAll('_', ' ');
+      lines.push(`${label} · ${levelHit.level.tier.toUpperCase()} ${levelHit.level.direction} · strength ${levelHit.level.exactStrength}`);
     }
     let markHit = null;
     let markBest = Infinity;
@@ -1116,11 +1125,6 @@
     patchSettings({ ofHeat: Number(ev.currentTarget.value) });
   }
 
-  function onBubbleChange(ev) {
-    const n = Number(ev.currentTarget.value);
-    if (Number.isFinite(n) && n >= 0) patchSettings({ ofBubbleMinUsd: n });
-  }
-
   /** @param {string} key */
   function toggleLayer(key) {
     const next = { ...layers, [key]: !layers[key] };
@@ -1146,6 +1150,9 @@
       ofTick,
       ofHeat,
       ofBubbleMinUsd,
+      serverBubbles?.revision ?? 0,
+      structuralLevels?.revision ?? 0,
+      ofBubbleMode,
       ofLayers,
     ].join('|');
     depthHistory;
@@ -1157,6 +1164,9 @@
     ofTick;
     ofHeat;
     ofBubbleMinUsd;
+    serverBubbles;
+    structuralLevels;
+    ofBubbleMode;
     ofLayers;
     if (key !== lastPaintKey) lastPaintKey = key;
     if (tabHidden) return;
@@ -1204,16 +1214,22 @@
       <input type="range" min="0.5" max="2.5" step="0.1" value={ofHeat} oninput={onHeatChange} />
       <span class="val">{ofHeat.toFixed(1)}</span>
     </label>
-    <label class="ctl" title="Minimum bubble notional (USD)">
-      bubble≥$
-      <input
-        type="number"
-        min="0"
-        step="100"
-        value={ofBubbleMinUsd}
-        onchange={onBubbleChange}
-      />
+    <label class="ctl" title="Server-computed Rust F1/F2/F3 mode">
+      bubbles
+      <select
+        value={ofBubbleMode}
+        onchange={(e) => patchSettings({ ofBubbleMode: e.currentTarget.value })}
+      >
+        <option value="volume">volume</option>
+        <option value="delta">delta</option>
+      </select>
     </label>
+    <span class="bubble-state" class:unavailable={!serverBubbles?.available}>
+      {serverBubbles?.available ? `${bubbles.length} · Rust` : 'unavailable'}
+    </span>
+    <span class="bubble-state" class:unavailable={!structuralLevels?.available}>
+      {structuralLevels?.available ? `${levels.length} levels` : 'levels unavailable'}
+    </span>
     <div class="zoom-btns" title="Wheel = price zoom · Shift+wheel = time zoom · Pinch supported">
       <button type="button" onclick={() => zoomPrice(-1)} aria-label="Zoom price in">Y−</button>
       <button type="button" onclick={() => zoomPrice(1)} aria-label="Zoom price out">Y+</button>
@@ -1320,8 +1336,7 @@
     text-transform: lowercase;
   }
 
-  .ctl select,
-  .ctl input[type='number'] {
+  .ctl select {
     background: var(--panel-2, #12161c);
     border: 1px solid var(--border);
     border-radius: 2px;
@@ -1335,9 +1350,12 @@
     min-width: 3.2rem;
   }
 
-  .ctl input[type='number'] {
-    width: 4.5rem;
+  .bubble-state {
+    font: 0.55rem var(--mono);
+    color: var(--positive, #02c076);
   }
+
+  .bubble-state.unavailable { color: var(--muted); }
 
   .heat-ctl input[type='range'] {
     width: 4.5rem;

@@ -5,7 +5,7 @@
  *   onTape?: (venue: string, symbol: string, entries: object[]) => void,
  *   onBook?: (venue: string, symbol: string, book: object) => void,
  *   onStatus?: (status: object) => void,
- *   onFocus?: (focus: { venue: string, symbol: string, book?: object, tape?: object[] }) => void,
+ *   onFocus?: (focus: { venue: string, symbol: string, book?: object, tape?: object[], profile?: object, structuralLevels?: object }) => void,
  *   onError?: (err: Error) => void,
  *   onConnect?: () => void,
  *   onDisconnect?: () => void,
@@ -53,6 +53,11 @@ export function dispatchStreamMessage(msg, handlers) {
         symbol,
         book: focus.book || null,
         tape: Array.isArray(focus.tape) ? focus.tape : [],
+        profile: focus.profile && typeof focus.profile === 'object' ? focus.profile : null,
+        bubblesVolume: focus.bubbles_volume && typeof focus.bubbles_volume === 'object' ? focus.bubbles_volume : null,
+        bubblesDelta: focus.bubbles_delta && typeof focus.bubbles_delta === 'object' ? focus.bubbles_delta : null,
+        structuralLevels: focus.structural_levels && typeof focus.structural_levels === 'object' ? focus.structural_levels : null,
+        derivatives: focus.derivatives && typeof focus.derivatives === 'object' ? focus.derivatives : null,
       });
     }
   }

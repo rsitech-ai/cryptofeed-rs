@@ -107,6 +107,16 @@
     color: var(--text);
   }
 
+  @media (max-width: 720px) {
+    .toasts {
+      top: auto;
+      right: 0.5rem;
+      bottom: 0.5rem;
+      left: 0.5rem;
+      max-width: none;
+    }
+  }
+
   @keyframes toast-in {
     from {
       opacity: 0;

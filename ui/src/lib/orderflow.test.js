@@ -21,6 +21,8 @@ import {
   heatIntensity,
   heatmapBaselineRgba,
   heatmapColor,
+  heatmapRgbaGrid,
+  interpolateDepthColumn,
   ladderLevels,
   levelImbalancePct,
   nearestWalls,
@@ -193,6 +195,28 @@ describe('sparkPathTimed', () => {
 });
 
 describe('heatmap / depth ring', () => {
+  it('interpolates a descending price column in one monotonic pass', () => {
+    const values = interpolateDepthColumn(
+      [
+        [100, 10],
+        [101, 30],
+        [102, 20],
+      ],
+      99.75,
+      102.25,
+      5,
+    );
+    assert.deepEqual(Array.from(values), [20, 25, 30, 20, 10]);
+  });
+
+  it('rasterizes one RGBA pixel per heat cell', () => {
+    const rgba = heatmapRgbaGrid(new Float32Array([0, 25, 50, 100]), 100, 1);
+    assert.equal(rgba.length, 16);
+    assert.deepEqual(Array.from(rgba.slice(0, 4)), heatmapBaselineRgba());
+    assert.equal(rgba[15], 255);
+    assert.ok(rgba[12] > rgba[14], 'strongest cell should be warm, not blue');
+  });
+
   it('samples book depth and builds grid', () => {
     const book = {
       bids: [
