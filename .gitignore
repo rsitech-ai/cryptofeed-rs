@@ -25,3 +25,5 @@ fuzz/artifacts/
 /.local/
 *.cdx.json
 .tools/
+__pycache__/
+*.py[cod]

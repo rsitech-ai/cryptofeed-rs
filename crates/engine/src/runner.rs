@@ -1020,7 +1020,6 @@ impl SessionRunner {
                     self.reconnect_requested = true;
                     self.lifecycle = SessionLifecycle::Backoff;
                     self.invalidate_live_readiness();
-                    self.metrics.record_reconnect();
                     self.push_mirror_action(action)?;
                 }
                 SessionAction::StopSession(_) => {

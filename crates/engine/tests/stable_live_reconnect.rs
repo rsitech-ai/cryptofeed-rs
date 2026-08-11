@@ -7,7 +7,9 @@ use marketfeed_adapter_api::{
     ActionBuffer, AdapterError, ReconnectPolicy, ReconnectReason, SessionAction, SessionInput,
     SessionMachine, TimerSpec,
 };
-use marketfeed_engine::{SessionRunner, SessionRunnerConfig, run_session_with_reconnect};
+use marketfeed_engine::{
+    EngineMetrics, SessionRunner, SessionRunnerConfig, run_session_with_reconnect,
+};
 use marketfeed_model::TimestampNs;
 use marketfeed_transport::{
     CloseReason, FrameBuffer, InboundFrame, OutboundFrame, StubHttpTransport, TransportError,
@@ -252,11 +254,13 @@ async fn matured_live_interval_resets_budget_before_timer_reconnect() {
         connects: Arc::clone(&connects),
         stop: Arc::clone(&stop),
     };
+    let metrics = Arc::new(EngineMetrics::default());
     let mut runner = SessionRunner::new(
         Box::new(LiveUntilReconnectTimer),
         SessionRunnerConfig {
             record: false,
             stop_signal: Some(stop),
+            metrics: Some(Arc::clone(&metrics)),
             ..SessionRunnerConfig::default()
         },
     )
@@ -278,4 +282,9 @@ async fn matured_live_interval_resets_budget_before_timer_reconnect() {
     .unwrap();
 
     assert_eq!(connects.load(Ordering::Relaxed), 3);
+    assert_eq!(
+        metrics.reconnects.load(Ordering::Relaxed),
+        1,
+        "one executed timer reconnect must increment the metric once"
+    );
 }

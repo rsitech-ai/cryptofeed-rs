@@ -14,7 +14,7 @@
 
 ## Current State
 
-- Relevant paths: the Git root `/Users/s1kor/dev/apps/cryptofeed`, Rust crates
+- Relevant paths: the repository root, Rust crates
   under `crates/`, the Svelte UI under `ui/`, project docs, scripts, and this
   plan.
 - Existing behavior: the recovery branch contains the read-only market-profile,

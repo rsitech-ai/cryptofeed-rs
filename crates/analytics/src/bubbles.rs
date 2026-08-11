@@ -1,6 +1,7 @@
 //! Deterministic, bounded, strict-priority order-flow bubble detection.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Arc;
 
 use marketfeed_model::{Fixed, InstrumentId, Price, Quantity, VenueId};
 use serde::{Deserialize, Serialize};
@@ -483,8 +484,22 @@ impl Aggregate {
 pub struct BubbleDetector {
     grid: GridSpec,
     config: BubbleConfig,
-    history: VecDeque<CandleFlow>,
+    history: VecDeque<Arc<CandleFlow>>,
     last_finalized_start_ns: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ThresholdBaseline {
+    Off,
+    Manual(u128),
+    FloorOnly(Option<u128>),
+    Adaptive {
+        floor: u128,
+        cap: u128,
+        historical: u128,
+        historical_weight_bps: u16,
+        spike_weight_bps: u16,
+    },
 }
 
 impl BubbleDetector {
@@ -515,6 +530,7 @@ impl BubbleDetector {
         let keys = candidate_keys(candle, &self.grid)?;
         let active_tiers = self.active_tiers(phase);
         let mut by_tier: [Vec<OrderFlowBubble>; 3] = [Vec::new(), Vec::new(), Vec::new()];
+        let mut baselines = BTreeMap::new();
 
         for key in keys {
             for tier in active_tiers.iter().copied() {
@@ -530,7 +546,14 @@ impl BubbleDetector {
                 if filter.mode == BubbleMode::Delta && strength == 0 {
                     continue;
                 }
-                let Some(threshold) = self.threshold_units(filter, key.segment, strength)? else {
+                let baseline_key = (tier, key.segment);
+                let baseline = match baselines.entry(baseline_key) {
+                    std::collections::btree_map::Entry::Occupied(entry) => *entry.get(),
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        *entry.insert(self.threshold_baseline(filter, key.segment)?)
+                    }
+                };
+                let Some(threshold) = Self::threshold_units(baseline, strength)? else {
                     continue;
                 };
                 if strength >= threshold {
@@ -598,6 +621,15 @@ impl BubbleDetector {
 
     /// Records one strictly newer finalized candle atomically.
     pub fn record_finalized(&mut self, candle: &CandleFlow) -> Result<(), AnalyticsError> {
+        self.record_finalized_shared(Arc::new(candle.clone()))
+    }
+
+    /// Records a shared immutable candle so detectors with different modes can
+    /// reuse the same bounded price-level history.
+    pub fn record_finalized_shared(
+        &mut self,
+        candle: Arc<CandleFlow>,
+    ) -> Result<(), AnalyticsError> {
         if candle.state != FlowState::Final {
             return Err(invalid_config(
                 "finalized bubble history",
@@ -613,13 +645,15 @@ impl BubbleDetector {
                 finalized_before_ns: self.last_finalized_start_ns.unwrap_or(candle.start_ts),
             });
         }
-        let mut candidate = self.clone();
-        candidate.history.push_back(candle.clone());
-        while candidate.history.len() > candidate.config.max_history_candles {
-            candidate.history.pop_front();
+        // All fallible validation is complete above. Mutating in place keeps
+        // the append atomic without cloning the detector's full history on
+        // every candle rollover.
+        let candle_start_ns = candle.start_ts;
+        self.history.push_back(candle);
+        while self.history.len() > self.config.max_history_candles {
+            self.history.pop_front();
         }
-        candidate.last_finalized_start_ns = Some(candle.start_ts);
-        *self = candidate;
+        self.last_finalized_start_ns = Some(candle_start_ns);
         Ok(())
     }
 
@@ -669,19 +703,18 @@ impl BubbleDetector {
         }
     }
 
-    fn threshold_units(
+    fn threshold_baseline(
         &self,
         filter: &BubbleFilter,
         segment: MarketSegment,
-        current_strength: u128,
-    ) -> Result<Option<u128>, AnalyticsError> {
+    ) -> Result<ThresholdBaseline, AnalyticsError> {
         match &filter.threshold {
-            ThresholdMode::Off => Ok(None),
+            ThresholdMode::Off => Ok(ThresholdBaseline::Off),
             ThresholdMode::Manual(quantity) => {
                 let units = self.grid.quantity_units(*quantity)?.0;
-                Ok(Some(u128::try_from(units).map_err(|_| {
-                    crate::overflow("converting manual threshold")
-                })?))
+                Ok(ThresholdBaseline::Manual(u128::try_from(units).map_err(
+                    |_| crate::overflow("converting manual threshold"),
+                )?))
             }
             ThresholdMode::Adaptive(config) => {
                 let floor = config
@@ -711,7 +744,7 @@ impl BubbleDetector {
                     }
                 }
                 if samples.len() < config.minimum_samples {
-                    return Ok((floor > 0).then_some(floor));
+                    return Ok(ThresholdBaseline::FloorOnly((floor > 0).then_some(floor)));
                 }
                 samples.sort_unstable();
                 let cap = percentile(&samples, config.outlier_cap_percentile_bps)?;
@@ -723,14 +756,40 @@ impl BubbleDetector {
                     &samples,
                     config.preset.percentile_bps(config.custom_percentile_bps),
                 )?;
-                let adapted = weighted_bps(
+                Ok(ThresholdBaseline::Adaptive {
+                    floor,
+                    cap,
                     historical,
-                    10_000_u16.saturating_sub(config.spike_adaptation_bps),
-                    current_strength.min(cap),
-                    config.spike_adaptation_bps,
-                )?;
-                Ok(Some(adapted.max(floor)))
+                    historical_weight_bps: 10_000_u16.saturating_sub(config.spike_adaptation_bps),
+                    spike_weight_bps: config.spike_adaptation_bps,
+                })
             }
+        }
+    }
+
+    fn threshold_units(
+        baseline: ThresholdBaseline,
+        current_strength: u128,
+    ) -> Result<Option<u128>, AnalyticsError> {
+        match baseline {
+            ThresholdBaseline::Off => Ok(None),
+            ThresholdBaseline::Manual(threshold) => Ok(Some(threshold)),
+            ThresholdBaseline::FloorOnly(threshold) => Ok(threshold),
+            ThresholdBaseline::Adaptive {
+                floor,
+                cap,
+                historical,
+                historical_weight_bps,
+                spike_weight_bps,
+            } => Ok(Some(
+                weighted_bps(
+                    historical,
+                    historical_weight_bps,
+                    current_strength.min(cap),
+                    spike_weight_bps,
+                )?
+                .max(floor),
+            )),
         }
     }
 
