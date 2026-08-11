@@ -32,7 +32,7 @@ const DEPTH_SAMPLE_INTERVAL_MS: u64 = 100;
 // resident memory without changing the rendered heatmap.
 const DEPTH_HISTORY_CAPACITY: usize = 600;
 const UI_BUBBLE_CALIBRATION_CANDLES: usize = 8;
-const UI_FINALIZED_BUBBLE_CAPACITY: usize = 512;
+const UI_FINALIZED_BUBBLE_CAPACITY: usize = 256;
 
 /// Tunables for tape rings (from `[telemetry]`).
 #[derive(Debug, Clone, Copy)]
