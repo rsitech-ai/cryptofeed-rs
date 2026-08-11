@@ -1,8 +1,8 @@
 //! Server-side book cache + drop_newest tape rings.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use marketfeed_adapter_api::EventBatch;
@@ -25,6 +25,19 @@ use serde::Serialize;
 
 use crate::config::DaemonConfig;
 use crate::state::DaemonState;
+
+const DEPTH_SAMPLE_INTERVAL_MS: u64 = 100;
+const DEPTH_LEVEL_CAPACITY: usize = 64;
+// The UI requests at most 600 warm-start columns and then maintains its longer,
+// tiered history client-side. Keeping more complete snapshots only increases
+// resident memory without changing the rendered heatmap.
+const DEPTH_HISTORY_CAPACITY: usize = 600;
+// Four finalized candles satisfy the adaptive detector's minimum sample
+// contract while bounding retained per-price flow state across every listed
+// instrument. Longer calibration belongs in an opt-in analytical workspace,
+// not the always-on live UI projection.
+const UI_BUBBLE_CALIBRATION_CANDLES: usize = 4;
+const UI_FINALIZED_BUBBLE_CAPACITY: usize = 256;
 
 /// Tunables for tape rings (from `[telemetry]`).
 #[derive(Debug, Clone, Copy)]
@@ -114,6 +127,90 @@ pub struct ViewDepthSample {
     pub epoch: u64,
     pub bids: Vec<ViewLevel>,
     pub asks: Vec<ViewLevel>,
+}
+
+#[derive(Debug, Clone)]
+struct StoredDepthSample {
+    event_ts_ns: i64,
+    epoch: u64,
+    price_scale: u8,
+    quantity_scale: u8,
+    bids: Vec<StoredDepthLevel>,
+    asks: Vec<StoredDepthLevel>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StoredDepthLevel {
+    price_coefficient: i128,
+    quantity_coefficient: i128,
+}
+
+#[derive(Debug)]
+struct StoredDepthHistory {
+    samples: VecDeque<StoredDepthSample>,
+    spare: Vec<StoredDepthSample>,
+}
+
+impl Default for StoredDepthHistory {
+    fn default() -> Self {
+        let mut spare = Vec::with_capacity(DEPTH_HISTORY_CAPACITY);
+        for _ in 0..DEPTH_HISTORY_CAPACITY {
+            spare.push(StoredDepthSample {
+                event_ts_ns: 0,
+                epoch: 0,
+                price_scale: 0,
+                quantity_scale: 0,
+                bids: vec![
+                    StoredDepthLevel {
+                        price_coefficient: 0,
+                        quantity_coefficient: 0,
+                    };
+                    DEPTH_LEVEL_CAPACITY
+                ],
+                asks: vec![
+                    StoredDepthLevel {
+                        price_coefficient: 0,
+                        quantity_coefficient: 0,
+                    };
+                    DEPTH_LEVEL_CAPACITY
+                ],
+            });
+        }
+        Self {
+            samples: VecDeque::with_capacity(DEPTH_HISTORY_CAPACITY),
+            spare,
+        }
+    }
+}
+
+impl StoredDepthHistory {
+    fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    fn back(&self) -> Option<&StoredDepthSample> {
+        self.samples.back()
+    }
+
+    fn iter(&self) -> impl DoubleEndedIterator<Item = &StoredDepthSample> {
+        self.samples.iter()
+    }
+
+    fn take_reusable(&mut self) -> StoredDepthSample {
+        if self.samples.len() >= DEPTH_HISTORY_CAPACITY {
+            self.samples
+                .pop_front()
+                .expect("full depth history has a front sample")
+        } else {
+            self.spare
+                .pop()
+                .expect("bounded depth history has a spare sample")
+        }
+    }
+
+    fn push_back(&mut self, sample: StoredDepthSample) {
+        self.samples.push_back(sample);
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -534,11 +631,22 @@ struct BubbleProjection {
     delta: Option<BubbleDetector>,
     levels: Option<StructuralLevelEngine>,
     segment: MarketSegment,
-    finalized_volume: VecDeque<ViewBubble>,
-    finalized_delta: VecDeque<ViewBubble>,
+    finalized_volume: VecDeque<OrderFlowBubble>,
+    finalized_delta: VecDeque<OrderFlowBubble>,
     revision: u64,
     unavailable_reason: Option<String>,
     last_error: Option<String>,
+}
+
+struct DeferredTradeAnalytics {
+    profile: Option<Arc<Mutex<ProfileProjection>>>,
+    bubbles: Option<Arc<Mutex<BubbleProjection>>>,
+    venue: VenueId,
+    instrument: InstrumentId,
+    timestamp_ns: i64,
+    price: Price,
+    quantity: Quantity,
+    aggressor: AggressorSide,
 }
 
 impl BubbleProjection {
@@ -655,14 +763,15 @@ impl BubbleProjection {
                             .ok_or_else(|| "structural level engine unavailable".to_string())?
                             .ingest_finalized(&finalized, &volume_rows)
                             .map_err(|error| error.to_string())?;
+                        let finalized = Arc::new(finalized);
                         volume
-                            .record_finalized(&finalized)
+                            .record_finalized_shared(Arc::clone(&finalized))
                             .map_err(|error| error.to_string())?;
                         delta
-                            .record_finalized(&finalized)
+                            .record_finalized_shared(finalized)
                             .map_err(|error| error.to_string())?;
-                        append_bubbles(&mut self.finalized_volume, volume_rows, "final");
-                        append_bubbles(&mut self.finalized_delta, delta_rows, "final");
+                        append_bubbles(&mut self.finalized_volume, volume_rows);
+                        append_bubbles(&mut self.finalized_delta, delta_rows);
                         Ok::<_, String>(())
                     })();
                     if let Err(error) = result {
@@ -688,9 +797,12 @@ impl BubbleProjection {
         }
         .ok_or_else(|| "detector unavailable".to_string())?;
         let mut rows: Vec<ViewBubble> = match mode {
-            BubbleMode::Volume => self.finalized_volume.iter().cloned().collect(),
-            BubbleMode::Delta => self.finalized_delta.iter().cloned().collect(),
-        };
+            BubbleMode::Volume => self.finalized_volume.iter(),
+            BubbleMode::Delta => self.finalized_delta.iter(),
+        }
+        .cloned()
+        .map(|bubble| view_bubble(bubble, "final"))
+        .collect();
         if let Some(live) = flow.live_snapshot().map_err(|error| error.to_string())? {
             rows.extend(
                 detector
@@ -811,12 +923,10 @@ impl LiveBook {
     }
 
     fn snapshot(&self, depth: Option<u32>) -> Option<BookSnapshot> {
-        let (mut bids, mut asks) = self.book.snapshot_levels()?;
-        if let Some(d) = depth {
-            let n = d as usize;
-            bids.truncate(n);
-            asks.truncate(n);
-        }
+        let (bids, asks) = match depth {
+            Some(depth) => self.book.snapshot_levels_bounded(depth as usize)?,
+            None => self.book.snapshot_levels()?,
+        };
         Some(BookSnapshot {
             bids,
             asks,
@@ -836,10 +946,10 @@ struct ViewInner {
     symbols: HashMap<(String, u32), String>,
     books: HashMap<(VenueId, InstrumentId), LiveBook>,
     tapes: HashMap<(VenueId, InstrumentId), InstrumentTape>,
-    profiles: HashMap<(VenueId, InstrumentId), ProfileProjection>,
-    bubbles: HashMap<(VenueId, InstrumentId), BubbleProjection>,
+    profiles: HashMap<(VenueId, InstrumentId), Arc<Mutex<ProfileProjection>>>,
+    bubbles: HashMap<(VenueId, InstrumentId), Arc<Mutex<BubbleProjection>>>,
     derivatives: HashMap<(VenueId, InstrumentId), DerivativeProjection>,
-    depth_history: HashMap<(VenueId, InstrumentId), VecDeque<ViewDepthSample>>,
+    depth_history: HashMap<(VenueId, InstrumentId), StoredDepthHistory>,
     depth_last_sample_ns: HashMap<(VenueId, InstrumentId), i64>,
     depth_epochs: HashMap<(VenueId, InstrumentId), u64>,
     depth_coalesced_samples: HashMap<(VenueId, InstrumentId), u64>,
@@ -929,16 +1039,16 @@ impl ViewPlane {
             );
             inner.profiles.insert(
                 (catalog.venue, instrument.id),
-                ProfileProjection::from_catalog(
+                Arc::new(Mutex::new(ProfileProjection::from_catalog(
                     instrument.price_scale,
                     instrument.quantity_scale,
                     instrument.price_increment,
                     authority,
-                ),
+                ))),
             );
             inner.bubbles.insert(
                 (catalog.venue, instrument.id),
-                BubbleProjection::from_catalog(
+                Arc::new(Mutex::new(BubbleProjection::from_catalog(
                     instrument.id,
                     MarketSegment::from(instrument.key.kind),
                     instrument.price_scale,
@@ -946,7 +1056,7 @@ impl ViewPlane {
                     instrument.price_increment,
                     instrument.quantity_increment,
                     authority,
-                ),
+                ))),
             );
         }
     }
@@ -1148,7 +1258,7 @@ impl ViewPlane {
                 "venue_not_registered",
             );
         };
-        let Some(projection) = inner.profiles.get(&(venue_id, instrument)) else {
+        let Some(projection) = inner.profiles.get(&(venue_id, instrument)).cloned() else {
             return unavailable_profile(
                 venue_config_id,
                 instrument,
@@ -1157,6 +1267,8 @@ impl ViewPlane {
                 "catalog_metadata_unavailable",
             );
         };
+        drop(inner);
+        let projection = projection.lock().expect("profile projection lock");
         if let Some(reason) = projection.unavailable_reason.as_deref() {
             return unavailable_profile(
                 venue_config_id,
@@ -1214,7 +1326,7 @@ impl ViewPlane {
                 "venue_not_registered",
             );
         };
-        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)) else {
+        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)).cloned() else {
             return unavailable_bubbles(
                 venue_config_id,
                 instrument,
@@ -1224,6 +1336,8 @@ impl ViewPlane {
                 "catalog_metadata_unavailable",
             );
         };
+        drop(inner);
+        let projection = projection.lock().expect("bubble projection lock");
         if let Some(reason) = projection.unavailable_reason.as_deref() {
             return unavailable_bubbles(
                 venue_config_id,
@@ -1280,7 +1394,7 @@ impl ViewPlane {
                 "venue_not_registered",
             );
         };
-        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)) else {
+        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)).cloned() else {
             return unavailable_structural_levels(
                 venue_config_id,
                 instrument,
@@ -1289,6 +1403,8 @@ impl ViewPlane {
                 "catalog_metadata_unavailable",
             );
         };
+        drop(inner);
+        let projection = projection.lock().expect("bubble projection lock");
         if let Some(reason) = projection.unavailable_reason.as_deref() {
             return unavailable_structural_levels(
                 venue_config_id,
@@ -1424,8 +1540,12 @@ impl ViewPlane {
             .map(|history| {
                 history
                     .iter()
-                    .skip(history.len().saturating_sub(limit.clamp(1, 3_000)))
-                    .cloned()
+                    .skip(
+                        history
+                            .len()
+                            .saturating_sub(limit.clamp(1, DEPTH_HISTORY_CAPACITY)),
+                    )
+                    .map(view_depth_sample)
                     .collect()
             })
             .unwrap_or_default();
@@ -1434,8 +1554,8 @@ impl ViewPlane {
             venue: venue_config_id.into(),
             instrument: instrument.0,
             symbol,
-            sample_interval_ms: 100,
-            capacity: 3_000,
+            sample_interval_ms: DEPTH_SAMPLE_INTERVAL_MS,
+            capacity: DEPTH_HISTORY_CAPACITY,
             coalesced_samples: venue
                 .and_then(|venue| {
                     inner
@@ -1531,12 +1651,10 @@ impl ViewPlane {
                 book_quantity_at(&book.bids, price).unwrap_or(Fixed::new(0, qty_scale));
             let ask_quantity =
                 book_quantity_at(&book.asks, price).unwrap_or(Fixed::new(0, qty_scale));
-            let latest_bid = depth_quantity_at(latest.map(|sample| &sample.bids), price, qty_scale);
-            let latest_ask = depth_quantity_at(latest.map(|sample| &sample.asks), price, qty_scale);
-            let previous_bid =
-                depth_quantity_at(previous.map(|sample| &sample.bids), price, qty_scale);
-            let previous_ask =
-                depth_quantity_at(previous.map(|sample| &sample.asks), price, qty_scale);
+            let latest_bid = depth_quantity_at(latest, BookSide::Bid, price, qty_scale);
+            let latest_ask = depth_quantity_at(latest, BookSide::Ask, price, qty_scale);
+            let previous_bid = depth_quantity_at(previous, BookSide::Bid, price, qty_scale);
+            let previous_ask = depth_quantity_at(previous, BookSide::Ask, price, qty_scale);
             let Some(bid_delta) = fixed_sub(latest_bid, previous_bid) else {
                 return unavailable("dom_arithmetic_overflow");
             };
@@ -1715,6 +1833,7 @@ impl ViewPlane {
             .first()
             .map(|event| event.venue)
             .filter(|venue| batch.events.iter().all(|event| event.venue == *venue));
+        let mut deferred_analytics = Vec::new();
         let mut inner = self.inner.lock().expect("view lock");
         for ev in &batch.events {
             let venue_id = ev.venue;
@@ -1763,19 +1882,16 @@ impl ViewPlane {
                 MarketEvent::Trade(t) => {
                     inner.venue_last_trade_ts.insert(venue_id, receive_ts);
                     let event_ts = ev.exchange_ts.unwrap_or(ev.receive_ts).0;
-                    if let Some(profile) = inner.profiles.get_mut(&(venue_id, instrument)) {
-                        profile.ingest(event_ts, t.price, t.quantity);
-                    }
-                    if let Some(bubbles) = inner.bubbles.get_mut(&(venue_id, instrument)) {
-                        bubbles.ingest(
-                            venue_id,
-                            instrument,
-                            event_ts,
-                            t.price,
-                            t.quantity,
-                            t.aggressor,
-                        );
-                    }
+                    deferred_analytics.push(DeferredTradeAnalytics {
+                        profile: inner.profiles.get(&(venue_id, instrument)).cloned(),
+                        bubbles: inner.bubbles.get(&(venue_id, instrument)).cloned(),
+                        venue: venue_id,
+                        instrument,
+                        timestamp_ns: event_ts,
+                        price: t.price,
+                        quantity: t.quantity,
+                        aggressor: t.aggressor,
+                    });
                     let symbol = inner
                         .symbols
                         .get(&(venue_name.clone(), instrument.0))
@@ -1875,6 +1991,26 @@ impl ViewPlane {
                 _ => {}
             }
         }
+        drop(inner);
+        for deferred in deferred_analytics {
+            if let Some(profile) = deferred.profile {
+                profile.lock().expect("profile projection lock").ingest(
+                    deferred.timestamp_ns,
+                    deferred.price,
+                    deferred.quantity,
+                );
+            }
+            if let Some(bubbles) = deferred.bubbles {
+                bubbles.lock().expect("bubble projection lock").ingest(
+                    deferred.venue,
+                    deferred.instrument,
+                    deferred.timestamp_ns,
+                    deferred.price,
+                    deferred.quantity,
+                    deferred.aggressor,
+                );
+            }
+        }
         sink_venue
     }
 
@@ -1898,8 +2034,7 @@ fn push_depth_sample(
     event_ts_ns: i64,
     snapshot: BookSnapshot,
 ) {
-    const SAMPLE_NS: i64 = 100_000_000;
-    const CAPACITY: usize = 3_000;
+    const SAMPLE_NS: i64 = (DEPTH_SAMPLE_INTERVAL_MS as i64) * 1_000_000;
     let key = (venue, instrument);
     if inner
         .depth_last_sample_ns
@@ -1913,17 +2048,40 @@ fn push_depth_sample(
     inner.depth_last_sample_ns.insert(key, event_ts_ns);
     let epoch = inner.depth_epochs.get(&key).copied().unwrap_or(0);
     let history = inner.depth_history.entry(key).or_default();
-    while history.len() >= CAPACITY {
-        history.pop_front();
+    if history.len() >= DEPTH_HISTORY_CAPACITY {
         let counter = inner.depth_evicted_samples.entry(key).or_default();
         *counter = counter.saturating_add(1);
     }
-    history.push_back(ViewDepthSample {
-        event_ts_ns,
-        epoch,
-        bids: snapshot.bids.iter().map(level_json).collect(),
-        asks: snapshot.asks.iter().map(level_json).collect(),
-    });
+    let mut recycled = history.take_reusable();
+    let price_scale = snapshot
+        .bids
+        .first()
+        .or(snapshot.asks.first())
+        .map(|level| level.price.0.scale)
+        .unwrap_or(0);
+    let quantity_scale = snapshot
+        .bids
+        .first()
+        .or(snapshot.asks.first())
+        .map(|level| level.quantity.0.scale)
+        .unwrap_or(0);
+    let store_level = |level: BookLevel| StoredDepthLevel {
+        price_coefficient: level.price.0.coefficient,
+        quantity_coefficient: level.quantity.0.coefficient,
+    };
+    recycled.event_ts_ns = event_ts_ns;
+    recycled.epoch = epoch;
+    recycled.price_scale = price_scale;
+    recycled.quantity_scale = quantity_scale;
+    recycled.bids.clear();
+    recycled
+        .bids
+        .extend(snapshot.bids.into_iter().map(store_level));
+    recycled.asks.clear();
+    recycled
+        .asks
+        .extend(snapshot.asks.into_iter().map(store_level));
+    history.push_back(recycled);
 }
 
 fn unavailable_profile(
@@ -1985,7 +2143,7 @@ fn default_bubble_config(
                 7_500,
                 Some(fixed_multiple(quantity_increment, multiple)?),
                 4,
-                120,
+                UI_BUBBLE_CALIBRATION_CANDLES,
                 9_900,
                 2_500,
             )?),
@@ -2018,16 +2176,16 @@ fn default_bubble_config(
         )?,
         MergeConfig::disabled(),
         PerformanceMode::Full,
-        120,
+        UI_BUBBLE_CALIBRATION_CANDLES,
     )
 }
 
-fn append_bubbles(target: &mut VecDeque<ViewBubble>, rows: Vec<OrderFlowBubble>, phase: &str) {
+fn append_bubbles(target: &mut VecDeque<OrderFlowBubble>, rows: Vec<OrderFlowBubble>) {
     for row in rows {
-        while target.len() >= 2_000 {
+        while target.len() >= UI_FINALIZED_BUBBLE_CAPACITY {
             target.pop_front();
         }
-        target.push_back(view_bubble(row, phase));
+        target.push_back(row);
     }
 }
 
@@ -2223,16 +2381,31 @@ fn book_quantity_at(levels: &[BookLevel], price: Fixed) -> Option<Fixed> {
         .map(|level| level.quantity.0)
 }
 
-fn depth_quantity_at(levels: Option<&Vec<ViewLevel>>, price: Fixed, quantity_scale: u8) -> Fixed {
+fn depth_quantity_at(
+    sample: Option<&StoredDepthSample>,
+    side: BookSide,
+    price: Fixed,
+    quantity_scale: u8,
+) -> Fixed {
+    let Some(sample) = sample else {
+        return Fixed::new(0, quantity_scale);
+    };
+    let levels = match side {
+        BookSide::Bid => &sample.bids,
+        BookSide::Ask => &sample.asks,
+    };
     levels
-        .into_iter()
-        .flatten()
+        .iter()
         .find_map(|level| {
-            let level_price = Fixed::parse_str(&level.price).ok()?;
-            compare_fixed(level_price, price)
-                .is_eq()
-                .then(|| Fixed::parse_str(&level.quantity).ok())
-                .flatten()
+            compare_fixed(
+                Fixed::new(level.price_coefficient, sample.price_scale),
+                price,
+            )
+            .is_eq()
+            .then_some(Fixed::new(
+                level.quantity_coefficient,
+                sample.quantity_scale,
+            ))
         })
         .unwrap_or(Fixed::new(0, quantity_scale))
 }
@@ -2480,6 +2653,22 @@ fn level_json(level: &BookLevel) -> ViewLevel {
     }
 }
 
+fn view_depth_sample(sample: &StoredDepthSample) -> ViewDepthSample {
+    let level_json = |level: &StoredDepthLevel| ViewLevel {
+        price: format_fixed(Fixed::new(level.price_coefficient, sample.price_scale)),
+        quantity: format_fixed(Fixed::new(
+            level.quantity_coefficient,
+            sample.quantity_scale,
+        )),
+    };
+    ViewDepthSample {
+        event_ts_ns: sample.event_ts_ns,
+        epoch: sample.epoch,
+        bids: sample.bids.iter().map(level_json).collect(),
+        asks: sample.asks.iter().map(level_json).collect(),
+    }
+}
+
 fn aggressor_str(side: AggressorSide) -> &'static str {
     match side {
         AggressorSide::Buy => "buy",
@@ -2660,6 +2849,59 @@ mod tests {
         assert_eq!(bubbles.bubbles.len(), 2);
         assert!(bubbles.bubbles.iter().all(|bubble| bubble.tier == "f3"));
         assert!(bubbles.bubbles.iter().all(|bubble| bubble.phase == "live"));
+    }
+
+    #[test]
+    fn analytics_rollover_does_not_hold_global_view_lock() {
+        let plane = Arc::new(ViewPlane::new(ViewPlaneConfig::default()));
+        plane.register_venue(VenueId(7), "perp", &["BTCUSDT".into()]);
+        plane.register_catalog(
+            "perp",
+            &authoritative_catalog(VenueId(7)),
+            CatalogAuthority::Authoritative,
+        );
+        let profile = {
+            let inner = plane.inner.lock().expect("view lock");
+            Arc::clone(
+                inner
+                    .profiles
+                    .get(&(VenueId(7), InstrumentId(1)))
+                    .expect("profile projection"),
+            )
+        };
+        let profile_guard = profile.lock().expect("profile projection lock");
+        let mut sink = SharedViewPlane::for_venue(Arc::clone(&plane), VenueId(7));
+        let worker = std::thread::spawn(move || {
+            sink.push_batch(trade_batch(VenueId(7), InstrumentId(1), "100.00", "1.000"))
+                .unwrap();
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while plane.tape("perp", InstrumentId(1), 1).is_empty() && Instant::now() < deadline {
+            std::thread::yield_now();
+        }
+        assert_eq!(plane.tape("perp", InstrumentId(1), 1).len(), 1);
+        assert!(plane.inner.try_lock().is_ok());
+
+        drop(profile_guard);
+        worker.join().unwrap();
+    }
+
+    #[test]
+    fn ui_bubble_history_matches_the_bounded_calibration_window() {
+        let config = default_bubble_config(
+            Fixed::new(1, 3),
+            MarketSegment::LinearPerpetual,
+            BubbleMode::Volume,
+        )
+        .unwrap();
+        assert_eq!(config.max_history_candles, UI_BUBBLE_CALIBRATION_CANDLES);
+        for filter in [&config.f1, &config.f2, &config.f3] {
+            let ThresholdMode::Adaptive(adaptive) = &filter.threshold else {
+                panic!("default UI filter must remain adaptive");
+            };
+            assert_eq!(adaptive.calibration_candles, UI_BUBBLE_CALIBRATION_CANDLES);
+        }
     }
 
     #[test]
@@ -2938,6 +3180,7 @@ mod tests {
 
     #[test]
     fn book_snapshot_from_events() {
+        assert_eq!(std::mem::size_of::<StoredDepthLevel>(), 32);
         let plane = ViewPlane::new(ViewPlaneConfig::default());
         plane.register_venue(VenueId(1), "syn", &["BTC-USD".into()]);
         let mut sink = SharedViewPlane::new(std::sync::Arc::new(plane));
@@ -2952,15 +3195,117 @@ mod tests {
         assert_eq!(view.symbol.as_deref(), Some("BTC-USD"));
         let history = sink.0.depth_history("syn", InstrumentId(1), 10);
         assert_eq!(history.samples.len(), 1);
+        assert_eq!(history.capacity, DEPTH_HISTORY_CAPACITY);
         assert_eq!(history.samples[0].bids[0].price, "100.00");
         assert_eq!(history.coalesced_samples, 0);
         assert_eq!(history.evicted_samples, 0);
+        {
+            let inner = sink.0.inner.lock().expect("view lock");
+            let stored = inner
+                .depth_history
+                .get(&(VenueId(1), InstrumentId(1)))
+                .and_then(|history| history.samples.front())
+                .expect("stored depth sample");
+            assert_eq!(stored.price_scale, 2);
+            assert_eq!(stored.bids[0].price_coefficient, 10_000);
+        }
 
         sink.push_batch(book_batch(VenueId(1), InstrumentId(1), "99.00", "102.00"))
             .unwrap();
         let history = sink.0.depth_history("syn", InstrumentId(1), 10);
         assert_eq!(history.samples.len(), 1);
         assert_eq!(history.coalesced_samples, 1);
+    }
+
+    #[test]
+    fn depth_ring_reuses_evicted_level_buffers() {
+        let plane = ViewPlane::new(ViewPlaneConfig::default());
+        let snapshot = BookSnapshot {
+            bids: vec![BookLevel {
+                price: Price(Fixed::parse_str("100.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("1.000").unwrap()),
+            }],
+            asks: vec![BookLevel {
+                price: Price(Fixed::parse_str("101.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("2.000").unwrap()),
+            }],
+            depth: Some(1),
+            checksum: None,
+        };
+        let key = (VenueId(1), InstrumentId(1));
+        let sample_ns = (DEPTH_SAMPLE_INTERVAL_MS as i64) * 1_000_000;
+        let first_bid_ptr = {
+            let mut inner = plane.inner.lock().expect("view lock");
+            for index in 0..DEPTH_HISTORY_CAPACITY {
+                push_depth_sample(
+                    &mut inner,
+                    key.0,
+                    key.1,
+                    index as i64 * sample_ns,
+                    snapshot.clone(),
+                );
+            }
+            inner.depth_history[&key]
+                .samples
+                .front()
+                .unwrap()
+                .bids
+                .as_ptr()
+        };
+
+        {
+            let mut inner = plane.inner.lock().expect("view lock");
+            push_depth_sample(
+                &mut inner,
+                key.0,
+                key.1,
+                DEPTH_HISTORY_CAPACITY as i64 * sample_ns,
+                snapshot,
+            );
+            let history = &inner.depth_history[&key];
+            assert_eq!(history.len(), DEPTH_HISTORY_CAPACITY);
+            assert_eq!(history.back().unwrap().bids.as_ptr(), first_bid_ptr);
+            assert_eq!(inner.depth_evicted_samples[&key], 1);
+        }
+    }
+
+    #[test]
+    fn depth_ring_preallocates_its_bounded_buffers_on_first_sample() {
+        let plane = ViewPlane::new(ViewPlaneConfig::default());
+        let snapshot = BookSnapshot {
+            bids: vec![BookLevel {
+                price: Price(Fixed::parse_str("100.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("1.000").unwrap()),
+            }],
+            asks: vec![BookLevel {
+                price: Price(Fixed::parse_str("101.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("2.000").unwrap()),
+            }],
+            depth: Some(1),
+            checksum: None,
+        };
+        let key = (VenueId(1), InstrumentId(1));
+
+        let mut inner = plane.inner.lock().expect("view lock");
+        push_depth_sample(&mut inner, key.0, key.1, 0, snapshot);
+
+        let history = &inner.depth_history[&key];
+        assert_eq!(history.samples.len(), 1);
+        assert_eq!(history.spare.len(), DEPTH_HISTORY_CAPACITY - 1);
+        assert!(
+            history
+                .spare
+                .iter()
+                .all(|sample| sample.bids.len() == DEPTH_LEVEL_CAPACITY
+                    && sample.asks.len() == DEPTH_LEVEL_CAPACITY)
+        );
+        assert!(
+            history
+                .samples
+                .iter()
+                .chain(history.spare.iter())
+                .all(|sample| sample.bids.capacity() >= 1 && sample.asks.capacity() >= 1)
+        );
     }
 
     #[test]

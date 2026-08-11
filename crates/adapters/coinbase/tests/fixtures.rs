@@ -170,7 +170,9 @@ fn heartbeat_metadata_reschedules_watchdog_and_timeout_reconnects() {
     .unwrap();
     assert!(connected.as_slice().iter().any(|action| matches!(
         action,
-        SessionAction::ScheduleTimer(timer) if timer.timer_id == HEARTBEAT_TIMER_ID
+        SessionAction::ScheduleTimer(timer)
+            if timer.timer_id == HEARTBEAT_TIMER_ID
+                && timer.fire_at == TimestampNs(15_000_000_001)
     )));
 
     let heartbeat = r#"{"type":"heartbeat","sequence":90,"last_trade_id":20,"product_id":"BTC-USD","time":"2014-11-07T08:19:28.000000Z"}"#;

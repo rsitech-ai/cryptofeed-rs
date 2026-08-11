@@ -192,6 +192,7 @@ mod tests {
             ],
             max_frame_bytes: 1_024,
             tcp_nodelay: true,
+            connect_timeout_ms: 10_000,
         };
 
         let (request, config) = build_connect_parts(&spec).unwrap();

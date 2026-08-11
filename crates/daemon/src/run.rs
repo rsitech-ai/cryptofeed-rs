@@ -135,36 +135,110 @@ pub fn spawn_venues(
             };
             let required = venue.required;
             let venue_id = venue.id.clone();
-            let result = run_venue(Arc::clone(&state), venue, flag, stop, shutdown.clone()).await;
-            match result {
-                Ok(()) => Ok(()),
-                Err(e) if !required => {
-                    // Optional venues must not tear down the process. Keep the
-                    // task parked until coordinated shutdown so the supervisor
-                    // does not treat an early join as a fatal runtime exit.
-                    tracing::error!(
-                        id = %venue_id,
-                        error = %e,
-                        "optional venue session failed; continuing without it"
-                    );
-                    loop {
-                        if *shutdown.borrow() {
-                            break;
-                        }
-                        if shutdown.changed().await.is_err() {
-                            break;
-                        }
-                    }
-                    Ok(())
-                }
-                Err(e) => {
+            if required {
+                let result =
+                    run_venue(Arc::clone(&state), venue, flag, stop, shutdown.clone()).await;
+                if let Err(e) = result {
                     tracing::error!(id = %venue_id, error = %e, "venue session exited");
-                    Err(e)
+                    return Err(e);
                 }
+                return Ok(());
             }
+
+            let metrics = state.venue_metrics(&venue_id);
+            let retry_live_flag = Arc::clone(&flag);
+            let retry_stop_flag = Arc::clone(&stop);
+            run_optional_venue_with_restart(
+                &venue_id,
+                &mut shutdown,
+                flag,
+                stop,
+                metrics,
+                Duration::from_millis(200),
+                move |attempt_shutdown| {
+                    run_venue(
+                        Arc::clone(&state),
+                        venue.clone(),
+                        Arc::clone(&retry_live_flag),
+                        Arc::clone(&retry_stop_flag),
+                        attempt_shutdown,
+                    )
+                },
+            )
+            .await
         }));
     }
     handles
+}
+
+async fn run_optional_venue_with_restart<F, Fut>(
+    venue_id: &str,
+    shutdown: &mut watch::Receiver<bool>,
+    live_flag: Arc<AtomicBool>,
+    stop_flag: Arc<AtomicBool>,
+    metrics: Option<Arc<marketfeed_engine::EngineMetrics>>,
+    initial_backoff: Duration,
+    mut run_once: F,
+) -> Result<(), String>
+where
+    F: FnMut(watch::Receiver<bool>) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    let mut backoff = initial_backoff;
+    let max_backoff = Duration::from_secs(30);
+    let mut restarts = 0u64;
+    loop {
+        stop_flag.store(false, Ordering::Relaxed);
+        let attempt_started = tokio::time::Instant::now();
+        match run_once(shutdown.clone()).await {
+            Ok(()) => {
+                live_flag.store(false, Ordering::Relaxed);
+                return Ok(());
+            }
+            Err(error) => {
+                live_flag.store(false, Ordering::Relaxed);
+                if *shutdown.borrow() {
+                    return Ok(());
+                }
+                restarts = restarts.saturating_add(1);
+                if let Some(metrics) = &metrics {
+                    metrics.record_reconnect();
+                }
+                let (retry_delay, next_backoff) =
+                    optional_restart_backoffs(backoff, initial_backoff, attempt_started.elapsed());
+                tracing::warn!(
+                    id = venue_id,
+                    restarts,
+                    error = %error,
+                    backoff_ms = retry_delay.as_millis() as u64,
+                    "optional venue session failed; restarting"
+                );
+                stop_flag.store(false, Ordering::Relaxed);
+                tokio::select! {
+                    _ = tokio::time::sleep(retry_delay) => {}
+                    changed = shutdown.changed() => {
+                        if changed.is_err() || *shutdown.borrow() {
+                            return Ok(());
+                        }
+                    }
+                }
+                backoff = next_backoff.min(max_backoff);
+            }
+        }
+    }
+}
+
+fn optional_restart_backoffs(
+    current: Duration,
+    initial: Duration,
+    session_uptime: Duration,
+) -> (Duration, Duration) {
+    let delay = if session_uptime >= Duration::from_secs(60) {
+        initial
+    } else {
+        current
+    };
+    (delay, delay.saturating_mul(2))
 }
 
 async fn run_recording(
@@ -1287,5 +1361,61 @@ mod tests {
             Err("public session failed; sibling session drain deadline exceeded".into())
         );
         assert!(stop.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn optional_venue_restarts_after_transient_session_failure() {
+        let (_shutdown_tx, mut shutdown) = watch::channel(false);
+        let live = Arc::new(AtomicBool::new(true));
+        let stop = Arc::new(AtomicBool::new(true));
+        let metrics = Arc::new(marketfeed_engine::EngineMetrics::default());
+        let attempts = Arc::new(AtomicU64::new(0));
+        let attempts_for_run = Arc::clone(&attempts);
+
+        let result = run_optional_venue_with_restart(
+            "optional-test",
+            &mut shutdown,
+            Arc::clone(&live),
+            Arc::clone(&stop),
+            Some(Arc::clone(&metrics)),
+            Duration::ZERO,
+            move |_attempt_shutdown| {
+                let attempt = attempts_for_run.fetch_add(1, Ordering::Relaxed);
+                async move {
+                    if attempt == 0 {
+                        Err("temporary REST failure".to_string())
+                    } else {
+                        Ok(())
+                    }
+                }
+            },
+        )
+        .await;
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(attempts.load(Ordering::Relaxed), 2);
+        assert!(!live.load(Ordering::Relaxed));
+        assert!(!stop.load(Ordering::Relaxed));
+        assert_eq!(metrics.reconnects.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn optional_venue_backoff_resets_after_stable_session() {
+        assert_eq!(
+            optional_restart_backoffs(
+                Duration::from_secs(30),
+                Duration::from_millis(200),
+                Duration::from_secs(60),
+            ),
+            (Duration::from_millis(200), Duration::from_millis(400))
+        );
+        assert_eq!(
+            optional_restart_backoffs(
+                Duration::from_millis(400),
+                Duration::from_millis(200),
+                Duration::from_secs(59),
+            ),
+            (Duration::from_millis(400), Duration::from_millis(800))
+        );
     }
 }

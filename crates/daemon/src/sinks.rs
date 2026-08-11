@@ -25,6 +25,17 @@ use crate::config::{DaemonConfig, SinkKind};
 #[cfg(feature = "ui-api")]
 use crate::view::{SharedViewPlane, ViewPlane};
 
+#[cfg(feature = "ui-api")]
+fn run_view_work<R>(work: impl FnOnce() -> R) -> R {
+    let on_multi_thread_runtime = tokio::runtime::Handle::try_current()
+        .is_ok_and(|handle| handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread);
+    if on_multi_thread_runtime {
+        tokio::task::block_in_place(work)
+    } else {
+        work()
+    }
+}
+
 fn merge_outcome(aggregate: &mut PushOutcome, next: PushOutcome) {
     match (&mut *aggregate, next) {
         (PushOutcome::Accepted, non_accepted) => *aggregate = non_accepted,
@@ -883,7 +894,7 @@ impl EventSink for SharedDaemonSinks {
     fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, SinkError> {
         #[cfg(feature = "ui-api")]
         if let Some(view) = &mut self.view {
-            let _ = view.push_batch(batch.clone())?;
+            let _ = run_view_work(|| view.push_batch(batch.clone()))?;
         }
         self.sinks.lock().expect("sinks lock").push_batch(batch)
     }
@@ -891,7 +902,7 @@ impl EventSink for SharedDaemonSinks {
     fn push_system(&mut self, event: SystemEvent) -> Result<PushOutcome, SinkError> {
         #[cfg(feature = "ui-api")]
         if let Some(view) = &mut self.view {
-            let _ = view.push_system(event.clone())?;
+            let _ = run_view_work(|| view.push_system(event.clone()))?;
         }
         self.sinks.lock().expect("sinks lock").push_system(event)
     }
@@ -911,6 +922,18 @@ mod tests {
             frame_seq: seq,
             events: Vec::new(),
         }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    #[cfg(feature = "ui-api")]
+    async fn view_work_falls_back_on_current_thread_runtime() {
+        assert_eq!(run_view_work(|| 42), 42);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[cfg(feature = "ui-api")]
+    async fn view_work_yields_executor_capacity_on_multi_thread_runtime() {
+        assert_eq!(run_view_work(|| 42), 42);
     }
 
     #[test]

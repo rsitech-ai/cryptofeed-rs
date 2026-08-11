@@ -8,6 +8,7 @@ pub struct WebSocketSpec {
     pub headers: Vec<(String, String)>,
     pub max_frame_bytes: usize,
     pub tcp_nodelay: bool,
+    pub connect_timeout_ms: u64,
 }
 
 impl Default for WebSocketSpec {
@@ -17,6 +18,7 @@ impl Default for WebSocketSpec {
             headers: Vec::new(),
             max_frame_bytes: 16 * 1024 * 1024,
             tcp_nodelay: true,
+            connect_timeout_ms: 10_000,
         }
     }
 }

@@ -35,8 +35,13 @@ pub const CANDLE_TIMER_ID: u64 = 1;
 pub const HEARTBEAT_TIMER_ID: u64 = 2;
 /// Coinbase Exchange publishes heartbeat messages once per second.
 pub const HEARTBEAT_INTERVAL_MS: i64 = 1_000;
-/// Allow five missed heartbeat intervals before reconnecting.
-pub const HEARTBEAT_TIMEOUT_MS: i64 = 5_000;
+/// Allow fifteen missed heartbeat intervals before reconnecting.
+///
+/// The public feed promises one heartbeat per second, but a five-second local
+/// watchdog caused false reconnect storms during bounded multi-venue load.
+/// Fifteen seconds remains fail-closed while tolerating short scheduler/network
+/// stalls observed by the release canary.
+pub const HEARTBEAT_TIMEOUT_MS: i64 = 15_000;
 /// Default candle poll cadence (60s), Binance OI pattern.
 pub const CANDLE_POLL_INTERVAL_MS: i64 = 60_000;
 

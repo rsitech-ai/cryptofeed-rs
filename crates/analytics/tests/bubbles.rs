@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use marketfeed_analytics::{
     AdaptivePreset, AdaptiveThreshold, BubbleConfig, BubbleDetector, BubbleFilter, BubbleMode,
     BubbleShape, BubbleStyle, BubbleTier, DetectionPhase, FlowConfig, FlowSource, GridSpec,
@@ -289,6 +291,32 @@ fn finalized_history_rejects_duplicate_or_regressing_candles_atomically() {
     let older = candle_at(0, &[(1, MarketSegment::Spot, 100, 2, AggressorSide::Buy)]);
     assert!(detector.record_finalized(&older).is_err());
     assert_eq!(serde_json::to_vec(&detector).unwrap(), before);
+}
+
+#[test]
+fn finalized_history_can_share_one_immutable_candle_across_detectors() {
+    let config = BubbleConfig::new(
+        manual(BubbleTier::F1, BubbleMode::Volume, 1),
+        off(BubbleTier::F2),
+        off(BubbleTier::F3),
+        MergeConfig::disabled(),
+        PerformanceMode::Full,
+        2,
+    )
+    .unwrap();
+    let mut volume = BubbleDetector::new(grid(), config.clone()).unwrap();
+    let mut delta = BubbleDetector::new(grid(), config).unwrap();
+    let shared = Arc::new(candle_at(
+        60,
+        &[(1, MarketSegment::Spot, 100, 2, AggressorSide::Buy)],
+    ));
+
+    volume.record_finalized_shared(Arc::clone(&shared)).unwrap();
+    delta.record_finalized_shared(Arc::clone(&shared)).unwrap();
+
+    assert_eq!(Arc::strong_count(&shared), 3);
+    assert_eq!(volume.history_len(), 1);
+    assert_eq!(delta.history_len(), 1);
 }
 
 #[test]

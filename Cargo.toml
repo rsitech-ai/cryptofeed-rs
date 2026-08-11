@@ -68,7 +68,7 @@ rust-version = "1.85"
 bytes = "1"
 thiserror = "2"
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 # Optional hot-path JSON (feature-gated on adapters). Mutates input; internal unsafe.
 simd-json = { version = "=0.15.1", default-features = false, features = [

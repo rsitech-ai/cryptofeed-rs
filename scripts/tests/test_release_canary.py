@@ -1,0 +1,346 @@
+import importlib.util
+import pathlib
+import tempfile
+import unittest
+
+
+MODULE_PATH = pathlib.Path(__file__).parents[1] / "release_canary.py"
+SPEC = importlib.util.spec_from_file_location("release_canary", MODULE_PATH)
+release_canary = importlib.util.module_from_spec(SPEC)
+assert SPEC.loader is not None
+SPEC.loader.exec_module(release_canary)
+
+
+def venue(
+    venue_id,
+    *,
+    live=True,
+    reconnects=0,
+    invalidations=0,
+    valid_books=0,
+    dropped=0,
+    queue=1,
+    capacity=256,
+):
+    return {
+        "id": venue_id,
+        "live": live,
+        "reconnects": reconnects,
+        "book_invalidations": invalidations,
+        "valid_books": valid_books,
+        "events_dropped": dropped,
+        "queue_occupancy": queue,
+        "queue_capacity": capacity,
+    }
+
+
+def sample(elapsed, *, venues=None, live=200, ready=200, ui=200, rss=200_000):
+    return {
+        "elapsed_seconds": elapsed,
+        "live_http": live,
+        "ready_http": ready,
+        "ui_http": ui,
+        "status_http": 200,
+        "metrics_http": 200,
+        "api_latency_ms": 4.0,
+        "rss_kib": rss,
+        "cpu_percent": 20.0,
+        "venues": venues
+        or [
+            venue("binance-usdm", valid_books=5),
+            venue("okx-swap", valid_books=5),
+        ],
+    }
+
+
+class AnalyzeSamplesTests(unittest.TestCase):
+    def setUp(self):
+        self.expectations = {
+            "configured_venues": ["binance-usdm", "okx-swap"],
+            "l2_books": {"binance-usdm": 5, "okx-swap": 5},
+        }
+
+    def test_stable_release_canary_is_go(self):
+        samples = [sample(0), sample(600, rss=205_000), sample(1_200, rss=207_000)]
+
+        result = release_canary.analyze_samples(samples, self.expectations)
+
+        self.assertEqual("GO", result["verdict"])
+        self.assertEqual([], result["holds"])
+        self.assertEqual(2, result["venues_live_min"])
+
+    def test_counter_increase_is_hold_even_when_final_value_is_small(self):
+        start = sample(0)
+        end = sample(
+            600,
+            venues=[
+                venue("binance-usdm", valid_books=5, invalidations=1),
+                venue("okx-swap", valid_books=5),
+            ],
+        )
+
+        result = release_canary.analyze_samples([start, end], self.expectations)
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertTrue(any("book invalidations" in item for item in result["holds"]))
+
+    def test_health_or_ui_loss_is_hold(self):
+        result = release_canary.analyze_samples(
+            [sample(0), sample(30, ready=503), sample(60, ui=500)], self.expectations
+        )
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertTrue(any("health" in item for item in result["holds"]))
+        self.assertTrue(any("UI" in item for item in result["holds"]))
+
+    def test_status_or_metrics_loss_is_hold(self):
+        status_failed = sample(30)
+        status_failed["status_http"] = 500
+        status_failed["venues"] = []
+        metrics_failed = sample(60)
+        metrics_failed["metrics_http"] = 0
+
+        result = release_canary.analyze_samples(
+            [sample(0), status_failed, metrics_failed], self.expectations
+        )
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertTrue(any("observability" in item for item in result["holds"]))
+        self.assertFalse(any("offline" in item for item in result["warnings"]))
+
+    def test_missing_l2_books_is_hold(self):
+        degraded = [
+            venue("binance-usdm", valid_books=4),
+            venue("okx-swap", valid_books=5),
+        ]
+
+        result = release_canary.analyze_samples(
+            [sample(0), sample(30, venues=degraded)], self.expectations
+        )
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertTrue(any("valid books" in item for item in result["holds"]))
+
+    def test_queue_saturation_is_hold(self):
+        saturated = [
+            venue("binance-usdm", valid_books=5, queue=90, capacity=100),
+            venue("okx-swap", valid_books=5),
+        ]
+
+        result = release_canary.analyze_samples(
+            [sample(0), sample(30, venues=saturated)], self.expectations
+        )
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertTrue(any("queue" in item for item in result["holds"]))
+
+    def test_recovered_single_reconnect_is_warning_not_hold(self):
+        end = sample(
+            600,
+            venues=[
+                venue("binance-usdm", valid_books=5, reconnects=1),
+                venue("okx-swap", valid_books=5),
+            ],
+        )
+
+        result = release_canary.analyze_samples([sample(0), end], self.expectations)
+
+        self.assertEqual("GO", result["verdict"])
+        self.assertTrue(any("reconnect" in item for item in result["warnings"]))
+
+    def test_excessive_memory_growth_is_hold(self):
+        samples = [
+            sample(0, rss=200_000),
+            sample(600, rss=220_000),
+            sample(1_200, rss=260_000),
+        ]
+
+        result = release_canary.analyze_samples(
+            samples,
+            self.expectations,
+            {"max_rss_growth_mib_per_hour": 64.0},
+        )
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertTrue(any("RSS growth" in item for item in result["holds"]))
+
+    def test_bounded_rss_reclaim_cycles_are_not_reported_as_a_leak(self):
+        post_warmup_rss_kib = [
+            117_680,
+            117_840,
+            129_984,
+            133_696,
+            125_072,
+            120_848,
+            128_480,
+            132_752,
+            134_560,
+            129_856,
+            136_080,
+            139_184,
+            141_200,
+            138_976,
+            141_296,
+            142_912,
+            144_032,
+            127_360,
+            132_720,
+            135_280,
+            136_976,
+            130_336,
+            135_840,
+            130_256,
+            131_616,
+            133_392,
+            137_856,
+            141_008,
+            143_424,
+            113_632,
+            132_432,
+            138_928,
+            141_680,
+            134_576,
+            139_824,
+            142_704,
+            144_400,
+            125_184,
+            139_200,
+            141_712,
+            143_408,
+        ]
+        samples = [
+            sample(300 + index * 15, rss=rss)
+            for index, rss in enumerate(post_warmup_rss_kib)
+        ]
+
+        result = release_canary.analyze_samples(samples, self.expectations)
+
+        self.assertGreater(result["rss_growth_mib_per_hour"], 64.0)
+        self.assertLessEqual(result["rss_p95_growth_mib_per_hour"], 64.0)
+        self.assertEqual("GO", result["verdict"])
+        self.assertFalse(any("RSS growth" in item for item in result["holds"]))
+
+    def test_short_probe_does_not_call_cold_start_growth_a_leak(self):
+        samples = [sample(0, rss=80_000), sample(60, rss=140_000)]
+
+        result = release_canary.analyze_samples(samples, self.expectations)
+
+        self.assertEqual("GO", result["verdict"])
+        self.assertTrue(any("RSS trend" in item for item in result["warnings"]))
+
+    def test_no_samples_produces_complete_hold_report(self):
+        result = release_canary.analyze_samples([], self.expectations)
+        metadata = {
+            "git_commit": "abc123",
+            "binary_sha256": "deadbeef",
+            "started_utc": "2026-08-11T00:00:00Z",
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = pathlib.Path(directory) / "report.md"
+            release_canary._write_report(report, result, metadata)
+            text = report.read_text()
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertEqual(0, result["samples"])
+        self.assertIn("no canary samples were collected", text)
+        self.assertIn("not qualified", text)
+
+
+class QualificationGapTests(unittest.TestCase):
+    def test_optional_offline_venue_does_not_block_sampling_start(self):
+        expectations = {
+            "configured_venues": ["binance-usdm", "deribit"],
+            "required_venues": ["binance-usdm"],
+            "l2_books": {"binance-usdm": 5},
+        }
+        current = sample(
+            0,
+            venues=[
+                venue("binance-usdm", valid_books=5),
+                venue("deribit", live=False),
+            ],
+        )
+
+        self.assertTrue(release_canary._qualified(current, expectations))
+        self.assertEqual([], release_canary._qualification_gaps(current, expectations))
+
+    def test_reports_exact_offline_venue_and_missing_books(self):
+        expectations = {
+            "configured_venues": ["binance-usdm", "deribit"],
+            "required_venues": ["binance-usdm", "deribit"],
+            "l2_books": {"binance-usdm": 5},
+        }
+        current = sample(
+            0,
+            venues=[
+                venue("binance-usdm", valid_books=3),
+                venue("deribit", live=False),
+            ],
+        )
+
+        gaps = release_canary._qualification_gaps(current, expectations)
+
+        self.assertIn("offline venues: deribit", gaps)
+        self.assertIn("valid L2 books: binance-usdm 3/5", gaps)
+
+    def test_reports_endpoint_failure_without_inventing_venue_state(self):
+        expectations = {"configured_venues": ["deribit"], "l2_books": {}}
+        current = sample(0, venues=[venue("deribit")])
+        current["status_http"] = 0
+        current["venues"] = []
+
+        gaps = release_canary._qualification_gaps(current, expectations)
+
+        self.assertIn("status HTTP 0", gaps)
+        self.assertIn("offline venues: deribit", gaps)
+
+
+class PrometheusParserTests(unittest.TestCase):
+    def test_parses_labels_and_ignores_comments(self):
+        text = """# HELP ignored docs
+marketfeed_up 1
+marketfeed_venue_valid_books{id=\"okx-swap\"} 5
+"""
+
+        parsed = release_canary.parse_prometheus(text)
+
+        self.assertEqual(1.0, parsed[("marketfeed_up", ())])
+        self.assertEqual(
+            5.0,
+            parsed[("marketfeed_venue_valid_books", (("id", "okx-swap"),))],
+        )
+
+
+class SmokeRetryTests(unittest.TestCase):
+    def test_retries_only_transient_tape_warmup_failure(self):
+        self.assertTrue(
+            release_canary.should_retry_smoke(
+                1, "PASS status\nFAIL  critical tape empty bybit-spot\nRESULT: FAIL"
+            )
+        )
+        self.assertFalse(
+            release_canary.should_retry_smoke(
+                1, "FAIL  book BBO invalid binance-usdm\nRESULT: FAIL"
+            )
+        )
+        self.assertFalse(release_canary.should_retry_smoke(0, "RESULT: PASS"))
+
+
+class DaemonLogTests(unittest.TestCase):
+    def test_structured_error_is_hold_and_warning_is_reported(self):
+        lines = [
+            '{"level":"INFO","fields":{"message":"started"}}',
+            '{"level":"WARN","fields":{"message":"slow source"}}',
+            '{"level":"ERROR","fields":{"message":"worker failed"}}',
+        ]
+
+        result = release_canary.analyze_daemon_log("\n".join(lines))
+
+        self.assertEqual(1, result["error_count"])
+        self.assertEqual(1, result["warning_count"])
+        self.assertIn("worker failed", result["error_messages"])
+
+
+if __name__ == "__main__":
+    unittest.main()
