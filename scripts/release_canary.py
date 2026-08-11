@@ -143,6 +143,42 @@ def _rss_growth_mib_per_hour(
     return max(0.0, mib_per_second * 3600.0)
 
 
+def _rss_p95_growth_mib_per_hour(
+    samples: list[dict], warmup_seconds: float, minimum_span_seconds: float
+) -> float | None:
+    """Compare upper-envelope RSS in the first and second trend windows.
+
+    macOS may reclaim and refault otherwise stable malloc pages, which makes a
+    least-squares slope sensitive to where a reclaim trough lands. Comparing
+    p95 values across equal observation windows keeps monotonic growth visible
+    without treating a flat bounded envelope as a leak.
+    """
+    points = [
+        (float(sample["elapsed_seconds"]), float(sample["rss_kib"]) / 1024.0)
+        for sample in samples
+        if sample.get("rss_kib") is not None
+        and float(sample.get("elapsed_seconds", 0)) >= warmup_seconds
+    ]
+    if (
+        len(points) < 2
+        or points[-1][0] <= points[0][0]
+        or points[-1][0] - points[0][0] < minimum_span_seconds
+    ):
+        return None
+    midpoint = len(points) // 2
+    early = points[:midpoint]
+    late = points[midpoint:]
+    if not early or not late:
+        return None
+    early_time = statistics.fmean(point[0] for point in early)
+    late_time = statistics.fmean(point[0] for point in late)
+    if late_time <= early_time:
+        return None
+    early_p95 = _percentile([point[1] for point in early], 0.95)
+    late_p95 = _percentile([point[1] for point in late], 0.95)
+    return max(0.0, (late_p95 - early_p95) / (late_time - early_time) * 3600.0)
+
+
 def analyze_samples(
     samples: list[dict], expectations: dict, overrides: dict | None = None
 ) -> dict:
@@ -163,6 +199,7 @@ def analyze_samples(
             "max_queue_ratio": 0.0,
             "rss_peak_mib": 0.0,
             "rss_growth_mib_per_hour": None,
+            "rss_p95_growth_mib_per_hour": None,
             "api_latency_p95_ms": 0.0,
             "cpu_p95_percent": 0.0,
             "thresholds": thresholds,
@@ -242,12 +279,23 @@ def analyze_samples(
         float(thresholds["rss_warmup_seconds"]),
         float(thresholds["min_rss_trend_seconds"]),
     )
+    rss_p95_growth = _rss_p95_growth_mib_per_hour(
+        samples,
+        float(thresholds["rss_warmup_seconds"]),
+        float(thresholds["min_rss_trend_seconds"]),
+    )
     if rss_peak_mib > float(thresholds["max_rss_mib"]):
         holds.append(f"RSS peak {rss_peak_mib:.1f} MiB exceeded limit")
-    if rss_growth is None:
+    if rss_growth is None or rss_p95_growth is None:
         warnings.append("RSS trend window was too short for post-warmup leak qualification")
-    elif rss_growth > float(thresholds["max_rss_growth_mib_per_hour"]):
-        holds.append(f"RSS growth {rss_growth:.1f} MiB/hour exceeded limit")
+    elif (
+        rss_growth > float(thresholds["max_rss_growth_mib_per_hour"])
+        and rss_p95_growth > float(thresholds["max_rss_growth_mib_per_hour"])
+    ):
+        holds.append(
+            f"RSS growth {rss_p95_growth:.1f} MiB/hour exceeded limit "
+            f"(linear slope {rss_growth:.1f})"
+        )
 
     api_p95 = _percentile([float(sample.get("api_latency_ms", 0) or 0) for sample in samples], 0.95)
     cpu_p95 = _percentile([float(sample.get("cpu_percent", 0) or 0) for sample in samples], 0.95)
@@ -268,6 +316,7 @@ def analyze_samples(
         "max_queue_ratio": max_queue_ratio,
         "rss_peak_mib": rss_peak_mib,
         "rss_growth_mib_per_hour": rss_growth,
+        "rss_p95_growth_mib_per_hour": rss_p95_growth,
         "api_latency_p95_ms": api_p95,
         "cpu_p95_percent": cpu_p95,
         "thresholds": thresholds,
@@ -418,6 +467,10 @@ def _write_report(path: pathlib.Path, summary: dict, metadata: dict) -> None:
     warnings = "\n".join(f"- {item}" for item in summary["warnings"]) or "- None"
     rss_growth = summary["rss_growth_mib_per_hour"]
     rss_growth_label = f"{rss_growth:.1f} MiB/hour" if rss_growth is not None else "not qualified"
+    rss_p95_growth = summary["rss_p95_growth_mib_per_hour"]
+    rss_p95_growth_label = (
+        f"{rss_p95_growth:.1f} MiB/hour" if rss_p95_growth is not None else "not qualified"
+    )
     path.write_text(
         f"""# Release canary result
 
@@ -428,7 +481,7 @@ def _write_report(path: pathlib.Path, summary: dict, metadata: dict) -> None:
 - Started: {metadata['started_utc']}
 - Duration sampled: {summary['duration_seconds']:.1f} seconds across {summary['samples']} samples
 - Minimum live venues: {summary['venues_live_min']}/{summary['venues_expected']}
-- RSS peak / fitted post-warmup growth: {summary['rss_peak_mib']:.1f} MiB / {rss_growth_label}
+- RSS peak / fitted growth / windowed p95 growth: {summary['rss_peak_mib']:.1f} MiB / {rss_growth_label} / {rss_p95_growth_label}
 - CPU p95: {summary['cpu_p95_percent']:.1f}%
 - API latency p95: {summary['api_latency_p95_ms']:.1f} ms
 - Maximum venue queue occupancy: {summary['max_queue_ratio']:.1%}

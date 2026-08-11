@@ -164,6 +164,62 @@ class AnalyzeSamplesTests(unittest.TestCase):
         self.assertEqual("HOLD", result["verdict"])
         self.assertTrue(any("RSS growth" in item for item in result["holds"]))
 
+    def test_bounded_rss_reclaim_cycles_are_not_reported_as_a_leak(self):
+        post_warmup_rss_kib = [
+            117_680,
+            117_840,
+            129_984,
+            133_696,
+            125_072,
+            120_848,
+            128_480,
+            132_752,
+            134_560,
+            129_856,
+            136_080,
+            139_184,
+            141_200,
+            138_976,
+            141_296,
+            142_912,
+            144_032,
+            127_360,
+            132_720,
+            135_280,
+            136_976,
+            130_336,
+            135_840,
+            130_256,
+            131_616,
+            133_392,
+            137_856,
+            141_008,
+            143_424,
+            113_632,
+            132_432,
+            138_928,
+            141_680,
+            134_576,
+            139_824,
+            142_704,
+            144_400,
+            125_184,
+            139_200,
+            141_712,
+            143_408,
+        ]
+        samples = [
+            sample(300 + index * 15, rss=rss)
+            for index, rss in enumerate(post_warmup_rss_kib)
+        ]
+
+        result = release_canary.analyze_samples(samples, self.expectations)
+
+        self.assertGreater(result["rss_growth_mib_per_hour"], 64.0)
+        self.assertLessEqual(result["rss_p95_growth_mib_per_hour"], 64.0)
+        self.assertEqual("GO", result["verdict"])
+        self.assertFalse(any("RSS growth" in item for item in result["holds"]))
+
     def test_short_probe_does_not_call_cold_start_growth_a_leak(self):
         samples = [sample(0, rss=80_000), sample(60, rss=140_000)]
 
