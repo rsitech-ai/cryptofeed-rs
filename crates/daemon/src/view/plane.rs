@@ -1,8 +1,8 @@
 //! Server-side book cache + drop_newest tape rings.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use marketfeed_adapter_api::EventBatch;
@@ -563,6 +563,17 @@ struct BubbleProjection {
     last_error: Option<String>,
 }
 
+struct DeferredTradeAnalytics {
+    profile: Option<Arc<Mutex<ProfileProjection>>>,
+    bubbles: Option<Arc<Mutex<BubbleProjection>>>,
+    venue: VenueId,
+    instrument: InstrumentId,
+    timestamp_ns: i64,
+    price: Price,
+    quantity: Quantity,
+    aggressor: AggressorSide,
+}
+
 impl BubbleProjection {
     fn from_catalog(
         instrument: InstrumentId,
@@ -856,8 +867,8 @@ struct ViewInner {
     symbols: HashMap<(String, u32), String>,
     books: HashMap<(VenueId, InstrumentId), LiveBook>,
     tapes: HashMap<(VenueId, InstrumentId), InstrumentTape>,
-    profiles: HashMap<(VenueId, InstrumentId), ProfileProjection>,
-    bubbles: HashMap<(VenueId, InstrumentId), BubbleProjection>,
+    profiles: HashMap<(VenueId, InstrumentId), Arc<Mutex<ProfileProjection>>>,
+    bubbles: HashMap<(VenueId, InstrumentId), Arc<Mutex<BubbleProjection>>>,
     derivatives: HashMap<(VenueId, InstrumentId), DerivativeProjection>,
     depth_history: HashMap<(VenueId, InstrumentId), VecDeque<StoredDepthSample>>,
     depth_last_sample_ns: HashMap<(VenueId, InstrumentId), i64>,
@@ -949,16 +960,16 @@ impl ViewPlane {
             );
             inner.profiles.insert(
                 (catalog.venue, instrument.id),
-                ProfileProjection::from_catalog(
+                Arc::new(Mutex::new(ProfileProjection::from_catalog(
                     instrument.price_scale,
                     instrument.quantity_scale,
                     instrument.price_increment,
                     authority,
-                ),
+                ))),
             );
             inner.bubbles.insert(
                 (catalog.venue, instrument.id),
-                BubbleProjection::from_catalog(
+                Arc::new(Mutex::new(BubbleProjection::from_catalog(
                     instrument.id,
                     MarketSegment::from(instrument.key.kind),
                     instrument.price_scale,
@@ -966,7 +977,7 @@ impl ViewPlane {
                     instrument.price_increment,
                     instrument.quantity_increment,
                     authority,
-                ),
+                ))),
             );
         }
     }
@@ -1168,7 +1179,7 @@ impl ViewPlane {
                 "venue_not_registered",
             );
         };
-        let Some(projection) = inner.profiles.get(&(venue_id, instrument)) else {
+        let Some(projection) = inner.profiles.get(&(venue_id, instrument)).cloned() else {
             return unavailable_profile(
                 venue_config_id,
                 instrument,
@@ -1177,6 +1188,8 @@ impl ViewPlane {
                 "catalog_metadata_unavailable",
             );
         };
+        drop(inner);
+        let projection = projection.lock().expect("profile projection lock");
         if let Some(reason) = projection.unavailable_reason.as_deref() {
             return unavailable_profile(
                 venue_config_id,
@@ -1234,7 +1247,7 @@ impl ViewPlane {
                 "venue_not_registered",
             );
         };
-        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)) else {
+        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)).cloned() else {
             return unavailable_bubbles(
                 venue_config_id,
                 instrument,
@@ -1244,6 +1257,8 @@ impl ViewPlane {
                 "catalog_metadata_unavailable",
             );
         };
+        drop(inner);
+        let projection = projection.lock().expect("bubble projection lock");
         if let Some(reason) = projection.unavailable_reason.as_deref() {
             return unavailable_bubbles(
                 venue_config_id,
@@ -1300,7 +1315,7 @@ impl ViewPlane {
                 "venue_not_registered",
             );
         };
-        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)) else {
+        let Some(projection) = inner.bubbles.get(&(venue_id, instrument)).cloned() else {
             return unavailable_structural_levels(
                 venue_config_id,
                 instrument,
@@ -1309,6 +1324,8 @@ impl ViewPlane {
                 "catalog_metadata_unavailable",
             );
         };
+        drop(inner);
+        let projection = projection.lock().expect("bubble projection lock");
         if let Some(reason) = projection.unavailable_reason.as_deref() {
             return unavailable_structural_levels(
                 venue_config_id,
@@ -1737,6 +1754,7 @@ impl ViewPlane {
             .first()
             .map(|event| event.venue)
             .filter(|venue| batch.events.iter().all(|event| event.venue == *venue));
+        let mut deferred_analytics = Vec::new();
         let mut inner = self.inner.lock().expect("view lock");
         for ev in &batch.events {
             let venue_id = ev.venue;
@@ -1785,19 +1803,16 @@ impl ViewPlane {
                 MarketEvent::Trade(t) => {
                     inner.venue_last_trade_ts.insert(venue_id, receive_ts);
                     let event_ts = ev.exchange_ts.unwrap_or(ev.receive_ts).0;
-                    if let Some(profile) = inner.profiles.get_mut(&(venue_id, instrument)) {
-                        profile.ingest(event_ts, t.price, t.quantity);
-                    }
-                    if let Some(bubbles) = inner.bubbles.get_mut(&(venue_id, instrument)) {
-                        bubbles.ingest(
-                            venue_id,
-                            instrument,
-                            event_ts,
-                            t.price,
-                            t.quantity,
-                            t.aggressor,
-                        );
-                    }
+                    deferred_analytics.push(DeferredTradeAnalytics {
+                        profile: inner.profiles.get(&(venue_id, instrument)).cloned(),
+                        bubbles: inner.bubbles.get(&(venue_id, instrument)).cloned(),
+                        venue: venue_id,
+                        instrument,
+                        timestamp_ns: event_ts,
+                        price: t.price,
+                        quantity: t.quantity,
+                        aggressor: t.aggressor,
+                    });
                     let symbol = inner
                         .symbols
                         .get(&(venue_name.clone(), instrument.0))
@@ -1895,6 +1910,26 @@ impl ViewPlane {
                     projection.revision = projection.revision.saturating_add(1);
                 }
                 _ => {}
+            }
+        }
+        drop(inner);
+        for deferred in deferred_analytics {
+            if let Some(profile) = deferred.profile {
+                profile.lock().expect("profile projection lock").ingest(
+                    deferred.timestamp_ns,
+                    deferred.price,
+                    deferred.quantity,
+                );
+            }
+            if let Some(bubbles) = deferred.bubbles {
+                bubbles.lock().expect("bubble projection lock").ingest(
+                    deferred.venue,
+                    deferred.instrument,
+                    deferred.timestamp_ns,
+                    deferred.price,
+                    deferred.quantity,
+                    deferred.aggressor,
+                );
             }
         }
         sink_venue
@@ -2744,6 +2779,42 @@ mod tests {
         assert_eq!(bubbles.bubbles.len(), 2);
         assert!(bubbles.bubbles.iter().all(|bubble| bubble.tier == "f3"));
         assert!(bubbles.bubbles.iter().all(|bubble| bubble.phase == "live"));
+    }
+
+    #[test]
+    fn analytics_rollover_does_not_hold_global_view_lock() {
+        let plane = Arc::new(ViewPlane::new(ViewPlaneConfig::default()));
+        plane.register_venue(VenueId(7), "perp", &["BTCUSDT".into()]);
+        plane.register_catalog(
+            "perp",
+            &authoritative_catalog(VenueId(7)),
+            CatalogAuthority::Authoritative,
+        );
+        let profile = {
+            let inner = plane.inner.lock().expect("view lock");
+            Arc::clone(
+                inner
+                    .profiles
+                    .get(&(VenueId(7), InstrumentId(1)))
+                    .expect("profile projection"),
+            )
+        };
+        let profile_guard = profile.lock().expect("profile projection lock");
+        let mut sink = SharedViewPlane::for_venue(Arc::clone(&plane), VenueId(7));
+        let worker = std::thread::spawn(move || {
+            sink.push_batch(trade_batch(VenueId(7), InstrumentId(1), "100.00", "1.000"))
+                .unwrap();
+        });
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while plane.tape("perp", InstrumentId(1), 1).is_empty() && Instant::now() < deadline {
+            std::thread::yield_now();
+        }
+        assert_eq!(plane.tape("perp", InstrumentId(1), 1).len(), 1);
+        assert!(plane.inner.try_lock().is_ok());
+
+        drop(profile_guard);
+        worker.join().unwrap();
     }
 
     #[test]
