@@ -31,6 +31,7 @@ const DEPTH_SAMPLE_INTERVAL_MS: u64 = 100;
 // tiered history client-side. Keeping more complete snapshots only increases
 // resident memory without changing the rendered heatmap.
 const DEPTH_HISTORY_CAPACITY: usize = 600;
+const UI_BUBBLE_CALIBRATION_CANDLES: usize = 30;
 
 /// Tunables for tape rings (from `[telemetry]`).
 #[derive(Debug, Clone, Copy)]
@@ -2073,7 +2074,7 @@ fn default_bubble_config(
                 7_500,
                 Some(fixed_multiple(quantity_increment, multiple)?),
                 4,
-                120,
+                UI_BUBBLE_CALIBRATION_CANDLES,
                 9_900,
                 2_500,
             )?),
@@ -2106,7 +2107,7 @@ fn default_bubble_config(
         )?,
         MergeConfig::disabled(),
         PerformanceMode::Full,
-        120,
+        UI_BUBBLE_CALIBRATION_CANDLES,
     )
 }
 
@@ -2815,6 +2816,23 @@ mod tests {
 
         drop(profile_guard);
         worker.join().unwrap();
+    }
+
+    #[test]
+    fn ui_bubble_history_matches_the_bounded_calibration_window() {
+        let config = default_bubble_config(
+            Fixed::new(1, 3),
+            MarketSegment::LinearPerpetual,
+            BubbleMode::Volume,
+        )
+        .unwrap();
+        assert_eq!(config.max_history_candles, UI_BUBBLE_CALIBRATION_CANDLES);
+        for filter in [&config.f1, &config.f2, &config.f3] {
+            let ThresholdMode::Adaptive(adaptive) = &filter.threshold else {
+                panic!("default UI filter must remain adaptive");
+            };
+            assert_eq!(adaptive.calibration_candles, UI_BUBBLE_CALIBRATION_CANDLES);
+        }
     }
 
     #[test]

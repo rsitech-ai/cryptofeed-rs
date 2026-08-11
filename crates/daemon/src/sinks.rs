@@ -925,11 +925,13 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
+    #[cfg(feature = "ui-api")]
     async fn view_work_falls_back_on_current_thread_runtime() {
         assert_eq!(run_view_work(|| 42), 42);
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[cfg(feature = "ui-api")]
     async fn view_work_yields_executor_capacity_on_multi_thread_runtime() {
         assert_eq!(run_view_work(|| 42), 42);
     }

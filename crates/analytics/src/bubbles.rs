@@ -613,13 +613,14 @@ impl BubbleDetector {
                 finalized_before_ns: self.last_finalized_start_ns.unwrap_or(candle.start_ts),
             });
         }
-        let mut candidate = self.clone();
-        candidate.history.push_back(candle.clone());
-        while candidate.history.len() > candidate.config.max_history_candles {
-            candidate.history.pop_front();
+        // All fallible validation is complete above. Mutating in place keeps
+        // the append atomic without cloning the detector's full history on
+        // every candle rollover.
+        self.history.push_back(candle.clone());
+        while self.history.len() > self.config.max_history_candles {
+            self.history.pop_front();
         }
-        candidate.last_finalized_start_ns = Some(candle.start_ts);
-        *self = candidate;
+        self.last_finalized_start_ns = Some(candle.start_ts);
         Ok(())
     }
 
