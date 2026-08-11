@@ -27,6 +27,7 @@ use crate::config::DaemonConfig;
 use crate::state::DaemonState;
 
 const DEPTH_SAMPLE_INTERVAL_MS: u64 = 100;
+const DEPTH_LEVEL_CAPACITY: usize = 64;
 // The UI requests at most 600 warm-start columns and then maintains its longer,
 // tiered history client-side. Keeping more complete snapshots only increases
 // resident memory without changing the rendered heatmap.
@@ -142,6 +143,62 @@ struct StoredDepthSample {
 struct StoredDepthLevel {
     price_coefficient: i128,
     quantity_coefficient: i128,
+}
+
+#[derive(Debug)]
+struct StoredDepthHistory {
+    samples: VecDeque<StoredDepthSample>,
+    spare: Vec<StoredDepthSample>,
+}
+
+impl Default for StoredDepthHistory {
+    fn default() -> Self {
+        let mut spare = Vec::with_capacity(DEPTH_HISTORY_CAPACITY);
+        for _ in 0..DEPTH_HISTORY_CAPACITY {
+            spare.push(StoredDepthSample {
+                event_ts_ns: 0,
+                epoch: 0,
+                price_scale: 0,
+                quantity_scale: 0,
+                bids: Vec::with_capacity(DEPTH_LEVEL_CAPACITY),
+                asks: Vec::with_capacity(DEPTH_LEVEL_CAPACITY),
+            });
+        }
+        Self {
+            samples: VecDeque::with_capacity(DEPTH_HISTORY_CAPACITY),
+            spare,
+        }
+    }
+}
+
+impl StoredDepthHistory {
+    fn len(&self) -> usize {
+        self.samples.len()
+    }
+
+    fn back(&self) -> Option<&StoredDepthSample> {
+        self.samples.back()
+    }
+
+    fn iter(&self) -> impl DoubleEndedIterator<Item = &StoredDepthSample> {
+        self.samples.iter()
+    }
+
+    fn take_reusable(&mut self) -> StoredDepthSample {
+        if self.samples.len() >= DEPTH_HISTORY_CAPACITY {
+            self.samples
+                .pop_front()
+                .expect("full depth history has a front sample")
+        } else {
+            self.spare
+                .pop()
+                .expect("bounded depth history has a spare sample")
+        }
+    }
+
+    fn push_back(&mut self, sample: StoredDepthSample) {
+        self.samples.push_back(sample);
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -880,7 +937,7 @@ struct ViewInner {
     profiles: HashMap<(VenueId, InstrumentId), Arc<Mutex<ProfileProjection>>>,
     bubbles: HashMap<(VenueId, InstrumentId), Arc<Mutex<BubbleProjection>>>,
     derivatives: HashMap<(VenueId, InstrumentId), DerivativeProjection>,
-    depth_history: HashMap<(VenueId, InstrumentId), VecDeque<StoredDepthSample>>,
+    depth_history: HashMap<(VenueId, InstrumentId), StoredDepthHistory>,
     depth_last_sample_ns: HashMap<(VenueId, InstrumentId), i64>,
     depth_epochs: HashMap<(VenueId, InstrumentId), u64>,
     depth_coalesced_samples: HashMap<(VenueId, InstrumentId), u64>,
@@ -1979,13 +2036,11 @@ fn push_depth_sample(
     inner.depth_last_sample_ns.insert(key, event_ts_ns);
     let epoch = inner.depth_epochs.get(&key).copied().unwrap_or(0);
     let history = inner.depth_history.entry(key).or_default();
-    let recycled = if history.len() >= DEPTH_HISTORY_CAPACITY {
+    if history.len() >= DEPTH_HISTORY_CAPACITY {
         let counter = inner.depth_evicted_samples.entry(key).or_default();
         *counter = counter.saturating_add(1);
-        history.pop_front()
-    } else {
-        None
-    };
+    }
+    let mut recycled = history.take_reusable();
     let price_scale = snapshot
         .bids
         .first()
@@ -2002,26 +2057,19 @@ fn push_depth_sample(
         price_coefficient: level.price.0.coefficient,
         quantity_coefficient: level.quantity.0.coefficient,
     };
-    let (mut bids, mut asks) = recycled
-        .map(|sample| (sample.bids, sample.asks))
-        .unwrap_or_else(|| {
-            (
-                Vec::with_capacity(snapshot.bids.len()),
-                Vec::with_capacity(snapshot.asks.len()),
-            )
-        });
-    bids.clear();
-    bids.extend(snapshot.bids.into_iter().map(store_level));
-    asks.clear();
-    asks.extend(snapshot.asks.into_iter().map(store_level));
-    history.push_back(StoredDepthSample {
-        event_ts_ns,
-        epoch,
-        price_scale,
-        quantity_scale,
-        bids,
-        asks,
-    });
+    recycled.event_ts_ns = event_ts_ns;
+    recycled.epoch = epoch;
+    recycled.price_scale = price_scale;
+    recycled.quantity_scale = quantity_scale;
+    recycled.bids.clear();
+    recycled
+        .bids
+        .extend(snapshot.bids.into_iter().map(store_level));
+    recycled.asks.clear();
+    recycled
+        .asks
+        .extend(snapshot.asks.into_iter().map(store_level));
+    history.push_back(recycled);
 }
 
 fn unavailable_profile(
@@ -3144,7 +3192,7 @@ mod tests {
             let stored = inner
                 .depth_history
                 .get(&(VenueId(1), InstrumentId(1)))
-                .and_then(|samples| samples.front())
+                .and_then(|history| history.samples.front())
                 .expect("stored depth sample");
             assert_eq!(stored.price_scale, 2);
             assert_eq!(stored.bids[0].price_coefficient, 10_000);
@@ -3185,7 +3233,12 @@ mod tests {
                     snapshot.clone(),
                 );
             }
-            inner.depth_history[&key].front().unwrap().bids.as_ptr()
+            inner.depth_history[&key]
+                .samples
+                .front()
+                .unwrap()
+                .bids
+                .as_ptr()
         };
 
         {
@@ -3202,6 +3255,38 @@ mod tests {
             assert_eq!(history.back().unwrap().bids.as_ptr(), first_bid_ptr);
             assert_eq!(inner.depth_evicted_samples[&key], 1);
         }
+    }
+
+    #[test]
+    fn depth_ring_preallocates_its_bounded_buffers_on_first_sample() {
+        let plane = ViewPlane::new(ViewPlaneConfig::default());
+        let snapshot = BookSnapshot {
+            bids: vec![BookLevel {
+                price: Price(Fixed::parse_str("100.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("1.000").unwrap()),
+            }],
+            asks: vec![BookLevel {
+                price: Price(Fixed::parse_str("101.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("2.000").unwrap()),
+            }],
+            depth: Some(1),
+            checksum: None,
+        };
+        let key = (VenueId(1), InstrumentId(1));
+
+        let mut inner = plane.inner.lock().expect("view lock");
+        push_depth_sample(&mut inner, key.0, key.1, 0, snapshot);
+
+        let history = &inner.depth_history[&key];
+        assert_eq!(history.samples.len(), 1);
+        assert_eq!(history.spare.len(), DEPTH_HISTORY_CAPACITY - 1);
+        assert!(
+            history
+                .samples
+                .iter()
+                .chain(history.spare.iter())
+                .all(|sample| sample.bids.capacity() >= 1 && sample.asks.capacity() >= 1)
+        );
     }
 
     #[test]
