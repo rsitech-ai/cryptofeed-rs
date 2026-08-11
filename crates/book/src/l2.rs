@@ -246,6 +246,15 @@ impl OrderBook {
     }
 
     pub fn snapshot_levels(&self) -> Option<(Vec<BookLevel>, Vec<BookLevel>)> {
+        self.snapshot_levels_bounded(usize::MAX)
+    }
+
+    /// Return at most `limit` best levels per side without materializing the
+    /// complete maintained book first.
+    pub fn snapshot_levels_bounded(
+        &self,
+        limit: usize,
+    ) -> Option<(Vec<BookLevel>, Vec<BookLevel>)> {
         if self.validity != BookValidity::Valid {
             return None;
         }
@@ -253,6 +262,7 @@ impl OrderBook {
             .bids
             .iter()
             .rev()
+            .take(limit)
             .map(|(&p, &q)| BookLevel {
                 price: self.price(p),
                 quantity: self.qty(q),
@@ -261,6 +271,7 @@ impl OrderBook {
         let asks: Vec<BookLevel> = self
             .asks
             .iter()
+            .take(limit)
             .map(|(&p, &q)| BookLevel {
                 price: self.price(p),
                 quantity: self.qty(q),
@@ -402,6 +413,36 @@ mod tests {
         book.apply_change(BookSide::Ask, BookOperation::Delete, px(101_00), None)
             .unwrap();
         assert_eq!(book.best_ask().unwrap().0, px(102_00));
+    }
+
+    #[test]
+    fn bounded_snapshot_returns_only_best_requested_levels() {
+        let mut book = OrderBook::new(2, 3, None);
+        book.apply_snapshot(
+            &[
+                (px(100_00), qty(1_000)),
+                (px(99_00), qty(2_000)),
+                (px(98_00), qty(3_000)),
+            ],
+            &[
+                (px(101_00), qty(1_500)),
+                (px(102_00), qty(2_500)),
+                (px(103_00), qty(3_500)),
+            ],
+            Some(1),
+        )
+        .unwrap();
+
+        let (bids, asks) = book.snapshot_levels_bounded(2).unwrap();
+
+        assert_eq!(
+            bids.iter().map(|level| level.price).collect::<Vec<_>>(),
+            vec![px(100_00), px(99_00)]
+        );
+        assert_eq!(
+            asks.iter().map(|level| level.price).collect::<Vec<_>>(),
+            vec![px(101_00), px(102_00)]
+        );
     }
 
     #[test]

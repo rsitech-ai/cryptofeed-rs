@@ -833,12 +833,10 @@ impl LiveBook {
     }
 
     fn snapshot(&self, depth: Option<u32>) -> Option<BookSnapshot> {
-        let (mut bids, mut asks) = self.book.snapshot_levels()?;
-        if let Some(d) = depth {
-            let n = d as usize;
-            bids.truncate(n);
-            asks.truncate(n);
-        }
+        let (bids, asks) = match depth {
+            Some(depth) => self.book.snapshot_levels_bounded(depth as usize)?,
+            None => self.book.snapshot_levels()?,
+        };
         Some(BookSnapshot {
             bids,
             asks,
