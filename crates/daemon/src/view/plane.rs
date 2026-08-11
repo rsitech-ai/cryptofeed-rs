@@ -690,11 +690,12 @@ impl BubbleProjection {
                             .ok_or_else(|| "structural level engine unavailable".to_string())?
                             .ingest_finalized(&finalized, &volume_rows)
                             .map_err(|error| error.to_string())?;
+                        let finalized = Arc::new(finalized);
                         volume
-                            .record_finalized(&finalized)
+                            .record_finalized_shared(Arc::clone(&finalized))
                             .map_err(|error| error.to_string())?;
                         delta
-                            .record_finalized(&finalized)
+                            .record_finalized_shared(finalized)
                             .map_err(|error| error.to_string())?;
                         append_bubbles(&mut self.finalized_volume, volume_rows);
                         append_bubbles(&mut self.finalized_delta, delta_rows);

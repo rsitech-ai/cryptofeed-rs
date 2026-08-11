@@ -1,6 +1,7 @@
 //! Deterministic, bounded, strict-priority order-flow bubble detection.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::sync::Arc;
 
 use marketfeed_model::{Fixed, InstrumentId, Price, Quantity, VenueId};
 use serde::{Deserialize, Serialize};
@@ -483,7 +484,7 @@ impl Aggregate {
 pub struct BubbleDetector {
     grid: GridSpec,
     config: BubbleConfig,
-    history: VecDeque<CandleFlow>,
+    history: VecDeque<Arc<CandleFlow>>,
     last_finalized_start_ns: Option<i64>,
 }
 
@@ -620,6 +621,15 @@ impl BubbleDetector {
 
     /// Records one strictly newer finalized candle atomically.
     pub fn record_finalized(&mut self, candle: &CandleFlow) -> Result<(), AnalyticsError> {
+        self.record_finalized_shared(Arc::new(candle.clone()))
+    }
+
+    /// Records a shared immutable candle so detectors with different modes can
+    /// reuse the same bounded price-level history.
+    pub fn record_finalized_shared(
+        &mut self,
+        candle: Arc<CandleFlow>,
+    ) -> Result<(), AnalyticsError> {
         if candle.state != FlowState::Final {
             return Err(invalid_config(
                 "finalized bubble history",
@@ -638,11 +648,12 @@ impl BubbleDetector {
         // All fallible validation is complete above. Mutating in place keeps
         // the append atomic without cloning the detector's full history on
         // every candle rollover.
-        self.history.push_back(candle.clone());
+        let candle_start_ns = candle.start_ts;
+        self.history.push_back(candle);
         while self.history.len() > self.config.max_history_candles {
             self.history.pop_front();
         }
-        self.last_finalized_start_ns = Some(candle.start_ts);
+        self.last_finalized_start_ns = Some(candle_start_ns);
         Ok(())
     }
 
