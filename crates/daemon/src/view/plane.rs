@@ -160,8 +160,20 @@ impl Default for StoredDepthHistory {
                 epoch: 0,
                 price_scale: 0,
                 quantity_scale: 0,
-                bids: Vec::with_capacity(DEPTH_LEVEL_CAPACITY),
-                asks: Vec::with_capacity(DEPTH_LEVEL_CAPACITY),
+                bids: vec![
+                    StoredDepthLevel {
+                        price_coefficient: 0,
+                        quantity_coefficient: 0,
+                    };
+                    DEPTH_LEVEL_CAPACITY
+                ],
+                asks: vec![
+                    StoredDepthLevel {
+                        price_coefficient: 0,
+                        quantity_coefficient: 0,
+                    };
+                    DEPTH_LEVEL_CAPACITY
+                ],
             });
         }
         Self {
@@ -3280,6 +3292,13 @@ mod tests {
         let history = &inner.depth_history[&key];
         assert_eq!(history.samples.len(), 1);
         assert_eq!(history.spare.len(), DEPTH_HISTORY_CAPACITY - 1);
+        assert!(
+            history
+                .spare
+                .iter()
+                .all(|sample| sample.bids.len() == DEPTH_LEVEL_CAPACITY
+                    && sample.asks.len() == DEPTH_LEVEL_CAPACITY)
+        );
         assert!(
             history
                 .samples
