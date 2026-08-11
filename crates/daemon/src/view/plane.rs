@@ -32,6 +32,7 @@ const DEPTH_SAMPLE_INTERVAL_MS: u64 = 100;
 // resident memory without changing the rendered heatmap.
 const DEPTH_HISTORY_CAPACITY: usize = 600;
 const UI_BUBBLE_CALIBRATION_CANDLES: usize = 8;
+const UI_FINALIZED_BUBBLE_CAPACITY: usize = 512;
 
 /// Tunables for tape rings (from `[telemetry]`).
 #[derive(Debug, Clone, Copy)]
@@ -557,8 +558,8 @@ struct BubbleProjection {
     delta: Option<BubbleDetector>,
     levels: Option<StructuralLevelEngine>,
     segment: MarketSegment,
-    finalized_volume: VecDeque<ViewBubble>,
-    finalized_delta: VecDeque<ViewBubble>,
+    finalized_volume: VecDeque<OrderFlowBubble>,
+    finalized_delta: VecDeque<OrderFlowBubble>,
     revision: u64,
     unavailable_reason: Option<String>,
     last_error: Option<String>,
@@ -695,8 +696,8 @@ impl BubbleProjection {
                         delta
                             .record_finalized(&finalized)
                             .map_err(|error| error.to_string())?;
-                        append_bubbles(&mut self.finalized_volume, volume_rows, "final");
-                        append_bubbles(&mut self.finalized_delta, delta_rows, "final");
+                        append_bubbles(&mut self.finalized_volume, volume_rows);
+                        append_bubbles(&mut self.finalized_delta, delta_rows);
                         Ok::<_, String>(())
                     })();
                     if let Err(error) = result {
@@ -722,9 +723,12 @@ impl BubbleProjection {
         }
         .ok_or_else(|| "detector unavailable".to_string())?;
         let mut rows: Vec<ViewBubble> = match mode {
-            BubbleMode::Volume => self.finalized_volume.iter().cloned().collect(),
-            BubbleMode::Delta => self.finalized_delta.iter().cloned().collect(),
-        };
+            BubbleMode::Volume => self.finalized_volume.iter(),
+            BubbleMode::Delta => self.finalized_delta.iter(),
+        }
+        .cloned()
+        .map(|bubble| view_bubble(bubble, "final"))
+        .collect();
         if let Some(live) = flow.live_snapshot().map_err(|error| error.to_string())? {
             rows.extend(
                 detector
@@ -2111,12 +2115,12 @@ fn default_bubble_config(
     )
 }
 
-fn append_bubbles(target: &mut VecDeque<ViewBubble>, rows: Vec<OrderFlowBubble>, phase: &str) {
+fn append_bubbles(target: &mut VecDeque<OrderFlowBubble>, rows: Vec<OrderFlowBubble>) {
     for row in rows {
-        while target.len() >= 2_000 {
+        while target.len() >= UI_FINALIZED_BUBBLE_CAPACITY {
             target.pop_front();
         }
-        target.push_back(view_bubble(row, phase));
+        target.push_back(row);
     }
 }
 
