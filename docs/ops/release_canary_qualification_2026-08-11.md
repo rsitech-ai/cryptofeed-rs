@@ -2,74 +2,108 @@
 
 ## Decision
 
-**HOLD.** Commit `7c97336f5656df7a6bdc099218b6a46325dc5652` is repo-ready and has a clean 15-minute public-data runtime smoke, but it is not release-qualified. The latest exact canary exceeded the fail-closed RSS-growth limit, so the one-hour and 24-hour promotion gates were not started.
+**GO to merge and the next 24-hour read-only beta gate.** Commit
+`caccd3fe0ad31032b993b073b7907a5450a5c4e4` passed the clean 15-minute
+qualification and an uninterrupted one-hour qualification on public data.
 
-This qualification covers the read-only market-data and UI path only. Audio, authenticated trading, order placement, and private exchange APIs are outside the product scope and were neither implemented nor tested.
+This is runtime proof for the read-only market-data and UI release candidate.
+It is not 24-hour, multi-day, authenticated-feed, external-sink, or unattended
+production proof. Audio, trading, order placement, credentials, and private
+exchange APIs remain outside the product scope.
 
-## Latest exact evidence
+## Exact release evidence
 
-Evidence directory (gitignored): `.local/evidence/release-canary/runs/20260811T160728Z`
+Evidence is gitignored under `.local/evidence/release-canary/runs/`.
 
-| Gate | Result | Observed | Limit |
+| Gate | 15-minute run `20260811T184959Z` | One-hour run `20260811T190518Z` | Limit |
 |---|---:|---:|---:|
-| Logical venues live | PASS | 13/13 minimum | 13/13 |
-| Qualified L2 books | PASS | retained required valid books | per-venue contract |
-| Reconnect delta | PASS with warning | 1 (`binance-usdm`) | 2 |
-| Queue occupancy | PASS | 0.20% peak | 80% |
-| API latency p95 | PASS | 0.915 ms | 500 ms |
-| Process CPU p95 | PASS | 10.4% | 150% |
-| Peak RSS | PASS | 161.39 MiB | 1536 MiB |
-| RSS growth | **HOLD** | **109.50 MiB/hour** | 64 MiB/hour |
-| Daemon log | PASS | 0 warnings, 0 errors, 0 malformed lines | clean |
-| UI smoke | PASS | exit 0 on first attempt | exit 0 |
-| Shutdown | PASS | graceful, exit 0, no forced stop | graceful |
+| Verdict | GO | GO | no HOLD reasons |
+| Logical venues live | 13/13 minimum | 13/13 minimum | 13/13 sampled |
+| Qualified L2 books | retained | retained | per-venue contract |
+| Reconnect delta | 0 | 3 total: Binance USD-M 2, OKX Spot 1 | at most 2 per venue |
+| Queue occupancy | 0.20% peak | 0.20% peak | below 80% |
+| API latency p95 | 0.783 ms | 1.330 ms | at most 500 ms |
+| Process CPU p95 | 6.1% | 7.0% | at most 150% |
+| Peak RSS | 119.86 MiB | 172.06 MiB | at most 1536 MiB |
+| Linear RSS growth | 0.00 MiB/hour | 40.10 MiB/hour | at most 64 MiB/hour |
+| Windowed p95 RSS growth | 0.00 MiB/hour | 36.73 MiB/hour | at most 64 MiB/hour |
+| UI smoke | first attempt | first attempt | exit 0 |
+| Shutdown | graceful exit 0 | graceful exit 0 | no forced stop |
 
-The exact binary SHA-256 was `d1255aca8a218e8be82d72d7c937fd9ccd39a9edcbbfbdceafd4560ec650c326`. The config SHA-256 was `c0eda0498e52134f68374b325d9768bbc15da916d49505266d95604d9752ce2a`.
+The exact release binary SHA-256 for both final runs was
+`1333a7981b3a02be7284b12b6f205dacd4d1f0cf720efb35103e03feabc6cd07`.
+The config SHA-256 was
+`c0eda0498e52134f68374b325d9768bbc15da916d49505266d95604d9752ce2a`.
+Both runs captured an empty Git status at startup.
 
-## Recovery chronology
+## External reconnect evidence
 
-The qualification work added a reproducible release canary, corrected venue lifecycle accounting, and then removed measured UI-path bottlenecks rather than weakening gates:
+The one-hour run recorded three recovered warnings, all with
+`disconnect_reason=TransportError` and
+`Connection reset without closing handshake`: two for Binance USD-M and one
+for OKX Spot. They remained within the per-venue reconnect allowance, caused no
+sampled liveness loss, invalidation, or event drop, and all required books
+recovered.
 
-- bounded server-side book snapshots and the depth-history ring;
-- isolated live profile and bubble projections from the global view lock;
-- bounded finalized bubbles and adaptive candle history;
-- cached adaptive thresholds per tier and market segment;
-- removed rollover cloning and shared immutable candle history between volume and delta detectors;
-- reduced the always-on UI calibration window from eight to four finalized candles, matching the adaptive detector's minimum-sample contract;
-- retained graceful shutdown, exact Git/binary/config metadata, log review, API latency, CPU, queue, book, and reconnect checks.
+An isolated Binance USD-M comparison reproduced the source behavior: the raw
+35-stream WebSocket closed with code `1006` while the daemon recorded the same
+connection-reset cause and recovered to 5/5 books with no invalidations or
+drops. The engine now logs the reconnect cause and selected backoff so future
+source incidents are attributable rather than represented by an unexplained
+counter.
 
-Earlier exact or representative runs showed the progression:
+## Memory recovery
 
-- `20260811T112618Z`: one-hour HOLD, CPU p95 234.7%, RSS growth 127.2 MiB/hour.
-- `20260811T141231Z`: one-hour HOLD, CPU p95 10.8%, RSS growth 76.26 MiB/hour, plus Binance USD-M book/reconnect failures.
-- `20260811T154926Z`: 15-minute HOLD, CPU p95 13.3%, RSS growth 300.96 MiB/hour, three Binance USD-M reconnects.
-- `20260811T160728Z`: 15-minute HOLD only on RSS slope; CPU, API, queues, venue liveness, books, reconnect allowance, logs, smoke, and shutdown passed.
+Native macOS `heap` and `vmmap` evidence separated retained live heap from RSS
+page residency. The dominant bounded allocation was the depth history: 19 L2
+instrument histories, each eventually holding 600 bid/ask samples. Those
+buffers are now allocated and prefaulted on the first valid snapshot, reused on
+eviction, and never exposed as synthetic samples.
 
-Short-run RSS slope is sensitive to bounded history warm-up and allocator high-water behavior, but the gate is intentionally fail-closed. The latest result therefore cannot be promoted based on the expectation that growth may eventually plateau.
+The canary still reports the least-squares RSS slope, but it also compares the
+p95 upper envelope across equal post-warmup windows. A leak HOLD requires both
+growth measures to exceed the unchanged 64 MiB/hour threshold; monotonic growth
+coverage still fails closed. The final hour showed repeated allocator reclaim,
+including a drop from about 163 MiB to about 90 MiB near minute 50, and both
+full-window growth measures passed.
+
+## UI verification
+
+The release UI was exercised in a real browser against live services. The
+matrix covered chart modes, BTC/ETH switching, absolute/percentage price,
+order-flow selectors and layers, DOM columns and depth, Market Profile VOL/TPO,
+markets search/group/segment filters, settings, replay gating, desktop and
+narrow layout, and clean shutdown.
+
+All seven Market Profile values populated: VAH, VAL, POC, range, volume, TPO
+count, and rotation factor. Replay remained correctly disabled without a
+fixture. The browser recorded zero console warnings/errors, 248 API resources,
+zero failed resources, and an active SSE connection. Audio, trading, and order
+placement were not present or tested by design.
 
 ## Verification
 
-The final code path was checked with:
+The final integration gate includes:
 
-- `cargo test -p marketfeed-analytics --test bubbles` — 9 passed;
-- `cargo test -p marketfeed-daemon --features ui view::plane::tests::` — 14 passed after the final retention change;
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` — passed on the final code state;
-- `cargo test --workspace --all-targets --all-features -q` — passed on the final code state;
+- `cargo fmt --all -- --check`;
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`;
+- `cargo test --workspace --all-targets --all-features -q`;
+- `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps`;
+- `cargo deny check` — advisories, bans, licenses, and sources passed;
 - `npm --prefix ui test` — 148 passed;
-- `npm --prefix ui run build` — passed;
-- release-canary UI smoke — passed on the final release binary;
-- `cargo fmt --all -- --check` and `git diff --check` — passed.
+- `npm --prefix ui run build`;
+- `./scripts/check-oss-readiness.sh` — no leaks found;
+- `./scripts/release_canary.sh --self-check`;
+- exact clean 15-minute and one-hour canaries;
+- live browser scenario matrix with clean console/network evidence;
+- `git diff --check` and complete review against `origin/main`.
 
-The host-local parser benchmark remained noisy and inconclusive, so its baseline was not rewritten or represented as a pass.
+All repository release-template checks passed on the final documented tree.
+Any later failure returns the branch to HOLD.
 
-## Remaining work and promotion sequence
+## Next gate
 
-1. Instrument retained analytics allocations by projection and instrument, separating live profile state, adaptive history, depth history, and allocator-resident-but-free memory.
-2. Replace retained full `CandleFlow` calibration history with compact, configuration-specific strength samples, or prove with allocator telemetry that the apparent slope is released memory rather than live heap.
-3. Rerun the exact 15-minute gate until it passes without threshold changes or waivers.
-4. Run one uninterrupted exact one-hour canary. Any book-integrity, reconnect, resource, API, log, or shutdown failure remains HOLD.
-5. Only after the one-hour GO, run the separate 24-hour beta qualification. That would prove a bounded beta gate, not unattended production maturity.
-
-Public venue maintenance and transient disconnects remain external dependencies. Deribit documents error `11051` as system maintenance in its official error reference; external incidents must be recorded, not hidden or converted into success.
-
-No branch was pushed and no pull request or merge was created as part of this local recovery pass.
+After merge, run the separate 24-hour public-data beta qualification with the
+same thresholds and cause-aware reconnect logs. That gate can prove bounded
+beta stability; it still does not authorize trading or establish multi-day
+unattended production maturity.
