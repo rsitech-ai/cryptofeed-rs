@@ -31,7 +31,7 @@ const DEPTH_SAMPLE_INTERVAL_MS: u64 = 100;
 // tiered history client-side. Keeping more complete snapshots only increases
 // resident memory without changing the rendered heatmap.
 const DEPTH_HISTORY_CAPACITY: usize = 600;
-const UI_BUBBLE_CALIBRATION_CANDLES: usize = 30;
+const UI_BUBBLE_CALIBRATION_CANDLES: usize = 10;
 
 /// Tunables for tape rings (from `[telemetry]`).
 #[derive(Debug, Clone, Copy)]
