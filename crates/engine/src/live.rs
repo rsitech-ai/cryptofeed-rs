@@ -280,7 +280,15 @@ async fn run_session_with_reconnect_to_inner<
         }
         runner.lifecycle = SessionLifecycle::Connecting;
         let stop_signal = runner.shared_stop_signal();
-        match await_or_stop(transport.connect(spec), stop_signal).await {
+        let connect_result = timeout(
+            Duration::from_millis(spec.connect_timeout_ms.max(1)),
+            await_or_stop(transport.connect(spec), stop_signal),
+        )
+        .await
+        .unwrap_or(StopAware::Completed(Err(
+            marketfeed_transport::TransportError::Timeout,
+        )));
+        match connect_result {
             StopAware::StopRequested => {
                 return graceful_stop(runner, transport, &mut sink).await;
             }

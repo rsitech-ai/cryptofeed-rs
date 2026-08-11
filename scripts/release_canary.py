@@ -151,11 +151,32 @@ def analyze_samples(
     holds: list[str] = []
     warnings: list[str] = []
     if not samples:
-        return {"verdict": "HOLD", "holds": ["no canary samples were collected"], "warnings": []}
+        return {
+            "verdict": "HOLD",
+            "holds": ["no canary samples were collected"],
+            "warnings": [],
+            "samples": 0,
+            "duration_seconds": 0.0,
+            "venues_expected": len(expectations.get("configured_venues", [])),
+            "venues_live_min": 0,
+            "reconnect_delta": 0.0,
+            "max_queue_ratio": 0.0,
+            "rss_peak_mib": 0.0,
+            "rss_growth_mib_per_hour": None,
+            "api_latency_p95_ms": 0.0,
+            "cpu_p95_percent": 0.0,
+            "thresholds": thresholds,
+        }
 
     configured = list(expectations.get("configured_venues", []))
     expected_books = dict(expectations.get("l2_books", {}))
-    venue_maps = [{venue.get("id"): venue for venue in sample.get("venues", [])} for sample in samples]
+    venue_maps = [
+        {venue.get("id"): venue for venue in sample.get("venues", [])}
+        for sample in samples
+        if sample.get("status_http") == 200
+    ]
+    if not venue_maps:
+        holds.append("no valid status payload was collected")
 
     if any(sample.get("live_http") != 200 or sample.get("ready_http") != 200 for sample in samples):
         holds.append("daemon health/readiness was not continuously HTTP 200")
@@ -171,7 +192,7 @@ def analyze_samples(
     for venue_id in configured:
         bad_indexes = [index for index, venues in enumerate(venue_maps) if not venues.get(venue_id, {}).get("live")]
         if bad_indexes:
-            if bad_indexes[-1] == len(samples) - 1 or len(bad_indexes) > 2:
+            if bad_indexes[-1] == len(venue_maps) - 1 or len(bad_indexes) > 2:
                 holds.append(f"venue {venue_id} was not continuously live")
             else:
                 warnings.append(f"venue {venue_id} had a transient offline sample and recovered")
@@ -183,7 +204,7 @@ def analyze_samples(
             if float(venues.get(venue_id, {}).get("valid_books", 0) or 0) < float(expected)
         ]
         if bad_indexes:
-            if bad_indexes[-1] == len(samples) - 1 or len(bad_indexes) > 2:
+            if bad_indexes[-1] == len(venue_maps) - 1 or len(bad_indexes) > 2:
                 holds.append(f"venue {venue_id} did not retain {expected} valid books")
             else:
                 warnings.append(f"venue {venue_id} briefly fell below {expected} valid books and recovered")
@@ -284,13 +305,20 @@ def _expectations(config_path: pathlib.Path) -> dict:
     with config_path.open("rb") as handle:
         config = tomllib.load(handle)
     configured: list[str] = []
+    required: list[str] = []
     books: dict[str, int] = {}
     for venue_config in config.get("venues", []):
         venue_id = str(venue_config["id"])
         configured.append(venue_id)
+        if venue_config.get("required", False):
+            required.append(venue_id)
         if "l2" in venue_config.get("channels", []):
             books[venue_id] = len(venue_config.get("symbols", []))
-    return {"configured_venues": configured, "l2_books": books}
+    return {
+        "configured_venues": configured,
+        "required_venues": required,
+        "l2_books": books,
+    }
 
 
 def _runtime_config(source: pathlib.Path, destination: pathlib.Path, telemetry_port: int, ui_port: int) -> None:
@@ -341,12 +369,40 @@ def _qualified(sample: dict, expectations: dict) -> bool:
     if any(sample.get(key) != 200 for key in ("live_http", "ready_http", "ui_http", "status_http", "metrics_http")):
         return False
     venues = {venue.get("id"): venue for venue in sample.get("venues", [])}
-    if any(not venues.get(venue_id, {}).get("live") for venue_id in expectations["configured_venues"]):
+    required = expectations.get("required_venues", expectations["configured_venues"])
+    if any(not venues.get(venue_id, {}).get("live") for venue_id in required):
         return False
     return all(
         float(venues.get(venue_id, {}).get("valid_books", 0) or 0) >= expected
         for venue_id, expected in expectations["l2_books"].items()
     )
+
+
+def _qualification_gaps(sample: dict | None, expectations: dict) -> list[str]:
+    if sample is None:
+        return ["no startup status sample was collected"]
+    gaps = [
+        f"{key.removesuffix('_http')} HTTP {sample.get(key, 0)}"
+        for key in ("live_http", "ready_http", "ui_http", "status_http", "metrics_http")
+        if sample.get(key) != 200
+    ]
+    venues = {venue.get("id"): venue for venue in sample.get("venues", [])}
+    required = expectations.get("required_venues", expectations.get("configured_venues", []))
+    offline = [
+        venue_id
+        for venue_id in required
+        if not venues.get(venue_id, {}).get("live")
+    ]
+    if offline:
+        gaps.append("offline venues: " + ", ".join(offline))
+    missing_books = [
+        f"{venue_id} {float(venues.get(venue_id, {}).get('valid_books', 0) or 0):g}/{expected}"
+        for venue_id, expected in expectations.get("l2_books", {}).items()
+        if float(venues.get(venue_id, {}).get("valid_books", 0) or 0) < expected
+    ]
+    if missing_books:
+        gaps.append("valid L2 books: " + ", ".join(missing_books))
+    return gaps
 
 
 def _sha256(path: pathlib.Path) -> str:
@@ -435,16 +491,22 @@ def run_canary(args: argparse.Namespace) -> int:
     previous_handlers = {sig: signal.signal(sig, stop_child) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:
         ready_deadline = time.monotonic() + args.ready_timeout_seconds
+        last_candidate = None
         while time.monotonic() < ready_deadline:
             if process.poll() is not None:
                 raise RuntimeError(f"daemon exited before qualification with code {process.returncode}")
             candidate = _sample(process.pid, telemetry_base, ui_base, 0.0)
+            last_candidate = candidate
             if _qualified(candidate, expectations):
                 samples.append(candidate)
                 break
             time.sleep(1)
         else:
-            raise RuntimeError("daemon did not reach all-venue/L2 qualification before timeout")
+            gaps = "; ".join(_qualification_gaps(last_candidate, expectations))
+            gaps = gaps or "qualification state changed before it could be sampled"
+            raise RuntimeError(
+                "daemon did not reach all-venue/L2 qualification before timeout: " + gaps
+            )
 
         if args.smoke_script:
             smoke_env = dict(os.environ)

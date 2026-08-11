@@ -26,6 +26,12 @@ use serde::Serialize;
 use crate::config::DaemonConfig;
 use crate::state::DaemonState;
 
+const DEPTH_SAMPLE_INTERVAL_MS: u64 = 100;
+// The UI requests at most 600 warm-start columns and then maintains its longer,
+// tiered history client-side. Keeping more complete snapshots only increases
+// resident memory without changing the rendered heatmap.
+const DEPTH_HISTORY_CAPACITY: usize = 600;
+
 /// Tunables for tape rings (from `[telemetry]`).
 #[derive(Debug, Clone, Copy)]
 pub struct ViewPlaneConfig {
@@ -114,6 +120,22 @@ pub struct ViewDepthSample {
     pub epoch: u64,
     pub bids: Vec<ViewLevel>,
     pub asks: Vec<ViewLevel>,
+}
+
+#[derive(Debug, Clone)]
+struct StoredDepthSample {
+    event_ts_ns: i64,
+    epoch: u64,
+    price_scale: u8,
+    quantity_scale: u8,
+    bids: Vec<StoredDepthLevel>,
+    asks: Vec<StoredDepthLevel>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StoredDepthLevel {
+    price_coefficient: i128,
+    quantity_coefficient: i128,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -839,7 +861,7 @@ struct ViewInner {
     profiles: HashMap<(VenueId, InstrumentId), ProfileProjection>,
     bubbles: HashMap<(VenueId, InstrumentId), BubbleProjection>,
     derivatives: HashMap<(VenueId, InstrumentId), DerivativeProjection>,
-    depth_history: HashMap<(VenueId, InstrumentId), VecDeque<ViewDepthSample>>,
+    depth_history: HashMap<(VenueId, InstrumentId), VecDeque<StoredDepthSample>>,
     depth_last_sample_ns: HashMap<(VenueId, InstrumentId), i64>,
     depth_epochs: HashMap<(VenueId, InstrumentId), u64>,
     depth_coalesced_samples: HashMap<(VenueId, InstrumentId), u64>,
@@ -1424,8 +1446,12 @@ impl ViewPlane {
             .map(|history| {
                 history
                     .iter()
-                    .skip(history.len().saturating_sub(limit.clamp(1, 3_000)))
-                    .cloned()
+                    .skip(
+                        history
+                            .len()
+                            .saturating_sub(limit.clamp(1, DEPTH_HISTORY_CAPACITY)),
+                    )
+                    .map(view_depth_sample)
                     .collect()
             })
             .unwrap_or_default();
@@ -1434,8 +1460,8 @@ impl ViewPlane {
             venue: venue_config_id.into(),
             instrument: instrument.0,
             symbol,
-            sample_interval_ms: 100,
-            capacity: 3_000,
+            sample_interval_ms: DEPTH_SAMPLE_INTERVAL_MS,
+            capacity: DEPTH_HISTORY_CAPACITY,
             coalesced_samples: venue
                 .and_then(|venue| {
                     inner
@@ -1531,12 +1557,10 @@ impl ViewPlane {
                 book_quantity_at(&book.bids, price).unwrap_or(Fixed::new(0, qty_scale));
             let ask_quantity =
                 book_quantity_at(&book.asks, price).unwrap_or(Fixed::new(0, qty_scale));
-            let latest_bid = depth_quantity_at(latest.map(|sample| &sample.bids), price, qty_scale);
-            let latest_ask = depth_quantity_at(latest.map(|sample| &sample.asks), price, qty_scale);
-            let previous_bid =
-                depth_quantity_at(previous.map(|sample| &sample.bids), price, qty_scale);
-            let previous_ask =
-                depth_quantity_at(previous.map(|sample| &sample.asks), price, qty_scale);
+            let latest_bid = depth_quantity_at(latest, BookSide::Bid, price, qty_scale);
+            let latest_ask = depth_quantity_at(latest, BookSide::Ask, price, qty_scale);
+            let previous_bid = depth_quantity_at(previous, BookSide::Bid, price, qty_scale);
+            let previous_ask = depth_quantity_at(previous, BookSide::Ask, price, qty_scale);
             let Some(bid_delta) = fixed_sub(latest_bid, previous_bid) else {
                 return unavailable("dom_arithmetic_overflow");
             };
@@ -1898,8 +1922,7 @@ fn push_depth_sample(
     event_ts_ns: i64,
     snapshot: BookSnapshot,
 ) {
-    const SAMPLE_NS: i64 = 100_000_000;
-    const CAPACITY: usize = 3_000;
+    const SAMPLE_NS: i64 = (DEPTH_SAMPLE_INTERVAL_MS as i64) * 1_000_000;
     let key = (venue, instrument);
     if inner
         .depth_last_sample_ns
@@ -1913,16 +1936,48 @@ fn push_depth_sample(
     inner.depth_last_sample_ns.insert(key, event_ts_ns);
     let epoch = inner.depth_epochs.get(&key).copied().unwrap_or(0);
     let history = inner.depth_history.entry(key).or_default();
-    while history.len() >= CAPACITY {
-        history.pop_front();
+    let recycled = if history.len() >= DEPTH_HISTORY_CAPACITY {
         let counter = inner.depth_evicted_samples.entry(key).or_default();
         *counter = counter.saturating_add(1);
-    }
-    history.push_back(ViewDepthSample {
+        history.pop_front()
+    } else {
+        None
+    };
+    let price_scale = snapshot
+        .bids
+        .first()
+        .or(snapshot.asks.first())
+        .map(|level| level.price.0.scale)
+        .unwrap_or(0);
+    let quantity_scale = snapshot
+        .bids
+        .first()
+        .or(snapshot.asks.first())
+        .map(|level| level.quantity.0.scale)
+        .unwrap_or(0);
+    let store_level = |level: BookLevel| StoredDepthLevel {
+        price_coefficient: level.price.0.coefficient,
+        quantity_coefficient: level.quantity.0.coefficient,
+    };
+    let (mut bids, mut asks) = recycled
+        .map(|sample| (sample.bids, sample.asks))
+        .unwrap_or_else(|| {
+            (
+                Vec::with_capacity(snapshot.bids.len()),
+                Vec::with_capacity(snapshot.asks.len()),
+            )
+        });
+    bids.clear();
+    bids.extend(snapshot.bids.into_iter().map(store_level));
+    asks.clear();
+    asks.extend(snapshot.asks.into_iter().map(store_level));
+    history.push_back(StoredDepthSample {
         event_ts_ns,
         epoch,
-        bids: snapshot.bids.iter().map(level_json).collect(),
-        asks: snapshot.asks.iter().map(level_json).collect(),
+        price_scale,
+        quantity_scale,
+        bids,
+        asks,
     });
 }
 
@@ -2223,16 +2278,31 @@ fn book_quantity_at(levels: &[BookLevel], price: Fixed) -> Option<Fixed> {
         .map(|level| level.quantity.0)
 }
 
-fn depth_quantity_at(levels: Option<&Vec<ViewLevel>>, price: Fixed, quantity_scale: u8) -> Fixed {
+fn depth_quantity_at(
+    sample: Option<&StoredDepthSample>,
+    side: BookSide,
+    price: Fixed,
+    quantity_scale: u8,
+) -> Fixed {
+    let Some(sample) = sample else {
+        return Fixed::new(0, quantity_scale);
+    };
+    let levels = match side {
+        BookSide::Bid => &sample.bids,
+        BookSide::Ask => &sample.asks,
+    };
     levels
-        .into_iter()
-        .flatten()
+        .iter()
         .find_map(|level| {
-            let level_price = Fixed::parse_str(&level.price).ok()?;
-            compare_fixed(level_price, price)
-                .is_eq()
-                .then(|| Fixed::parse_str(&level.quantity).ok())
-                .flatten()
+            compare_fixed(
+                Fixed::new(level.price_coefficient, sample.price_scale),
+                price,
+            )
+            .is_eq()
+            .then_some(Fixed::new(
+                level.quantity_coefficient,
+                sample.quantity_scale,
+            ))
         })
         .unwrap_or(Fixed::new(0, quantity_scale))
 }
@@ -2477,6 +2547,22 @@ fn level_json(level: &BookLevel) -> ViewLevel {
     ViewLevel {
         price: format_fixed(level.price.0),
         quantity: format_fixed(level.quantity.0),
+    }
+}
+
+fn view_depth_sample(sample: &StoredDepthSample) -> ViewDepthSample {
+    let level_json = |level: &StoredDepthLevel| ViewLevel {
+        price: format_fixed(Fixed::new(level.price_coefficient, sample.price_scale)),
+        quantity: format_fixed(Fixed::new(
+            level.quantity_coefficient,
+            sample.quantity_scale,
+        )),
+    };
+    ViewDepthSample {
+        event_ts_ns: sample.event_ts_ns,
+        epoch: sample.epoch,
+        bids: sample.bids.iter().map(level_json).collect(),
+        asks: sample.asks.iter().map(level_json).collect(),
     }
 }
 
@@ -2938,6 +3024,7 @@ mod tests {
 
     #[test]
     fn book_snapshot_from_events() {
+        assert_eq!(std::mem::size_of::<StoredDepthLevel>(), 32);
         let plane = ViewPlane::new(ViewPlaneConfig::default());
         plane.register_venue(VenueId(1), "syn", &["BTC-USD".into()]);
         let mut sink = SharedViewPlane::new(std::sync::Arc::new(plane));
@@ -2952,15 +3039,73 @@ mod tests {
         assert_eq!(view.symbol.as_deref(), Some("BTC-USD"));
         let history = sink.0.depth_history("syn", InstrumentId(1), 10);
         assert_eq!(history.samples.len(), 1);
+        assert_eq!(history.capacity, DEPTH_HISTORY_CAPACITY);
         assert_eq!(history.samples[0].bids[0].price, "100.00");
         assert_eq!(history.coalesced_samples, 0);
         assert_eq!(history.evicted_samples, 0);
+        {
+            let inner = sink.0.inner.lock().expect("view lock");
+            let stored = inner
+                .depth_history
+                .get(&(VenueId(1), InstrumentId(1)))
+                .and_then(|samples| samples.front())
+                .expect("stored depth sample");
+            assert_eq!(stored.price_scale, 2);
+            assert_eq!(stored.bids[0].price_coefficient, 10_000);
+        }
 
         sink.push_batch(book_batch(VenueId(1), InstrumentId(1), "99.00", "102.00"))
             .unwrap();
         let history = sink.0.depth_history("syn", InstrumentId(1), 10);
         assert_eq!(history.samples.len(), 1);
         assert_eq!(history.coalesced_samples, 1);
+    }
+
+    #[test]
+    fn depth_ring_reuses_evicted_level_buffers() {
+        let plane = ViewPlane::new(ViewPlaneConfig::default());
+        let snapshot = BookSnapshot {
+            bids: vec![BookLevel {
+                price: Price(Fixed::parse_str("100.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("1.000").unwrap()),
+            }],
+            asks: vec![BookLevel {
+                price: Price(Fixed::parse_str("101.00").unwrap()),
+                quantity: Quantity(Fixed::parse_str("2.000").unwrap()),
+            }],
+            depth: Some(1),
+            checksum: None,
+        };
+        let key = (VenueId(1), InstrumentId(1));
+        let sample_ns = (DEPTH_SAMPLE_INTERVAL_MS as i64) * 1_000_000;
+        let first_bid_ptr = {
+            let mut inner = plane.inner.lock().expect("view lock");
+            for index in 0..DEPTH_HISTORY_CAPACITY {
+                push_depth_sample(
+                    &mut inner,
+                    key.0,
+                    key.1,
+                    index as i64 * sample_ns,
+                    snapshot.clone(),
+                );
+            }
+            inner.depth_history[&key].front().unwrap().bids.as_ptr()
+        };
+
+        {
+            let mut inner = plane.inner.lock().expect("view lock");
+            push_depth_sample(
+                &mut inner,
+                key.0,
+                key.1,
+                DEPTH_HISTORY_CAPACITY as i64 * sample_ns,
+                snapshot,
+            );
+            let history = &inner.depth_history[&key];
+            assert_eq!(history.len(), DEPTH_HISTORY_CAPACITY);
+            assert_eq!(history.back().unwrap().bids.as_ptr(), first_bid_ptr);
+            assert_eq!(inner.depth_evicted_samples[&key], 1);
+        }
     }
 
     #[test]

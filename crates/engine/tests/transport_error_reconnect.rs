@@ -333,6 +333,39 @@ async fn stop_interrupts_pending_websocket_connect() {
 }
 
 #[tokio::test]
+async fn pending_websocket_connect_is_bounded_by_spec_timeout() {
+    let mut runner = SessionRunner::new(
+        Box::new(MarkLiveAndRecordDisconnects {
+            reasons: Arc::new(Mutex::new(Vec::new())),
+        }),
+        SessionRunnerConfig {
+            record: false,
+            ..SessionRunnerConfig::default()
+        },
+    )
+    .unwrap();
+    let mut transport = HangingConnect;
+    let result = run_session_with_reconnect(
+        &mut runner,
+        &mut transport,
+        &StubHttpTransport,
+        &WebSocketSpec {
+            connect_timeout_ms: 10,
+            ..WebSocketSpec::default()
+        },
+        ReconnectPolicy {
+            min_delay_ms: 1,
+            max_delay_ms: 1,
+            reset_after_live_ms: 1_000,
+        },
+        0,
+    )
+    .await;
+
+    assert_eq!(result.unwrap_err().to_string(), "timeout");
+}
+
+#[tokio::test]
 async fn stop_bounds_pending_websocket_close() {
     let stop = Arc::new(AtomicBool::new(true));
     let mut runner = SessionRunner::new(

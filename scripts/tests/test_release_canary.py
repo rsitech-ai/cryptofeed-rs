@@ -1,5 +1,6 @@
 import importlib.util
 import pathlib
+import tempfile
 import unittest
 
 
@@ -95,6 +96,7 @@ class AnalyzeSamplesTests(unittest.TestCase):
     def test_status_or_metrics_loss_is_hold(self):
         status_failed = sample(30)
         status_failed["status_http"] = 500
+        status_failed["venues"] = []
         metrics_failed = sample(60)
         metrics_failed["metrics_http"] = 0
 
@@ -104,6 +106,7 @@ class AnalyzeSamplesTests(unittest.TestCase):
 
         self.assertEqual("HOLD", result["verdict"])
         self.assertTrue(any("observability" in item for item in result["holds"]))
+        self.assertFalse(any("offline" in item for item in result["warnings"]))
 
     def test_missing_l2_books_is_hold(self):
         degraded = [
@@ -168,6 +171,73 @@ class AnalyzeSamplesTests(unittest.TestCase):
 
         self.assertEqual("GO", result["verdict"])
         self.assertTrue(any("RSS trend" in item for item in result["warnings"]))
+
+    def test_no_samples_produces_complete_hold_report(self):
+        result = release_canary.analyze_samples([], self.expectations)
+        metadata = {
+            "git_commit": "abc123",
+            "binary_sha256": "deadbeef",
+            "started_utc": "2026-08-11T00:00:00Z",
+        }
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = pathlib.Path(directory) / "report.md"
+            release_canary._write_report(report, result, metadata)
+            text = report.read_text()
+
+        self.assertEqual("HOLD", result["verdict"])
+        self.assertEqual(0, result["samples"])
+        self.assertIn("no canary samples were collected", text)
+        self.assertIn("not qualified", text)
+
+
+class QualificationGapTests(unittest.TestCase):
+    def test_optional_offline_venue_does_not_block_sampling_start(self):
+        expectations = {
+            "configured_venues": ["binance-usdm", "deribit"],
+            "required_venues": ["binance-usdm"],
+            "l2_books": {"binance-usdm": 5},
+        }
+        current = sample(
+            0,
+            venues=[
+                venue("binance-usdm", valid_books=5),
+                venue("deribit", live=False),
+            ],
+        )
+
+        self.assertTrue(release_canary._qualified(current, expectations))
+        self.assertEqual([], release_canary._qualification_gaps(current, expectations))
+
+    def test_reports_exact_offline_venue_and_missing_books(self):
+        expectations = {
+            "configured_venues": ["binance-usdm", "deribit"],
+            "required_venues": ["binance-usdm", "deribit"],
+            "l2_books": {"binance-usdm": 5},
+        }
+        current = sample(
+            0,
+            venues=[
+                venue("binance-usdm", valid_books=3),
+                venue("deribit", live=False),
+            ],
+        )
+
+        gaps = release_canary._qualification_gaps(current, expectations)
+
+        self.assertIn("offline venues: deribit", gaps)
+        self.assertIn("valid L2 books: binance-usdm 3/5", gaps)
+
+    def test_reports_endpoint_failure_without_inventing_venue_state(self):
+        expectations = {"configured_venues": ["deribit"], "l2_books": {}}
+        current = sample(0, venues=[venue("deribit")])
+        current["status_http"] = 0
+        current["venues"] = []
+
+        gaps = release_canary._qualification_gaps(current, expectations)
+
+        self.assertIn("status HTTP 0", gaps)
+        self.assertIn("offline venues: deribit", gaps)
 
 
 class PrometheusParserTests(unittest.TestCase):
