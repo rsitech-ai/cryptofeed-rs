@@ -435,7 +435,7 @@ async fn run_session_with_reconnect_to_inner<
             }
         }
 
-        runner.on_transport_lost(disconnect_reason, now_ns())?;
+        runner.on_transport_lost(disconnect_reason.clone(), now_ns())?;
         reconnect.clear_stable_live();
         close_transport_bounded(transport, close_reason).await;
 
@@ -455,7 +455,15 @@ async fn run_session_with_reconnect_to_inner<
         }
         runner.note_reconnect();
         runner.lifecycle = SessionLifecycle::Backoff;
-        wait_for_reconnect_or_stop(runner.shared_stop_signal(), reconnect.next_delay()).await;
+        let retry_delay = reconnect.next_delay();
+        tracing::warn!(
+            venue = runner.venue().0,
+            ?disconnect_reason,
+            transport_error = ?transport_error,
+            backoff_ms = retry_delay.as_millis() as u64,
+            "session disconnected; reconnect scheduled"
+        );
+        wait_for_reconnect_or_stop(runner.shared_stop_signal(), retry_delay).await;
     }
 }
 
