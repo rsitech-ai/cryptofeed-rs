@@ -4,7 +4,7 @@
  */
 
 import { nsToSec } from './format.js';
-import { compactDepthHistory, depthHistoryBudget } from './history.js';
+import { compactDepthHistory, depthHistoryBudget, HISTORY_SECS_MAX } from './history.js';
 
 /**
  * USD notional for a tape trade (prefer server `notional` when present).
@@ -895,7 +895,7 @@ export function clampPriceZoom(v, fallback = 1) {
 export function clampViewSec(v, fallback = 300) {
   const n = Number(v);
   if (!Number.isFinite(n) || n <= 0) return fallback;
-  return Math.min(3600, Math.max(15, Math.round(n)));
+  return Math.min(HISTORY_SECS_MAX, Math.max(15, Math.round(n)));
 }
 
 /**

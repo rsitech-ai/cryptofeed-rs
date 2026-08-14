@@ -31,14 +31,41 @@ describe('urlState Flow & Pulse dock tabs', () => {
   });
 
   it('round-trips historySecs in URL state', () => {
-    const qs = buildUrlState({ asset: 'BTC', historySecs: 3600 });
-    // default 3600 is omitted
+    const qs = buildUrlState({ asset: 'BTC', historySecs: 7200 });
+    // default 7200 is omitted
     assert.equal(qs.includes('historySecs='), false);
+    const qsHour = buildUrlState({ asset: 'BTC', historySecs: 3600 });
+    assert.match(qsHour, /historySecs=3600/);
     const qs2 = buildUrlState({ asset: 'BTC', historySecs: 1800 });
     assert.match(qs2, /historySecs=1800/);
     const prev = globalThis.window;
     globalThis.window = { location: { search: '?historySecs=1800' } };
     assert.equal(parseUrlState().historySecs, 1800);
+    if (prev === undefined) delete globalThis.window;
+    else globalThis.window = prev;
+  });
+
+  it('round-trips Market Profile basis and bubble mode', () => {
+    const qs = buildUrlState({ asset: 'BTC', profileBasis: 'tpo', ofBubbleMode: 'delta' });
+    assert.match(qs, /profile=tpo/);
+    assert.match(qs, /ofBubbleMode=delta/);
+    const prev = globalThis.window;
+    globalThis.window = { location: { search: '?profile=tpo&ofBubbleMode=delta' } };
+    const parsed = parseUrlState();
+    assert.equal(parsed.profileBasis, 'tpo');
+    assert.equal(parsed.ofBubbleMode, 'delta');
+    if (prev === undefined) delete globalThis.window;
+    else globalThis.window = prev;
+  });
+
+  it('drops javascript grafana URLs from shareable state', () => {
+    const qs = buildUrlState({ asset: 'BTC', grafanaUrl: 'javascript:alert(1)' });
+    assert.equal(qs.includes('grafana='), false);
+    const prev = globalThis.window;
+    globalThis.window = { location: { search: '?grafana=javascript:alert(1)' } };
+    assert.equal(parseUrlState().grafanaUrl, undefined);
+    globalThis.window = { location: { search: '?grafana=http://127.0.0.1:3000/d/x' } };
+    assert.equal(parseUrlState().grafanaUrl, 'http://127.0.0.1:3000/d/x');
     if (prev === undefined) delete globalThis.window;
     else globalThis.window = prev;
   });

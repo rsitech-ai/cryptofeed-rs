@@ -4,7 +4,7 @@
   import { assetCoverage, colorForVenue, listAssets, mapAssetToVenues } from './lib/assets.js';
   import { CandleBuilder } from './lib/ohlcv.js';
   import { MultiVenueTracker, TIMEFRAMES } from './lib/series.js';
-  import { loadSettings, saveSettings, saveWatchlist } from './lib/settings.js';
+  import { loadSettings, saveSettings, saveWatchlist, safeHttpUrl } from './lib/settings.js';
   import { syncUrl } from './lib/urlState.js';
   import { sessionWindowSec } from './lib/session.js';
   import { DiscrepancyTracker } from './lib/discrepancy.js';
@@ -18,6 +18,7 @@
     LiveFlagGate,
   } from './lib/quality.js';
   import { nsToSec } from './lib/format.js';
+  import { tapeTipSec } from './lib/indicatorSeries.js';
   import {
     bookPressure,
     clampPriceZoom,
@@ -50,12 +51,12 @@
     spreadBpsFromBook,
   } from './lib/pulse.js';
   import { createPaintGate } from './lib/paint.js';
-  import { tapeTipSec } from './lib/indicatorSeries.js';
-  import { Book404Gate, isCurrentMarket } from './lib/contracts.js';
+  import { beginAxisDrag, normalizeLayout } from './lib/layout.js';
+  import { Book404Gate, isCurrentMarket, shouldPollVenueBook } from './lib/contracts.js';
   import { emptyMarketProfile, normalizeMarketProfile } from './lib/marketProfile.js';
   import { emptyBubbleSnapshot, normalizeBubbleSnapshot } from './lib/serverBubbles.js';
   import { emptyStructuralLevelSnapshot, normalizeStructuralLevelSnapshot } from './lib/structuralLevels.js';
-  import { emptyDerivatives, normalizeDerivatives } from './lib/derivatives.js';
+  import { derivativesFallbackTargets, emptyDerivatives, normalizeDerivatives } from './lib/derivatives.js';
   import { normalizeDepthHistory } from './lib/serverDepthHistory.js';
   import { emptyDomSnapshot, normalizeDomSnapshot } from './lib/serverDom.js';
   import { LiveCadence } from './lib/liveCadence.js';
@@ -152,6 +153,17 @@
   let domShowCum = $state(initial.domShowCum !== false);
   let domShowMbp = $state(initial.domShowMbp !== false);
   let splitDragging = $state(false);
+  let layoutDragging = $state(false);
+  const initialLayout = normalizeLayout(initial);
+  let layoutBookPx = $state(initialLayout.bookPx);
+  let layoutRightPx = $state(initialLayout.rightPx);
+  let layoutDockPx = $state(initialLayout.dockPx);
+  let layoutMainFrac = $state(initialLayout.mainFrac);
+  let layoutBpsPx = $state(initialLayout.bpsPx);
+  let layoutCasPulse = $state(initialLayout.casPulse);
+  let layoutCasImb = $state(initialLayout.casImb);
+  let layoutCasCvd = $state(initialLayout.casCvd);
+  let layoutCasVol = $state(initialLayout.casVol);
   const initialHistorySecs = clampHistorySecs(initial.historySecs, DEFAULT_HISTORY_SECS);
   let historySecs = $state(initialHistorySecs);
   const historyPolicy = new SeriesHistoryPolicy(initialHistorySecs);
@@ -891,7 +903,13 @@
       };
     }
     status = s;
-    if (s?.grafana_base_url && !grafanaUrl) grafanaUrl = s.grafana_base_url;
+    if (s?.grafana_base_url && !grafanaUrl) {
+      const url = safeHttpUrl(s.grafana_base_url);
+      if (url) {
+        grafanaUrl = url;
+        persist({ grafanaUrl: url });
+      }
+    }
   }
 
   function persist(patch) {
@@ -908,7 +926,11 @@
   }
 
   function flushLineView() {
-    const snap = tracker.snapshot(priceMode, { hidden: hiddenVenues, windowSec: sessionSec });
+    const snap = tracker.snapshot(priceMode, {
+      hidden: hiddenVenues,
+      windowSec: sessionSec,
+      chartWindowSec: historySecs,
+    });
     lineSeries = snap.series;
     discrepancy = snap.discrepancy;
     multiAggregate = snap.aggregate || { volume: 0, notional: 0, trades: 0 };
@@ -933,7 +955,7 @@
         tradesPerMin: p.tradesPerMin,
         usdPerMin: p.usdPerMin,
       },
-      Math.min(800, Math.max(120, Math.ceil(sessionSec / 1.5) + 40)),
+      Math.min(4800, Math.max(240, Math.ceil(historySecs / 1.5) + 40)),
       tipMs,
     );
     checkPulseAlert();
@@ -962,10 +984,9 @@
   }
 
   function syncCandleView() {
-    // Clip display to session window; underlying builder retains ~historySecs.
-    candles = candleBuilder.candles(sessionSec);
+    candles = candleBuilder.candles(historySecs);
     historyCandles = candleBuilder.candles(0);
-    volumeBars = candleBuilder.volumeBars(sessionSec);
+    volumeBars = candleBuilder.volumeBars(historySecs);
     lastTradePrice = candleBuilder.lastPrice;
     sessionHigh = candleBuilder.sessionHigh;
     sessionLow = candleBuilder.sessionLow;
@@ -1013,6 +1034,21 @@
   function dismissAlert(id) {
     // Hard-remove so auto-dismissed toasts do not pile up under ALERTS_MAX.
     alerts = alerts.filter((a) => a.id !== id);
+  }
+
+  function handleTestAlert() {
+    const a = createAlert(
+      'info',
+      'Test alert',
+      `In-app toast · daemon discrepancy probe at ${alertBpsThreshold} bps`,
+    );
+    pushAlert(a);
+    void fireAlert(a, {
+      type: 'bps',
+      bps: alertBpsThreshold,
+      threshold: alertBpsThreshold,
+      message: 'UI settings test alert',
+    });
   }
 
   function ensureFocusVenue() {
@@ -1462,20 +1498,28 @@
 
   async function refreshDerivatives() {
     if (!selectedVenue || !selectedSymbol || replayMode) return;
-    if (streamMode === 'sse' && stream.focusFresh(1200)) return;
+    if (streamMode === 'sse' && stream.focusFresh(1200) && derivatives.available) return;
     const now = Date.now();
     if (now - lastDerivativesAt < 1000) return;
     lastDerivativesAt = now;
-    const venue = selectedVenue;
-    const symbol = selectedSymbol;
     const generation = focusGeneration;
-    try {
-      const data = await fetchJson(derivativesQuery(venue, symbol));
-      if (generation !== focusGeneration || !isCurrentMarket(venue, symbol, selectedVenue, selectedSymbol)) return;
-      derivatives = normalizeDerivatives(data);
-    } catch {
-      if (generation === focusGeneration) derivatives = emptyDerivatives('derivatives_request_failed');
+    const targets = derivativesFallbackTargets(selectedVenue, selectedSymbol, mapped);
+    let next = emptyDerivatives('derivatives_loading');
+    for (const target of targets) {
+      try {
+        const data = await fetchJson(derivativesQuery(target.venue, target.symbol));
+        if (generation !== focusGeneration) return;
+        const normalized = normalizeDerivatives(data);
+        if (normalized.available) {
+          next = { ...normalized, venue: target.venue, symbol: target.symbol };
+          break;
+        }
+        next = { ...normalized, venue: target.venue, symbol: target.symbol };
+      } catch {
+        if (!next.available) next = emptyDerivatives('derivatives_request_failed');
+      }
     }
+    if (generation === focusGeneration) derivatives = next;
   }
 
   async function refreshServerDepthHistory() {
@@ -1540,9 +1584,12 @@
           try {
             const isFocus = t.venue === selectedVenue && t.symbol === selectedSymbol;
             const sv = statusVenues.find((v) => v.id === t.venue);
-            const bookOk =
-              !book404Gate.isSuppressed(t.venue, t.symbol) &&
-              (sv?.book_available !== false || isFocus || venueBooks.has(`${t.venue}|${t.symbol}`));
+            const bookOk = shouldPollVenueBook({
+              isFocus,
+              validBooks: sv ? Number(sv.valid_books) : null,
+              suppressed: book404Gate.isSuppressed(t.venue, t.symbol),
+              knownBook: venueBooks.has(`${t.venue}|${t.symbol}`),
+            });
             const tasks = [];
             if (!(isFocus && sseFresh)) {
               tasks.push(
@@ -1655,20 +1702,22 @@
   }
 
   function onKeydown(ev) {
+    if (ev.key === 'Escape' && analyticsOpen) {
+      ev.preventDefault();
+      analyticsOpen = false;
+      analyticsTab = 'hidden';
+      persist({ analyticsOpen: false, analyticsTab: 'hidden' });
+      return;
+    }
     if (ev.target?.matches('input, textarea, select')) return;
     if (ev.key === '/') {
       ev.preventDefault();
       marketSearchRef?.focus();
     }
-    // Legacy F/B/P: open the single pane (no layout swap). Esc hides.
+    // Legacy F/B/P: open the single pane (no layout swap).
     if (ev.key === 'f' || ev.key === 'F' || ev.key === 'b' || ev.key === 'B' || ev.key === 'p' || ev.key === 'P') {
       ev.preventDefault();
       setAnalyticsTab('both');
-    }
-    if (ev.key === 'Escape' && analyticsOpen) {
-      analyticsOpen = false;
-      analyticsTab = 'hidden';
-      persist({ analyticsOpen: false, analyticsTab: 'hidden' });
     }
     const idx = Number(ev.key);
     if (idx >= 1 && idx <= TIMEFRAMES.length) {
@@ -1702,7 +1751,8 @@
   }
 
   function openGrafana() {
-    if (grafanaUrl) window.open(grafanaUrl, '_blank', 'noopener');
+    const url = safeHttpUrl(grafanaUrl);
+    if (url) window.open(url, '_blank', 'noopener');
   }
 
   function handleSaveWatchlist() {
@@ -1855,6 +1905,97 @@
       setDomWidth(520);
     }
   }
+
+  function beginBookSplit(event) {
+    layoutDragging = true;
+    beginAxisDrag(event, {
+      axis: 'x',
+      startValue: layoutBookPx,
+      min: 180,
+      max: 420,
+      onChange: (n) => {
+        layoutBookPx = n;
+      },
+      onEnd: () => {
+        layoutDragging = false;
+        persist({ layoutBookPx });
+      },
+    });
+  }
+
+  function beginRightSplit(event) {
+    layoutDragging = true;
+    beginAxisDrag(event, {
+      axis: 'x',
+      startValue: layoutRightPx,
+      min: 220,
+      max: 480,
+      invert: true,
+      onChange: (n) => {
+        layoutRightPx = n;
+      },
+      onEnd: () => {
+        layoutDragging = false;
+        persist({ layoutRightPx });
+      },
+    });
+  }
+
+  function beginDockSplit(event) {
+    layoutDragging = true;
+    beginAxisDrag(event, {
+      axis: 'y',
+      startValue: layoutDockPx,
+      min: 140,
+      max: 480,
+      invert: true,
+      onChange: (n) => {
+        layoutDockPx = n;
+      },
+      onEnd: () => {
+        layoutDragging = false;
+        persist({ layoutDockPx });
+      },
+    });
+  }
+
+  function beginPlotSplit(event) {
+    const stack = plotStackEl;
+    if (!stack) return;
+    const h = stack.getBoundingClientRect().height || 1;
+    layoutDragging = true;
+    beginAxisDrag(event, {
+      axis: 'y',
+      startValue: layoutMainFrac,
+      min: 0.28,
+      max: 0.82,
+      scale: 1 / h,
+      round: false,
+      onChange: (n) => {
+        layoutMainFrac = n;
+      },
+      onEnd: () => {
+        layoutDragging = false;
+        persist({ layoutMainFrac });
+      },
+    });
+  }
+
+  function applyCasWeights(next) {
+    layoutCasPulse = next.pulse;
+    layoutCasImb = next.imb;
+    layoutCasCvd = next.cvd;
+    layoutCasVol = next.vol;
+  }
+
+  function commitCasWeights() {
+    persist({
+      layoutCasPulse,
+      layoutCasImb,
+      layoutCasCvd,
+      layoutCasVol,
+    });
+  }
   let venueLive = $derived(!!(status?.venues || []).find((v) => v.id === selectedVenue)?.live);
   let crossBps = $derived(discrepancy?.bps ?? null);
 </script>
@@ -1903,7 +2044,11 @@
 
   <AlertToast {alerts} onDismiss={dismissAlert} />
 
-  <div class="workspace">
+  <div
+    class="workspace"
+    class:layout-dragging={layoutDragging}
+    style={`--col-book:${layoutBookPx}px;--col-right:${layoutRightPx}px`}
+  >
     <aside class="col-book">
       <OrderBook
         {book}
@@ -1914,6 +2059,13 @@
         showDepthChart={chartMode !== 'orderflow'}
       />
     </aside>
+    <button
+      type="button"
+      class="col-splitter"
+      aria-label="Resize order book"
+      title="Drag to resize order book"
+      onpointerdown={beginBookSplit}
+    ></button>
 
     <section class="col-chart">
       {#if chartMode === 'lines'}
@@ -1928,9 +2080,11 @@
       {/if}
       <div
         class="plot-stack"
+        class:layout-dragging={layoutDragging}
         role="group"
         aria-label="Price and indicator charts"
         bind:this={plotStackEl}
+        style={`--plot-main:${layoutMainFrac}`}
         onpointerenter={beginPlotInspect}
         onpointerdown={beginPlotInspect}
         onpointerleave={() => schedulePlotInspectEnd()}
@@ -1959,6 +2113,8 @@
         {highlightVenues}
         {highlightSec}
         sessionWindowSec={sessionSec}
+        {historySecs}
+        bpsHeight={layoutBpsPx}
         toolbarOnly={chartMode === 'orderflow'}
         hoverLegend={chartMode === 'orderflow' ? null : hoverLegend}
         inspecting={plotInspecting}
@@ -1974,7 +2130,10 @@
         onPollFocus={rescheduleFocus}
         onPollMulti={rescheduleMulti}
         onAlertBps={(n) => { alertBpsThreshold = n; persist({ alertBpsThreshold: n }); }}
-        onWebhook={(u) => { webhookUrl = u; persist({ webhookUrl: u }); }}
+        onWebhook={(u) => {
+          webhookUrl = safeHttpUrl(u);
+          persist({ webhookUrl });
+        }}
         onVisibleTimeRange={(r) => {
           if (r && Number.isFinite(r.fromSec) && Number.isFinite(r.toSec)) {
             chartVisibleRange = r;
@@ -1991,6 +2150,12 @@
         onFollowLive={(live) => {
           if (live) clearPlotInspect();
         }}
+        onHistorySecs={applyHistorySecs}
+        onBpsHeight={(n) => {
+          layoutBpsPx = n;
+        }}
+        onBpsHeightCommit={() => persist({ layoutBpsPx })}
+        onTestAlert={handleTestAlert}
       />
       {#if chartMode === 'orderflow'}
         <div class="of-chart-stack" class:dragging={splitDragging} style={`--dom-width:${ofDomWidth}px`}>
@@ -2045,6 +2210,13 @@
           </div>
         </div>
       {/if}
+      <button
+        type="button"
+        class="plot-splitter"
+        aria-label="Resize price chart"
+        title="Drag to resize price vs indicator stack"
+        onpointerdown={beginPlotSplit}
+      ></button>
       <ChartAnalyticsStrip
         tape={ofTape.length ? ofTape : tape}
         {imbalanceHistory}
@@ -2054,6 +2226,14 @@
         spikeThreshold={pulseSpikeThreshold}
         showVolumeHist={true}
         mainChart={chartMode === 'orderflow' ? null : mainPriceChart}
+        paneWeights={{
+          pulse: layoutCasPulse,
+          imb: layoutCasImb,
+          cvd: layoutCasCvd,
+          vol: layoutCasVol,
+        }}
+        onPaneWeights={applyCasWeights}
+        onPaneWeightsCommit={commitCasWeights}
         onCrosshairHandles={(handles) => {
           if (!handlesEqual(paneCrosshairHandles, handles)) {
             paneCrosshairHandles = handles;
@@ -2083,6 +2263,14 @@
       {/if}
       </div>
     </section>
+
+    <button
+      type="button"
+      class="col-splitter"
+      aria-label="Resize markets"
+      title="Drag to resize markets column"
+      onpointerdown={beginRightSplit}
+    ></button>
 
     <aside class="col-right">
       <div class="markets-pane">
@@ -2124,7 +2312,20 @@
     </aside>
   </div>
 
-  <div class="analytics-dock" class:open={analyticsOpen && analyticsTab !== 'hidden'}>
+  {#if analyticsOpen && analyticsTab !== 'hidden'}
+    <button
+      type="button"
+      class="dock-splitter"
+      aria-label="Resize flow dock"
+      title="Drag to resize Flow & Pulse dock"
+      onpointerdown={beginDockSplit}
+    ></button>
+  {/if}
+  <div
+    class="analytics-dock"
+    class:open={analyticsOpen && analyticsTab !== 'hidden'}
+    style={analyticsOpen && analyticsTab !== 'hidden' ? `--dock-h:${layoutDockPx}px` : ''}
+  >
     {#if !(analyticsOpen && analyticsTab !== 'hidden')}
       <div class="dock-tabs collapsed">
         <span class="dock-title">Flow &amp; Pulse</span>
@@ -2183,7 +2384,7 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) minmax(280px, 340px);
+    grid-template-columns: var(--col-book, 250px) 6px minmax(0, 1fr) 6px var(--col-right, 310px);
   }
 
   .col-book, .col-chart, .col-right { min-height: 0; min-width: 0; }
@@ -2196,6 +2397,49 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+  }
+  .plot-stack :global(.chart-panel) {
+    flex: var(--plot-main, 0.58) 1 140px;
+  }
+  .plot-stack :global(.chart-panel.toolbar-only) {
+    flex: 0 0 auto;
+  }
+  .plot-stack :global(.cas) {
+    flex: calc(1 - var(--plot-main, 0.58)) 1 160px;
+    min-height: 160px;
+  }
+
+  .col-splitter,
+  .plot-splitter,
+  .dock-splitter {
+    padding: 0;
+    border: 0;
+    background: #171c23;
+    outline: none;
+  }
+  .col-splitter {
+    cursor: col-resize;
+    width: 6px;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .plot-splitter,
+  .dock-splitter {
+    cursor: row-resize;
+    height: 6px;
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .col-splitter:hover,
+  .plot-splitter:hover,
+  .dock-splitter:hover,
+  .col-splitter:focus-visible,
+  .plot-splitter:focus-visible,
+  .dock-splitter:focus-visible,
+  .workspace.layout-dragging .col-splitter,
+  .plot-stack.layout-dragging .plot-splitter {
+    background: rgba(240, 185, 11, 0.22);
   }
 
   .stack-xhair {
@@ -2253,7 +2497,7 @@
     flex-direction: column;
     max-height: 30vh;
   }
-  .analytics-dock.open { min-height: 180px; height: 24vh; }
+  .analytics-dock.open { min-height: 140px; height: var(--dock-h, 220px); max-height: 50vh; }
   .dock-tabs {
     display: flex;
     align-items: center;
@@ -2312,9 +2556,10 @@
       border-top: 1px solid var(--border);
     }
     .markets-pane, .trades-pane { flex: 1; }
-    .analytics-dock.open { max-height: 28vh; min-height: 180px; height: 24vh; }
+    .analytics-dock.open { max-height: 28vh; min-height: 140px; height: var(--dock-h, 220px); }
     .dock-hint { display: none; }
     .of-chart-stack { grid-template-columns: minmax(0, 1fr) 7px minmax(200px, var(--dom-width, 240px)); }
+    .col-splitter { display: none; }
   }
 
   @media (max-width: 720px) {
@@ -2324,6 +2569,7 @@
       min-height: 1240px;
       overflow: visible;
     }
+    .col-splitter { display: none; }
     .col-right { flex-direction: column; max-height: 50vh; }
     .of-chart-stack {
       grid-template-columns: 1fr;

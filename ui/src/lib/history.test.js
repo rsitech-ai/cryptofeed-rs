@@ -17,11 +17,13 @@ import {
   strideDownsample,
   tapeMaxEntries,
   trimTimeMap,
+  venueBucketBudget,
   venueSampleBudget,
 } from './history.js';
 
-test('clampHistorySecs bounds to 300–7200 with default 3600', () => {
+test('clampHistorySecs bounds to 300–7200 with default 7200', () => {
   assert.equal(clampHistorySecs(undefined), DEFAULT_HISTORY_SECS);
+  assert.equal(DEFAULT_HISTORY_SECS, 7200);
   assert.equal(clampHistorySecs('bad'), DEFAULT_HISTORY_SECS);
   assert.equal(clampHistorySecs(60), 300);
   assert.equal(clampHistorySecs(3600), 3600);
@@ -96,6 +98,18 @@ test('downsampleForChart caps 1h window to CHART_DISPLAY_MAX_POINTS', () => {
   assert.ok(out[0].time >= tip - 3600);
 });
 
+test('downsampleForChart keeps the session window 1s-dense when retention is longer', () => {
+  const tip = 100_000;
+  const pts = [];
+  for (let t = tip - 2000; t <= tip; t += 1) pts.push({ time: t, value: t });
+  const out = downsampleForChart(pts, 7200, CHART_DISPLAY_MAX_POINTS, 300);
+  assert.ok(out.length <= CHART_DISPLAY_MAX_POINTS, `${out.length} > ${CHART_DISPLAY_MAX_POINTS}`);
+  assert.equal(out[out.length - 1].time, tip);
+  const recent = out.filter((p) => p.time >= tip - 300);
+  assert.ok(recent.length >= 290 && recent.length <= 301, `recent ${recent.length}`);
+  assert.ok(out[0].time < tip - 300, `older tail missing: start ${out[0].time}`);
+});
+
 test('strideDownsample preserves ends', () => {
   const pts = Array.from({ length: 100 }, (_, i) => ({ time: i }));
   const out = strideDownsample(pts, 10);
@@ -125,6 +139,12 @@ test('compactDepthHistory trims to budget and preserves tip', () => {
   assert.ok(out.length <= budget.maxCols, `${out.length} > ${budget.maxCols}`);
   assert.equal(out[out.length - 1].t, tip);
   assert.ok(out[0].t >= tip - 3_600_000);
+});
+
+test('venueBucketBudget covers a 2h 1s window', () => {
+  assert.ok(venueBucketBudget(3600, 1) >= 3720);
+  assert.ok(venueBucketBudget(7200, 1) >= 7320);
+  assert.ok(venueBucketBudget(7200, 1) < 8000);
 });
 
 test('tape/bps/sample budgets stay hard-capped for 24/7', () => {

@@ -37,6 +37,24 @@ export class Book404Gate {
   }
 }
 
+/**
+ * Skip L2 polls for quotes-only venues. Chrome logs every 404 as a console
+ * error; `valid_books === 0` from `/v1/status` is the honest skip signal.
+ *
+ * @param {{
+ *   isFocus?: boolean,
+ *   validBooks?: number|null,
+ *   suppressed?: boolean,
+ *   knownBook?: boolean,
+ * }} [opts]
+ */
+export function shouldPollVenueBook(opts = {}) {
+  if (opts.suppressed) return false;
+  if (opts.knownBook) return true;
+  if (opts.validBooks != null && Number(opts.validBooks) <= 0) return false;
+  return true;
+}
+
 function scalar(value) {
   if (value == null) return undefined;
   if (typeof value === 'string' || typeof value === 'number') return String(value);

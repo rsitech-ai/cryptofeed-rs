@@ -1,5 +1,6 @@
 <script>
   import { emptyMarketProfile } from '../lib/marketProfile.js';
+  import { fmtPrice, fmtQty } from '../lib/format.js';
 
   let {
     profile = emptyMarketProfile(),
@@ -26,6 +27,13 @@
     if (reason === 'venue_not_registered') return 'Venue session is starting';
     if (reason === 'profile_schema_unsupported') return 'Profile schema unsupported';
     return 'Market Profile unavailable';
+  }
+
+  function displayValue(label, value) {
+    if (value == null || value === '') return '—';
+    if (label === 'TPO' || label === 'Rotation') return String(value);
+    if (label === 'Volume') return fmtQty(value);
+    return fmtPrice(value, 2);
   }
 </script>
 
@@ -60,9 +68,9 @@
   </div>
   <div class="metrics" aria-live="polite">
     {#each rows as row}
-      <div class="metric" title={row[2]}>
+      <div class="metric" title={profile.available && row[1] != null ? `${row[2]} · exact ${row[1]}` : row[2]}>
         <span>{row[0]}</span>
-        <strong>{profile.available && row[1] != null ? row[1] : '—'}</strong>
+        <strong>{profile.available && row[1] != null ? displayValue(row[0], row[1]) : '—'}</strong>
       </div>
     {/each}
   </div>

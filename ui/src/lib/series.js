@@ -8,6 +8,7 @@ import {
   downsampleForChart,
   retentionCutoff,
   trimTimeMap,
+  venueBucketBudget,
   venueSampleBudget,
 } from './history.js';
 
@@ -15,7 +16,9 @@ import {
  * Multi-venue last-price series from tape trades + quote mids.
  * Buckets by interval; line value = last price in bucket (stable, no OHLC spikes).
  * Tracks USD notional volume (price * qty) and trade intensity per venue.
- * Retains ~historySecs of buckets (default 1h); session window only clips snapshots.
+ * Retains ~historySecs of buckets (default 2h); session window clips stats.
+ * Pass `chartWindowSec` (typically historySecs) so the chart can pan/zoom
+ * retained history instead of only the live session sliver.
  */
 export class MultiVenueTracker {
   constructor(intervalSec = 1, historySecs = DEFAULT_HISTORY_SECS) {
@@ -172,11 +175,15 @@ export class MultiVenueTracker {
 
   /**
    * @param {'absolute'|'percent'} mode
-   * @param {{ hidden?: Set<string>, windowSec?: number }} [opts]
+   * @param {{ hidden?: Set<string>, windowSec?: number, chartWindowSec?: number }} [opts]
    */
   snapshot(mode = 'percent', opts = {}) {
     const hidden = opts.hidden || new Set();
     const windowSec = opts.windowSec ?? 300;
+    const chartWindowSec =
+      opts.chartWindowSec != null && Number.isFinite(Number(opts.chartWindowSec))
+        ? Math.max(0, Number(opts.chartWindowSec))
+        : windowSec;
     const series = [];
     let pointCount = 0;
     const lasts = [];
@@ -193,7 +200,7 @@ export class MultiVenueTracker {
       }
     }
     const sinceSec =
-      windowSec > 0 && latestSec > 0 ? latestSec - Math.max(1, windowSec) : 0;
+      chartWindowSec > 0 && latestSec > 0 ? latestSec - Math.max(1, chartWindowSec) : 0;
 
     for (const st of this.venues.values()) {
       const win = this.venueWindowStats(st, windowSec, latestSec || undefined);
@@ -244,8 +251,13 @@ export class MultiVenueTracker {
               time: p.time,
               value: p.price,
             }));
-      // Display downsample — keep chart paint ≤ CHART_DISPLAY_MAX_POINTS even on 1h view.
-      const data = downsampleForChart(rawData, windowSec, CHART_DISPLAY_MAX_POINTS);
+      // Display downsample: session/view stays 1s-dense; only the pan tail compresses.
+      const data = downsampleForChart(
+        rawData,
+        chartWindowSec || windowSec,
+        CHART_DISPLAY_MAX_POINTS,
+        windowSec,
+      );
 
       const last = points[points.length - 1].price;
       const lastTime = points[points.length - 1].time;
@@ -254,7 +266,12 @@ export class MultiVenueTracker {
       if (!hidden.has(st.venue)) lasts.push(last);
 
       const volRaw = hidden.has(st.venue) ? [] : volumeSeries(st, sinceSec);
-      const volumeData = downsampleForChart(volRaw, windowSec, CHART_DISPLAY_MAX_POINTS);
+      const volumeData = downsampleForChart(
+        volRaw,
+        chartWindowSec || windowSec,
+        CHART_DISPLAY_MAX_POINTS,
+        windowSec,
+      );
 
       series.push({
         venue: st.venue,
@@ -445,8 +462,8 @@ function trimVenue(st, intervalSec, historySecs) {
       maxPoints: sampleCap,
     });
     st.samples = sparse.map((p) => ({ sec: p.time, price: p.price, orderNs: p.orderNs }));
-    // Re-bucket from downsampled samples so line buckets stay consistent.
-    rebuildVenue(st, intervalSec);
+    // Keep dense line buckets. Rebuilding from downsampled samples collapsed a
+    // 2h 1s series to ~1k bars and made the chart look like a right-edge sliver.
   }
 
   // Dedup keys grow with every quote tick — trim aggressively.
@@ -455,7 +472,7 @@ function trimVenue(st, intervalSec, historySecs) {
   }
 
   // Hard safety if time tip is missing / stalled.
-  const maxBuckets = Math.min(4200, Math.max(900, historySecs + 120));
+  const maxBuckets = venueBucketBudget(historySecs, intervalSec);
   if (st.buckets.size > maxBuckets) {
     const keys = [...st.buckets.keys()].sort((a, b) => a - b);
     const drop = keys.slice(0, keys.length - maxBuckets);

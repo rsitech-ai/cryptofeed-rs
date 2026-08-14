@@ -1,12 +1,12 @@
 /**
  * Shared history retention for SPA series buffers (24/7-safe budgets).
  *
- * Session presets (1m/5m/1h) remain *view* windows; this module owns the
- * underlying retention SLA so Lines / Candles / Order Flow can switch modes
- * without wiping buffered history — while hard-capping memory/CPU.
+ * Session presets (1m/5m/1h/2h) remain *view* windows; this module owns the
+ * underlying retention SLA (default 2h) so Lines / Candles / Order Flow can
+ * switch modes and pan/zoom soak history — while hard-capping memory/CPU.
  */
 
-export const DEFAULT_HISTORY_SECS = 3600;
+export const DEFAULT_HISTORY_SECS = 7200;
 export const HISTORY_SECS_MIN = 300;
 export const HISTORY_SECS_MAX = 7200;
 
@@ -154,29 +154,64 @@ export function strideDownsample(points, maxPoints) {
 }
 
 /**
- * Chart display downsample: dense recent + sparse older, hard-capped.
+ * Chart display downsample: keep `denseSec` (session/view) at 1s, compress
+ * only the pan-able tail, hard-cap paint points. When the dense window itself
+ * exceeds `maxPoints` (e.g. a 2h session), fall back to age-tiered steps.
+ *
  * @template {{ time: number }} T
  * @param {T[]} points
- * @param {number} [windowSec]
+ * @param {number} [windowSec] retained / pan window
  * @param {number} [maxPoints]
+ * @param {number} [denseSec] session/view seconds to keep 1s-dense
  * @returns {T[]}
  */
-export function downsampleForChart(points, windowSec = 300, maxPoints = CHART_DISPLAY_MAX_POINTS) {
+export function downsampleForChart(
+  points,
+  windowSec = 300,
+  maxPoints = CHART_DISPLAY_MAX_POINTS,
+  denseSec,
+) {
   const list = Array.isArray(points) ? points : [];
   if (list.length <= maxPoints) return list;
   const tip = list[list.length - 1]?.time;
+  if (!Number.isFinite(tip)) return list.slice(-maxPoints);
+
   const win = Math.max(1, Number(windowSec) || 300);
-  const recentSec = Math.min(180, Math.max(60, Math.floor(win * 0.2)));
-  const midSec = Math.min(win, Math.max(recentSec * 2, Math.floor(win * 0.55)));
-  return downsampleByAge(list, {
-    tipSec: tip,
-    recentSec,
-    midSec,
-    recentStep: 1,
-    midStep: Math.max(2, Math.ceil(win / maxPoints)),
-    oldStep: Math.max(5, Math.ceil((win * 2) / maxPoints)),
-    maxPoints,
-  });
+  const denseRaw = Number(denseSec);
+  const recentSec =
+    Number.isFinite(denseRaw) && denseRaw > 0
+      ? Math.min(win, Math.max(1, denseRaw))
+      : Math.min(180, Math.max(60, Math.floor(win * 0.2)));
+
+  const denseStart = tip - recentSec;
+  /** @type {T[]} */
+  const densePts = [];
+  /** @type {T[]} */
+  const olderPts = [];
+  for (const p of list) {
+    const t = p?.time;
+    if (!Number.isFinite(t)) continue;
+    if (t >= denseStart) densePts.push(p);
+    else olderPts.push(p);
+  }
+
+  if (densePts.length >= maxPoints) {
+    const midSec = Math.min(win, Math.max(recentSec * 2, Math.floor(win * 0.55)));
+    return downsampleByAge(list, {
+      tipSec: tip,
+      recentSec,
+      midSec,
+      recentStep: 1,
+      midStep: Math.max(2, Math.ceil(win / maxPoints)),
+      oldStep: Math.max(5, Math.ceil((win * 2) / maxPoints)),
+      maxPoints,
+    });
+  }
+
+  const olderBudget = maxPoints - densePts.length;
+  const olderOut =
+    olderPts.length <= olderBudget ? olderPts : strideDownsample(olderPts, olderBudget);
+  return [...olderOut, ...densePts];
 }
 
 /**
@@ -269,6 +304,19 @@ export function bpsMaxPoints(historySecs = DEFAULT_HISTORY_SECS) {
 export function venueSampleBudget(historySecs = DEFAULT_HISTORY_SECS) {
   const hs = clampHistorySecs(historySecs);
   return Math.min(8000, Math.max(2000, Math.floor(hs * 1.5)));
+}
+
+/**
+ * Max 1s (or TF) line buckets to keep for `historySecs`. Must cover the full
+ * retention window — a 4200 cap silently dropped 2h of 1s history.
+ *
+ * @param {number} [historySecs]
+ * @param {number} [intervalSec]
+ */
+export function venueBucketBudget(historySecs = DEFAULT_HISTORY_SECS, intervalSec = 1) {
+  const hs = clampHistorySecs(historySecs);
+  const step = Math.max(1, Number(intervalSec) || 1);
+  return Math.max(900, Math.ceil(hs / step) + 120);
 }
 
 /**

@@ -1,8 +1,28 @@
 /** Persist/load market-panel UI preferences in localStorage. */
 
 import { parseUrlState } from './urlState.js';
+import { layoutToSettings, normalizeLayout } from './layout.js';
 
 const KEY = 'marketfeed.live.ui.v1';
+
+/**
+ * Allow only http(s) absolute URLs. Rejects javascript:/data:/relative
+ * values that would otherwise reach window.open or fetch.
+ *
+ * @param {unknown} raw
+ * @param {string} [fallback]
+ */
+export function safeHttpUrl(raw, fallback = '') {
+  const s = String(raw ?? '').trim();
+  if (!s) return fallback;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return fallback;
+    return u.toString();
+  } catch {
+    return fallback;
+  }
+}
 
 export const DEFAULTS = {
   asset: 'BTC',
@@ -22,7 +42,7 @@ export const DEFAULTS = {
   marketsKindFilter: 'all', // all | spot | perp
   alertBpsThreshold: 15,
   density: 'comfortable', // compact | comfortable
-  sessionPreset: '5m', // 1m | 5m | 1h
+  sessionPreset: '5m', // 1m | 5m | 1h | 2h
   grafanaUrl: '',
   webhookUrl: '',
   activeWatchlist: '',
@@ -62,11 +82,12 @@ export const DEFAULTS = {
   domShowMbp: true,
   domShowExec: true,
   /**
-   * Underlying SPA series retention (seconds). Session presets only clip the
-   * *view*; buffers keep ~historySecs so Lines↔Candles↔OF mode switches do not
-   * wipe history. Default 1h; URL `historySecs=`.
+   * Underlying SPA series retention (seconds). Session presets clip the live
+   * *view*; buffers keep ~historySecs so Lines↔Candles↔OF mode switches and
+   * pan/zoom still have soak history. Default 2h; URL `historySecs=`.
    */
-  historySecs: 3600,
+  historySecs: 7200,
+  ...layoutToSettings(),
 };
 
 /**
@@ -124,6 +145,7 @@ export function deleteWatchlist(id) {
 }
 
 function mergeParsed(parsed) {
+  const layout = normalizeLayout(parsed);
   return {
     ...DEFAULTS,
     ...parsed,
@@ -152,7 +174,7 @@ function mergeParsed(parsed) {
     chartMode: ['lines', 'candles', 'orderflow'].includes(parsed?.chartMode)
       ? parsed.chartMode
       : DEFAULTS.chartMode,
-    sessionPreset: ['1m', '5m', '1h'].includes(parsed?.sessionPreset)
+    sessionPreset: ['1m', '5m', '1h', '2h'].includes(parsed?.sessionPreset)
       ? parsed.sessionPreset
       : DEFAULTS.sessionPreset,
     tapeSideFilter: ['all', 'buy', 'sell'].includes(parsed?.tapeSideFilter)
@@ -181,13 +203,16 @@ function mergeParsed(parsed) {
     ofViewSec:
       parsed?.ofViewSec == null || parsed?.ofViewSec === ''
         ? null
-        : clampInt(parsed.ofViewSec, 15, 3600, null),
+        : clampInt(parsed.ofViewSec, 15, 7200, null),
     ofFollowLive: parsed?.ofFollowLive !== false,
     ofDomWidth: clampInt(parsed?.ofDomWidth, 200, 520, DEFAULTS.ofDomWidth),
     domShowCum: parsed?.domShowCum !== false,
     domShowMbp: parsed?.domShowMbp !== false,
     domShowExec: parsed?.domShowExec !== false,
+    grafanaUrl: safeHttpUrl(parsed?.grafanaUrl, DEFAULTS.grafanaUrl),
+    webhookUrl: safeHttpUrl(parsed?.webhookUrl, DEFAULTS.webhookUrl),
     historySecs: clampInt(parsed?.historySecs, 300, 7200, DEFAULTS.historySecs),
+    ...layoutToSettings(layout),
   };
 }
 

@@ -84,7 +84,7 @@
         class:soft={streamReconnecting && streamMode === 'sse'}
         title={streamReconnecting ? 'SSE reconnecting (UI stays mounted)' : 'Data transport'}
       >{streamMode === 'sse' ? 'SSE' : 'poll'}</span>
-      <span class="coming-soon" title="Exchange-reported derivatives state is shown below the chart">Funding · OI · Liq</span>
+      <span class="derivatives-chip" title="Exchange-reported funding, open interest, and liquidations are in the Derivatives strip under the chart">Funding · OI · Liq</span>
     </div>
   </div>
 
@@ -156,7 +156,7 @@
           type="button"
           class:active={sessionPreset === sp.id}
           onclick={() => onSessionPreset(sp.id)}
-          title="Stats window preset"
+          title="Chart view + stats window"
         >{sp.label}</button>
       {/each}
     </div>
@@ -280,12 +280,13 @@
     border-style: dashed;
   }
 
-  .coming-soon {
+  .derivatives-chip {
     font-family: var(--mono);
     font-size: 0.52rem;
-    color: var(--muted);
-    opacity: 0.6;
-    cursor: not-allowed;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 0.02rem 0.28rem;
+    white-space: nowrap;
   }
 
   .last-block {

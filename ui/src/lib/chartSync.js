@@ -36,6 +36,73 @@ export function wireVisibleLogicalRangeSync(source, target, guard) {
 }
 
 /**
+ * Live-follow wall-clock window.
+ * Fits X to available history when it is shorter than `sessionSec` (no empty
+ * left sliver). When retained history is longer, shows the last `sessionSec`
+ * so the user can pan/zoom into the rest.
+ *
+ * @param {number|null|undefined} dataFirst
+ * @param {number|null|undefined} dataLast
+ * @param {number} [sessionSec]
+ * @returns {{ from: number, to: number }|null}
+ */
+export function liveVisibleWindow(dataFirst, dataLast, sessionSec = 300) {
+  if (dataFirst == null || dataLast == null) return null;
+  const first = Number(dataFirst);
+  const last = Number(dataLast);
+  if (!Number.isFinite(first) || !Number.isFinite(last)) return null;
+  const want = Math.max(1, Number(sessionSec) || 300);
+  const lo = Math.min(first, last);
+  const hi = Math.max(first, last);
+  if (hi - lo < 1) return { from: hi, to: hi + 1 };
+  const from = hi - lo <= want ? lo : hi - want;
+  return { from, to: hi };
+}
+
+/**
+ * When retained history is shorter than the session, Lightweight Charts must
+ * `fitContent()` — `setVisibleRange` / `scrollToRealTime` keep `barSpacing`
+ * and invent empty logical indices on the left (the “right-edge sliver”).
+ *
+ * @param {number|null|undefined} dataFirst
+ * @param {number|null|undefined} dataLast
+ * @param {number} [sessionSec]
+ */
+export function shouldFitLiveContent(dataFirst, dataLast, sessionSec = 300) {
+  if (dataFirst == null || dataLast == null) return true;
+  const first = Number(dataFirst);
+  const last = Number(dataLast);
+  if (!Number.isFinite(first) || !Number.isFinite(last)) return true;
+  const session = Math.max(1, Number(sessionSec) || 300);
+  return Math.abs(last - first) <= session;
+}
+
+/**
+ * Earliest/latest unix-second across line rows and/or candle bars.
+ *
+ * @param {Array<{ hidden?: boolean, data?: Array<{ time?: number }> }>|null|undefined} rows
+ * @param {Array<{ time?: number }>|null|undefined} [candleRows]
+ * @returns {{ first: number, last: number }|null}
+ */
+export function seriesTimeExtent(rows, candleRows) {
+  let first = null;
+  let last = null;
+  const consider = (t) => {
+    const n = Number(t);
+    if (!Number.isFinite(n)) return;
+    if (first == null || n < first) first = n;
+    if (last == null || n > last) last = n;
+  };
+  for (const row of rows || []) {
+    if (row?.hidden) continue;
+    for (const pt of row.data || []) consider(pt.time);
+  }
+  for (const bar of candleRows || []) consider(bar.time);
+  if (first == null || last == null) return null;
+  return { first, last };
+}
+
+/**
  * True when two wall-clock ranges match within `eps` seconds.
  * Used to suppress redundant setVisibleRange that otherwise fights
  * scrollToRealTime / auto-scale and jitters stacked panes.

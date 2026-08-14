@@ -2,12 +2,23 @@
   import { emptyDerivatives } from '../lib/derivatives.js';
   let { data = emptyDerivatives() } = $props();
   let latestLiq = $derived(data.liquidations?.[0] || null);
+
+  function statusNote() {
+    if (data.available) {
+      if (data.venue && data.symbol) return `exchange-reported · ${data.venue} ${data.symbol}`;
+      return 'exchange-reported';
+    }
+    if (data.reason === 'replay_derivatives_unavailable') return 'Replay: derivatives paused';
+    if (data.reason === 'derivatives_loading') return 'Waiting for venue derivatives';
+    if (data.reason === 'derivatives_request_failed') return 'Derivatives request failed';
+    return 'No exchange-reported funding/OI on this market';
+  }
 </script>
 
 <section class="derivatives" aria-label="Exchange-reported crypto derivatives state">
   <div class="label">
     <strong>Derivatives</strong>
-    <span>exchange-reported</span>
+    <span>{statusNote()}</span>
   </div>
   <div class="metric" title="Latest funding rate from this venue">
     <span>Funding</span>

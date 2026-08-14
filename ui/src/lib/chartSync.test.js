@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {
   applyVisibleTimeRange,
   createRangeActivity,
+  liveVisibleWindow,
+  seriesTimeExtent,
+  shouldFitLiveContent,
   setVisibleTimeRangeSafe,
   visibleTimeRangesNearlyEqual,
   wireChartTimeScales,
@@ -44,6 +47,55 @@ function fakeChart(kind = 'logical', initialVisible = null) {
     },
   };
 }
+
+describe('liveVisibleWindow', () => {
+  it('fits X to short history instead of leaving an empty left session gap', () => {
+    assert.deepEqual(liveVisibleWindow(100, 190, 300), { from: 100, to: 190 });
+  });
+
+  it('clips a long buffer to the last session window', () => {
+    assert.deepEqual(liveVisibleWindow(0, 3600, 300), { from: 3300, to: 3600 });
+  });
+
+  it('fits order-flow strip windows to short pulse/tape history instead of a 2h void', () => {
+    const earliest = 1_000;
+    const tip = 1_430;
+    assert.deepEqual(liveVisibleWindow(earliest, tip, 7200), { from: 1000, to: 1430 });
+  });
+
+  it('uses a 1s span when only a single timestamp exists', () => {
+    assert.deepEqual(liveVisibleWindow(50, 50, 300), { from: 50, to: 51 });
+  });
+
+  it('returns null for missing data', () => {
+    assert.equal(liveVisibleWindow(null, 10, 300), null);
+    assert.equal(liveVisibleWindow(1, undefined, 300), null);
+  });
+});
+
+describe('shouldFitLiveContent', () => {
+  it('fits when history is shorter than the session (no empty left sliver)', () => {
+    assert.equal(shouldFitLiveContent(100, 190, 300), true);
+    assert.equal(shouldFitLiveContent(50, 50, 300), true);
+    assert.equal(shouldFitLiveContent(null, 10, 300), true);
+  });
+
+  it('keeps a trailing session window once retained history is longer', () => {
+    assert.equal(shouldFitLiveContent(0, 3600, 300), false);
+    assert.equal(shouldFitLiveContent(0, 7200, 7200), true);
+  });
+});
+
+describe('seriesTimeExtent', () => {
+  it('ignores hidden venues and uses the union of visible series', () => {
+    const extent = seriesTimeExtent([
+      { hidden: true, data: [{ time: 1 }, { time: 9 }] },
+      { data: [{ time: 40 }, { time: 80 }] },
+      { data: [{ time: 50 }] },
+    ]);
+    assert.deepEqual(extent, { first: 40, last: 80 });
+  });
+});
 
 describe('visibleTimeRangesNearlyEqual', () => {
   it('tolerates small float noise and rejects real moves', () => {

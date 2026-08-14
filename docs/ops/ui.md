@@ -143,10 +143,15 @@ Poll endpoints remain available for clients that do not use SSE.
 
 ## Out of scope (this panel)
 
-- Funding / open-interest / liquidation UI panels — not implemented (no fake numbers).
-- Telegram notifications — not implemented (in-app + optional webhook only).
+- Telegram notifications — not implemented (in-app toast + optional webhook only).
 - Private fills overlay — not implemented until a private path exists.
-- True MBO / Bookmap footprint — VAP is trade-aggregated only; labels say so.
+- True MBO / Bookmap footprint — VAP and order-flow heat are L2+tape reconstructions; labels say so.
+- Audio, trading, and order placement — not part of the public read-only panel.
+
+The Derivatives strip shows **exchange-reported** funding, open interest, and
+liquidations when a venue publishes them. It never infers liquidations from
+tape. Spot-only focus falls back to a live perp for the same asset when one
+exists.
 
 ## SPA pro features (embedded UI)
 
@@ -161,14 +166,14 @@ Poll endpoints remain available for clients that do not use SSE.
   - UI paint gates: book ~14 Hz, tape ~12 Hz, lines ~10 Hz, heatmap ~9 Hz; EMA-stable heatmap y-scale; offscreen blit.
   - `visibilitychange` forces a live refresh when the tab becomes visible again.
 - Depth chart, time & sales filters, and synchronized multi-pane time ranges.
-- Session presets (1m/5m/1h), keyboard shortcuts (`/` search, `1`–`5` TF), density toggle.
-- **Series history retention** (`historySecs`, default **3600**): shared App-owned buffers
-  keep ~1h of Lines / Candles / BPS / focus tape / OF depth columns across mode switches
+- Session presets (1m/5m/1h/2h), keyboard shortcuts (`/` search, `1`–`5` TF, `F`/`Esc` dock, `?` settings), density toggle.
+- **Series history retention** (`historySecs`, default **7200**): shared App-owned buffers
+  keep up to 2h of Lines / Candles / BPS / focus tape / OF depth columns across mode switches
   (Lines ↔ Candles ↔ Order Flow). Session presets and `ofView` only **clip the view**;
-  they do not wipe the underlying ring. URL: `?historySecs=3600` (localStorage key
+  they do not wipe the underlying ring. URL: `?historySecs=7200` (localStorage key
   `historySecs`). Older OF heat columns are downsampled (recent ~5 Hz, mid 1 Hz, older
-  0.2 Hz) so 12+ venues × 1h stays memory-conscious — not full tick-density heat for
-  the entire hour.
+  0.2 Hz) so 12+ venues × 2h stays memory-conscious — not full tick-density heat for
+  the entire window.
 - Health strip + data-quality badges; Grafana link-out; replay scrubber (best-effort).
 - **Order Flow chart mode** (`mode=orderflow`, tab next to Lines/Candles): desk-style
   **L2+tape reconstruction** (honest — **not MBO**):
@@ -237,7 +242,7 @@ cd ui && npm test
 
 ### 24/7 SPA performance
 
-The SPA keeps ~`historySecs` (default 3600) of series for mode switches, but
+The SPA keeps ~`historySecs` (default 7200) of series for mode switches, but
 **display** paths are hard-capped so a multi-hour session stays responsive:
 
 - Chart paints ≤ ~900 pts/venue (tiered downsample); LWC uses tip `update()` with throttled `setData`
