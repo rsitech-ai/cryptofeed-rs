@@ -1,12 +1,12 @@
 /**
  * Shared history retention for SPA series buffers (24/7-safe budgets).
  *
- * Session presets (1m/5m/1h) remain *view* windows; this module owns the
- * underlying retention SLA so Lines / Candles / Order Flow can switch modes
- * without wiping buffered history — while hard-capping memory/CPU.
+ * Session presets (1m/5m/1h/2h) remain *view* windows; this module owns the
+ * underlying retention SLA (default 2h) so Lines / Candles / Order Flow can
+ * switch modes and pan/zoom soak history — while hard-capping memory/CPU.
  */
 
-export const DEFAULT_HISTORY_SECS = 3600;
+export const DEFAULT_HISTORY_SECS = 7200;
 export const HISTORY_SECS_MIN = 300;
 export const HISTORY_SECS_MAX = 7200;
 
@@ -269,6 +269,19 @@ export function bpsMaxPoints(historySecs = DEFAULT_HISTORY_SECS) {
 export function venueSampleBudget(historySecs = DEFAULT_HISTORY_SECS) {
   const hs = clampHistorySecs(historySecs);
   return Math.min(8000, Math.max(2000, Math.floor(hs * 1.5)));
+}
+
+/**
+ * Max 1s (or TF) line buckets to keep for `historySecs`. Must cover the full
+ * retention window — a 4200 cap silently dropped 2h of 1s history.
+ *
+ * @param {number} [historySecs]
+ * @param {number} [intervalSec]
+ */
+export function venueBucketBudget(historySecs = DEFAULT_HISTORY_SECS, intervalSec = 1) {
+  const hs = clampHistorySecs(historySecs);
+  const step = Math.max(1, Number(intervalSec) || 1);
+  return Math.max(900, Math.ceil(hs / step) + 120);
 }
 
 /**

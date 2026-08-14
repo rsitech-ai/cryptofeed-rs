@@ -4,6 +4,7 @@ import {
   Book404Gate,
   isCurrentMarket,
   normalizeReplayEntries,
+  shouldPollVenueBook,
 } from './contracts.js';
 
 describe('isCurrentMarket', () => {
@@ -29,6 +30,20 @@ describe('Book404Gate', () => {
     gate.suppress('okx', 'BTC-USDT', 1_000);
     gate.clear('okx', 'BTC-USDT');
     assert.equal(gate.isSuppressed('okx', 'BTC-USDT', 1_001), false);
+  });
+});
+
+describe('shouldPollVenueBook', () => {
+  it('skips quotes-only venues once status reports zero books', () => {
+    assert.equal(shouldPollVenueBook({ validBooks: 0, isFocus: false }), false);
+    assert.equal(shouldPollVenueBook({ validBooks: 4, isFocus: false }), true);
+  });
+
+  it('still polls the focused market and unknown status', () => {
+    assert.equal(shouldPollVenueBook({ validBooks: 0, isFocus: true }), true);
+    assert.equal(shouldPollVenueBook({ validBooks: null, isFocus: false }), true);
+    assert.equal(shouldPollVenueBook({ validBooks: 0, knownBook: true }), true);
+    assert.equal(shouldPollVenueBook({ validBooks: 4, suppressed: true }), false);
   });
 });
 

@@ -17,11 +17,13 @@ import {
   strideDownsample,
   tapeMaxEntries,
   trimTimeMap,
+  venueBucketBudget,
   venueSampleBudget,
 } from './history.js';
 
-test('clampHistorySecs bounds to 300–7200 with default 3600', () => {
+test('clampHistorySecs bounds to 300–7200 with default 7200', () => {
   assert.equal(clampHistorySecs(undefined), DEFAULT_HISTORY_SECS);
+  assert.equal(DEFAULT_HISTORY_SECS, 7200);
   assert.equal(clampHistorySecs('bad'), DEFAULT_HISTORY_SECS);
   assert.equal(clampHistorySecs(60), 300);
   assert.equal(clampHistorySecs(3600), 3600);
@@ -125,6 +127,12 @@ test('compactDepthHistory trims to budget and preserves tip', () => {
   assert.ok(out.length <= budget.maxCols, `${out.length} > ${budget.maxCols}`);
   assert.equal(out[out.length - 1].t, tip);
   assert.ok(out[0].t >= tip - 3_600_000);
+});
+
+test('venueBucketBudget covers a 2h 1s window', () => {
+  assert.ok(venueBucketBudget(3600, 1) >= 3720);
+  assert.ok(venueBucketBudget(7200, 1) >= 7320);
+  assert.ok(venueBucketBudget(7200, 1) < 8000);
 });
 
 test('tape/bps/sample budgets stay hard-capped for 24/7', () => {

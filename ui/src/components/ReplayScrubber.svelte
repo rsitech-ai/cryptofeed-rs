@@ -114,13 +114,15 @@
 
   {#if apiAvailable === false}
     <p class="hint">
-      /v1/replay not available — load JSONL locally (MFNE events one per line).
+      Replay API unavailable — load JSONL locally (MFNE events one per line).
       Live polls pause in replay mode.
     </p>
   {:else if apiAvailable === null}
     <p class="hint">Checking replay API…</p>
+  {:else if replayFiles.length}
+    <p class="hint">Replay API available. Choose a daemon file or load local JSONL. Live polls pause while replay is on.</p>
   {:else}
-    <p class="hint">Replay API available. Choose a daemon file or load local JSONL.</p>
+    <p class="hint">No recordings in the replay directory yet. Load local JSONL, or enable recording to populate daemon files. Live polls pause while replay is on.</p>
   {/if}
 
   <div class="controls">

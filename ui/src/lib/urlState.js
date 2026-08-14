@@ -1,6 +1,6 @@
 /** Sync UI state with URL query params (URL overrides localStorage on load). */
 
-import { DEFAULTS } from './settings.js';
+import { DEFAULTS, safeHttpUrl } from './settings.js';
 import { TIMEFRAMES } from './series.js';
 import { SESSION_PRESETS } from './session.js';
 
@@ -54,7 +54,10 @@ export function parseUrlState() {
   if (hidden) out.hiddenVenues = hidden.split(',').filter(Boolean);
 
   const grafana = p.get('grafana');
-  if (grafana) out.grafanaUrl = grafana;
+  if (grafana) {
+    const url = safeHttpUrl(grafana);
+    if (url) out.grafanaUrl = url;
+  }
 
   const tab = p.get('tab');
   // Legacy tab=flow|pulse|orderflow|both → open single pane; only hidden stays hidden.
@@ -103,6 +106,12 @@ export function parseUrlState() {
   const historySecs = p.get('historySecs');
   if (historySecs != null) out.historySecs = Number(historySecs);
 
+  const profile = p.get('profile');
+  if (profile === 'tpo' || profile === 'volume') out.profileBasis = profile;
+
+  const ofBubbleMode = p.get('ofBubbleMode');
+  if (ofBubbleMode === 'delta' || ofBubbleMode === 'volume') out.ofBubbleMode = ofBubbleMode;
+
   return out;
 }
 
@@ -134,7 +143,8 @@ export function buildUrlState(state) {
   if (Array.isArray(s.hiddenVenues) && s.hiddenVenues.length) {
     p.set('hidden', s.hiddenVenues.join(','));
   }
-  if (s.grafanaUrl) p.set('grafana', s.grafanaUrl);
+  const grafanaUrl = safeHttpUrl(s.grafanaUrl);
+  if (grafanaUrl) p.set('grafana', grafanaUrl);
   if (s.analyticsTab === 'hidden') {
     p.set('tab', 'hidden');
   }
@@ -166,6 +176,12 @@ export function buildUrlState(state) {
   if (s.ofFollowLive === false) p.set('ofLive', '0');
   if (s.historySecs != null && s.historySecs !== DEFAULTS.historySecs) {
     p.set('historySecs', String(s.historySecs));
+  }
+  if (s.profileBasis && s.profileBasis !== DEFAULTS.profileBasis) {
+    p.set('profile', String(s.profileBasis));
+  }
+  if (s.ofBubbleMode && s.ofBubbleMode !== DEFAULTS.ofBubbleMode) {
+    p.set('ofBubbleMode', String(s.ofBubbleMode));
   }
 
   return p.toString();

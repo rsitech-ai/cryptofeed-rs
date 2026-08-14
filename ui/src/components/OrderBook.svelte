@@ -12,6 +12,9 @@
     showDepthChart = true,
   } = $props();
 
+  let hasLevels = $derived(!!(book?.bids?.length || book?.asks?.length));
+  let bookReady = $derived(book != null);
+
   /**
    * Stable slot model: fixed `depth` rows for asks/bids.
    * Keys prefer price; empty slots use slot ids so Svelte does not remount the list.
@@ -106,6 +109,10 @@
     </span>
   </div>
 
+  {#if bookReady && !hasLevels}
+    <div class="empty-book" role="status">No L2 depth — quotes and tape only</div>
+  {/if}
+
   <div class="asks" style={`--rows:${withTotals.slots}`}>
     {#each withTotals.asksDesc as lvl (lvl.key)}
       <div class="row ask" class:empty={lvl.empty}>
@@ -175,6 +182,16 @@
     padding: 0.4rem 0.5rem 0.3rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+  }
+
+  .empty-book {
+    margin: 0.35rem 0.5rem 0;
+    padding: 0.28rem 0.4rem;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    line-height: 1.3;
   }
 
   .title-row {

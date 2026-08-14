@@ -12,6 +12,7 @@
   import {
     applyVisibleTimeRange,
     createRangeActivity,
+    liveVisibleWindow,
     wireChartTimeScales,
   } from '../lib/chartSync.js';
   import { stepHoldSeries, tapeTipSec } from '../lib/indicatorSeries.js';
@@ -34,6 +35,8 @@
     mainChart = null,
     /** Emit [{id, chart, series}] for multi-pane crosshair sync. */
     onCrosshairHandles = () => {},
+    paneWeights = { pulse: 1, imb: 1, cvd: 1, vol: 1.15 },
+    onPaneWeights = () => {},
   } = $props();
 
   let pulseHost = $state(null);
@@ -66,6 +69,8 @@
   const rangeActivity = createRangeActivity();
   /** @type {(() => void)|null} */
   let syncDispose = null;
+  /** @type {ResizeObserver|null} */
+  let paneResizeObserver = null;
   let paintRaf = 0;
   let pending = false;
   const FULL_SET_MIN_MS = 12000;
@@ -76,7 +81,38 @@
   /** @type {{ first: number, last: number, fullAt: number }|null} */
   let lastCvdWin = null;
   let lastVolFullAt = 0;
+  let splitDragging = $state(false);
+  /** Last OF-mode visible window key, to skip redundant setVisibleRange. */
   let lastAppliedRangeKey = '';
+
+  function setPaneWeight(key, next) {
+    const cur = {
+      pulse: Number(paneWeights?.pulse) || 1,
+      imb: Number(paneWeights?.imb) || 1,
+      cvd: Number(paneWeights?.cvd) || 1,
+      vol: Number(paneWeights?.vol) || 1.15,
+    };
+    cur[key] = next;
+    onPaneWeights(cur);
+  }
+
+  function beginPaneSplit(event, key) {
+    event.preventDefault();
+    const startY = event.clientY;
+    const start = Number(paneWeights?.[key]) || 1;
+    splitDragging = true;
+    const move = (ev) => {
+      const next = Math.min(3, Math.max(0.4, start + (ev.clientY - startY) / 80));
+      setPaneWeight(key, next);
+    };
+    const stop = () => {
+      splitDragging = false;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop, { once: true });
+  }
 
   // Panes are slaves of the main chart: no independent pan/zoom.
   const paneOpts = {
@@ -87,6 +123,7 @@
       fontFamily: 'IBM Plex Mono, SF Mono, Menlo, Consolas, monospace',
       attributionLogo: false,
     },
+    attributionLogo: false,
     grid: {
       vertLines: { color: '#1a1f27' },
       horzLines: { color: '#1a1f27' },
@@ -133,6 +170,22 @@
     return Math.floor(Date.now() / 1000);
   }
 
+  function earliestIndicatorSec() {
+    let first = null;
+    const consider = (sec) => {
+      const n = Number(sec);
+      if (!Number.isFinite(n) || n <= 0) return;
+      if (first == null || n < first) first = n;
+    };
+    for (const p of pulseHistory || []) consider(Number(p.t) / 1000);
+    for (const p of imbalanceHistory || []) consider(Number(p.t) / 1000);
+    for (const e of tape || []) {
+      const ns = Number(e?.exchange_ts_ns ?? e?.receive_ts_ns);
+      if (Number.isFinite(ns) && ns > 0) consider(Math.floor(ns / 1e9));
+    }
+    return first;
+  }
+
   function rangeBounds() {
     if (
       visibleRange &&
@@ -143,23 +196,21 @@
       return { fromSec: visibleRange.fromSec, toSec: visibleRange.toSec };
     }
     const toSec = tipSec();
-    return { fromSec: toSec - Math.max(1, Number(windowSec) || 300), toSec };
+    const want = Math.max(1, Number(windowSec) || 300);
+    const earliest = earliestIndicatorSec();
+    const win = liveVisibleWindow(earliest ?? toSec, toSec, want);
+    if (win) return { fromSec: win.from, toSec: win.to };
+    return { fromSec: toSec - want, toSec };
   }
 
   /**
-   * Live-anchored retention on the exchange tip clock so pan/zoom still has
-   * bars. Visible window is applied separately via one-way time-scale sync.
+   * Cover the shared visible window (plus live tip). Do not invent a longer
+   * session grid than the main chart is showing — that backfilled empty left.
    */
   function dataBounds() {
-    const end = tipSec();
     const vis = rangeBounds();
-    const span = Math.max(
-      1,
-      Number(windowSec) || 300,
-      vis.toSec - vis.fromSec,
-      end - vis.fromSec,
-    );
-    return { fromSec: end - span, toSec: end };
+    const end = Math.max(tipSec(), vis.toSec);
+    return { fromSec: vis.fromSec, toSec: end };
   }
 
   /**
@@ -190,6 +241,10 @@
     // Step-hold grids change left edge often — full setData keeps LWC happy.
     seriesApi.setData(data);
     return { first, last: last.time, fullAt: now };
+  }
+
+  function resizeAllPanes() {
+    lockPanesToMain();
   }
 
   function childCharts() {
@@ -335,6 +390,8 @@
     lastPulseWin = lastImbWin = lastCvdWin = null;
     lastVolFullAt = 0;
     lastAppliedRangeKey = '';
+    paneResizeObserver?.disconnect();
+    paneResizeObserver = null;
     ready = false;
     try {
       onCrosshairHandles([]);
@@ -422,9 +479,17 @@
     }
 
     ready = true;
+    paneResizeObserver?.disconnect();
+    paneResizeObserver = new ResizeObserver(() => {
+      resizeAllPanes();
+    });
+    for (const el of [pulseHost, imbHost, cvdHost, volHost]) {
+      if (el) paneResizeObserver.observe(el);
+    }
     rewireSync();
     publishCrosshairHandles();
     schedulePaint();
+    requestAnimationFrame(resizeAllPanes);
   });
 
   $effect(() => {
@@ -577,20 +642,23 @@
   });
 </script>
 
-<section class="cas" aria-label="Chart flow and pulse analytics">
+<section class="cas" class:dragging={splitDragging} aria-label="Chart flow and pulse analytics" style={`--cas-pulse:${paneWeights?.pulse ?? 1};--cas-imb:${paneWeights?.imb ?? 1};--cas-cvd:${paneWeights?.cvd ?? 1};--cas-vol:${paneWeights?.vol ?? 1.15}`}>
   <div class="pane pulse">
     <span class="pane-lbl">Pulse</span>
     <div class="pane-host" bind:this={pulseHost}></div>
   </div>
+  <button type="button" class="pane-splitter" aria-label="Resize pulse pane" onpointerdown={(e) => beginPaneSplit(e, 'pulse')}></button>
   <div class="pane imb">
     <span class="pane-lbl">Imb</span>
     <div class="pane-host" bind:this={imbHost}></div>
   </div>
+  <button type="button" class="pane-splitter" aria-label="Resize imbalance pane" onpointerdown={(e) => beginPaneSplit(e, 'imb')}></button>
   <div class="pane cvd">
     <span class="pane-lbl">CVD</span>
     <div class="pane-host" bind:this={cvdHost}></div>
   </div>
   {#if showVolumeHist}
+    <button type="button" class="pane-splitter" aria-label="Resize CVD pane" onpointerdown={(e) => beginPaneSplit(e, 'cvd')}></button>
     <div class="pane vol">
       <span class="pane-lbl">Buy / Sell</span>
       <div class="pane-host" bind:this={volHost}></div>
@@ -601,19 +669,18 @@
 <style>
   .cas {
     flex: 1 1 160px;
-    min-height: 112px;
+    min-height: 160px;
     overflow: hidden;
     border-top: 1px solid var(--border);
     background: var(--panel);
     display: flex;
     flex-direction: column;
-    min-height: 0;
   }
 
   .pane {
     position: relative;
     flex: 1 1 52px;
-    min-height: 24px;
+    min-height: 36px;
     border-top: 1px solid var(--border);
     background: var(--panel);
   }
@@ -622,8 +689,24 @@
     border-top: none;
   }
 
-  .pane.vol {
-    flex-basis: 64px;
+  .pane.pulse { flex-grow: var(--cas-pulse, 1); }
+  .pane.imb { flex-grow: var(--cas-imb, 1); }
+  .pane.cvd { flex-grow: var(--cas-cvd, 1); }
+  .pane.vol { flex-grow: var(--cas-vol, 1.15); flex-basis: 40px; }
+
+  .pane-splitter {
+    flex-shrink: 0;
+    height: 6px;
+    padding: 0;
+    cursor: row-resize;
+    background: #171c23;
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+  .pane-splitter:hover,
+  .pane-splitter:focus-visible,
+  .cas.dragging .pane-splitter {
+    background: rgba(240, 185, 11, 0.22);
   }
 
   .pane-lbl {

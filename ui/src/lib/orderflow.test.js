@@ -393,7 +393,7 @@ describe('heatmap / depth ring', () => {
     assert.equal(clampPriceZoom(0.1), 0.25);
     assert.equal(clampPriceZoom(99), 6);
     assert.equal(clampViewSec(5), 15);
-    assert.equal(clampViewSec(99999), 3600);
+    assert.equal(clampViewSec(99999), 7200);
   });
 
   it('maps intensity to blue→red palette', () => {

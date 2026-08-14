@@ -1,15 +1,38 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
+const uiProxy = process.env.MF_UI_PROXY || 'http://127.0.0.1:19109';
+const telemetryProxy = process.env.MF_TELEMETRY_PROXY || 'http://127.0.0.1:19108';
+
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [
+    svelte(),
+    {
+      name: 'quiet-browser-icons',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const path = req.url?.split('?')[0] || '';
+          if (
+            path === '/favicon.ico' ||
+            path === '/apple-touch-icon.png' ||
+            path === '/apple-touch-icon-precomposed.png'
+          ) {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
+          next();
+        });
+      },
+    },
+  ],
   server: {
     port: 5173,
     proxy: {
-      '/v1': 'http://127.0.0.1:19109',
-      '/live': 'http://127.0.0.1:19108',
-      '/ready': 'http://127.0.0.1:19108',
-      '/metrics': 'http://127.0.0.1:19108',
+      '/v1': uiProxy,
+      '/live': telemetryProxy,
+      '/ready': telemetryProxy,
+      '/metrics': telemetryProxy,
     },
   },
   build: {

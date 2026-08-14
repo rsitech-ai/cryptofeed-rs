@@ -1,5 +1,7 @@
 /** In-app alerts + optional webhook delivery. */
 
+import { safeHttpUrl } from './settings.js';
+
 /**
  * @typedef {{ id: string, kind: 'bps'|'lag'|'info', title: string, body: string, ts: number, dismissed?: boolean }} Alert
  */
@@ -34,9 +36,10 @@ export function createAlert(kind, title, body) {
  * @param {object} payload
  */
 export async function sendWebhook(webhookUrl, payload) {
-  if (!webhookUrl?.trim()) return { ok: false, reason: 'no url' };
+  const url = safeHttpUrl(webhookUrl);
+  if (!url) return { ok: false, reason: 'no url' };
   try {
-    const res = await fetch(webhookUrl, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

@@ -13,11 +13,16 @@
   import {
     applyVisibleTimeRange,
     createRangeActivity,
+    liveVisibleWindow,
+    seriesTimeExtent,
+    shouldFitLiveContent,
     visibleTimeRangesNearlyEqual,
     wireChartTimeScales,
   } from '../lib/chartSync.js';
+  import { CHART_DISPLAY_MAX_POINTS, downsampleForChart } from '../lib/history.js';
   import { stepHoldSeries } from '../lib/indicatorSeries.js';
   import { numericCommit } from '../lib/numericInput.js';
+  import { beginAxisDrag } from '../lib/layout.js';
   import ChartHoverLegend from './ChartHoverLegend.svelte';
 
   /** Shared right-scale width so main + BPS plot areas stay aligned. */
@@ -47,6 +52,8 @@
     highlightVenues = [],
     highlightSec = null,
     sessionWindowSec = 300,
+    historySecs = 7200,
+    bpsHeight = 64,
     toolbarOnly = false,
     hoverLegend = null,
     /**
@@ -74,6 +81,9 @@
     onCrosshairHandles = () => {},
     /** Notify parent when follow-live pin changes (Live button / user pan). */
     onFollowLive = () => {},
+    onHistorySecs = () => {},
+    onBpsHeight = () => {},
+    onTestAlert = () => {},
   } = $props();
 
   let host = $state(null);
@@ -89,7 +99,7 @@
   let markersApi = null;
   let markerSeries = null;
   let fitKey = '';
-  /** When true, keep time scale pinned to the newest bar (scrollToRealTime). */
+  /** When true, keep time scale pinned to the newest bar (fit / last session). */
   let followLive = $state(true);
   let showSettings = $state(false);
   const rangeActivity = createRangeActivity();
@@ -125,6 +135,8 @@
   const FULL_SET_MIN_MS = 12000;
   let tabHidden = false;
   let hiddenPollTimer = 0;
+  let hostResizeObserver = null;
+  let bpsSplitDragging = $state(false);
 
   const chartOpts = {
     layout: {
@@ -132,7 +144,9 @@
       textColor: '#848e9c',
       fontSize: 11,
       fontFamily: 'IBM Plex Mono, SF Mono, Menlo, Consolas, monospace',
+      attributionLogo: false,
     },
+    attributionLogo: false,
     grid: {
       vertLines: { color: '#1a1f27' },
       horzLines: { color: '#1a1f27' },
@@ -297,16 +311,70 @@
     }
     markProgrammatic(250);
     rangeActivity.runProgrammatic(() => {
-      chart?.timeScale().scrollToRealTime();
-      // BPS follows via one-way time sync — do not scrollToRealTime on it
-      // (fights setVisibleRange and jitters the plot area left/right).
-      scheduleBpsVisibleRangeSync(true);
+      applyFollowLiveWindow(series, candles, chartMode);
     });
   }
 
   /** Live edge advances only when pinned and not temporarily inspecting. */
   function shouldFollowLive() {
     return followLive && !inspecting;
+  }
+
+  /** Copy main's wall-clock window onto BPS after fitContent / setVisibleRange. */
+  function syncStackedToMain() {
+    if (!chart) return;
+    try {
+      const r = chart.timeScale().getVisibleRange?.();
+      const from = Number(r?.from);
+      const to = Number(r?.to);
+      if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+      lastBpsVisibleRange = { from, to };
+      if (bpsChart) {
+        applyVisibleTimeRange(
+          [bpsChart],
+          { fromSec: from, toSec: to },
+          rangeActivity.syncGuard,
+        );
+      }
+    } catch {
+      /* scale may not be ready */
+    }
+  }
+
+  /**
+   * Fit the shared time window to available history (or the last sessionSec
+   * of it). `fitContent` when history is shorter than the session — otherwise
+   * `scrollToRealTime` / fixed barSpacing leave empty logical indices on the left.
+   */
+  function applyFollowLiveWindow(rows, candleRows, mode) {
+    if (!chart) return;
+    const extent =
+      mode === 'candles'
+        ? seriesTimeExtent(null, candleRows)
+        : seriesTimeExtent(rows);
+    const win = liveVisibleWindow(extent?.first, extent?.last, sessionWindowSec);
+    const fit = shouldFitLiveContent(extent?.first, extent?.last, sessionWindowSec);
+    if (!win || fit) {
+      try {
+        chart.timeScale().fitContent();
+      } catch {
+        try {
+          chart.timeScale().scrollToRealTime();
+        } catch {
+          /* ignore */
+        }
+      }
+      // fitContent applies on the next layout pass — copy the resulting
+      // wall-clock window onto BPS after it exists.
+      requestAnimationFrame(() => syncStackedToMain());
+      return;
+    }
+    applyVisibleTimeRange(
+      [chart, bpsChart].filter(Boolean),
+      { fromSec: win.from, toSec: win.to },
+      rangeActivity.syncGuard,
+    );
+    lastBpsVisibleRange = { from: win.from, to: win.to };
   }
 
   function captureFrozenVisibleRange() {
@@ -356,10 +424,19 @@
     const onVis = () => {
       tabHidden = document.visibilityState === 'hidden';
     };
+    const onKeys = (ev) => {
+      if (ev.target?.matches?.('input, textarea, select')) return;
+      if (ev.key === '?' || (ev.shiftKey && ev.key === '/')) {
+        ev.preventDefault();
+        showSettings = !showSettings;
+      }
+    };
     onVis();
     document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('keydown', onKeys);
     return () => {
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('keydown', onKeys);
       ready = false;
       if (chartPaintRaf) cancelAnimationFrame(chartPaintRaf);
       chartPaintRaf = 0;
@@ -377,6 +454,8 @@
     unwireSync();
     hostPointerDisposer?.();
     hostPointerDisposer = null;
+    hostResizeObserver?.disconnect();
+    hostResizeObserver = null;
     bpsInteractionDisposer?.();
     bpsInteractionDisposer = null;
     chartInteractionDisposer?.();
@@ -426,13 +505,26 @@
       autoSize: true,
       rightPriceScale: {
         borderColor: '#1e2329',
-        scaleMargins: { top: 0.08, bottom: showVolume ? 0.28 : 0.08 },
+        scaleMargins: { top: 0.06, bottom: showVolume ? 0.18 : 0.06 },
         entireTextOnly: true,
         minimumWidth: PRICE_SCALE_MIN_WIDTH,
       },
     });
     chartInteractionDisposer = observeUserRange(chart);
     hostPointerDisposer = wireHostPanGestures(host);
+    hostResizeObserver?.disconnect();
+    hostResizeObserver = new ResizeObserver(() => {
+      if (!shouldFollowLive()) return;
+      markProgrammatic(120);
+      rangeActivity.runProgrammatic(() => {
+        applyFollowLiveWindow(series, candles, chartMode);
+      });
+    });
+    try {
+      hostResizeObserver.observe(host);
+    } catch {
+      /* ignore */
+    }
     followLive = true;
     ready = true;
     try {
@@ -562,14 +654,14 @@
     if (!showVolume) {
       clearVolume();
       if (volMarginsOn !== false) {
-        chart?.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.08 } } });
+        chart?.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.06, bottom: 0.06 } } });
         volMarginsOn = false;
       }
       return;
     }
     ensureVolumeSeries();
     if (volMarginsOn !== true) {
-      chart.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.08, bottom: 0.28 } } });
+      chart.applyOptions({ rightPriceScale: { scaleMargins: { top: 0.06, bottom: 0.18 } } });
       volMarginsOn = true;
     }
     const list = bars || [];
@@ -676,13 +768,20 @@
             close: x.close,
           }))
         : [];
-      if (mapped.length) {
-        lastCandleWindow = writeSeriesData(candleSeries, mapped, lastCandleWindow);
+      const span = mapped.length
+        ? Math.max(1, mapped[mapped.length - 1].time - mapped[0].time)
+        : sessionWindowSec;
+      const painted = downsampleForChart(mapped, span, CHART_DISPLAY_MAX_POINTS);
+      if (painted.length) {
+        lastCandleWindow = writeSeriesData(candleSeries, painted, lastCandleWindow);
       } else {
         candleSeries.setData([]);
         lastCandleWindow = null;
       }
-      applyVolumeData(volBarsIn);
+      const volSpan = volBarsIn?.length
+        ? Math.max(1, volBarsIn[volBarsIn.length - 1].time - volBarsIn[0].time)
+        : span;
+      applyVolumeData(downsampleForChart(volBarsIn || [], volSpan, CHART_DISPLAY_MAX_POINTS));
       setHighlight(candleSeries, hl);
     } else if (mode === 'lines') {
       clearCandles();
@@ -742,7 +841,10 @@
         const focus = rows.find((r) => r.venue === focusVenue);
         bars = focus?.volumeData?.length ? focus.volumeData : mergeVolume(rows.filter((r) => !r.hidden));
       }
-      applyVolumeData(bars);
+      const volSpan = bars?.length > 1
+        ? Math.max(1, bars[bars.length - 1].time - bars[0].time)
+        : sessionWindowSec;
+      applyVolumeData(downsampleForChart(bars || [], volSpan, CHART_DISPLAY_MAX_POINTS));
       setHighlight(primary, hl);
 
       if (bpsLineSeries && bpsChart) {
@@ -761,10 +863,13 @@
         const sparse = (bps || [])
           .filter((p) => p && Number.isFinite(p.time) && Number.isFinite(p.bps))
           .map((p) => ({ t: Number(p.time), v: Number(p.bps) }));
-        const bpsData =
+        const held =
           fromSec != null && toSec != null && toSec >= fromSec
             ? stepHoldSeries(sparse, fromSec, toSec)
             : sparse.map((p) => ({ time: p.t, value: p.v }));
+        const bpsSpan =
+          held.length > 1 ? Math.max(1, held[held.length - 1].time - held[0].time) : sessionWindowSec;
+        const bpsData = downsampleForChart(held, bpsSpan, CHART_DISPLAY_MAX_POINTS);
         let didFullSet = false;
         if (!bpsData.length) {
           bpsLineSeries.setData([]);
@@ -821,10 +926,7 @@
       requestAnimationFrame(() => {
         markProgrammatic(250);
         rangeActivity.runProgrammatic(() => {
-          // Prefer scrollToRealTime over fitContent — fitContent zooms to full
-          // history and fights the live-edge pin as points keep arriving.
-          chart?.timeScale().scrollToRealTime();
-          scheduleBpsVisibleRangeSync(true);
+          applyFollowLiveWindow(rows, candleRows, mode);
         });
       });
     } else if (inspecting) {
@@ -833,30 +935,12 @@
       if (!frozenVisibleRange) captureFrozenVisibleRange();
       applyFrozenVisibleRange();
     } else if (shouldFollowLive()) {
-      // Keep newest bar at the right edge; throttle to cut jank.
       const now = performance.now();
       if (now - lastScrollAt > 250) {
         lastScrollAt = now;
         markProgrammatic(120);
         rangeActivity.runProgrammatic(() => {
-          // Recover from accidental 1-bar zoom (e.g. old bidirectional pane sync).
-          try {
-            const logical = chart.timeScale().getVisibleLogicalRange?.();
-            if (logical && Number.isFinite(logical.from) && Number.isFinite(logical.to)) {
-              const span = logical.to - logical.from;
-              if (span > 0 && span < 12) {
-                chart.timeScale().setVisibleLogicalRange({
-                  from: logical.to - 90,
-                  to: logical.to + 2,
-                });
-              }
-            }
-          } catch {
-            /* ignore */
-          }
-          chart.timeScale().scrollToRealTime();
-          // Main scrolls; BPS mirrors via sync (never scrollToRealTime on BPS).
-          scheduleBpsVisibleRangeSync(false);
+          applyFollowLiveWindow(rows, candleRows, mode);
         });
       }
     }
@@ -887,6 +971,7 @@
         wallSec: Math.floor(Date.now() / 1000),
         gapSec:
           dataLast != null ? Math.floor(Date.now() / 1000) - dataLast : null,
+        logicalFrom: logical ? Number(logical.from) : null,
       };
     } catch {
       /* ignore */
@@ -915,6 +1000,7 @@
     focusVenue;
     inspecting;
     followLive;
+    sessionWindowSec;
     // Background tabs: paint at most ~2 Hz to cut CPU while retaining buffers.
     if (tabHidden) {
       if (!hiddenPollTimer) {
@@ -1005,7 +1091,7 @@
           class:active={followLive}
           class:live-pin={followLive}
           onclick={() => pinToLive()}
-          title="Pin time scale to live edge (scrollToRealTime)"
+          title="Pin to live edge and fit X to the session window (or shorter available history)"
         >Live</button>
         <button type="button" class:active={showSettings} onclick={() => (showSettings = !showSettings)}>⚙</button>
       </div>
@@ -1041,7 +1127,9 @@
       <label>Multi poll ms <input type="number" min="100" max="5000" step="20" use:numericCommit={{ value: pollMultiMs, min: 100, max: 5000, integer: true, onCommit: onPollMulti }} /></label>
       <label>Alert bps <input type="number" min="1" max="500" use:numericCommit={{ value: alertBpsThreshold, min: 1, max: 500, onCommit: onAlertBps }} /></label>
       <label>Webhook <input type="url" placeholder="https://…" value={webhookUrl} onchange={(e) => onWebhook(e.currentTarget.value)} /></label>
-      <span class="hint">Legend: USD vol · trades/min · raw qty in tooltip · Telegram skipped</span>
+      <label>History sec <input type="number" min="300" max="7200" step="300" use:numericCommit={{ value: historySecs, min: 300, max: 7200, integer: true, onCommit: onHistorySecs }} /></label>
+      <button type="button" class="test-alert" onclick={() => onTestAlert()}>Test alert</button>
+      <p class="keys-hint">Keys: <kbd>/</kbd> search · <kbd>1</kbd>–<kbd>5</kbd> TF · <kbd>F</kbd> dock · <kbd>Esc</kbd> hide dock · <kbd>?</kbd> settings</p>
     </div>
   {/if}
 
@@ -1073,7 +1161,27 @@
       <ChartHoverLegend legend={hoverLegend} />
       <div class="chart-host" bind:this={host}></div>
       {#if chartMode === 'lines' && showBpsPane}
-        <div class="bps-host" bind:this={bpsHost}></div>
+        <button
+          type="button"
+          class="bps-splitter"
+          class:dragging={bpsSplitDragging}
+          aria-label="Resize discrepancy pane"
+          title="Drag to resize Δbps pane"
+          onpointerdown={(event) => {
+            bpsSplitDragging = true;
+            beginAxisDrag(event, {
+              axis: 'y',
+              startValue: bpsHeight,
+              min: 40,
+              max: 160,
+              onChange: onBpsHeight,
+              onEnd: () => {
+                bpsSplitDragging = false;
+              },
+            });
+          }}
+        ></button>
+        <div class="bps-host" bind:this={bpsHost} style={`height:${bpsHeight}px`}></div>
       {/if}
       {#if chartMode === 'lines' && !series.some((s) => s.data?.length && !s.hidden)}
         <div class="overlay">streaming multi-venue prices…</div>
@@ -1143,7 +1251,30 @@
   .settings label { display: flex; align-items: center; gap: 0.35rem; font-size: 0.68rem; color: var(--muted); font-family: var(--mono); }
   .settings input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.15rem 0.3rem; font-family: var(--mono); font-size: 0.7rem; }
   .settings input[type='url'] { width: 10rem; }
-  .settings .hint { font-size: 0.62rem; color: var(--muted); font-family: var(--mono); }
+  .settings .test-alert {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 0.12rem 0.4rem;
+    cursor: pointer;
+  }
+  .settings .test-alert:hover { border-color: var(--accent); }
+  .settings .keys-hint {
+    flex: 1 1 100%;
+    margin: 0;
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    color: var(--muted);
+  }
+  .settings kbd {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    border: 1px solid var(--border);
+    padding: 0 0.22rem;
+    color: var(--text);
+  }
 
   .legend {
     display: flex; flex-wrap: wrap; gap: 0.35rem 0.55rem;
@@ -1174,7 +1305,21 @@
 
   .chart-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .chart-host { flex: 1; min-height: 0; position: relative; }
-  .bps-host { height: 64px; flex-shrink: 0; border-top: 1px solid var(--border); }
+  .bps-splitter {
+    flex-shrink: 0;
+    height: 6px;
+    padding: 0;
+    cursor: row-resize;
+    background: #171c23;
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+  .bps-splitter:hover,
+  .bps-splitter.dragging,
+  .bps-splitter:focus-visible {
+    background: rgba(240, 185, 11, 0.22);
+  }
+  .bps-host { height: 64px; flex-shrink: 0; }
 
   .overlay {
     position: absolute; inset: 0; display: grid; place-items: center;

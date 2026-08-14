@@ -5,6 +5,7 @@ import {
   ALERT_VISIBLE_MAX,
   createAlert,
   daemonAlertPayload,
+  sendWebhook,
 } from './alerts.js';
 
 describe('daemonAlertPayload', () => {
@@ -37,5 +38,27 @@ describe('alert toast UX knobs', () => {
     assert.ok(a.ts >= before && a.ts <= after);
     assert.equal(a.kind, 'bps');
     assert.ok(a.id);
+  });
+});
+
+describe('sendWebhook', () => {
+  it('does not fetch javascript or empty URLs', async () => {
+    const calls = [];
+    const prev = globalThis.fetch;
+    globalThis.fetch = (...args) => {
+      calls.push(args);
+      return Promise.resolve({ ok: true, type: 'basic' });
+    };
+    try {
+      assert.deepEqual(await sendWebhook('javascript:alert(1)', { a: 1 }), {
+        ok: false,
+        reason: 'no url',
+      });
+      assert.deepEqual(await sendWebhook('', { a: 1 }), { ok: false, reason: 'no url' });
+      assert.equal(calls.length, 0);
+    } finally {
+      if (prev === undefined) delete globalThis.fetch;
+      else globalThis.fetch = prev;
+    }
   });
 });

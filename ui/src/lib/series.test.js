@@ -59,6 +59,33 @@ test('tracker retains ~1h buckets while session snapshot clips view', () => {
   assert.ok(st.buckets.has(tip - 3500));
 });
 
+test('snapshot can emit full retained history while stats stay on the session window', () => {
+  const tr = new MultiVenueTracker(1, 3600);
+  tr.syncTargets([{ venue: 'binance-spot', symbol: 'BTCUSDT', live: true }]);
+  const tip = 200_000;
+  for (let t = tip - 2000; t <= tip; t += 1) {
+    tr.touch('binance-spot', 100 + (t % 5) * 0.01, t);
+  }
+  const view = tr.snapshot('absolute', { windowSec: 300, chartWindowSec: 3600 });
+  const row = view.series[0];
+  assert.ok(row.data[0].time <= tip - 1500, `chart start ${row.data[0].time}`);
+  assert.equal(row.data[row.data.length - 1].time, tip);
+  const sessionOnly = tr.snapshot('absolute', { windowSec: 300 });
+  assert.ok(sessionOnly.series[0].data[0].time >= tip - 300);
+});
+
+test('2h retention keeps ~7200 1s buckets (no 4200 cap)', () => {
+  const tr = new MultiVenueTracker(1, 7200);
+  tr.syncTargets([{ venue: 'binance-spot', symbol: 'BTCUSDT', live: true }]);
+  const tip = 400_000;
+  for (let t = tip - 7200; t <= tip; t += 1) {
+    tr.touch('binance-spot', 100 + (t % 5) * 0.01, t);
+  }
+  const st = tr.venues.get('binance-spot');
+  assert.ok(st.buckets.size >= 7200, `retained ${st.buckets.size}`);
+  assert.ok(st.buckets.size <= 7400, `over-retained ${st.buckets.size}`);
+});
+
 test('1h session snapshot display-downsamples to chart budget', () => {
   const tr = new MultiVenueTracker(1, 3600);
   tr.syncTargets([{ venue: 'binance-spot', symbol: 'BTCUSDT', live: true }]);
