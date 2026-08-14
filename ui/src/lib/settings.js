@@ -1,7 +1,7 @@
 /** Persist/load market-panel UI preferences in localStorage. */
 
 import { parseUrlState } from './urlState.js';
-import { normalizeLayout } from './layout.js';
+import { layoutToSettings, normalizeLayout } from './layout.js';
 
 const KEY = 'marketfeed.live.ui.v1';
 
@@ -87,15 +87,7 @@ export const DEFAULTS = {
    * pan/zoom still have soak history. Default 2h; URL `historySecs=`.
    */
   historySecs: 7200,
-  layoutBookPx: 250,
-  layoutRightPx: 310,
-  layoutDockPx: 220,
-  layoutMainFrac: 0.58,
-  layoutBpsPx: 64,
-  layoutCasPulse: 1,
-  layoutCasImb: 1,
-  layoutCasCvd: 1,
-  layoutCasVol: 1.15,
+  ...layoutToSettings(),
 };
 
 /**
@@ -220,15 +212,7 @@ function mergeParsed(parsed) {
     grafanaUrl: safeHttpUrl(parsed?.grafanaUrl, DEFAULTS.grafanaUrl),
     webhookUrl: safeHttpUrl(parsed?.webhookUrl, DEFAULTS.webhookUrl),
     historySecs: clampInt(parsed?.historySecs, 300, 7200, DEFAULTS.historySecs),
-    layoutBookPx: layout.bookPx,
-    layoutRightPx: layout.rightPx,
-    layoutDockPx: layout.dockPx,
-    layoutMainFrac: layout.mainFrac,
-    layoutBpsPx: layout.bpsPx,
-    layoutCasPulse: layout.casPulse,
-    layoutCasImb: layout.casImb,
-    layoutCasCvd: layout.casCvd,
-    layoutCasVol: layout.casVol,
+    ...layoutToSettings(layout),
   };
 }
 

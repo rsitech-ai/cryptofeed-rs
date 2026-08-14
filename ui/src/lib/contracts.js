@@ -51,9 +51,8 @@ export class Book404Gate {
 export function shouldPollVenueBook(opts = {}) {
   if (opts.suppressed) return false;
   if (opts.knownBook) return true;
-  if (opts.isFocus) return true;
-  if (opts.validBooks == null) return true;
-  return Number(opts.validBooks) > 0;
+  if (opts.validBooks != null && Number(opts.validBooks) <= 0) return false;
+  return true;
 }
 
 function scalar(value) {

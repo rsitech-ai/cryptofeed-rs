@@ -70,6 +70,9 @@ test('snapshot can emit full retained history while stats stay on the session wi
   const row = view.series[0];
   assert.ok(row.data[0].time <= tip - 1500, `chart start ${row.data[0].time}`);
   assert.equal(row.data[row.data.length - 1].time, tip);
+  const recent = row.data.filter((p) => p.time >= tip - 300);
+  assert.ok(recent.length >= 290 && recent.length <= 301, `session density ${recent.length}`);
+  assert.ok(row.data.length <= 900, `display pts ${row.data.length}`);
   const sessionOnly = tr.snapshot('absolute', { windowSec: 300 });
   assert.ok(sessionOnly.series[0].data[0].time >= tip - 300);
 });

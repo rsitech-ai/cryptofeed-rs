@@ -251,8 +251,13 @@ export class MultiVenueTracker {
               time: p.time,
               value: p.price,
             }));
-      // Display downsample — keep chart paint ≤ CHART_DISPLAY_MAX_POINTS even on 1h view.
-      const data = downsampleForChart(rawData, chartWindowSec || windowSec, CHART_DISPLAY_MAX_POINTS);
+      // Display downsample: session/view stays 1s-dense; only the pan tail compresses.
+      const data = downsampleForChart(
+        rawData,
+        chartWindowSec || windowSec,
+        CHART_DISPLAY_MAX_POINTS,
+        windowSec,
+      );
 
       const last = points[points.length - 1].price;
       const lastTime = points[points.length - 1].time;
@@ -261,7 +266,12 @@ export class MultiVenueTracker {
       if (!hidden.has(st.venue)) lasts.push(last);
 
       const volRaw = hidden.has(st.venue) ? [] : volumeSeries(st, sinceSec);
-      const volumeData = downsampleForChart(volRaw, chartWindowSec || windowSec, CHART_DISPLAY_MAX_POINTS);
+      const volumeData = downsampleForChart(
+        volRaw,
+        chartWindowSec || windowSec,
+        CHART_DISPLAY_MAX_POINTS,
+        windowSec,
+      );
 
       series.push({
         venue: st.venue,

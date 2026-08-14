@@ -154,29 +154,64 @@ export function strideDownsample(points, maxPoints) {
 }
 
 /**
- * Chart display downsample: dense recent + sparse older, hard-capped.
+ * Chart display downsample: keep `denseSec` (session/view) at 1s, compress
+ * only the pan-able tail, hard-cap paint points. When the dense window itself
+ * exceeds `maxPoints` (e.g. a 2h session), fall back to age-tiered steps.
+ *
  * @template {{ time: number }} T
  * @param {T[]} points
- * @param {number} [windowSec]
+ * @param {number} [windowSec] retained / pan window
  * @param {number} [maxPoints]
+ * @param {number} [denseSec] session/view seconds to keep 1s-dense
  * @returns {T[]}
  */
-export function downsampleForChart(points, windowSec = 300, maxPoints = CHART_DISPLAY_MAX_POINTS) {
+export function downsampleForChart(
+  points,
+  windowSec = 300,
+  maxPoints = CHART_DISPLAY_MAX_POINTS,
+  denseSec,
+) {
   const list = Array.isArray(points) ? points : [];
   if (list.length <= maxPoints) return list;
   const tip = list[list.length - 1]?.time;
+  if (!Number.isFinite(tip)) return list.slice(-maxPoints);
+
   const win = Math.max(1, Number(windowSec) || 300);
-  const recentSec = Math.min(180, Math.max(60, Math.floor(win * 0.2)));
-  const midSec = Math.min(win, Math.max(recentSec * 2, Math.floor(win * 0.55)));
-  return downsampleByAge(list, {
-    tipSec: tip,
-    recentSec,
-    midSec,
-    recentStep: 1,
-    midStep: Math.max(2, Math.ceil(win / maxPoints)),
-    oldStep: Math.max(5, Math.ceil((win * 2) / maxPoints)),
-    maxPoints,
-  });
+  const denseRaw = Number(denseSec);
+  const recentSec =
+    Number.isFinite(denseRaw) && denseRaw > 0
+      ? Math.min(win, Math.max(1, denseRaw))
+      : Math.min(180, Math.max(60, Math.floor(win * 0.2)));
+
+  const denseStart = tip - recentSec;
+  /** @type {T[]} */
+  const densePts = [];
+  /** @type {T[]} */
+  const olderPts = [];
+  for (const p of list) {
+    const t = p?.time;
+    if (!Number.isFinite(t)) continue;
+    if (t >= denseStart) densePts.push(p);
+    else olderPts.push(p);
+  }
+
+  if (densePts.length >= maxPoints) {
+    const midSec = Math.min(win, Math.max(recentSec * 2, Math.floor(win * 0.55)));
+    return downsampleByAge(list, {
+      tipSec: tip,
+      recentSec,
+      midSec,
+      recentStep: 1,
+      midStep: Math.max(2, Math.ceil(win / maxPoints)),
+      oldStep: Math.max(5, Math.ceil((win * 2) / maxPoints)),
+      maxPoints,
+    });
+  }
+
+  const olderBudget = maxPoints - densePts.length;
+  const olderOut =
+    olderPts.length <= olderBudget ? olderPts : strideDownsample(olderPts, olderBudget);
+  return [...olderOut, ...densePts];
 }
 
 /**

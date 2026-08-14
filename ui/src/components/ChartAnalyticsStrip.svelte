@@ -17,6 +17,7 @@
   } from '../lib/chartSync.js';
   import { stepHoldSeries, tapeTipSec } from '../lib/indicatorSeries.js';
   import { fmtUsd } from '../lib/format.js';
+  import { beginAxisDrag } from '../lib/layout.js';
 
   let {
     tape = [],
@@ -37,6 +38,7 @@
     onCrosshairHandles = () => {},
     paneWeights = { pulse: 1, imb: 1, cvd: 1, vol: 1.15 },
     onPaneWeights = () => {},
+    onPaneWeightsCommit = () => {},
   } = $props();
 
   let pulseHost = $state(null);
@@ -97,21 +99,20 @@
   }
 
   function beginPaneSplit(event, key) {
-    event.preventDefault();
-    const startY = event.clientY;
-    const start = Number(paneWeights?.[key]) || 1;
     splitDragging = true;
-    const move = (ev) => {
-      const next = Math.min(3, Math.max(0.4, start + (ev.clientY - startY) / 80));
-      setPaneWeight(key, next);
-    };
-    const stop = () => {
-      splitDragging = false;
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', stop);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', stop, { once: true });
+    beginAxisDrag(event, {
+      axis: 'y',
+      startValue: Number(paneWeights?.[key]) || 1,
+      min: 0.4,
+      max: 3,
+      scale: 1 / 80,
+      round: false,
+      onChange: (n) => setPaneWeight(key, n),
+      onEnd: () => {
+        splitDragging = false;
+        onPaneWeightsCommit();
+      },
+    });
   }
 
   // Panes are slaves of the main chart: no independent pan/zoom.
@@ -539,11 +540,13 @@
       stepHoldSeries(pulsePts, range.fromSec, range.toSec),
       win,
       CHART_DISPLAY_MAX_POINTS,
+      windowSec,
     );
     const imbData = downsampleForChart(
       stepHoldSeries(imbPts, range.fromSec, range.toSec),
       win,
       CHART_DISPLAY_MAX_POINTS,
+      windowSec,
     );
 
     const cvd = computeCvd(tape, { windowSec: win, nowSec: range.toSec });
@@ -553,6 +556,7 @@
       stepHoldSeries(cvdPts, range.fromSec, range.toSec),
       win,
       CHART_DISPLAY_MAX_POINTS,
+      windowSec,
     );
 
     lastPulseWin = writeSeriesData(pulseSeries, pulseData, lastPulseWin);
@@ -592,8 +596,8 @@
           sellByT.get(t) || { time: t, value: 0, color: 'rgba(246,70,93,0.75)' },
         );
       }
-      const buyData = downsampleForChart(buyFilled, win, CHART_DISPLAY_MAX_POINTS);
-      const sellData = downsampleForChart(sellFilled, win, CHART_DISPLAY_MAX_POINTS);
+      const buyData = downsampleForChart(buyFilled, win, CHART_DISPLAY_MAX_POINTS, windowSec);
+      const sellData = downsampleForChart(sellFilled, win, CHART_DISPLAY_MAX_POINTS, windowSec);
       buySeries.setData(buyData);
       sellSeries.setData(sellData);
       lastVolFullAt = performance.now();

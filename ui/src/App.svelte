@@ -984,7 +984,6 @@
   }
 
   function syncCandleView() {
-    // Clip display to session window; underlying builder retains ~historySecs.
     candles = candleBuilder.candles(historySecs);
     historyCandles = candleBuilder.candles(0);
     volumeBars = candleBuilder.volumeBars(historySecs);
@@ -1517,7 +1516,7 @@
         }
         next = { ...normalized, venue: target.venue, symbol: target.symbol };
       } catch {
-        next = emptyDerivatives('derivatives_request_failed');
+        if (!next.available) next = emptyDerivatives('derivatives_request_failed');
       }
     }
     if (generation === focusGeneration) derivatives = next;
@@ -1963,34 +1962,38 @@
   function beginPlotSplit(event) {
     const stack = plotStackEl;
     if (!stack) return;
-    event.preventDefault();
     const h = stack.getBoundingClientRect().height || 1;
-    const startY = event.clientY;
-    const start = layoutMainFrac;
     layoutDragging = true;
-    const move = (ev) => {
-      layoutMainFrac = Math.min(0.82, Math.max(0.28, start + (ev.clientY - startY) / h));
-    };
-    const stop = () => {
-      layoutDragging = false;
-      persist({ layoutMainFrac });
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', stop);
-    };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', stop, { once: true });
+    beginAxisDrag(event, {
+      axis: 'y',
+      startValue: layoutMainFrac,
+      min: 0.28,
+      max: 0.82,
+      scale: 1 / h,
+      round: false,
+      onChange: (n) => {
+        layoutMainFrac = n;
+      },
+      onEnd: () => {
+        layoutDragging = false;
+        persist({ layoutMainFrac });
+      },
+    });
   }
 
-  function setCasWeights(next) {
+  function applyCasWeights(next) {
     layoutCasPulse = next.pulse;
     layoutCasImb = next.imb;
     layoutCasCvd = next.cvd;
     layoutCasVol = next.vol;
+  }
+
+  function commitCasWeights() {
     persist({
-      layoutCasPulse: next.pulse,
-      layoutCasImb: next.imb,
-      layoutCasCvd: next.cvd,
-      layoutCasVol: next.vol,
+      layoutCasPulse,
+      layoutCasImb,
+      layoutCasCvd,
+      layoutCasVol,
     });
   }
   let venueLive = $derived(!!(status?.venues || []).find((v) => v.id === selectedVenue)?.live);
@@ -2150,8 +2153,8 @@
         onHistorySecs={applyHistorySecs}
         onBpsHeight={(n) => {
           layoutBpsPx = n;
-          persist({ layoutBpsPx: n });
         }}
+        onBpsHeightCommit={() => persist({ layoutBpsPx })}
         onTestAlert={handleTestAlert}
       />
       {#if chartMode === 'orderflow'}
@@ -2229,7 +2232,8 @@
           cvd: layoutCasCvd,
           vol: layoutCasVol,
         }}
-        onPaneWeights={setCasWeights}
+        onPaneWeights={applyCasWeights}
+        onPaneWeightsCommit={commitCasWeights}
         onCrosshairHandles={(handles) => {
           if (!handlesEqual(paneCrosshairHandles, handles)) {
             paneCrosshairHandles = handles;

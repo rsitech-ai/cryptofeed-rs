@@ -83,6 +83,7 @@
     onFollowLive = () => {},
     onHistorySecs = () => {},
     onBpsHeight = () => {},
+    onBpsHeightCommit = () => {},
     onTestAlert = () => {},
   } = $props();
 
@@ -451,6 +452,8 @@
     if (bpsRangeRaf) cancelAnimationFrame(bpsRangeRaf);
     bpsRangeRaf = 0;
     pendingChart = null;
+    if (hiddenPollTimer) clearTimeout(hiddenPollTimer);
+    hiddenPollTimer = 0;
     unwireSync();
     hostPointerDisposer?.();
     hostPointerDisposer = null;
@@ -771,7 +774,7 @@
       const span = mapped.length
         ? Math.max(1, mapped[mapped.length - 1].time - mapped[0].time)
         : sessionWindowSec;
-      const painted = downsampleForChart(mapped, span, CHART_DISPLAY_MAX_POINTS);
+      const painted = downsampleForChart(mapped, span, CHART_DISPLAY_MAX_POINTS, sessionWindowSec);
       if (painted.length) {
         lastCandleWindow = writeSeriesData(candleSeries, painted, lastCandleWindow);
       } else {
@@ -781,7 +784,7 @@
       const volSpan = volBarsIn?.length
         ? Math.max(1, volBarsIn[volBarsIn.length - 1].time - volBarsIn[0].time)
         : span;
-      applyVolumeData(downsampleForChart(volBarsIn || [], volSpan, CHART_DISPLAY_MAX_POINTS));
+      applyVolumeData(downsampleForChart(volBarsIn || [], volSpan, CHART_DISPLAY_MAX_POINTS, sessionWindowSec));
       setHighlight(candleSeries, hl);
     } else if (mode === 'lines') {
       clearCandles();
@@ -844,7 +847,7 @@
       const volSpan = bars?.length > 1
         ? Math.max(1, bars[bars.length - 1].time - bars[0].time)
         : sessionWindowSec;
-      applyVolumeData(downsampleForChart(bars || [], volSpan, CHART_DISPLAY_MAX_POINTS));
+      applyVolumeData(downsampleForChart(bars || [], volSpan, CHART_DISPLAY_MAX_POINTS, sessionWindowSec));
       setHighlight(primary, hl);
 
       if (bpsLineSeries && bpsChart) {
@@ -869,7 +872,7 @@
             : sparse.map((p) => ({ time: p.t, value: p.v }));
         const bpsSpan =
           held.length > 1 ? Math.max(1, held[held.length - 1].time - held[0].time) : sessionWindowSec;
-        const bpsData = downsampleForChart(held, bpsSpan, CHART_DISPLAY_MAX_POINTS);
+        const bpsData = downsampleForChart(held, bpsSpan, CHART_DISPLAY_MAX_POINTS, sessionWindowSec);
         let didFullSet = false;
         if (!bpsData.length) {
           bpsLineSeries.setData([]);
@@ -1177,6 +1180,7 @@
               onChange: onBpsHeight,
               onEnd: () => {
                 bpsSplitDragging = false;
+                onBpsHeightCommit();
               },
             });
           }}

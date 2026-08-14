@@ -148,8 +148,16 @@ Live stack (Vite + release `marketfeed`):
 - Startup logs: INFO only until venues were live; `/live` `/ready` 200; 13/13 live
 - `BASE=http://127.0.0.1:19109 ./scripts/live_ui_smoke.sh` → **PASS** (bash 13, python 58)
 - Chrome for Testing: `pageErrors=[]`, `consoleErrors=[]`, HTTP 4xx `[]`, `logicalFrom=0`, `historySecs=7200`, SSE connected
-- SPA tests: **170 pass / 0 fail**
+- SPA tests: **173 pass / 0 fail**
 - Embedded `ui/dist` rebuilt (favicon + panel sources)
+
+Review follow-up (before merge):
+
+19. Display downsample keeps the session/view 1s-dense; only the pan-able tail compresses (`denseSec`).
+20. CAS / Δbps splitters persist on pointerup, not every move; plot/CAS drags use `beginAxisDrag` (scale + pointercancel).
+21. Quotes-only `valid_books === 0` skips book polls even when focused.
+22. Derivatives fallback no longer clobbers a live payload on a later request error.
+23. `layoutToSettings` is the single persistable layout contract.
 
 One Binance USD-M `TransportError` reconnect appeared after startup during the live smoke. That is the existing runtime HOLD, not a UI regression.
 

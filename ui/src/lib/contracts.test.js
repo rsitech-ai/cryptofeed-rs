@@ -36,11 +36,11 @@ describe('Book404Gate', () => {
 describe('shouldPollVenueBook', () => {
   it('skips quotes-only venues once status reports zero books', () => {
     assert.equal(shouldPollVenueBook({ validBooks: 0, isFocus: false }), false);
+    assert.equal(shouldPollVenueBook({ validBooks: 0, isFocus: true }), false);
     assert.equal(shouldPollVenueBook({ validBooks: 4, isFocus: false }), true);
   });
 
-  it('still polls the focused market and unknown status', () => {
-    assert.equal(shouldPollVenueBook({ validBooks: 0, isFocus: true }), true);
+  it('still polls unknown status and known books', () => {
     assert.equal(shouldPollVenueBook({ validBooks: null, isFocus: false }), true);
     assert.equal(shouldPollVenueBook({ validBooks: 0, knownBook: true }), true);
     assert.equal(shouldPollVenueBook({ validBooks: 4, suppressed: true }), false);

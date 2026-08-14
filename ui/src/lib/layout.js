@@ -46,6 +46,26 @@ export function normalizeLayout(parsed) {
 }
 
 /**
+ * Flatten a layout object into the persistable `layout*` settings keys.
+ *
+ * @param {unknown} [layout]
+ */
+export function layoutToSettings(layout = LAYOUT_DEFAULTS) {
+  const n = normalizeLayout(layout);
+  return {
+    layoutBookPx: n.bookPx,
+    layoutRightPx: n.rightPx,
+    layoutDockPx: n.dockPx,
+    layoutMainFrac: n.mainFrac,
+    layoutBpsPx: n.bpsPx,
+    layoutCasPulse: n.casPulse,
+    layoutCasImb: n.casImb,
+    layoutCasCvd: n.casCvd,
+    layoutCasVol: n.casVol,
+  };
+}
+
+/**
  * Drag along one axis and report the clamped next size.
  *
  * @param {PointerEvent} event
@@ -55,6 +75,7 @@ export function normalizeLayout(parsed) {
  *   min: number,
  *   max: number,
  *   invert?: boolean,
+ *   scale?: number,
  *   round?: boolean,
  *   onChange: (next: number) => void,
  *   onEnd?: () => void,
@@ -64,17 +85,24 @@ export function beginAxisDrag(event, opts) {
   event.preventDefault();
   const startPtr = opts.axis === 'x' ? event.clientX : event.clientY;
   const startValue = Number(opts.startValue);
+  const scaleRaw = Number(opts.scale);
+  const scale = Number.isFinite(scaleRaw) && scaleRaw !== 0 ? scaleRaw : 1;
   const move = (ev) => {
     const now = opts.axis === 'x' ? ev.clientX : ev.clientY;
-    const delta = opts.invert ? startPtr - now : now - startPtr;
+    const delta = (opts.invert ? startPtr - now : now - startPtr) * scale;
     const next = clampLayoutNum(startValue + delta, opts.min, opts.max, startValue);
     opts.onChange(opts.round === false ? next : Math.round(next));
   };
+  let ended = false;
   const stop = () => {
+    if (ended) return;
+    ended = true;
     window.removeEventListener('pointermove', move);
     window.removeEventListener('pointerup', stop);
+    window.removeEventListener('pointercancel', stop);
     opts.onEnd?.();
   };
   window.addEventListener('pointermove', move);
-  window.addEventListener('pointerup', stop, { once: true });
+  window.addEventListener('pointerup', stop);
+  window.addEventListener('pointercancel', stop);
 }

@@ -98,6 +98,18 @@ test('downsampleForChart caps 1h window to CHART_DISPLAY_MAX_POINTS', () => {
   assert.ok(out[0].time >= tip - 3600);
 });
 
+test('downsampleForChart keeps the session window 1s-dense when retention is longer', () => {
+  const tip = 100_000;
+  const pts = [];
+  for (let t = tip - 2000; t <= tip; t += 1) pts.push({ time: t, value: t });
+  const out = downsampleForChart(pts, 7200, CHART_DISPLAY_MAX_POINTS, 300);
+  assert.ok(out.length <= CHART_DISPLAY_MAX_POINTS, `${out.length} > ${CHART_DISPLAY_MAX_POINTS}`);
+  assert.equal(out[out.length - 1].time, tip);
+  const recent = out.filter((p) => p.time >= tip - 300);
+  assert.ok(recent.length >= 290 && recent.length <= 301, `recent ${recent.length}`);
+  assert.ok(out[0].time < tip - 300, `older tail missing: start ${out[0].time}`);
+});
+
 test('strideDownsample preserves ends', () => {
   const pts = Array.from({ length: 100 }, (_, i) => ({ time: i }));
   const out = strideDownsample(pts, 10);
