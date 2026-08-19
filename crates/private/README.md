@@ -83,4 +83,3 @@ DRY_RUN=1 ./scripts/laptop_private_canary.sh
 Evidence: [`docs/ops/private_canary_results.md`](../../docs/ops/private_canary_results.md).
 Missing keys are a clean skip, not a failure. **No order placement.**
 
-See [`docs/spec/production_rust_multi_exchange_market_data_spec.md`](../../docs/spec/production_rust_multi_exchange_market_data_spec.md).

@@ -1,6 +1,5 @@
 # Adapter maturity matrix
 
-**Spec SoT:** §11.8 in [`docs/spec/production_rust_multi_exchange_market_data_spec.md`](../spec/production_rust_multi_exchange_market_data_spec.md)  
 **Maintainer:** RSI Tech ([`CODEOWNERS`](../../CODEOWNERS))
 **Canary checklist:** [`docs/ops/canary_checklist.md`](../ops/canary_checklist.md)  
 **Laptop live evidence:** [`docs/ops/canary_results.md`](../ops/canary_results.md) (laptop **10/10**; scheduled **0**; reconnect **PASS** laptop — **not beta**)<br>
