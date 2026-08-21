@@ -3,7 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use marketfeed_book::{BookError, BookValidity, OrderBook};
-use marketfeed_model::{BookDelta, BookSnapshot, Fixed, Price, Quantity, RoundingMode};
+use marketfeed_model::{
+    BookDelta, BookSnapshot, Fixed, Price, Quantity, RoundingMode, SequenceRange,
+};
 use thiserror::Error;
 
 use crate::wire::{ContributorKeyV1, ContributorRoleV1, FamilyV1, MechanicsConfigV1};
@@ -176,10 +178,11 @@ pub fn open_interest_contracts(
 
 pub fn liquidation_notional(values: &[(i128, i128)]) -> Result<i128, ArithmeticError> {
     values.iter().try_fold(0i128, |sum, &(price, quantity)| {
-        if price <= 0 || quantity == i128::MIN {
+        if price <= 0 {
             return Err(ArithmeticError::OutOfDomain);
         }
-        sum.checked_add(mul_scaled(price, quantity.abs())?)
+        let quantity = quantity.checked_abs().ok_or(ArithmeticError::Overflow)?;
+        sum.checked_add(mul_scaled(price, quantity)?)
             .ok_or(ArithmeticError::Overflow)
     })
 }
@@ -203,6 +206,24 @@ pub struct VenueReturn {
     pub complete: bool,
 }
 
+fn validate_breadth_returns<'a>(
+    owner_keys: &BTreeSet<&ContributorKeyV1>,
+    returns: &'a [VenueReturn],
+) -> Result<BTreeMap<&'a ContributorKeyV1, &'a VenueReturn>, ArithmeticError> {
+    let mut supplied = BTreeMap::new();
+    for observation in returns {
+        if !observation.complete
+            || !owner_keys.contains(&observation.contributor)
+            || supplied
+                .insert(&observation.contributor, observation)
+                .is_some()
+        {
+            return Err(ArithmeticError::OutOfDomain);
+        }
+    }
+    Ok(supplied)
+}
+
 /// Compute breadth from configured family owners and Task 4's current Live
 /// eligibility. Unconfigured or duplicate observations fail closed.
 pub fn configured_cross_venue_breadth(
@@ -214,15 +235,6 @@ pub fn configured_cross_venue_breadth(
     if direction == Direction::Unknown {
         return Err(ArithmeticError::OutOfDomain);
     }
-    let mut supplied = BTreeMap::new();
-    for observation in returns {
-        if supplied
-            .insert(&observation.contributor, observation)
-            .is_some()
-        {
-            return Err(ArithmeticError::OutOfDomain);
-        }
-    }
     let owners = config
         .contributors()
         .iter()
@@ -230,6 +242,11 @@ pub fn configured_cross_venue_breadth(
             ContributorRoleV1::Primary => spec.allowed_families().contains(&FamilyV1::Trade),
             ContributorRoleV1::Confirmation => true,
         });
+    let owner_keys = owners
+        .clone()
+        .map(|owner| owner.key())
+        .collect::<BTreeSet<_>>();
+    let supplied = validate_breadth_returns(&owner_keys, returns)?;
     let mut configured_venues = BTreeSet::new();
     let mut usable = 0usize;
     let mut confirming = 0usize;
@@ -261,6 +278,43 @@ pub enum Direction {
     Up,
     Down,
     Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CurrentPhase {
+    Normal,
+    Buildup,
+    Ignition,
+    Cascade,
+    Exhaustion,
+    Aftermath,
+    Invalid,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReversalPolicy {
+    current_phase: CurrentPhase,
+    direction: Direction,
+    has_left_normal: bool,
+}
+impl ReversalPolicy {
+    pub fn new(current_phase: CurrentPhase, direction: Direction, has_left_normal: bool) -> Self {
+        Self {
+            current_phase,
+            direction,
+            has_left_normal,
+        }
+    }
+    pub fn pre_event_normal(direction: Direction) -> Self {
+        Self::new(CurrentPhase::Normal, direction, false)
+    }
+    fn validated_zero_allowed(self) -> bool {
+        !self.has_left_normal
+            || self.current_phase == CurrentPhase::Normal && self.direction == Direction::Unknown
+    }
+    fn reversal_is_critical(self) -> bool {
+        !self.validated_zero_allowed()
+    }
 }
 
 pub fn reversal_from_extreme(
@@ -298,6 +352,13 @@ pub struct BookProjection {
     quantity_scale: u8,
     available_at_ns: Option<i64>,
     resyncing: bool,
+    sequence_mode: Option<BookSequenceMode>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BookSequenceMode {
+    Native(u64),
+    Derived,
 }
 
 impl BookProjection {
@@ -308,9 +369,10 @@ impl BookProjection {
             quantity_scale,
             available_at_ns: None,
             resyncing: true,
+            sequence_mode: None,
         }
     }
-    pub fn snapshot(
+    fn apply_snapshot(
         &mut self,
         value: &BookSnapshot,
         sequence: Option<u64>,
@@ -338,24 +400,63 @@ impl BookProjection {
         self.resyncing = false;
         Ok(())
     }
-    pub fn delta(
+    pub fn snapshot_native(
         &mut self,
-        value: &BookDelta,
-        sequence: Option<u64>,
+        value: &BookSnapshot,
+        sequence: SequenceRange,
         at_ns: i64,
     ) -> Result<(), ProjectionError> {
-        if let (Some(previous), Some(next)) = (self.book.sequence(), sequence) {
-            if previous.checked_add(1) != Some(next) {
-                self.invalidate();
-                return Err(ProjectionError::SequenceGap);
-            }
+        if sequence.first > sequence.last || sequence.last > i64::MAX as u64 {
+            self.invalidate();
+            return Err(ProjectionError::SequenceGap);
+        }
+        self.apply_snapshot(value, Some(sequence.last), at_ns)?;
+        self.sequence_mode = Some(BookSequenceMode::Native(sequence.last));
+        Ok(())
+    }
+    pub fn snapshot_derived(
+        &mut self,
+        value: &BookSnapshot,
+        at_ns: i64,
+    ) -> Result<(), ProjectionError> {
+        self.apply_snapshot(value, None, at_ns)?;
+        self.sequence_mode = Some(BookSequenceMode::Derived);
+        Ok(())
+    }
+    pub fn delta_native(
+        &mut self,
+        value: &BookDelta,
+        sequence: SequenceRange,
+        at_ns: i64,
+    ) -> Result<(), ProjectionError> {
+        let Some(BookSequenceMode::Native(previous_last)) = self.sequence_mode else {
+            self.invalidate();
+            return Err(ProjectionError::SequenceMode);
+        };
+        if sequence.first > sequence.last
+            || sequence.last > i64::MAX as u64
+            || previous_last.checked_add(1) != Some(sequence.first)
+        {
+            self.invalidate();
+            return Err(ProjectionError::SequenceGap);
         }
         if let Err(error) = self.book.apply_changes_atomic(&value.changes) {
             self.invalidate();
             return Err(error.into());
         }
-        if let Some(sequence) = sequence {
-            self.book.set_sequence(sequence);
+        self.book.set_sequence(sequence.last);
+        self.sequence_mode = Some(BookSequenceMode::Native(sequence.last));
+        self.available_at_ns = Some(at_ns);
+        Ok(())
+    }
+    pub fn delta_derived(&mut self, value: &BookDelta, at_ns: i64) -> Result<(), ProjectionError> {
+        if self.sequence_mode != Some(BookSequenceMode::Derived) {
+            self.invalidate();
+            return Err(ProjectionError::SequenceMode);
+        }
+        if let Err(error) = self.book.apply_changes_atomic(&value.changes) {
+            self.invalidate();
+            return Err(error.into());
         }
         self.available_at_ns = Some(at_ns);
         Ok(())
@@ -365,12 +466,14 @@ impl BookProjection {
         self.book.set_validity(BookValidity::Invalid);
         self.available_at_ns = None;
         self.resyncing = true;
+        self.sequence_mode = None;
     }
     pub fn permit_resnapshot(&mut self) {
         self.book.clear();
         self.book.set_validity(BookValidity::Synchronizing);
         self.available_at_ns = None;
         self.resyncing = true;
+        self.sequence_mode = None;
     }
     pub fn depth_10bps(&self, decision_time_ns: i64) -> Result<i128, ArithmeticError> {
         if self.resyncing
@@ -426,6 +529,8 @@ pub enum ProjectionError {
     Unsorted,
     #[error("book delta sequence is not contiguous")]
     SequenceGap,
+    #[error("book sequence mode changed")]
+    SequenceMode,
 }
 
 fn strictly_sorted(snapshot: &BookSnapshot, price_scale: u8, quantity_scale: u8) -> bool {
@@ -493,7 +598,13 @@ impl FeatureName {
         (Self::SpreadBps, 250),
         (Self::TakerImbalance, 1_000),
     ];
-    pub fn is_critical(self, event_started: bool) -> bool {
+    pub fn horizon_ms(self) -> u64 {
+        Self::CANONICAL
+            .iter()
+            .find_map(|(name, horizon)| (*name == self).then_some(*horizon))
+            .expect("every feature has one frozen horizon")
+    }
+    pub fn is_critical(self, policy: ReversalPolicy) -> bool {
         matches!(
             self,
             Self::LogReturn
@@ -501,7 +612,7 @@ impl FeatureName {
                 | Self::CvdSlope
                 | Self::SpreadBps
                 | Self::BookDepth10bps
-        ) || event_started && self == Self::ReversalFromExtreme
+        ) || policy.reversal_is_critical() && self == Self::ReversalFromExtreme
     }
     pub fn is_optional(self) -> bool {
         matches!(
@@ -631,16 +742,16 @@ pub enum EnvelopeQuality {
     Validated,
 }
 
-pub fn envelope_quality(rows: &[FeatureObservation], event_started: bool) -> EnvelopeQuality {
-    if rows.iter().any(|row| {
-        row.name.is_critical(event_started)
+pub fn envelope_quality(rows: &FeatureSet, policy: ReversalPolicy) -> EnvelopeQuality {
+    if rows.rows.iter().any(|row| {
+        row.name.is_critical(policy)
             && matches!(
                 row.quality,
                 FeatureQuality::Invalid | FeatureQuality::Unavailable
             )
     }) {
         EnvelopeQuality::Invalid
-    } else if rows.iter().any(|row| {
+    } else if rows.rows.iter().any(|row| {
         row.quality == FeatureQuality::Degraded
             || row.name.is_optional()
                 && matches!(
@@ -655,11 +766,51 @@ pub fn envelope_quality(rows: &[FeatureObservation], event_started: bool) -> Env
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeatureObservation {
-    pub name: FeatureName,
-    pub horizon_ms: u64,
-    pub value: Option<i128>,
-    pub quality: FeatureQuality,
-    pub reason: FeatureReason,
+    name: FeatureName,
+    value: Option<i128>,
+    quality: FeatureQuality,
+    reason: FeatureReason,
+}
+impl FeatureObservation {
+    pub fn name(&self) -> FeatureName {
+        self.name
+    }
+    pub fn horizon_ms(&self) -> u64 {
+        self.name.horizon_ms()
+    }
+    pub fn value(&self) -> Option<i128> {
+        self.value
+    }
+    pub fn quality(&self) -> FeatureQuality {
+        self.quality
+    }
+    pub fn reason(&self) -> FeatureReason {
+        self.reason
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FeatureSet {
+    rows: Vec<FeatureObservation>,
+}
+impl FeatureSet {
+    pub fn new(mut rows: Vec<FeatureObservation>) -> Result<Self, FeatureAuthoringError> {
+        if rows.len() != FeatureName::CANONICAL.len() {
+            return Err(FeatureAuthoringError::InvalidFeatureSet);
+        }
+        rows.sort_by_key(FeatureObservation::name);
+        if rows
+            .iter()
+            .map(FeatureObservation::name)
+            .ne(FeatureName::CANONICAL.iter().map(|(name, _)| *name))
+        {
+            return Err(FeatureAuthoringError::InvalidFeatureSet);
+        }
+        Ok(Self { rows })
+    }
+    pub fn rows(&self) -> &[FeatureObservation] {
+        &self.rows
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum FeatureAuthoringError {
@@ -667,6 +818,10 @@ pub enum FeatureAuthoringError {
     ArithmeticAuthoringError,
     #[error("critical feature cannot truthfully be authored")]
     CriticalFeatureAuthoringError,
+    #[error("feature observation is internally inconsistent")]
+    InvalidFeatureObservation,
+    #[error("feature set must contain exactly the nine canonical unique rows")]
+    InvalidFeatureSet,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -686,10 +841,21 @@ pub struct FeatureConditions {
 
 pub fn evaluate_feature(
     name: FeatureName,
-    horizon_ms: u64,
     value: Option<i128>,
     c: &FeatureConditions,
-    event_started: bool,
+    policy: ReversalPolicy,
+) -> Result<FeatureObservation, FeatureAuthoringError> {
+    if name == FeatureName::ReversalFromExtreme {
+        return Err(FeatureAuthoringError::InvalidFeatureObservation);
+    }
+    evaluate_feature_inner(name, value, c, policy)
+}
+
+fn evaluate_feature_inner(
+    name: FeatureName,
+    value: Option<i128>,
+    c: &FeatureConditions,
+    policy: ReversalPolicy,
 ) -> Result<FeatureObservation, FeatureAuthoringError> {
     if c.arithmetic_invalid {
         return Err(FeatureAuthoringError::ArithmeticAuthoringError);
@@ -715,7 +881,7 @@ pub fn evaluate_feature(
     } else if c.direction_unknown {
         (FeatureReason::DirectionUnknown, FeatureQuality::Unavailable)
     } else if c.out_of_domain {
-        if name.is_critical(event_started) {
+        if name.is_critical(policy) {
             return Err(FeatureAuthoringError::CriticalFeatureAuthoringError);
         }
         (FeatureReason::OutOfDomain, FeatureQuality::Unavailable)
@@ -729,9 +895,15 @@ pub fn evaluate_feature(
     } else {
         (FeatureReason::ObservationValid, FeatureQuality::Validated)
     };
+    if matches!(
+        quality,
+        FeatureQuality::Validated | FeatureQuality::Degraded
+    ) && value.is_none()
+    {
+        return Err(FeatureAuthoringError::InvalidFeatureObservation);
+    }
     Ok(FeatureObservation {
         name,
-        horizon_ms,
         value: matches!(
             quality,
             FeatureQuality::Validated | FeatureQuality::Degraded
@@ -744,15 +916,13 @@ pub fn evaluate_feature(
 }
 
 pub fn evaluate_reversal(
-    direction: Direction,
-    event_started: bool,
+    policy: ReversalPolicy,
     computed: Result<i128, ArithmeticError>,
     conditions: &FeatureConditions,
 ) -> Result<FeatureObservation, FeatureAuthoringError> {
-    if !event_started {
+    if policy.validated_zero_allowed() {
         return Ok(FeatureObservation {
             name: FeatureName::ReversalFromExtreme,
-            horizon_ms: 5_000,
             value: Some(0),
             quality: FeatureQuality::Validated,
             reason: FeatureReason::ObservationValid,
@@ -761,7 +931,7 @@ pub fn evaluate_reversal(
     let mut conditions = conditions.clone();
     let value = match computed {
         Ok(value) => Some(value),
-        Err(ArithmeticError::OutOfDomain) if direction == Direction::Unknown => {
+        Err(ArithmeticError::OutOfDomain) if policy.direction == Direction::Unknown => {
             conditions.direction_unknown = true;
             None
         }
@@ -774,13 +944,7 @@ pub fn evaluate_reversal(
             None
         }
     };
-    evaluate_feature(
-        FeatureName::ReversalFromExtreme,
-        5_000,
-        value,
-        &conditions,
-        true,
-    )
+    evaluate_feature_inner(FeatureName::ReversalFromExtreme, value, &conditions, policy)
 }
 
 pub fn price(value: i128) -> Price {
@@ -788,4 +952,58 @@ pub fn price(value: i128) -> Price {
 }
 pub fn quantity(value: i128) -> Quantity {
     Quantity(Fixed::new(value, 8))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::wire::InstrumentIdentityV1;
+
+    fn key(source: &str, venue: &str) -> ContributorKeyV1 {
+        ContributorKeyV1::new(
+            source,
+            InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", venue, "BNBUSDC").unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn breadth_rejects_extra_duplicate_and_incomplete_supplied_identities() {
+        let primary = key("primary", "BINANCE");
+        let confirmation = key("confirmation", "HYPERLIQUID");
+        let extra = key("extra", "BINANCE");
+        let owners = [&primary, &confirmation]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+        let valid = VenueReturn {
+            contributor: primary.clone(),
+            log_return: 200_000,
+            complete: true,
+        };
+        assert!(validate_breadth_returns(&owners, std::slice::from_ref(&valid)).is_ok());
+        assert_eq!(
+            validate_breadth_returns(
+                &owners,
+                &[VenueReturn {
+                    contributor: extra,
+                    ..valid.clone()
+                }]
+            ),
+            Err(ArithmeticError::OutOfDomain)
+        );
+        assert_eq!(
+            validate_breadth_returns(&owners, &[valid.clone(), valid.clone()]),
+            Err(ArithmeticError::OutOfDomain)
+        );
+        assert_eq!(
+            validate_breadth_returns(
+                &owners,
+                &[VenueReturn {
+                    complete: false,
+                    ..valid
+                }]
+            ),
+            Err(ArithmeticError::OutOfDomain)
+        );
+    }
 }

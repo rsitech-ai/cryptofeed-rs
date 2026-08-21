@@ -1,5 +1,5 @@
 use marketfeed_event_pulse::features::*;
-use marketfeed_model::{BookDelta, BookLevel, BookSnapshot};
+use marketfeed_model::{BookDelta, BookLevel, BookSnapshot, SequenceRange};
 
 #[test]
 fn exact_arithmetic_rounds_half_away_from_zero_and_separates_division_kinds() {
@@ -49,6 +49,10 @@ fn all_non_book_formulas_cover_boundaries() {
         liquidation_notional(&[(100 * SCALE, 2 * SCALE)]).unwrap(),
         200 * SCALE
     );
+    assert_eq!(
+        liquidation_notional(&[(SCALE, i128::MIN)]),
+        Err(ArithmeticError::Overflow)
+    );
     assert_eq!(cross_venue_breadth(2, 3).unwrap(), 66_666_667);
     assert_eq!(
         reversal_from_extreme(Direction::Up, 100 * SCALE, 120 * SCALE, 110 * SCALE).unwrap(),
@@ -75,7 +79,29 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
         depth: None,
         checksum: None,
     };
-    book.snapshot(&snapshot, Some(1), 0).unwrap();
+    book.snapshot_native(&snapshot, SequenceRange { first: 1, last: 5 }, 0)
+        .unwrap();
+    book.delta_native(
+        &BookDelta {
+            changes: vec![],
+            checksum: None,
+        },
+        SequenceRange { first: 6, last: 9 },
+        1,
+    )
+    .unwrap();
+    book.delta_native(
+        &BookDelta {
+            changes: vec![],
+            checksum: None,
+        },
+        SequenceRange {
+            first: 10,
+            last: 10,
+        },
+        2,
+    )
+    .unwrap();
     assert_eq!(book.depth_10bps(250_000_000).unwrap(), 50_255_000_000);
     let crossed = BookSnapshot {
         bids: vec![BookLevel {
@@ -84,21 +110,69 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
         }],
         ..snapshot.clone()
     };
-    assert!(book.snapshot(&crossed, Some(2), 1).is_err());
+    assert!(
+        book.snapshot_native(
+            &crossed,
+            SequenceRange {
+                first: 11,
+                last: 11
+            },
+            1
+        )
+        .is_err()
+    );
     assert!(book.depth_10bps(250_000_000).is_err());
     book.permit_resnapshot();
-    book.snapshot(&snapshot, Some(1), 0).unwrap();
+    book.snapshot_native(&snapshot, SequenceRange { first: 1, last: 1 }, 0)
+        .unwrap();
     assert!(book.depth_10bps(250_000_001).is_err());
     book.invalidate();
     assert!(book.depth_10bps(0).is_err());
     book.permit_resnapshot();
     assert!(
-        book.delta(
+        book.delta_native(
             &BookDelta {
                 changes: vec![],
                 checksum: None
             },
-            Some(2),
+            SequenceRange { first: 2, last: 2 },
+            1
+        )
+        .is_err()
+    );
+
+    book.permit_resnapshot();
+    book.snapshot_derived(&snapshot, 0).unwrap();
+    book.delta_derived(
+        &BookDelta {
+            changes: vec![],
+            checksum: None,
+        },
+        1,
+    )
+    .unwrap();
+    assert!(
+        book.delta_native(
+            &BookDelta {
+                changes: vec![],
+                checksum: None
+            },
+            SequenceRange { first: 1, last: 2 },
+            2
+        )
+        .is_err()
+    );
+
+    book.permit_resnapshot();
+    book.snapshot_native(&snapshot, SequenceRange { first: 1, last: 5 }, 0)
+        .unwrap();
+    assert!(
+        book.delta_native(
+            &BookDelta {
+                changes: vec![],
+                checksum: None
+            },
+            SequenceRange { first: 7, last: 8 },
             1
         )
         .is_err()
@@ -107,10 +181,12 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
 
 #[test]
 fn feature_order_classification_and_reason_precedence_are_frozen() {
+    let pre_event = ReversalPolicy::pre_event_normal(Direction::Unknown);
+    let event = ReversalPolicy::new(CurrentPhase::Buildup, Direction::Up, true);
     assert_eq!(FeatureName::CANONICAL.len(), 9);
-    assert!(FeatureName::LogReturn.is_critical(false));
-    assert!(!FeatureName::ReversalFromExtreme.is_critical(false));
-    assert!(FeatureName::ReversalFromExtreme.is_critical(true));
+    assert!(FeatureName::LogReturn.is_critical(pre_event));
+    assert!(!FeatureName::ReversalFromExtreme.is_critical(pre_event));
+    assert!(FeatureName::ReversalFromExtreme.is_critical(event));
     assert!(FeatureName::OpenInterestChange.is_optional());
     let conditions = FeatureConditions {
         clock_degraded: true,
@@ -119,14 +195,13 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     };
     let row = evaluate_feature(
         FeatureName::OpenInterestChange,
-        5_000,
         None,
         &conditions,
-        false,
+        pre_event,
     )
     .unwrap();
     assert_eq!(
-        (row.reason, row.quality),
+        (row.reason(), row.quality()),
         (
             FeatureReason::InsufficientSamples,
             FeatureQuality::Unavailable
@@ -134,53 +209,68 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     );
     let degraded = evaluate_feature(
         FeatureName::LogReturn,
-        1_000,
         Some(1),
         &FeatureConditions {
             clock_degraded: true,
             ..Default::default()
         },
-        false,
+        pre_event,
     )
     .unwrap();
     assert_eq!(
-        (degraded.reason, degraded.quality),
+        (degraded.reason(), degraded.quality()),
         (FeatureReason::ClockDegraded, FeatureQuality::Degraded)
     );
+    assert_eq!(degraded.horizon_ms(), 1_000);
     assert_eq!(
         evaluate_feature(
             FeatureName::LogReturn,
-            1_000,
             None,
             &FeatureConditions {
                 out_of_domain: true,
                 ..Default::default()
             },
-            false
+            pre_event
         ),
         Err(FeatureAuthoringError::CriticalFeatureAuthoringError)
     );
     let zero = evaluate_reversal(
-        Direction::Unknown,
-        false,
+        pre_event,
         Err(ArithmeticError::OutOfDomain),
         &FeatureConditions::default(),
     )
     .unwrap();
     assert_eq!(
-        (zero.value, zero.reason),
+        (zero.value(), zero.reason()),
         (Some(0), FeatureReason::ObservationValid)
     );
     assert_eq!(
         evaluate_reversal(
-            Direction::Unknown,
-            true,
+            ReversalPolicy::new(CurrentPhase::Normal, Direction::Unknown, true),
             Err(ArithmeticError::OutOfDomain),
             &FeatureConditions::default()
         )
         .unwrap()
-        .quality,
+        .quality(),
+        FeatureQuality::Validated
+    );
+    assert_eq!(
+        evaluate_reversal(
+            ReversalPolicy::new(CurrentPhase::Buildup, Direction::Unknown, true),
+            Err(ArithmeticError::OutOfDomain),
+            &FeatureConditions::default()
+        )
+        .unwrap()
+        .quality(),
         FeatureQuality::Unavailable
+    );
+    assert_eq!(
+        evaluate_reversal(
+            ReversalPolicy::new(CurrentPhase::Normal, Direction::Up, true),
+            Err(ArithmeticError::OutOfDomain),
+            &FeatureConditions::default()
+        ),
+        Err(FeatureAuthoringError::CriticalFeatureAuthoringError)
     );
     assert_eq!(
         mechanics_flags(&FlagConditions {
@@ -195,7 +285,58 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
             MechanicsFlag::SequenceGap,
         ]
     );
-    assert_eq!(envelope_quality(&[row], false), EnvelopeQuality::Degraded);
+    assert_eq!(
+        evaluate_feature(
+            FeatureName::LogReturn,
+            None,
+            &FeatureConditions::default(),
+            pre_event
+        ),
+        Err(FeatureAuthoringError::InvalidFeatureObservation)
+    );
+
+    let mut rows = FeatureName::CANONICAL
+        .iter()
+        .map(|(name, _)| {
+            let conditions = if *name == FeatureName::OpenInterestChange {
+                FeatureConditions {
+                    optional_source_unavailable: true,
+                    ..Default::default()
+                }
+            } else {
+                FeatureConditions::default()
+            };
+            if *name == FeatureName::ReversalFromExtreme {
+                evaluate_reversal(pre_event, Err(ArithmeticError::OutOfDomain), &conditions)
+                    .unwrap()
+            } else {
+                evaluate_feature(
+                    *name,
+                    (*name != FeatureName::OpenInterestChange).then_some(0),
+                    &conditions,
+                    pre_event,
+                )
+                .unwrap()
+            }
+        })
+        .collect::<Vec<_>>();
+    let set = FeatureSet::new(rows.clone()).unwrap();
+    assert_eq!(envelope_quality(&set, pre_event), EnvelopeQuality::Degraded);
+    let mut duplicate = rows.clone();
+    duplicate[8] = duplicate[0].clone();
+    assert_eq!(
+        FeatureSet::new(duplicate),
+        Err(FeatureAuthoringError::InvalidFeatureSet)
+    );
+    rows.pop();
+    assert_eq!(
+        FeatureSet::new(rows),
+        Err(FeatureAuthoringError::InvalidFeatureSet)
+    );
+    assert_eq!(
+        FeatureSet::new(Vec::new()),
+        Err(FeatureAuthoringError::InvalidFeatureSet)
+    );
 }
 
 #[test]

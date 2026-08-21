@@ -6,6 +6,8 @@ use thiserror::Error;
 
 pub const PER_WINDOW_CAPACITY: usize = 4_096;
 pub const PROCESSOR_RECORD_CAPACITY: usize = 65_536;
+pub const MAX_WINDOW_SOURCES: usize = 32;
+pub const MAX_WINDOW_TOPOLOGY: usize = MAX_WINDOW_SOURCES * SUPPORTED_HORIZONS_NS.len() * 6;
 pub const SUPPORTED_HORIZONS_NS: [i64; 7] = [
     100_000_000,
     250_000_000,
@@ -26,6 +28,12 @@ pub enum WindowError {
     TimeOverflow,
     #[error("bounded window capacity breached; affected source is invalid")]
     QueueDrop,
+    #[error("window topology contains an invalid or duplicate key")]
+    InvalidTopology,
+    #[error("window key is not preconfigured")]
+    UnconfiguredKey,
+    #[error("source epoch generation must strictly increase")]
+    EpochNotGreater,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,58 +184,140 @@ impl<T> FixedWindow<T> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct WindowSource(String);
+impl WindowSource {
+    pub fn new(value: &str) -> Result<Self, WindowError> {
+        if value.is_empty() || value.len() > 128 || !value.is_ascii() {
+            return Err(WindowError::InvalidTopology);
+        }
+        Ok(Self(value.to_owned()))
+    }
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WindowKind {
+    Trade,
+    Quote,
+    Book,
+    OpenInterest,
+    Liquidation,
+    ConfirmationPrice,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct WindowKey {
-    pub source_id: String,
-    pub horizon_ns: i64,
-    pub kind: String,
+    source: WindowSource,
+    horizon_ns: i64,
+    kind: WindowKind,
+}
+impl WindowKey {
+    pub fn new(
+        source: WindowSource,
+        horizon_ns: i64,
+        kind: WindowKind,
+    ) -> Result<Self, WindowError> {
+        if !SUPPORTED_HORIZONS_NS.contains(&horizon_ns) {
+            return Err(WindowError::UnsupportedHorizon);
+        }
+        Ok(Self {
+            source,
+            horizon_ns,
+            kind,
+        })
+    }
+    pub fn source(&self) -> &WindowSource {
+        &self.source
+    }
+    pub fn horizon_ns(&self) -> i64 {
+        self.horizon_ns
+    }
+    pub fn kind(&self) -> WindowKind {
+        self.kind
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WindowSpec {
+    pub key: WindowKey,
+    pub epoch_generation: u8,
+    pub epoch_first_available_ns: i64,
 }
 
 #[derive(Debug, Clone)]
 pub struct WindowBank<T> {
     windows: BTreeMap<WindowKey, FixedWindow<T>>,
+    source_generations: BTreeMap<WindowSource, u8>,
     total_records: usize,
 }
 
-impl<T> Default for WindowBank<T> {
-    fn default() -> Self {
-        Self {
-            windows: BTreeMap::new(),
-            total_records: 0,
-        }
-    }
-}
-
 impl<T> WindowBank<T> {
-    pub fn insert_window(
-        &mut self,
-        key: WindowKey,
-        epoch_first_available_ns: i64,
-    ) -> Result<(), WindowError> {
-        if !SUPPORTED_HORIZONS_NS.contains(&key.horizon_ns) {
-            return Err(WindowError::UnsupportedHorizon);
+    pub fn new(specs: impl IntoIterator<Item = WindowSpec>) -> Result<Self, WindowError> {
+        let mut windows = BTreeMap::new();
+        let mut source_generations = BTreeMap::new();
+        for spec in specs {
+            if windows.len() == MAX_WINDOW_TOPOLOGY {
+                return Err(WindowError::InvalidTopology);
+            }
+            if source_generations
+                .get(&spec.key.source)
+                .is_some_and(|generation| *generation != spec.epoch_generation)
+            {
+                return Err(WindowError::InvalidTopology);
+            }
+            source_generations.insert(spec.key.source.clone(), spec.epoch_generation);
+            if source_generations.len() > MAX_WINDOW_SOURCES {
+                return Err(WindowError::InvalidTopology);
+            }
+            let horizon = spec.key.horizon_ns;
+            if windows
+                .insert(
+                    spec.key,
+                    FixedWindow::new(horizon, spec.epoch_first_available_ns)?,
+                )
+                .is_some()
+            {
+                return Err(WindowError::InvalidTopology);
+            }
         }
-        self.windows
-            .entry(key.clone())
-            .or_insert(FixedWindow::new(key.horizon_ns, epoch_first_available_ns)?);
-        Ok(())
+        if windows.is_empty() {
+            return Err(WindowError::InvalidTopology);
+        }
+        Ok(Self {
+            windows,
+            source_generations,
+            total_records: 0,
+        })
     }
 
     pub fn push(&mut self, key: &WindowKey, at_ns: i64, value: T) -> Result<(), WindowError> {
-        let window = self
-            .windows
-            .get_mut(key)
-            .ok_or(WindowError::UnsupportedHorizon)?;
+        if !self.windows.contains_key(key) {
+            return Err(WindowError::UnconfiguredKey);
+        }
         if self.total_records == PROCESSOR_RECORD_CAPACITY {
-            self.total_records -= window.len();
-            window.records.clear();
-            window.invalid = true;
+            self.invalidate_source(&key.source);
             return Err(WindowError::QueueDrop);
         }
-        let before = window.len();
-        let result = window.push(at_ns, value);
+        let total_before = self.total_records;
+        let source_records_before = self
+            .windows
+            .iter()
+            .filter(|(candidate, _)| candidate.source == key.source)
+            .map(|(_, window)| window.len())
+            .sum::<usize>();
+        let result = self
+            .windows
+            .get_mut(key)
+            .expect("preconfigured key was checked")
+            .push(at_ns, value);
         match result {
             Ok(()) => self.total_records += 1,
-            Err(WindowError::QueueDrop) => self.total_records -= before,
+            Err(WindowError::QueueDrop) => {
+                self.invalidate_source(&key.source);
+                self.total_records = total_before - source_records_before;
+            }
             Err(_) => {}
         }
         result
@@ -237,7 +327,7 @@ impl<T> WindowBank<T> {
         let removed = self
             .windows
             .get_mut(key)
-            .ok_or(WindowError::UnsupportedHorizon)?
+            .ok_or(WindowError::UnconfiguredKey)?
             .evict(decision_time_ns)?;
         self.total_records -= removed;
         Ok(())
@@ -248,5 +338,42 @@ impl<T> WindowBank<T> {
     }
     pub fn total_records(&self) -> usize {
         self.total_records
+    }
+
+    pub fn advance_source_epoch(
+        &mut self,
+        source: &WindowSource,
+        generation: u8,
+        epoch_first_available_ns: i64,
+    ) -> Result<(), WindowError> {
+        let current = self
+            .source_generations
+            .get_mut(source)
+            .ok_or(WindowError::UnconfiguredKey)?;
+        if generation <= *current {
+            return Err(WindowError::EpochNotGreater);
+        }
+        *current = generation;
+        let mut removed = 0usize;
+        for (key, window) in &mut self.windows {
+            if &key.source == source {
+                removed += window.len();
+                window.clear_for_new_epoch(epoch_first_available_ns);
+            }
+        }
+        self.total_records -= removed;
+        Ok(())
+    }
+
+    fn invalidate_source(&mut self, source: &WindowSource) {
+        let mut removed = 0usize;
+        for (key, window) in &mut self.windows {
+            if &key.source == source {
+                removed += window.len();
+                window.records.clear();
+                window.invalid = true;
+            }
+        }
+        self.total_records -= removed;
     }
 }
