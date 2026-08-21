@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeSeed};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -593,7 +593,7 @@ pub struct ClockSourceV1 {
     epoch: String,
     epoch_generation: u8,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct ClockCursorV1(CursorV1);
 impl ClockCursorV1 {
@@ -602,6 +602,18 @@ impl ClockCursorV1 {
     }
     pub fn cursor(&self) -> &CursorV1 {
         &self.0
+    }
+    pub fn validate_static(&self) -> Result<(), WireError> {
+        self.0.native_range().map(|_| ()).ok_or(WireError::Cursor)
+    }
+}
+impl<'de> Deserialize<'de> for ClockCursorV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let cursor = CursorV1::deserialize(deserializer)?;
+        cursor
+            .native_range()
+            .map(|_| Self(cursor))
+            .ok_or_else(|| serde::de::Error::custom(WireError::Cursor))
     }
 }
 
@@ -617,7 +629,7 @@ pub struct CoverageSourceV1 {
     epoch: String,
     epoch_generation: u8,
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct CoverageCursorV1(CursorV1);
 impl CoverageCursorV1 {
@@ -626,6 +638,18 @@ impl CoverageCursorV1 {
     }
     pub fn cursor(&self) -> &CursorV1 {
         &self.0
+    }
+    pub fn validate_static(&self) -> Result<(), WireError> {
+        self.0.native_range().map(|_| ()).ok_or(WireError::Cursor)
+    }
+}
+impl<'de> Deserialize<'de> for CoverageCursorV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let cursor = CursorV1::deserialize(deserializer)?;
+        cursor
+            .native_range()
+            .map(|_| Self(cursor))
+            .ok_or_else(|| serde::de::Error::custom(WireError::Cursor))
     }
 }
 
@@ -740,6 +764,21 @@ enum FaultScopeInner {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct FaultScopeV1(FaultScopeInner);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaultScopeRefV1<'a> {
+    Contributor {
+        contributor: &'a ContributorV1,
+    },
+    ConnectionEpoch {
+        connection_key: &'a ConnectionKeyV1,
+        connection_epoch: &'a str,
+        epoch_generation: u8,
+    },
+    Processor {
+        processor_id: &'a str,
+    },
+}
 impl FaultScopeV1 {
     pub fn contributor(c: ContributorV1) -> Self {
         Self(FaultScopeInner::Contributor { contributor: c })
@@ -761,6 +800,25 @@ impl FaultScopeV1 {
             FaultScopeInner::Contributor { .. } => FaultScopeKindV1::Contributor,
             FaultScopeInner::ConnectionEpoch { .. } => FaultScopeKindV1::ConnectionEpoch,
             FaultScopeInner::Processor { .. } => FaultScopeKindV1::Processor,
+        }
+    }
+    pub fn view(&self) -> FaultScopeRefV1<'_> {
+        match &self.0 {
+            FaultScopeInner::Contributor { contributor } => {
+                FaultScopeRefV1::Contributor { contributor }
+            }
+            FaultScopeInner::ConnectionEpoch {
+                connection_key,
+                connection_epoch,
+                epoch_generation,
+            } => FaultScopeRefV1::ConnectionEpoch {
+                connection_key,
+                connection_epoch,
+                epoch_generation: *epoch_generation,
+            },
+            FaultScopeInner::Processor { processor_id } => {
+                FaultScopeRefV1::Processor { processor_id }
+            }
         }
     }
 }
@@ -823,6 +881,25 @@ enum SystemFaultInner {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct SystemFaultV1(SystemFaultInner);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SystemFaultRefV1 {
+    Disconnected,
+    SequenceGap {
+        expected: u64,
+        actual: u64,
+    },
+    EventsDropped {
+        count: u64,
+        category: DropCategoryV1,
+    },
+    ChecksumMismatch,
+    ClockJump {
+        delta_ns: i64,
+    },
+    BookInvalidated,
+    BookResynchronized,
+}
 impl SystemFaultV1 {
     pub fn disconnected() -> Self {
         Self(SystemFaultInner::Disconnected)
@@ -847,6 +924,21 @@ impl SystemFaultV1 {
     }
     pub fn book_resynchronized() -> Self {
         Self(SystemFaultInner::BookResynchronized)
+    }
+    pub fn view(&self) -> SystemFaultRefV1 {
+        match self.0 {
+            SystemFaultInner::Disconnected => SystemFaultRefV1::Disconnected,
+            SystemFaultInner::SequenceGap { expected, actual } => {
+                SystemFaultRefV1::SequenceGap { expected, actual }
+            }
+            SystemFaultInner::EventsDropped { count, category } => {
+                SystemFaultRefV1::EventsDropped { count, category }
+            }
+            SystemFaultInner::ChecksumMismatch => SystemFaultRefV1::ChecksumMismatch,
+            SystemFaultInner::ClockJump { delta_ns } => SystemFaultRefV1::ClockJump { delta_ns },
+            SystemFaultInner::BookInvalidated => SystemFaultRefV1::BookInvalidated,
+            SystemFaultInner::BookResynchronized => SystemFaultRefV1::BookResynchronized,
+        }
     }
 }
 #[derive(Deserialize)]
@@ -972,7 +1064,7 @@ fn valid_prefixed_id(value: &str, prefix: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ContributorRoleV1 {
-    PrimaryInstrument,
+    Primary,
     Confirmation,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -991,10 +1083,8 @@ impl ContributorSpecV1 {
             .into_iter()
             .collect::<std::collections::BTreeSet<_>>();
         let valid = match role {
-            ContributorRoleV1::PrimaryInstrument => {
-                [FamilyV1::Trade, FamilyV1::Quote, FamilyV1::Book]
-                    .into_iter()
-                    .all(|f| allowed_families.contains(&f))
+            ContributorRoleV1::Primary => {
+                !allowed_families.is_empty()
                     && allowed_families.iter().all(|f| {
                         matches!(
                             f,
@@ -1070,7 +1160,32 @@ impl MechanicsConfigV1 {
             .collect::<std::collections::BTreeSet<_>>();
         let primary = contributors
             .iter()
-            .find(|contributor| contributor.role() == ContributorRoleV1::PrimaryInstrument);
+            .find(|contributor| contributor.role() == ContributorRoleV1::Primary);
+        let primary_count = contributors
+            .iter()
+            .filter(|contributor| contributor.role() == ContributorRoleV1::Primary)
+            .count();
+        let primary_instrument_valid = primary.is_some_and(|primary| {
+            contributors
+                .iter()
+                .filter(|contributor| contributor.role() == ContributorRoleV1::Primary)
+                .all(|contributor| contributor.key.instrument == primary.key.instrument)
+        });
+        let primary_family_owner_count = |family: FamilyV1| {
+            contributors
+                .iter()
+                .filter(|contributor| {
+                    contributor.role() == ContributorRoleV1::Primary
+                        && contributor.allowed_families.contains(&family)
+                })
+                .count()
+        };
+        let primary_family_ownership_valid = [FamilyV1::Trade, FamilyV1::Quote, FamilyV1::Book]
+            .into_iter()
+            .all(|family| primary_family_owner_count(family) == 1)
+            && [FamilyV1::OpenInterest, FamilyV1::Liquidation]
+                .into_iter()
+                .all(|family| primary_family_owner_count(family) <= 1);
         let confirmation_count = contributors
             .iter()
             .filter(|contributor| contributor.role() == ContributorRoleV1::Confirmation)
@@ -1101,11 +1216,9 @@ impl MechanicsConfigV1 {
                 .any(|(contributor, connection)| {
                     !contributors_set.contains(contributor) || !connections_set.contains(connection)
                 })
-            || contributors
-                .iter()
-                .filter(|c| c.role() == ContributorRoleV1::PrimaryInstrument)
-                .count()
-                != 1
+            || primary_count == 0
+            || !primary_instrument_valid
+            || !primary_family_ownership_valid
             || confirmation_count > 15
             || confirmation_venues.len() != confirmation_count
             || !confirmation_identity_valid
@@ -1565,6 +1678,13 @@ enum OiEncodingInner {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct OpenInterestEncodingV1(OiEncodingInner);
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenInterestEncodingRefV1<'a> {
+    Contracts,
+    Base {
+        contracts_per_base: &'a CanonicalDecimal,
+    },
+}
 impl OpenInterestEncodingV1 {
     pub fn contracts() -> Self {
         Self(OiEncodingInner::Contracts)
@@ -1582,6 +1702,14 @@ impl OpenInterestEncodingV1 {
         Ok(Self(OiEncodingInner::Base {
             contracts_per_base: value,
         }))
+    }
+    pub fn view(&self) -> OpenInterestEncodingRefV1<'_> {
+        match &self.0 {
+            OiEncodingInner::Contracts => OpenInterestEncodingRefV1::Contracts,
+            OiEncodingInner::Base { contracts_per_base } => {
+                OpenInterestEncodingRefV1::Base { contracts_per_base }
+            }
+        }
     }
 }
 
@@ -1719,6 +1847,110 @@ impl<'de> Deserialize<'de> for ReplayCatalogV1 {
     }
 }
 
+fn validate_market_mapping(
+    catalog: &ReplayCatalogV1,
+    envelope: &marketfeed_model::EventEnvelope,
+    action_index: u32,
+) -> Result<(), WireError> {
+    if !catalog.contains_envelope(envelope) {
+        return Err(WireError::Identity);
+    }
+    match envelope.source_sequence {
+        Some(sequence) => CursorV1::native(sequence.first, sequence.last),
+        None => CursorV1::derived(
+            envelope.frame_seq,
+            action_index,
+            u32::from(envelope.event_index),
+        ),
+    }
+    .map(|_| ())
+}
+
+struct UniqueJsonSeed;
+
+impl<'de> DeserializeSeed<'de> for UniqueJsonSeed {
+    type Value = serde_json::Value;
+
+    fn deserialize<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        deserializer.deserialize_any(UniqueJsonVisitor)
+    }
+}
+
+struct UniqueJsonVisitor;
+
+impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
+    type Value = serde_json::Value;
+
+    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("JSON with unique object keys")
+    }
+    fn visit_bool<E: serde::de::Error>(self, value: bool) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Bool(value))
+    }
+    fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+    fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Number(value.into()))
+    }
+    fn visit_f64<E: serde::de::Error>(self, value: f64) -> Result<Self::Value, E> {
+        serde_json::Number::from_f64(value)
+            .map(serde_json::Value::Number)
+            .ok_or_else(|| E::custom("non-finite JSON number"))
+    }
+    fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::String(value.to_owned()))
+    }
+    fn visit_string<E: serde::de::Error>(self, value: String) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::String(value))
+    }
+    fn visit_none<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Null)
+    }
+    fn visit_unit<E: serde::de::Error>(self) -> Result<Self::Value, E> {
+        Ok(serde_json::Value::Null)
+    }
+    fn visit_some<D: serde::Deserializer<'de>>(
+        self,
+        deserializer: D,
+    ) -> Result<Self::Value, D::Error> {
+        UniqueJsonSeed.deserialize(deserializer)
+    }
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(
+        self,
+        mut sequence: A,
+    ) -> Result<Self::Value, A::Error> {
+        let mut values = Vec::new();
+        while let Some(value) = sequence.next_element_seed(UniqueJsonSeed)? {
+            values.push(value);
+        }
+        Ok(serde_json::Value::Array(values))
+    }
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+        let mut values = serde_json::Map::new();
+        while let Some(key) = map.next_key::<String>()? {
+            if values.contains_key(&key) {
+                return Err(serde::de::Error::custom("duplicate JSON object key"));
+            }
+            let value = map.next_value_seed(UniqueJsonSeed)?;
+            values.insert(key, value);
+        }
+        Ok(serde_json::Value::Object(values))
+    }
+}
+
+fn parse_unique_json(bytes: &[u8]) -> Result<serde_json::Value, WireError> {
+    let mut deserializer = serde_json::Deserializer::from_slice(bytes);
+    let value = UniqueJsonSeed
+        .deserialize(&mut deserializer)
+        .map_err(|_| WireError::Identity)?;
+    deserializer.end().map_err(|_| WireError::Identity)?;
+    Ok(value)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
 enum MechanicsInputInner {
@@ -1762,9 +1994,59 @@ enum MechanicsInputInner {
         payload_hash: String,
     },
 }
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(transparent)]
+
+#[derive(Debug, Clone, Copy)]
+pub enum MechanicsInputRefV1<'a> {
+    Market {
+        envelope: &'a marketfeed_model::EventEnvelope,
+        action_index: u32,
+        catalog: &'a ReplayCatalogV1,
+        payload_hash: &'a str,
+    },
+    System {
+        system_source: &'a SystemSourceV1,
+        scope: &'a FaultScopeV1,
+        occurred_at: &'a Rfc3339Time,
+        available_at: &'a Rfc3339Time,
+        system_cursor: &'a SystemCursorV1,
+        fault: &'a SystemFaultV1,
+        predecessor_system_chain_hash: Option<&'a str>,
+        payload_hash: &'a str,
+    },
+    Coverage {
+        contributor: &'a ContributorV1,
+        coverage_source: &'a CoverageSourceV1,
+        family: FamilyV1,
+        covered_from: &'a Rfc3339Time,
+        covered_through: &'a Rfc3339Time,
+        available_at: &'a Rfc3339Time,
+        coverage_cursor: &'a CoverageCursorV1,
+        payload_hash: &'a str,
+    },
+    Clock {
+        contributor: &'a ContributorV1,
+        clock_source: &'a ClockSourceV1,
+        observed_at: &'a Rfc3339Time,
+        available_at: &'a Rfc3339Time,
+        clock_cursor: &'a ClockCursorV1,
+        clock_state: ClockStateV1,
+        observed_skew_ms: &'a CanonicalDecimal,
+        freshness_limit_ms: u64,
+        quality_state: ClockQualityV1,
+        reason_code: &'a str,
+        payload_hash: &'a str,
+    },
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MechanicsInputV1(MechanicsInputInner);
+
+impl Serialize for MechanicsInputV1 {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serde_json::to_value(&self.0)
+            .map_err(serde::ser::Error::custom)?
+            .serialize(serializer)
+    }
+}
 
 impl MechanicsInputV1 {
     fn inner_mut_hash(inner: &mut MechanicsInputInner) -> &mut String {
@@ -1780,6 +2062,13 @@ impl MechanicsInputV1 {
         let hash = this.expected_payload_hash()?;
         *Self::inner_mut_hash(&mut inner) = hash;
         this.0 = inner;
+        if serde_json::to_vec(&this)
+            .map_err(|_| WireError::Identity)?
+            .len()
+            > MAX_INPUT_BYTES
+        {
+            return Err(WireError::Identity);
+        }
         Ok(this)
     }
     fn verified(inner: MechanicsInputInner) -> Result<Self, WireError> {
@@ -1798,6 +2087,84 @@ impl MechanicsInputV1 {
             | MechanicsInputInner::Clock { payload_hash, .. } => payload_hash,
         }
     }
+    pub fn view(&self) -> MechanicsInputRefV1<'_> {
+        match &self.0 {
+            MechanicsInputInner::Market {
+                envelope,
+                action_index,
+                catalog,
+                payload_hash,
+            } => MechanicsInputRefV1::Market {
+                envelope,
+                action_index: *action_index,
+                catalog,
+                payload_hash,
+            },
+            MechanicsInputInner::System {
+                system_source,
+                scope,
+                occurred_at,
+                available_at,
+                system_cursor,
+                fault,
+                predecessor_system_chain_hash,
+                payload_hash,
+            } => MechanicsInputRefV1::System {
+                system_source,
+                scope,
+                occurred_at,
+                available_at,
+                system_cursor,
+                fault,
+                predecessor_system_chain_hash: predecessor_system_chain_hash.as_deref(),
+                payload_hash,
+            },
+            MechanicsInputInner::Coverage {
+                contributor,
+                coverage_source,
+                family,
+                covered_from,
+                covered_through,
+                available_at,
+                coverage_cursor,
+                payload_hash,
+            } => MechanicsInputRefV1::Coverage {
+                contributor,
+                coverage_source,
+                family: *family,
+                covered_from,
+                covered_through,
+                available_at,
+                coverage_cursor,
+                payload_hash,
+            },
+            MechanicsInputInner::Clock {
+                contributor,
+                clock_source,
+                observed_at,
+                available_at,
+                clock_cursor,
+                clock_state,
+                observed_skew_ms,
+                freshness_limit_ms,
+                quality_state,
+                reason_code,
+                payload_hash,
+            } => MechanicsInputRefV1::Clock {
+                contributor,
+                clock_source,
+                observed_at,
+                available_at,
+                clock_cursor,
+                clock_state: *clock_state,
+                observed_skew_ms,
+                freshness_limit_ms: *freshness_limit_ms,
+                quality_state: *quality_state,
+                reason_code,
+                payload_hash,
+            },
+        }
+    }
     pub fn expected_payload_hash(&self) -> Result<String, WireError> {
         let mut value = serde_json::to_value(self).map_err(|_| WireError::Identity)?;
         value
@@ -1814,9 +2181,7 @@ impl MechanicsInputV1 {
         action_index: u32,
         catalog: ReplayCatalogV1,
     ) -> Result<Self, WireError> {
-        if action_index > 65_534 || !catalog.contains_envelope(&envelope) {
-            return Err(WireError::Identity);
-        }
+        validate_market_mapping(&catalog, &envelope, action_index)?;
         Self::authored(MechanicsInputInner::Market {
             envelope,
             action_index,
@@ -1921,7 +2286,12 @@ impl MechanicsInputV1 {
         if bytes.len() > MAX_INPUT_BYTES {
             return Err(WireError::Identity);
         }
-        serde_json::from_slice(bytes).map_err(|_| WireError::Identity)
+        let value = parse_unique_json(bytes)?;
+        let input: Self = serde_json::from_value(value).map_err(|_| WireError::Identity)?;
+        if serde_json::to_vec(&input).map_err(|_| WireError::Identity)? != bytes {
+            return Err(WireError::Identity);
+        }
+        Ok(input)
     }
     pub fn validate_static(&self) -> Result<(), WireError> {
         if self.expected_payload_hash()? != self.payload_hash() {
@@ -1936,9 +2306,7 @@ impl MechanicsInputV1 {
                 action_index,
             } => {
                 catalog.validate()?;
-                if *action_index > 65_534 || !catalog.contains_envelope(envelope) {
-                    return Err(WireError::Identity);
-                }
+                validate_market_mapping(catalog, envelope, *action_index)?;
                 hash(payload_hash)
             }
             MechanicsInputInner::System {
@@ -1967,8 +2335,8 @@ impl MechanicsInputV1 {
                 covered_from,
                 covered_through,
                 available_at,
+                coverage_cursor,
                 payload_hash,
-                ..
             } => {
                 if covered_from > covered_through
                     || covered_through > available_at
@@ -1977,6 +2345,7 @@ impl MechanicsInputV1 {
                 {
                     return Err(WireError::Identity);
                 }
+                coverage_cursor.validate_static()?;
                 hash(payload_hash)
             }
             MechanicsInputInner::Clock {
@@ -1984,6 +2353,7 @@ impl MechanicsInputV1 {
                 clock_source,
                 observed_at,
                 available_at,
+                clock_cursor,
                 freshness_limit_ms,
                 reason_code,
                 payload_hash,
@@ -1999,6 +2369,7 @@ impl MechanicsInputV1 {
                 {
                     return Err(WireError::Identity);
                 }
+                clock_cursor.validate_static()?;
                 hash(payload_hash)
             }
         }

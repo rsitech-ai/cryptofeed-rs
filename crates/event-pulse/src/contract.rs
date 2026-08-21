@@ -1379,6 +1379,7 @@ fn is_id(value: &str, prefix: &str) -> bool {
     value.trim() == value
         && value.strip_prefix(prefix).is_some_and(|suffix| {
             !suffix.is_empty()
+                && suffix.as_bytes()[0].is_ascii_alphanumeric()
                 && suffix
                     .bytes()
                     .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')

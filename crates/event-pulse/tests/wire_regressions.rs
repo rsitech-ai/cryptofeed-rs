@@ -264,8 +264,9 @@ fn e2_snapshot_profile_requires_exact_nine_rows_and_horizons() {
 #[test]
 fn system_input_is_mode_scope_target_and_reserved_drop_safe() {
     use marketfeed_event_pulse::wire::{
-        ConfiguredTargetKeyV1, CursorModeV1, DropCategoryV1, FaultScopeKindV1, FaultScopeV1,
-        MechanicsInputV1, SystemFaultV1, SystemSourceKeyV1, SystemSourceV1,
+        ConfiguredTargetKeyV1, CursorModeV1, DropCategoryV1, FaultScopeKindV1, FaultScopeRefV1,
+        FaultScopeV1, MechanicsInputRefV1, MechanicsInputV1, OpenInterestEncodingRefV1,
+        OpenInterestEncodingV1, SystemFaultRefV1, SystemFaultV1, SystemSourceKeyV1, SystemSourceV1,
     };
     let key = SystemSourceKeyV1::new(
         "system_drop_source",
@@ -287,6 +288,29 @@ fn system_input_is_mode_scope_target_and_reserved_drop_safe() {
     )
     .unwrap();
     input.validate_static().unwrap();
+    match input.view() {
+        MechanicsInputRefV1::System { scope, fault, .. } => {
+            assert!(matches!(
+                scope.view(),
+                FaultScopeRefV1::Processor {
+                    processor_id: "processor_one"
+                }
+            ));
+            assert!(matches!(
+                fault.view(),
+                SystemFaultRefV1::EventsDropped {
+                    count: 1,
+                    category: DropCategoryV1::ActionBuffer
+                }
+            ));
+        }
+        _ => panic!("expected system view"),
+    }
+    assert!(matches!(
+        OpenInterestEncodingV1::base("1.5").unwrap().view(),
+        OpenInterestEncodingRefV1::Base { contracts_per_base }
+            if contracts_per_base.as_str() == "1.5"
+    ));
     assert!(
         MechanicsInputV1::system(
             source,
@@ -402,18 +426,22 @@ fn mechanics_config_enforces_roles_family_ownership_caps_and_targets() {
         InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap()
     };
     let primary_key = || ContributorKeyV1::new("primary_source", instrument()).unwrap();
-    assert!(
-        ContributorSpecV1::new(
-            primary_key(),
-            ContributorRoleV1::PrimaryInstrument,
-            [FamilyV1::Trade, FamilyV1::Quote]
-        )
-        .is_err()
+    assert_eq!(
+        serde_json::to_value(ContributorRoleV1::Primary).unwrap(),
+        json!("PRIMARY")
     );
     assert!(
         ContributorSpecV1::new(
             primary_key(),
-            ContributorRoleV1::PrimaryInstrument,
+            ContributorRoleV1::Primary,
+            [FamilyV1::Trade, FamilyV1::Quote]
+        )
+        .is_ok()
+    );
+    assert!(
+        ContributorSpecV1::new(
+            primary_key(),
+            ContributorRoleV1::Primary,
             [
                 FamilyV1::Trade,
                 FamilyV1::Quote,
@@ -438,7 +466,7 @@ fn mechanics_config_enforces_roles_family_ownership_caps_and_targets() {
         let connection = ConnectionKeyV1::new("market_connection").unwrap();
         let primary = ContributorSpecV1::new(
             primary_key(),
-            ContributorRoleV1::PrimaryInstrument,
+            ContributorRoleV1::Primary,
             [FamilyV1::Trade, FamilyV1::Quote, FamilyV1::Book],
         )
         .unwrap();
@@ -532,6 +560,108 @@ fn mechanics_config_enforces_roles_family_ownership_caps_and_targets() {
     assert!(make(16, false, false).is_err());
     assert!(make(1, true, false).is_err());
     assert!(make(0, false, true).is_err());
+
+    let partitioned = |family_sets: Vec<Vec<FamilyV1>>, mismatch_second: bool| {
+        let connection = ConnectionKeyV1::new("partition_connection").unwrap();
+        let contributors = family_sets
+            .into_iter()
+            .enumerate()
+            .map(|(index, families)| {
+                let identity = if mismatch_second && index == 1 {
+                    InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "BINANCE", "BNB-USDC")
+                        .unwrap()
+                } else {
+                    instrument()
+                };
+                ContributorSpecV1::new(
+                    ContributorKeyV1::new(&format!("partition_{index}"), identity).unwrap(),
+                    ContributorRoleV1::Primary,
+                    families,
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let contributor_connections = contributors
+            .iter()
+            .map(|spec| (spec.key().clone(), connection.clone()))
+            .collect::<BTreeMap<_, _>>();
+        let clocks = contributors
+            .iter()
+            .enumerate()
+            .map(|(index, spec)| {
+                ClockSourceKeyV1::new(&format!("partition_clock_{index}"), spec.key().clone())
+                    .unwrap()
+            })
+            .collect();
+        let coverage = contributors
+            .iter()
+            .enumerate()
+            .flat_map(|(index, spec)| {
+                spec.allowed_families()
+                    .iter()
+                    .enumerate()
+                    .map(move |(family_index, family)| {
+                        CoverageSourceKeyV1::new(
+                            &format!("partition_coverage_{index}_{family_index}"),
+                            spec.key().clone(),
+                            *family,
+                        )
+                        .unwrap()
+                    })
+            })
+            .collect();
+        MechanicsConfigV1::new(
+            "processor_one",
+            vec![connection],
+            contributors,
+            contributor_connections,
+            clocks,
+            coverage,
+            Vec::new(),
+        )
+    };
+    partitioned(
+        vec![
+            vec![FamilyV1::Trade],
+            vec![FamilyV1::Quote],
+            vec![FamilyV1::Book],
+        ],
+        false,
+    )
+    .unwrap();
+    assert!(
+        partitioned(
+            vec![
+                vec![FamilyV1::Trade],
+                vec![FamilyV1::Trade, FamilyV1::Quote],
+                vec![FamilyV1::Book],
+            ],
+            false,
+        )
+        .is_err()
+    );
+    assert!(
+        partitioned(
+            vec![
+                vec![FamilyV1::Trade, FamilyV1::OpenInterest],
+                vec![FamilyV1::Quote, FamilyV1::OpenInterest],
+                vec![FamilyV1::Book],
+            ],
+            false,
+        )
+        .is_err()
+    );
+    assert!(
+        partitioned(
+            vec![
+                vec![FamilyV1::Trade],
+                vec![FamilyV1::Quote],
+                vec![FamilyV1::Book],
+            ],
+            true,
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -588,7 +718,7 @@ fn market_epin_requires_exact_action_and_catalog_mapping() {
     };
     assert!(MechanicsInputV1::market(envelope.clone(), 0, catalog.clone()).is_err());
 
-    let mut correct = envelope;
+    let mut correct = envelope.clone();
     correct.venue = VenueId(2);
     MechanicsInputV1::market(correct.clone(), 0, catalog.clone()).unwrap();
 
@@ -605,7 +735,29 @@ fn market_epin_requires_exact_action_and_catalog_mapping() {
     correct.payload = MarketEvent::OpenInterest(OpenInterest {
         quantity: Quantity(Fixed::new(1, 0)),
     });
-    assert!(MechanicsInputV1::market(correct, 0, catalog).is_err());
+    assert!(MechanicsInputV1::market(correct.clone(), 0, catalog.clone()).is_err());
+
+    let mut overflow = envelope;
+    overflow.venue = VenueId(2);
+    overflow.frame_seq = u64::MAX;
+    overflow.source_sequence = None;
+    assert!(MechanicsInputV1::market(overflow, 0, catalog.clone()).is_err());
+
+    let mut valid = correct;
+    valid.payload = MarketEvent::Trade(Trade {
+        price: Price(Fixed::new(100, 0)),
+        quantity: Quantity(Fixed::new(1, 0)),
+        aggressor: AggressorSide::Buy,
+        trade_id: None,
+    });
+    valid.source_sequence = None;
+    let authored = MechanicsInputV1::market(valid, 0, catalog).unwrap();
+    let mut rehashed_overflow = serde_json::to_value(authored).unwrap();
+    rehashed_overflow["envelope"]["frame_seq"] = json!(u64::MAX);
+    rehashed_overflow = rehash_epin(rehashed_overflow);
+    assert!(
+        MechanicsInputV1::from_epin_json(&serde_json::to_vec(&rehashed_overflow).unwrap()).is_err()
+    );
 }
 
 #[test]
@@ -705,6 +857,200 @@ fn checked_identity_deserialization_and_replay_bounds_cannot_be_bypassed() {
         "open_interest":{}
     });
     assert!(serde_json::from_value::<ReplayCatalogV1>(oversized).is_err());
+}
+
+#[test]
+fn clock_and_coverage_cursors_are_native_only_on_direct_and_epin_deserialization() {
+    use marketfeed_event_pulse::wire::{
+        ClockCursorV1, ClockQualityV1, ClockSourceKeyV1, ClockSourceV1, ClockStateV1,
+        ContributorKeyV1, ContributorV1, CoverageCursorV1, CoverageSourceKeyV1, CoverageSourceV1,
+        FamilyV1, InstrumentIdentityV1, MechanicsInputV1,
+    };
+    let derived = json!({
+        "kind":"DERIVED_ACTION",
+        "frame_ordinal":1,
+        "action_index":0,
+        "item_index":0
+    });
+    assert!(serde_json::from_value::<ClockCursorV1>(derived.clone()).is_err());
+    assert!(serde_json::from_value::<CoverageCursorV1>(derived.clone()).is_err());
+
+    let key = ContributorKeyV1::new(
+        "primary_source",
+        InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap(),
+    )
+    .unwrap();
+    let contributor = ContributorV1::new(key.clone(), "epoch_one", 0).unwrap();
+    let at = Rfc3339Time::parse("2026-08-21T10:00:00Z").unwrap();
+    let clock_source = ClockSourceV1::new(
+        ClockSourceKeyV1::new("clock_source", key.clone()).unwrap(),
+        "epoch_clock",
+        0,
+    )
+    .unwrap();
+    let clock = MechanicsInputV1::clock(
+        contributor.clone(),
+        clock_source,
+        at.clone(),
+        at.clone(),
+        ClockCursorV1::native(1, 1).unwrap(),
+        ClockStateV1::Synchronized,
+        CanonicalDecimal::parse_unbounded("1.0").unwrap(),
+        1_000,
+        ClockQualityV1::Validated,
+        "CLOCK_VALID",
+    )
+    .unwrap();
+    let mut clock_wire = serde_json::to_value(clock).unwrap();
+    clock_wire["clock_cursor"] = derived.clone();
+    clock_wire = rehash_epin(clock_wire);
+    assert!(MechanicsInputV1::from_epin_json(&serde_json::to_vec(&clock_wire).unwrap()).is_err());
+
+    let coverage_source = CoverageSourceV1::new(
+        CoverageSourceKeyV1::new("coverage_source", key, FamilyV1::Trade).unwrap(),
+        "epoch_coverage",
+        0,
+    )
+    .unwrap();
+    let coverage = MechanicsInputV1::coverage(
+        contributor,
+        coverage_source,
+        FamilyV1::Trade,
+        at.clone(),
+        at.clone(),
+        at,
+        CoverageCursorV1::native(1, 1).unwrap(),
+    )
+    .unwrap();
+    let mut coverage_wire = serde_json::to_value(coverage).unwrap();
+    coverage_wire["coverage_cursor"] = derived;
+    coverage_wire = rehash_epin(coverage_wire);
+    assert!(
+        MechanicsInputV1::from_epin_json(&serde_json::to_vec(&coverage_wire).unwrap()).is_err()
+    );
+}
+
+#[test]
+fn epin_reader_requires_exact_canonical_bytes_and_rejects_duplicate_keys() {
+    use marketfeed_event_pulse::wire::{
+        ConfiguredTargetKeyV1, CursorModeV1, DropCategoryV1, FaultScopeKindV1, FaultScopeV1,
+        MechanicsInputV1, SystemFaultV1, SystemSourceKeyV1, SystemSourceV1,
+    };
+    let source = SystemSourceV1::new(
+        SystemSourceKeyV1::new(
+            "system_drop_source",
+            FaultScopeKindV1::Processor,
+            ConfiguredTargetKeyV1::processor("processor_one").unwrap(),
+            CursorModeV1::Derived,
+        )
+        .unwrap(),
+        "epoch_one",
+        0,
+    )
+    .unwrap();
+    let at = Rfc3339Time::parse("2026-08-21T10:00:00Z").unwrap();
+    let input = MechanicsInputV1::system(
+        source,
+        FaultScopeV1::processor("processor_one").unwrap(),
+        at.clone(),
+        at,
+        CursorV1::derived_drop(1, 0).unwrap(),
+        SystemFaultV1::events_dropped(1, DropCategoryV1::ActionBuffer).unwrap(),
+        None,
+    )
+    .unwrap();
+    let canonical = serde_json::to_vec(&input).unwrap();
+    assert!(canonical.starts_with(br#"{"available_at":"#));
+    MechanicsInputV1::from_epin_json(&canonical).unwrap();
+
+    let pretty = serde_json::to_vec_pretty(&input).unwrap();
+    assert!(MechanicsInputV1::from_epin_json(&pretty).is_err());
+
+    let value = serde_json::to_value(&input).unwrap();
+    let reordered = format!(
+        "{{{}}}",
+        value
+            .as_object()
+            .unwrap()
+            .iter()
+            .rev()
+            .map(|(key, value)| format!(
+                "{}:{}",
+                serde_json::to_string(key).unwrap(),
+                serde_json::to_string(value).unwrap()
+            ))
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    assert!(MechanicsInputV1::from_epin_json(reordered.as_bytes()).is_err());
+
+    let duplicate = String::from_utf8(canonical.clone())
+        .unwrap()
+        .strip_suffix('}')
+        .map(|prefix| format!("{prefix},\"payload_hash\":\"{}\"}}", input.payload_hash()))
+        .unwrap();
+    assert!(MechanicsInputV1::from_epin_json(duplicate.as_bytes()).is_err());
+
+    let mut noncanonical_time = value;
+    noncanonical_time["occurred_at"] = json!("2026-08-21T10:00:00.000000+00:00");
+    assert!(
+        MechanicsInputV1::from_epin_json(&serde_json::to_vec(&noncanonical_time).unwrap()).is_err()
+    );
+}
+
+#[test]
+fn authoring_rejects_final_epin_above_sixteen_mib() {
+    use marketfeed_event_pulse::wire::{
+        ClockCursorV1, ClockQualityV1, ClockSourceKeyV1, ClockSourceV1, ClockStateV1,
+        ContributorKeyV1, ContributorV1, InstrumentIdentityV1, MAX_INPUT_BYTES, MechanicsInputV1,
+    };
+    let key = ContributorKeyV1::new(
+        "primary_source",
+        InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap(),
+    )
+    .unwrap();
+    let contributor = ContributorV1::new(key.clone(), "epoch_one", 0).unwrap();
+    let source = ClockSourceV1::new(
+        ClockSourceKeyV1::new("clock_source", key).unwrap(),
+        "epoch_clock",
+        0,
+    )
+    .unwrap();
+    let at = Rfc3339Time::parse("2026-08-21T10:00:00Z").unwrap();
+    assert!(
+        MechanicsInputV1::clock(
+            contributor,
+            source,
+            at.clone(),
+            at,
+            ClockCursorV1::native(1, 1).unwrap(),
+            ClockStateV1::Synchronized,
+            CanonicalDecimal::parse_unbounded("1").unwrap(),
+            1_000,
+            ClockQualityV1::Validated,
+            &"A".repeat(MAX_INPUT_BYTES),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn q1_and_e1_ids_require_alphanumeric_suffix_starts_after_prefix() {
+    let bundle = ContractBundle::load_embedded().unwrap();
+    for (mut payload, field, invalid) in [
+        (q1_golden(0), "contract_id", "evidence_-bad"),
+        (q1_golden(0), "lineage_id", "lineage__bad"),
+        (golden(0), "contract_id", "event_pulse_mechanics_-bad"),
+        (golden(0), "event_cluster_id", "event_cluster__bad"),
+    ] {
+        payload[field] = json!(invalid);
+        payload = rehash(payload);
+        assert!(
+            bundle
+                .validate_json(&serde_json::to_vec(&payload).unwrap())
+                .is_err()
+        );
+    }
 }
 
 #[test]
