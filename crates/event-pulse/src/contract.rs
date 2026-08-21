@@ -131,10 +131,71 @@ impl ContractBundle {
             "mechanical_intensity",
             "mechanical_confidence",
             "reversal_risk",
+            "expected_half_life_ms",
         ] {
             if composite.get(field_name) != mechanics.get(field_name) {
                 return Err(ContractError::HashBinding);
             }
+        }
+        let composite_time = object(field(composite, "causal_time")?)?;
+        let composite_available = parse_time(string_field(composite_time, "available_at")?)?;
+        let composite_received = parse_time(string_field(composite_time, "received_at")?)?;
+        let composite_normalized = parse_time(string_field(composite_time, "normalized_at")?)?;
+        for input in [
+            Some(mechanics),
+            context.map(|value| object(value.value())).transpose()?,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let input_available = parse_time(string_field(
+                object(field(input, "causal_time")?)?,
+                "available_at",
+            )?)?;
+            if input_available > composite_available
+                || input_available > composite_received
+                || input_available > composite_normalized
+            {
+                return Err(ContractError::HashBinding);
+            }
+        }
+        let mut expected_flags = BTreeSet::new();
+        for input in [
+            Some(mechanics),
+            context.map(|value| object(value.value())).transpose()?,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            for flag in array_field(input, "quality_flags")? {
+                expected_flags.insert(flag.as_str().ok_or(ContractError::HashBinding)?.to_owned());
+            }
+        }
+        let actual_flags: Vec<_> = array_field(composite, "quality_flags")?
+            .iter()
+            .map(|value| value.as_str().ok_or(ContractError::HashBinding))
+            .collect::<Result<_, _>>()?;
+        if actual_flags
+            != expected_flags
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        {
+            return Err(ContractError::HashBinding);
+        }
+        let expected_catalyst = context
+            .map(|value| object(value.value()))
+            .transpose()?
+            .and_then(|value| value.get("catalyst_confidence"));
+        if composite.get("catalyst_confidence") != expected_catalyst {
+            return Err(ContractError::HashBinding);
+        }
+        let expires = parse_time(string_field(composite, "expires_at")?)?;
+        let half_life_micros = integer_field(mechanics, "expected_half_life_ms")?
+            .checked_mul(1_000)
+            .ok_or(ContractError::HashBinding)?;
+        if expires != composite_available + half_life_micros {
+            return Err(ContractError::HashBinding);
         }
         Ok(())
     }
@@ -165,6 +226,17 @@ pub fn validate_revision_transition(
     if previous.get("scope") != current.get("scope") {
         return Err(ContractError::Semantic("revision scope mismatch"));
     }
+    let previous_available = parse_time(string_field(
+        object(field(previous, "causal_time")?)?,
+        "available_at",
+    )?)?;
+    let current_available = parse_time(string_field(
+        object(field(current, "causal_time")?)?,
+        "available_at",
+    )?)?;
+    if current_available < previous_available {
+        return Err(ContractError::Semantic("revision availability regression"));
+    }
     if integer_field(current, "revision")? != integer_field(previous, "revision")? + 1
         || current
             .get("predecessor_content_hash")
@@ -190,11 +262,73 @@ pub fn validate_context_revision(
             "context evidence is not append-only",
         ));
     }
+    let previous_available = parse_time(string_field(
+        object(field(object(&previous.0)?, "causal_time")?)?,
+        "available_at",
+    )?)?;
+    for item in &current_evidence[previous_evidence.len()..] {
+        if parse_time(string_field(object(item)?, "first_seen_at")?)? < previous_available {
+            return Err(ContractError::Semantic(
+                "context evidence rewrites prior information set",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Enforces the narrower E2-authored mechanics profile without narrowing the
+/// accepted E1 wire contract (whose published golden intentionally has one row).
+pub fn validate_e2_mechanics_profile(contract: &ValidatedContract) -> Result<(), ContractError> {
+    let obj = object(contract.value())?;
+    if string_field(obj, "contract_type")? != "mechanics"
+        || integer_field(obj, "expected_half_life_ms")? != 15_000
+    {
+        return Err(ContractError::Semantic("not the E2 mechanics profile"));
+    }
+    const ROWS: [(&str, i128, &str); 9] = [
+        ("book_depth_10bps", 250, "USDC"),
+        ("cross_venue_breadth", 1_000, "RATIO"),
+        ("cvd_slope", 1_000, "BASE_PER_SECOND"),
+        ("liquidation_notional", 5_000, "USDC"),
+        ("log_return", 1_000, "LOG_RETURN"),
+        ("open_interest_change", 5_000, "CONTRACTS"),
+        ("reversal_from_extreme", 5_000, "RATIO"),
+        ("spread_bps", 250, "BPS"),
+        ("taker_imbalance", 1_000, "RATIO"),
+    ];
+    let features = array_field(obj, "features")?;
+    if features.len() != ROWS.len() {
+        return Err(ContractError::Semantic("E2 requires exactly nine features"));
+    }
+    const REASONS: [&str; 11] = [
+        "BOOK_RESYNCING",
+        "CLOCK_DEGRADED",
+        "DIRECTION_UNKNOWN",
+        "INSUFFICIENT_COVERAGE",
+        "INSUFFICIENT_SAMPLES",
+        "OBSERVATION_VALID",
+        "OPTIONAL_SOURCE_UNAVAILABLE",
+        "OUT_OF_DOMAIN",
+        "RECONNECT_WARMUP",
+        "SOURCE_INVALIDATED",
+        "SOURCE_STALE",
+    ];
+    for (feature, expected) in features.iter().zip(ROWS) {
+        let feature = object(feature)?;
+        if string_field(feature, "name")? != expected.0
+            || integer_field(feature, "horizon_ms")? != expected.1
+            || string_field(feature, "unit")? != expected.2
+            || !REASONS.contains(&string_field(feature, "reason_code")?)
+        {
+            return Err(ContractError::Semantic("invalid E2 feature profile"));
+        }
+    }
     Ok(())
 }
 
 pub fn canonical_json(value: &Value) -> String {
-    serde_json::to_string(value).expect("serde JSON values serialize")
+    let normalized = normalize_temporal_strings(value.clone()).unwrap_or_else(|_| value.clone());
+    serde_json::to_string(&normalized).expect("serde JSON values serialize")
 }
 
 /// Fallible, non-panicking canonical hash API for untrusted values.
@@ -204,9 +338,14 @@ pub fn content_hash(value: &Value) -> Result<String, ContractError> {
         .as_object_mut()
         .ok_or(ContractError::Structure("hash payload must be an object"))?
         .remove("content_hash");
+    let preimage = normalize_temporal_strings(preimage)?;
     Ok(format!(
         "{:x}",
-        Sha256::digest(canonical_json(&preimage).as_bytes())
+        Sha256::digest(
+            serde_json::to_string(&preimage)
+                .map_err(|error| ContractError::Json(error.to_string()))?
+                .as_bytes()
+        )
     ))
 }
 
@@ -286,6 +425,8 @@ fn validate_q1(obj: &Map<String, Value>) -> Result<(), ContractError> {
             )?;
             if !is_id(string_field(obj, "contract_id")?, "evidence_")
                 || !is_hash(string_field(obj, "source_payload_hash")?)
+                || string_field(obj, "evidence_kind")?.trim().is_empty()
+                || array_field(obj, "measurements")?.is_empty()
             {
                 return Err(ContractError::Semantic("invalid evidence identity"));
             }
@@ -301,7 +442,7 @@ fn validate_q1(obj: &Map<String, Value>) -> Result<(), ContractError> {
                 {
                     return Err(ContractError::Semantic("invalid measurement"));
                 }
-                decimal(string_field(item, "value")?, 18, 8)?;
+                decimal_unbounded(string_field(item, "value")?)?;
             }
         }
         "proposal_request" => {
@@ -317,6 +458,8 @@ fn validate_q1(obj: &Map<String, Value>) -> Result<(), ContractError> {
             )?;
             if !is_id(string_field(obj, "contract_id")?, "proposal_request_")
                 || string_field(obj, "requested_capability")? != "evaluate_only"
+                || string_field(obj, "proposal_kind")?.trim().is_empty()
+                || string_field(obj, "requester_id")?.trim().is_empty()
             {
                 return Err(ContractError::Semantic("invalid proposal request"));
             }
@@ -336,9 +479,25 @@ fn validate_q1(obj: &Map<String, Value>) -> Result<(), ContractError> {
             )?;
             if !is_id(string_field(obj, "contract_id")?, "risk_decision_")
                 || string_field(obj, "issuer")? != "research_os_risk_governor"
+                || !is_hash(string_field(obj, "proposal_request_content_hash")?)
+                || !matches!(string_field(obj, "outcome")?, "allow" | "deny" | "hold")
             {
                 return Err(ContractError::Semantic("invalid risk identity"));
             }
+            let reasons = array_field(obj, "reason_codes")?;
+            if reasons.is_empty() {
+                return Err(ContractError::Semantic("invalid risk reason codes"));
+            }
+            let mut unique = BTreeSet::new();
+            for reason in reasons {
+                let reason = reason
+                    .as_str()
+                    .ok_or(ContractError::Structure("risk reason must be a string"))?;
+                if reason.trim().is_empty() || !unique.insert(reason) {
+                    return Err(ContractError::Semantic("invalid risk reason codes"));
+                }
+            }
+            unique_hashes(array_field(obj, "evidence_content_hashes")?)?;
         }
         _ => return Err(ContractError::Structure("unknown Q1 contract_type")),
     }
@@ -389,6 +548,11 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
     {
         return Err(ContractError::Semantic("invalid mechanics literals"));
     }
+    validate_quality_flags(array_field(obj, "quality_flags")?)?;
+    let half_life = integer_field(obj, "expected_half_life_ms")?;
+    if !(1..=86_400_000).contains(&half_life) {
+        return Err(ContractError::Semantic("invalid expected half life"));
+    }
     if !matches!(
         string_field(obj, "phase")?,
         "NORMAL" | "BUILDUP" | "IGNITION" | "CASCADE" | "EXHAUSTION" | "AFTERMATH" | "INVALID"
@@ -420,14 +584,18 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
         "mechanical_confidence",
         "reversal_risk",
     ] {
-        decimal(string_field(obj, name)?, 1, 8)?;
+        validate_score(string_field(obj, name)?)?;
     }
     let availability = parse_time(string_field(
         object(field(obj, "causal_time")?)?,
         "available_at",
     )?)?;
     let mut keys = Vec::new();
-    for item in array_field(obj, "source_cursors")? {
+    let source_cursors = array_field(obj, "source_cursors")?;
+    if source_cursors.is_empty() {
+        return Err(ContractError::Semantic("empty source cursors"));
+    }
+    for item in source_cursors {
         let cursor = object(item)?;
         require_exact_keys(
             cursor,
@@ -443,6 +611,7 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
         )?;
         let at = parse_time(string_field(cursor, "available_at")?)?;
         if at > availability
+            || !is_source(string_field(cursor, "source_id")?)
             || !is_epoch(string_field(cursor, "connection_epoch")?)
             || integer_field(cursor, "sequence_start")? > integer_field(cursor, "sequence_end")?
             || integer_field(cursor, "sequence_end")? > i64::MAX as i128
@@ -465,7 +634,21 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
         ));
     }
     let validated = string_field(obj, "quality_state")? == "VALIDATED";
-    for item in array_field(obj, "features")? {
+    let unusable = matches!(
+        string_field(obj, "quality_state")?,
+        "INVALID" | "UNAVAILABLE"
+    );
+    if (string_field(obj, "phase")? == "INVALID") != unusable
+        || (unusable && array_field(obj, "quality_flags")?.is_empty())
+    {
+        return Err(ContractError::Semantic("inconsistent mechanics quality"));
+    }
+    let features = array_field(obj, "features")?;
+    if features.is_empty() {
+        return Err(ContractError::Semantic("empty mechanics features"));
+    }
+    let mut feature_keys = Vec::new();
+    for item in features {
         let feature = object(item)?;
         require_exact_keys(
             feature,
@@ -479,16 +662,38 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
             ],
             &[],
         )?;
-        if validated && string_field(feature, "quality_state")? != "VALIDATED" {
+        let name = string_field(feature, "name")?;
+        let unit = string_field(feature, "unit")?;
+        let quality = string_field(feature, "quality_state")?;
+        let horizon = integer_field(feature, "horizon_ms")?;
+        if !matches!(
+            quality,
+            "VALIDATED" | "DEGRADED" | "INVALID" | "UNAVAILABLE"
+        ) || !(1..=86_400_000).contains(&horizon)
+            || !is_reason_code(string_field(feature, "reason_code")?)
+            || expected_feature_unit(name) != Some(unit)
+        {
+            return Err(ContractError::Semantic("invalid feature vocabulary"));
+        }
+        if validated && quality != "VALIDATED" {
             return Err(ContractError::Semantic(
                 "validated mechanics has unusable feature",
             ));
         }
         if let Some(Value::String(v)) = feature.get("value") {
             decimal(v, 18, 8)?;
-        } else if !feature.get("value").is_some_and(Value::is_null) {
+            if matches!(quality, "INVALID" | "UNAVAILABLE") || !feature_value_in_domain(name, v)? {
+                return Err(ContractError::Semantic("invalid feature value"));
+            }
+        } else if !feature.get("value").is_some_and(Value::is_null)
+            || !matches!(quality, "INVALID" | "UNAVAILABLE")
+        {
             return Err(ContractError::Semantic("feature decimal must be string"));
         }
+        feature_keys.push((name, horizon));
+    }
+    if feature_keys.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(ContractError::Semantic("features not canonically ordered"));
     }
     Ok(())
 }
@@ -512,10 +717,36 @@ fn validate_context(obj: &Map<String, Value>) -> Result<(), ContractError> {
     )?;
     if string_field(obj, "producer")? != "hummingbot_api_event_pulse_context"
         || !is_id(string_field(obj, "contract_id")?, "event_pulse_context_")
+        || string_field(obj, "source_qualification")? != "UNVERIFIED"
+        || !is_event_type(string_field(obj, "catalyst_type")?)
+        || !matches!(
+            string_field(obj, "attribution_state")?,
+            "UNKNOWN" | "CANDIDATE" | "CONFIRMED" | "DISPUTED"
+        )
+        || !matches!(
+            string_field(obj, "quality_state")?,
+            "VALIDATED" | "DEGRADED" | "INVALID" | "UNAVAILABLE"
+        )
     {
         return Err(ContractError::Semantic("invalid context literals"));
     }
     decimal(string_field(obj, "catalyst_confidence")?, 1, 8)?;
+    validate_score(string_field(obj, "catalyst_confidence")?)?;
+    validate_quality_flags(array_field(obj, "quality_flags")?)?;
+    let unavailable = matches!(
+        string_field(obj, "quality_state")?,
+        "INVALID" | "UNAVAILABLE"
+    );
+    if unavailable && array_field(obj, "quality_flags")?.is_empty() {
+        return Err(ContractError::Semantic("unusable context requires flags"));
+    }
+    if string_field(obj, "attribution_state")? == "UNKNOWN"
+        && (string_field(obj, "catalyst_type")? != "UNKNOWN"
+            || !decimal_is_zero(string_field(obj, "catalyst_confidence")?))
+    {
+        return Err(ContractError::Semantic("unknown attribution has certainty"));
+    }
+    validate_context_evidence(obj)?;
     Ok(())
 }
 
@@ -562,6 +793,57 @@ fn validate_composite(obj: &Map<String, Value>) -> Result<(), ContractError> {
         if !is_hash(string_field(obj, name)?) {
             return Err(ContractError::Semantic("invalid composite hash"));
         }
+    }
+    validate_quality_flags(array_field(obj, "quality_flags")?)?;
+    if !is_event_type(string_field(obj, "event_type")?)
+        || !matches!(
+            string_field(obj, "phase")?,
+            "NORMAL" | "BUILDUP" | "IGNITION" | "CASCADE" | "EXHAUSTION" | "AFTERMATH" | "INVALID"
+        )
+        || !matches!(
+            string_field(obj, "direction")?,
+            "UP" | "DOWN" | "MIXED" | "UNKNOWN"
+        )
+        || !(1..=86_400_000).contains(&integer_field(obj, "expected_half_life_ms")?)
+    {
+        return Err(ContractError::Semantic("invalid composite vocabulary"));
+    }
+    for field_name in [
+        "mechanical_intensity",
+        "mechanical_confidence",
+        "reversal_risk",
+    ] {
+        validate_score(string_field(obj, field_name)?)?;
+    }
+    if let Some(Value::String(value)) = obj.get("catalyst_confidence") {
+        validate_score(value)?;
+    } else if !obj.get("catalyst_confidence").is_some_and(Value::is_null) {
+        return Err(ContractError::Structure("invalid catalyst confidence"));
+    }
+    let context_absent = obj.get("context_content_hash").is_some_and(Value::is_null);
+    if context_absent != obj.get("context_lineage_id").is_some_and(Value::is_null)
+        || context_absent != obj.get("catalyst_confidence").is_some_and(Value::is_null)
+    {
+        return Err(ContractError::Semantic("incomplete context binding"));
+    }
+    if !context_absent
+        && (!obj
+            .get("context_content_hash")
+            .and_then(Value::as_str)
+            .is_some_and(is_hash)
+            || !obj
+                .get("context_lineage_id")
+                .and_then(Value::as_str)
+                .is_some_and(|v| is_id(v, "lineage_")))
+    {
+        return Err(ContractError::Semantic("invalid context binding"));
+    }
+    let available = parse_time(string_field(
+        object(field(obj, "causal_time")?)?,
+        "available_at",
+    )?)?;
+    if parse_time(string_field(obj, "expires_at")?)? <= available {
+        return Err(ContractError::Semantic("composite expiry"));
     }
     Ok(())
 }
@@ -697,6 +979,11 @@ fn validate_causal_time(obj: &Map<String, Value>) -> Result<(), ContractError> {
     ) {
         return Err(ContractError::Semantic("clock state"));
     }
+    if !is_source(string_field(clock, "source_id")?)
+        || string_field(clock, "reason_code")?.trim().is_empty()
+    {
+        return Err(ContractError::Semantic("clock identity"));
+    }
     decimal(string_field(clock, "observed_skew_ms")?, 18, 8)?;
     let freshness = integer_field(clock, "freshness_limit_ms")?;
     if freshness <= 0 || times[4] - times[0] > freshness * 1_000 {
@@ -706,13 +993,253 @@ fn validate_causal_time(obj: &Map<String, Value>) -> Result<(), ContractError> {
 }
 fn parse_time(value: &str) -> Result<i128, ContractError> {
     crate::wire::Rfc3339Time::parse(value)
-        .map(|time| time.utc_micros())
+        .map(|time| i128::from(time.utc_micros()))
         .map_err(|_| ContractError::Semantic("invalid RFC3339 timestamp"))
 }
 fn decimal(value: &str, max_integer: usize, max_fraction: usize) -> Result<(), ContractError> {
     crate::wire::CanonicalDecimal::parse(value, max_integer, max_fraction)
         .map(|_| ())
         .map_err(|_| ContractError::Semantic("noncanonical decimal string"))
+}
+fn decimal_unbounded(value: &str) -> Result<(), ContractError> {
+    crate::wire::CanonicalDecimal::parse(value, value.len(), value.len())
+        .map(|_| ())
+        .map_err(|_| ContractError::Semantic("noncanonical decimal string"))
+}
+
+fn normalize_temporal_strings(mut value: Value) -> Result<Value, ContractError> {
+    fn walk(value: &mut Value, field_name: Option<&str>) -> Result<(), ContractError> {
+        match value {
+            Value::String(text)
+                if matches!(
+                    field_name,
+                    Some(
+                        "source_event_time"
+                            | "received_at"
+                            | "normalized_at"
+                            | "available_at"
+                            | "decision_time"
+                            | "first_seen_at"
+                            | "expires_at"
+                            | "covered_from"
+                            | "covered_through"
+                            | "observed_at"
+                            | "occurred_at"
+                    )
+                ) =>
+            {
+                *text = crate::wire::Rfc3339Time::parse(text)
+                    .map_err(|_| ContractError::Semantic("invalid RFC3339 timestamp"))?
+                    .canonical()
+                    .to_owned();
+            }
+            Value::Array(values) => {
+                for item in values {
+                    walk(item, None)?;
+                }
+            }
+            Value::Object(map) => {
+                for (key, item) in map {
+                    walk(item, Some(key))?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+    walk(&mut value, None)?;
+    Ok(value)
+}
+
+fn validate_score(value: &str) -> Result<(), ContractError> {
+    decimal(value, 1, 8)?;
+    let scaled = decimal_scaled(value)?;
+    if !(0..=100_000_000).contains(&scaled) {
+        return Err(ContractError::Semantic("score outside unit interval"));
+    }
+    Ok(())
+}
+
+fn decimal_scaled(value: &str) -> Result<i128, ContractError> {
+    let negative = value.starts_with('-');
+    let body = value.strip_prefix('-').unwrap_or(value);
+    let (integer, fraction) = body.split_once('.').unwrap_or((body, ""));
+    let integer: i128 = integer
+        .parse()
+        .map_err(|_| ContractError::Semantic("decimal overflow"))?;
+    let mut fraction_text = fraction.to_owned();
+    while fraction_text.len() < 8 {
+        fraction_text.push('0');
+    }
+    let fraction: i128 = if fraction_text.is_empty() {
+        0
+    } else {
+        fraction_text
+            .parse()
+            .map_err(|_| ContractError::Semantic("decimal overflow"))?
+    };
+    let result = integer
+        .checked_mul(100_000_000)
+        .and_then(|value| value.checked_add(fraction))
+        .ok_or(ContractError::Semantic("decimal overflow"))?;
+    Ok(if negative { -result } else { result })
+}
+
+fn decimal_is_zero(value: &str) -> bool {
+    decimal_scaled(value) == Ok(0)
+}
+
+fn is_event_type(value: &str) -> bool {
+    matches!(
+        value,
+        "SHORT_SQUEEZE"
+            | "LONG_LIQUIDATION"
+            | "DERIVATIVES_LED_BREAKOUT"
+            | "SPOT_LED_BREAKOUT"
+            | "BOOK_DISLOCATION"
+            | "MACRO_RISK_ON"
+            | "MACRO_RISK_OFF"
+            | "NEWS_SHOCK"
+            | "FLOW_SHOCK"
+            | "CROSS_ASSET_PROPAGATION"
+            | "VOLATILITY_SHOCK"
+            | "UNKNOWN"
+    )
+}
+
+fn is_source(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 128
+        && value.as_bytes()[0].is_ascii_lowercase()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+fn is_reason_code(value: &str) -> bool {
+    !value.is_empty()
+        && value.as_bytes()[0].is_ascii_uppercase()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+fn validate_quality_flags(values: &[Value]) -> Result<(), ContractError> {
+    let allowed = [
+        "BOOK_RESYNCING",
+        "CLOCK_UNCERTAIN",
+        "CROSS_VENUE_DIVERGENCE",
+        "INSUFFICIENT_COVERAGE",
+        "LATE_CONTEXT",
+        "MARK_MISSING",
+        "OI_STALE",
+        "QUEUE_DROP",
+        "RECONNECT_WARMUP",
+        "SEQUENCE_GAP",
+        "SOURCE_STALE",
+    ];
+    let flags = values
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .ok_or(ContractError::Structure("quality flag must be string"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if flags.windows(2).any(|pair| pair[0] >= pair[1])
+        || flags.iter().any(|flag| !allowed.contains(flag))
+    {
+        return Err(ContractError::Semantic("invalid quality flags"));
+    }
+    Ok(())
+}
+
+fn expected_feature_unit(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "log_return" => "LOG_RETURN",
+        "taker_imbalance" | "cross_venue_breadth" | "reversal_from_extreme" => "RATIO",
+        "cvd_slope" => "BASE_PER_SECOND",
+        "spread_bps" => "BPS",
+        "book_depth_10bps" | "liquidation_notional" => "USDC",
+        "open_interest_change" => "CONTRACTS",
+        _ => return None,
+    })
+}
+
+fn feature_value_in_domain(name: &str, value: &str) -> Result<bool, ContractError> {
+    let scaled = decimal_scaled(value)?;
+    Ok(match name {
+        "log_return" | "taker_imbalance" => (-100_000_000..=100_000_000).contains(&scaled),
+        "cross_venue_breadth" | "reversal_from_extreme" => (0..=100_000_000).contains(&scaled),
+        "spread_bps" | "book_depth_10bps" | "liquidation_notional" => scaled >= 0,
+        _ => true,
+    })
+}
+
+fn validate_context_evidence(obj: &Map<String, Value>) -> Result<(), ContractError> {
+    let envelope_available = parse_time(string_field(
+        object(field(obj, "causal_time")?)?,
+        "available_at",
+    )?)?;
+    let evidence = array_field(obj, "evidence")?;
+    if evidence.is_empty() {
+        return Err(ContractError::Semantic("empty context evidence"));
+    }
+    let mut ids = BTreeSet::new();
+    let mut ordering = Vec::new();
+    for item in evidence {
+        let item = object(item)?;
+        require_exact_keys(
+            item,
+            &[
+                "evidence_id",
+                "evidence_type",
+                "source_id",
+                "source_payload_hash",
+                "first_seen_at",
+                "available_at",
+                "attribution_state",
+            ],
+            &[],
+        )?;
+        let id = string_field(item, "evidence_id")?;
+        let first = parse_time(string_field(item, "first_seen_at")?)?;
+        let available = parse_time(string_field(item, "available_at")?)?;
+        if !is_id(id, "event_evidence_")
+            || !ids.insert(id)
+            || !is_source(string_field(item, "source_id")?)
+            || !is_hash(string_field(item, "source_payload_hash")?)
+            || !matches!(
+                string_field(item, "evidence_type")?,
+                "OFFICIAL_RELEASE"
+                    | "NEWS"
+                    | "WALLET_FLOW"
+                    | "EXCHANGE_FLOW"
+                    | "ONCHAIN"
+                    | "MARKET_CONTEXT"
+            )
+            || !matches!(
+                string_field(item, "attribution_state")?,
+                "UNKNOWN" | "CANDIDATE" | "CONFIRMED" | "DISPUTED"
+            )
+            || first > available
+            || available > envelope_available
+        {
+            return Err(ContractError::Semantic("invalid context evidence"));
+        }
+        ordering.push((
+            available,
+            string_field(item, "source_id")?,
+            id,
+            string_field(item, "source_payload_hash")?,
+        ));
+    }
+    if ordering.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(ContractError::Semantic(
+            "context evidence not canonically ordered",
+        ));
+    }
+    Ok(())
 }
 fn reject_floats(value: &Value) -> Result<(), ContractError> {
     match value {
@@ -832,6 +1359,9 @@ fn is_unit(value: &str) -> bool {
         })
 }
 fn unique_hashes(values: &Vec<Value>) -> Result<(), ContractError> {
+    if values.is_empty() {
+        return Err(ContractError::Semantic("hash list must be nonempty"));
+    }
     let mut seen = BTreeSet::new();
     for value in values {
         let hash = value

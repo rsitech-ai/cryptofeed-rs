@@ -1,9 +1,33 @@
 use marketfeed_event_pulse::{
-    EXPECTED_ROOT_COMMIT, ProvenanceError, embedded_provenance, verify_artifact_bytes,
-    verify_embedded_contracts, verify_manifest,
+    ContractError, EXPECTED_ROOT_COMMIT, ProvenanceError, embedded_provenance,
+    verify_artifact_bytes, verify_embedded_contracts, verify_manifest,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+
+fn rehash(mut value: Value) -> Value {
+    value.as_object_mut().unwrap().remove("content_hash");
+    value["content_hash"] = Value::String(marketfeed_event_pulse::content_hash(&value).unwrap());
+    value
+}
+
+fn assert_named_contract_error(name: &str, error: ContractError) {
+    let structural = matches!(
+        name,
+        "wrong_schema_version" | "float_score" | "forbidden_strategy_field"
+    );
+    if structural {
+        assert!(
+            matches!(error, ContractError::Structure(_)),
+            "{name}: {error}"
+        );
+    } else {
+        assert!(
+            matches!(error, ContractError::Semantic(_)),
+            "{name}: {error}"
+        );
+    }
+}
 
 #[test]
 fn q1_and_e1_published_vectors_are_wire_compatible() {
@@ -53,6 +77,8 @@ fn q1_and_e1_published_rejections_fail_closed() {
                 "{}",
                 vector["name"]
             );
+            let name = vector["name"].as_str().unwrap();
+            assert_named_contract_error(name, bundle.validate_json(&payload).unwrap_err());
         }
     }
     let e1: Value = serde_json::from_slice(include_bytes!(
@@ -62,7 +88,22 @@ fn q1_and_e1_published_rejections_fail_closed() {
     for group in ["semantic_vectors", "structural_vectors"] {
         for vector in e1[group].as_array().unwrap() {
             let payload = serde_json::to_vec(&vector["payload"]).unwrap();
-            if vector["name"] == "context_revision_rewrites_evidence" {
+            if vector["operation"] == "bind_composite" {
+                let mechanics = bundle
+                    .validate_json(&serde_json::to_vec(&vector["mechanics"]).unwrap())
+                    .unwrap();
+                let context = bundle
+                    .validate_json(&serde_json::to_vec(&vector["context"]).unwrap())
+                    .unwrap();
+                let composite_payload = rehash(vector["payload"].clone());
+                let composite = bundle
+                    .validate_json(&serde_json::to_vec(&composite_payload).unwrap())
+                    .unwrap();
+                assert!(matches!(
+                    bundle.bind_composite(&mechanics, Some(&context), &composite),
+                    Err(marketfeed_event_pulse::ContractError::HashBinding)
+                ));
+            } else if vector["name"] == "context_revision_rewrites_evidence" {
                 let previous = bundle
                     .validate_json(&serde_json::to_vec(&vector["previous"]).unwrap())
                     .unwrap();
@@ -80,11 +121,8 @@ fn q1_and_e1_published_rejections_fail_closed() {
                         .is_err()
                 );
             } else {
-                assert!(
-                    bundle.validate_json(&payload).is_err(),
-                    "{}",
-                    vector["name"]
-                );
+                let name = vector["name"].as_str().unwrap();
+                assert_named_contract_error(name, bundle.validate_json(&payload).unwrap_err());
             }
         }
     }
