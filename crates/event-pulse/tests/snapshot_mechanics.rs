@@ -15,8 +15,9 @@ use marketfeed_event_pulse::{
 };
 use marketfeed_model::{
     AggressorSide, BookChange, BookDelta, BookLevel, BookOperation, BookSide, BookSnapshot,
-    ConnectionId, EventEnvelope, EventFlags, Fixed, InstrumentId, MarketEvent, OpenInterest, Price,
-    PricePoint, Quantity, Quote, SequenceRange, SessionId, TimestampNs, Trade, VenueId,
+    ConnectionId, EventEnvelope, EventFlags, Fixed, InstrumentId, Liquidation, MarketEvent,
+    OpenInterest, Price, PricePoint, Quantity, Quote, SequenceRange, SessionId, TimestampNs, Trade,
+    VenueId,
 };
 
 fn evidence(intensity: i128, reversal: i128) -> MechanicsEvidence {
@@ -76,6 +77,81 @@ struct Fixture {
     config: MechanicsConfigV1,
     contributor: ContributorKeyV1,
     clock: ClockSourceKeyV1,
+}
+
+#[derive(Clone)]
+struct SplitFixture {
+    config: MechanicsConfigV1,
+    contributors: Vec<ContributorKeyV1>,
+    clocks: Vec<ClockSourceKeyV1>,
+}
+
+fn split_fixture() -> SplitFixture {
+    let instrument =
+        InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap();
+    let definitions = [
+        ("a_trade", vec![FamilyV1::Trade]),
+        ("b_quote", vec![FamilyV1::Quote]),
+        ("c_book", vec![FamilyV1::Book]),
+        ("d_oi", vec![FamilyV1::OpenInterest]),
+        ("e_liq", vec![FamilyV1::Liquidation]),
+    ];
+    let contributors = definitions
+        .iter()
+        .map(|(source, _)| ContributorKeyV1::new(source, instrument.clone()).unwrap())
+        .collect::<Vec<_>>();
+    let specs = definitions
+        .iter()
+        .zip(&contributors)
+        .map(|((_, families), key)| {
+            ContributorSpecV1::new(
+                key.clone(),
+                ContributorRoleV1::Primary,
+                families.iter().copied(),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let connections = contributors
+        .iter()
+        .enumerate()
+        .map(|(index, _)| ConnectionKeyV1::new(&format!("connection_{index}")).unwrap())
+        .collect::<Vec<_>>();
+    let bindings = contributors
+        .iter()
+        .cloned()
+        .zip(connections.iter().cloned())
+        .collect();
+    let clocks = contributors
+        .iter()
+        .enumerate()
+        .map(|(index, key)| ClockSourceKeyV1::new(&format!("clock_{index}"), key.clone()).unwrap())
+        .collect::<Vec<_>>();
+    let coverage = specs
+        .iter()
+        .enumerate()
+        .flat_map(|(index, spec)| {
+            spec.allowed_families().iter().map(move |family| {
+                CoverageSourceKeyV1::new(&format!("coverage_{index}"), spec.key().clone(), *family)
+                    .unwrap()
+            })
+        })
+        .collect();
+    let config = MechanicsConfigV1::new(
+        "event_pulse_processor",
+        connections,
+        specs,
+        bindings,
+        clocks.clone(),
+        coverage,
+        vec![],
+    )
+    .unwrap();
+    SplitFixture {
+        config,
+        contributors,
+        clocks,
+    }
 }
 
 fn fixture() -> Fixture {
@@ -187,11 +263,31 @@ fn market_in_epoch(
     .unwrap()
 }
 
+fn market_from_source(
+    source: &str,
+    sequence: u64,
+    ns: i64,
+    payload: MarketEvent,
+) -> MechanicsInputV1 {
+    let base = market(sequence, ns, payload);
+    let envelope = match base.view() {
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Market { envelope, .. } => {
+            envelope.clone()
+        }
+        _ => unreachable!(),
+    };
+    MechanicsInputV1::market(envelope, 0, catalog_epoch_source("epoch_a", 0, source)).unwrap()
+}
+
 fn trade(price: i128) -> MarketEvent {
+    trade_with_side(price, AggressorSide::Buy)
+}
+
+fn trade_with_side(price: i128, aggressor: AggressorSide) -> MarketEvent {
     MarketEvent::Trade(Trade {
         price: Price(Fixed::new(price, 8)),
         quantity: Quantity(Fixed::new(SCALE, 8)),
-        aggressor: AggressorSide::Buy,
+        aggressor,
         trade_id: None,
     })
 }
@@ -418,6 +514,191 @@ fn public_processor_derives_snapshot_from_validated_inputs_and_causal_maximum() 
         .unwrap();
     if let Some(path) = std::env::var_os("EVENT_PULSE_SNAPSHOT_OUTPUT") {
         std::fs::write(path, snapshot.canonical_json()).unwrap();
+    }
+}
+
+#[test]
+fn split_primary_family_owners_author_their_own_feature_rows() {
+    let fixture = split_fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    for (source, ns, payload) in [
+        ("a_trade", 0, trade(99 * SCALE)),
+        (
+            "b_quote",
+            1_000_000,
+            MarketEvent::Quote(Quote {
+                bid_price: Price(Fixed::new(99 * SCALE, 8)),
+                bid_quantity: None,
+                ask_price: Price(Fixed::new(99 * SCALE + 10_000_000, 8)),
+                ask_quantity: None,
+            }),
+        ),
+        (
+            "c_book",
+            2_000_000,
+            MarketEvent::BookSnapshot(BookSnapshot {
+                bids: vec![],
+                asks: vec![],
+                depth: None,
+                checksum: None,
+            }),
+        ),
+        (
+            "d_oi",
+            3_000_000,
+            MarketEvent::OpenInterest(OpenInterest {
+                quantity: Quantity(Fixed::new(SCALE, 8)),
+            }),
+        ),
+        (
+            "e_liq",
+            4_000_000,
+            MarketEvent::Liquidation(Liquidation {
+                price: Price(Fixed::new(99 * SCALE, 8)),
+                quantity: Quantity(Fixed::new(SCALE, 8)),
+                side: AggressorSide::Buy,
+            }),
+        ),
+    ] {
+        processor
+            .ingest(&market_from_source(source, 1, ns, payload))
+            .unwrap();
+    }
+    for (sequence, ns, price) in [(2, 60_000_000_000, 100), (3, 60_001_000_000, 101)] {
+        processor
+            .ingest(&market_from_source(
+                "a_trade",
+                sequence,
+                ns,
+                trade(price * SCALE),
+            ))
+            .unwrap();
+    }
+    for (sequence, ns, offset) in [(2, 60_010_000_000, 1), (3, 60_011_000_000, 2)] {
+        processor
+            .ingest(&market_from_source(
+                "b_quote",
+                sequence,
+                ns,
+                MarketEvent::Quote(Quote {
+                    bid_price: Price(Fixed::new(100 * SCALE + offset, 8)),
+                    bid_quantity: None,
+                    ask_price: Price(Fixed::new(100 * SCALE + 10_000_000 + offset, 8)),
+                    ask_quantity: None,
+                }),
+            ))
+            .unwrap();
+    }
+    for (sequence, ns) in [(2, 60_020_000_000), (3, 60_021_000_000)] {
+        processor
+            .ingest(&market_from_source(
+                "c_book",
+                sequence,
+                ns,
+                MarketEvent::BookSnapshot(BookSnapshot {
+                    bids: vec![BookLevel {
+                        price: Price(Fixed::new(100 * SCALE, 8)),
+                        quantity: Quantity(Fixed::new(2 * SCALE, 8)),
+                    }],
+                    asks: vec![BookLevel {
+                        price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),
+                        quantity: Quantity(Fixed::new(2 * SCALE, 8)),
+                    }],
+                    depth: None,
+                    checksum: None,
+                }),
+            ))
+            .unwrap();
+    }
+    for (sequence, ns, quantity) in [
+        (2, 60_030_000_000, 2 * SCALE),
+        (3, 60_031_000_000, 3 * SCALE),
+    ] {
+        processor
+            .ingest(&market_from_source(
+                "d_oi",
+                sequence,
+                ns,
+                MarketEvent::OpenInterest(OpenInterest {
+                    quantity: Quantity(Fixed::new(quantity, 8)),
+                }),
+            ))
+            .unwrap();
+    }
+    for (sequence, ns) in [(2, 60_040_000_000), (3, 60_041_000_000)] {
+        processor
+            .ingest(&market_from_source(
+                "e_liq",
+                sequence,
+                ns,
+                MarketEvent::Liquidation(Liquidation {
+                    price: Price(Fixed::new(100 * SCALE, 8)),
+                    quantity: Quantity(Fixed::new(SCALE, 8)),
+                    side: AggressorSide::Buy,
+                }),
+            ))
+            .unwrap();
+    }
+    for (index, (key, contributor)) in fixture.clocks.iter().zip(&fixture.contributors).enumerate()
+    {
+        let at = 60_050_000_000 + index as i64 * 1_000_000;
+        processor
+            .ingest(
+                &MechanicsInputV1::clock(
+                    ContributorV1::new(contributor.clone(), "epoch_a", 0).unwrap(),
+                    ClockSourceV1::new(key.clone(), "epoch_clock_a", 0).unwrap(),
+                    time_ns(at),
+                    time_ns(at),
+                    ClockCursorV1::native(1, 1).unwrap(),
+                    ClockStateV1::Synchronized,
+                    CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+                    2_000,
+                    ClockQualityV1::Validated,
+                    "SOURCE_CLOCK_WITHIN_TOLERANCE",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    let decision = 60_060_000_000;
+    for key in fixture.config.coverage_sources() {
+        let contributor = fixture
+            .contributors
+            .iter()
+            .find(|contributor| *contributor == key.subject())
+            .unwrap();
+        processor
+            .ingest(
+                &MechanicsInputV1::coverage(
+                    ContributorV1::new(contributor.clone(), "epoch_a", 0).unwrap(),
+                    CoverageSourceV1::new(key.clone(), "epoch_coverage_a", 0).unwrap(),
+                    key.family(),
+                    time_ns(0),
+                    time_ns(decision),
+                    time_ns(decision),
+                    CoverageCursorV1::native(1, 1).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    let snapshot = processor.snapshot(time_ns(decision)).unwrap();
+    for name in [
+        "log_return",
+        "taker_imbalance",
+        "cvd_slope",
+        "spread_bps",
+        "book_depth_10bps",
+        "open_interest_change",
+        "liquidation_notional",
+    ] {
+        let row = snapshot.value()["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["name"] == name)
+            .unwrap();
+        assert!(row["value"].is_string(), "{name}: {row}");
     }
 }
 
@@ -986,6 +1267,49 @@ fn rejected_market_gap_is_fault_only_not_anchor_or_availability_evidence() {
 }
 
 #[test]
+fn invalid_coverage_slot_blocks_retained_intervals_and_market_cannot_clear_it() {
+    let fixture = fixture();
+    let mut processor = warmed_processor(60_080_000_000);
+    let trade_coverage = fixture
+        .config
+        .coverage_sources()
+        .iter()
+        .find(|key| key.family() == FamilyV1::Trade)
+        .unwrap()
+        .clone();
+    let gap = MechanicsInputV1::coverage(
+        ContributorV1::new(fixture.contributor, "epoch_a", 0).unwrap(),
+        CoverageSourceV1::new(trade_coverage, "epoch_coverage_a", 0).unwrap(),
+        FamilyV1::Trade,
+        time_ns(0),
+        time_ns(60_100_000_000),
+        time_ns(60_100_000_000),
+        CoverageCursorV1::native(3, 3).unwrap(),
+    )
+    .unwrap();
+    assert!(processor.ingest(&gap).is_err());
+    processor
+        .ingest(&market(9, 60_110_000_000, trade(102 * SCALE)))
+        .unwrap();
+    let snapshot = processor.snapshot(time_ns(60_120_000_000)).unwrap();
+    let log = snapshot.value()["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["name"] == "log_return")
+        .unwrap();
+    assert_eq!(log["value"], serde_json::Value::Null);
+    assert_eq!(log["reason_code"], "SOURCE_INVALIDATED");
+    assert!(
+        snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+}
+
+#[test]
 fn snapshot_result_at_t_is_independent_of_intermediate_snapshot() {
     let direct = warmed_processor(60_080_000_000);
     let mut with_intermediate = direct.clone();
@@ -1163,4 +1487,150 @@ fn missing_configured_coverage_authors_truthful_invalid_snapshot() {
             .any(|flag| flag == "INSUFFICIENT_COVERAGE")
     );
     assert_eq!(processor.next_revision(), 2);
+}
+
+#[test]
+fn absent_aggressive_volume_is_typed_as_insufficient_samples() {
+    let fixture = fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    processor.ingest(&market(1, 0, trade(100 * SCALE))).unwrap();
+    processor
+        .ingest(&market(
+            2,
+            60_000_000_000,
+            trade_with_side(101 * SCALE, AggressorSide::Unknown),
+        ))
+        .unwrap();
+    processor
+        .ingest(&market(
+            3,
+            60_010_000_000,
+            trade_with_side(102 * SCALE, AggressorSide::Unknown),
+        ))
+        .unwrap();
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            60_080_000_000,
+            "epoch_clock_a",
+            0,
+            1,
+            "0.25",
+        ))
+        .unwrap();
+    ingest_coverage_round(&mut processor, &fixture, 60_090_000_000, 1, "epoch_a", 0);
+    let snapshot = processor.snapshot(time_ns(60_090_000_000)).unwrap();
+    for name in ["taker_imbalance", "cvd_slope"] {
+        let row = snapshot.value()["features"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["name"] == name)
+            .unwrap();
+        assert_eq!(row["value"], serde_json::Value::Null);
+        assert_eq!(row["reason_code"], "INSUFFICIENT_SAMPLES");
+    }
+}
+
+#[test]
+fn zero_elapsed_cvd_is_typed_as_insufficient_samples_before_formula() {
+    let fixture = fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    processor.ingest(&market(1, 0, trade(100 * SCALE))).unwrap();
+    processor
+        .ingest(&market(2, 60_000_000_000, trade(101 * SCALE)))
+        .unwrap();
+    processor
+        .ingest(&market(3, 60_000_000_000, trade(102 * SCALE)))
+        .unwrap();
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            60_080_000_000,
+            "epoch_clock_a",
+            0,
+            1,
+            "0.25",
+        ))
+        .unwrap();
+    ingest_coverage_round(&mut processor, &fixture, 60_090_000_000, 1, "epoch_a", 0);
+    let snapshot = processor.snapshot(time_ns(60_090_000_000)).unwrap();
+    let cvd = snapshot.value()["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["name"] == "cvd_slope")
+        .unwrap();
+    assert_eq!(cvd["value"], serde_json::Value::Null);
+    assert_eq!(cvd["reason_code"], "INSUFFICIENT_SAMPLES");
+}
+
+#[test]
+fn negative_submicrosecond_availability_uses_floor_for_ordering_and_seal() {
+    let fixture = fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    processor
+        .ingest(&market(1, -500_000_000, trade(100 * SCALE)))
+        .unwrap();
+    processor
+        .ingest(&market(2, -1, trade(101 * SCALE)))
+        .unwrap();
+    processor
+        .ingest(&market(
+            3,
+            -1,
+            MarketEvent::Quote(Quote {
+                bid_price: Price(Fixed::new(100 * SCALE, 8)),
+                bid_quantity: None,
+                ask_price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),
+                ask_quantity: None,
+            }),
+        ))
+        .unwrap();
+    processor
+        .ingest(&market(
+            4,
+            -1,
+            MarketEvent::BookSnapshot(BookSnapshot {
+                bids: vec![BookLevel {
+                    price: Price(Fixed::new(100 * SCALE, 8)),
+                    quantity: Quantity(Fixed::new(SCALE, 8)),
+                }],
+                asks: vec![BookLevel {
+                    price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),
+                    quantity: Quantity(Fixed::new(SCALE, 8)),
+                }],
+                depth: None,
+                checksum: None,
+            }),
+        ))
+        .unwrap();
+    processor
+        .ingest(&clock_input(&fixture, -1, "epoch_clock_a", 0, 1, "0.25"))
+        .unwrap();
+    for key in fixture.config.coverage_sources() {
+        processor
+            .ingest(
+                &MechanicsInputV1::coverage(
+                    ContributorV1::new(fixture.contributor.clone(), "epoch_a", 0).unwrap(),
+                    CoverageSourceV1::new(key.clone(), "epoch_coverage_a", 0).unwrap(),
+                    key.family(),
+                    time_ns(-5_000_001_000),
+                    time_ns(-1),
+                    time_ns(-1),
+                    CoverageCursorV1::native(1, 1).unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    let snapshot = processor.snapshot(time_ns(-1)).unwrap();
+    assert_eq!(
+        snapshot.value()["causal_time"]["available_at"],
+        "1969-12-31T23:59:59.999999Z"
+    );
+    assert_eq!(
+        processor.ingest(&market(5, -1, trade(102 * SCALE))),
+        Err(SnapshotError::SealedInput)
+    );
 }
