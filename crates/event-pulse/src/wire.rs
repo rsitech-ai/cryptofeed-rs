@@ -69,6 +69,7 @@ impl CanonicalDecimal {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Rfc3339Time {
     original: String,
+    canonical: String,
     utc_micros: i128,
 }
 impl Rfc3339Time {
@@ -105,6 +106,7 @@ impl Rfc3339Time {
         let micros = nanos / 1_000;
         Ok(Self {
             original: value.into(),
+            canonical: normalized,
             utc_micros: micros,
         })
     }
@@ -113,6 +115,9 @@ impl Rfc3339Time {
     }
     pub fn as_str(&self) -> &str {
         &self.original
+    }
+    pub fn canonical(&self) -> &str {
+        &self.canonical
     }
 }
 
@@ -163,6 +168,62 @@ impl CursorV1 {
             action_index: u16::MAX as u32,
             item_index,
         })
+    }
+    pub fn display_sequence(&self) -> Result<u64, WireError> {
+        let (frame, action, item) = match self {
+            Self::NativeRange { end, .. } => return Ok(*end),
+            Self::DerivedAction {
+                frame_ordinal,
+                action_index,
+                item_index,
+            } => (*frame_ordinal, *action_index, *item_index),
+        };
+        let value = ((u128::from(frame) * 65_536 + u128::from(action)) * 65_536) + u128::from(item);
+        u64::try_from(value)
+            .ok()
+            .filter(|value| *value <= MAX_I64_U64)
+            .ok_or(WireError::Cursor)
+    }
+}
+
+/// Raw causal-system-chain preimages.  These bytes are intentionally not JSON.
+pub struct SystemChainPreimage;
+impl SystemChainPreimage {
+    pub fn first(payload_hash: &str) -> Result<Vec<u8>, WireError> {
+        Self::build(None, payload_hash)
+    }
+    pub fn next(predecessor: &str, payload_hash: &str) -> Result<Vec<u8>, WireError> {
+        Self::build(Some(predecessor), payload_hash)
+    }
+    fn build(predecessor: Option<&str>, payload_hash: &str) -> Result<Vec<u8>, WireError> {
+        fn decoded(value: &str) -> Result<[u8; 32], WireError> {
+            if value.len() != 64 {
+                return Err(WireError::Identity);
+            }
+            let mut bytes = [0; 32];
+            for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+                let digit = |byte: u8| match byte {
+                    b'0'..=b'9' => Some(byte - b'0'),
+                    b'a'..=b'f' => Some(byte - b'a' + 10),
+                    _ => None,
+                };
+                bytes[index] = digit(pair[0])
+                    .zip(digit(pair[1]))
+                    .map(|(a, b)| a * 16 + b)
+                    .ok_or(WireError::Identity)?;
+            }
+            Ok(bytes)
+        }
+        let mut output = b"event-pulse-system-chain-v1\0".to_vec();
+        match predecessor {
+            None => output.push(0),
+            Some(hash) => {
+                output.push(1);
+                output.extend(decoded(hash)?);
+            }
+        }
+        output.extend(decoded(payload_hash)?);
+        Ok(output)
     }
 }
 

@@ -19,6 +19,8 @@ pub enum ContractError {
     Semantic(&'static str),
     #[error("contract content hash does not match canonical v1 payload")]
     HashMismatch,
+    #[error("composite does not bind the supplied exact mechanics/context objects")]
+    HashBinding,
     #[error("embedded contract provenance failed: {0}")]
     Provenance(String),
 }
@@ -32,7 +34,7 @@ impl ValidatedContract {
     }
 
     pub fn content_hash(&self) -> String {
-        content_hash(&self.0)
+        try_content_hash(&self.0).expect("validated contract is an object")
     }
 
     pub fn value(&self) -> &Value {
@@ -41,13 +43,15 @@ impl ValidatedContract {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ContractBundle;
+pub struct ContractBundle(PrivateBundle);
+#[derive(Debug, Clone, Copy)]
+struct PrivateBundle;
 
 impl ContractBundle {
     pub fn load_embedded() -> Result<Self, ContractError> {
         verify_embedded_contracts()
             .map_err(|error| ContractError::Provenance(error.to_string()))?;
-        Ok(Self)
+        Ok(Self(PrivateBundle))
     }
 
     pub fn validate_q1_json(&self, bytes: &[u8]) -> Result<ValidatedContract, ContractError> {
@@ -66,6 +70,73 @@ impl ContractBundle {
             E1 => validate_value(value, E1),
             _ => Err(ContractError::Structure("unsupported schema_version")),
         }
+    }
+
+    pub fn bind_composite(
+        &self,
+        mechanics: &ValidatedContract,
+        context: Option<&ValidatedContract>,
+        composite: &ValidatedContract,
+    ) -> Result<(), ContractError> {
+        let mechanics = object(mechanics.value())?;
+        let composite = object(composite.value())?;
+        if string_field(mechanics, "contract_type")? != "mechanics"
+            || string_field(composite, "contract_type")? != "composite"
+        {
+            return Err(ContractError::HashBinding);
+        }
+        if composite
+            .get("mechanics_content_hash")
+            .and_then(Value::as_str)
+            != Some(string_field(mechanics, "content_hash")?)
+            || composite.get("mechanics_lineage_id") != mechanics.get("lineage_id")
+            || composite.get("event_cluster_id") != mechanics.get("event_cluster_id")
+            || composite.get("scope") != mechanics.get("scope")
+        {
+            return Err(ContractError::HashBinding);
+        }
+        match context {
+            None if !composite
+                .get("context_content_hash")
+                .is_some_and(Value::is_null)
+                || !composite
+                    .get("context_lineage_id")
+                    .is_some_and(Value::is_null)
+                || !composite
+                    .get("catalyst_confidence")
+                    .is_some_and(Value::is_null) =>
+            {
+                return Err(ContractError::HashBinding);
+            }
+            Some(context) => {
+                let context = object(context.value())?;
+                if string_field(context, "contract_type")? != "context"
+                    || composite
+                        .get("context_content_hash")
+                        .and_then(Value::as_str)
+                        != Some(string_field(context, "content_hash")?)
+                    || composite.get("context_lineage_id") != context.get("lineage_id")
+                    || composite.get("event_cluster_id") != context.get("event_cluster_id")
+                    || composite.get("scope") != context.get("scope")
+                {
+                    return Err(ContractError::HashBinding);
+                }
+            }
+            _ => {}
+        }
+        for field_name in [
+            "phase",
+            "event_type",
+            "direction",
+            "mechanical_intensity",
+            "mechanical_confidence",
+            "reversal_risk",
+        ] {
+            if composite.get(field_name) != mechanics.get(field_name) {
+                return Err(ContractError::HashBinding);
+            }
+        }
+        Ok(())
     }
 }
 
@@ -126,14 +197,20 @@ pub fn canonical_json(value: &Value) -> String {
     serde_json::to_string(value).expect("serde JSON values serialize")
 }
 
-pub fn content_hash(value: &Value) -> String {
+/// Fallible, non-panicking canonical hash API for untrusted values.
+pub fn content_hash(value: &Value) -> Result<String, ContractError> {
     let mut preimage = value.clone();
     preimage
         .as_object_mut()
-        .expect("validated object")
+        .ok_or(ContractError::Structure("hash payload must be an object"))?
         .remove("content_hash");
-    format!("{:x}", Sha256::digest(canonical_json(&preimage).as_bytes()))
+    Ok(format!(
+        "{:x}",
+        Sha256::digest(canonical_json(&preimage).as_bytes())
+    ))
 }
+
+pub use content_hash as try_content_hash;
 
 fn validate(bytes: &[u8], expected_version: &str) -> Result<ValidatedContract, ContractError> {
     let value = parse(bytes)?;
@@ -163,7 +240,7 @@ fn validate_value(
         _ => unreachable!(),
     }
     let provided = string_field(obj, "content_hash")?;
-    if !is_hash(provided) || content_hash(&value) != provided {
+    if !is_hash(provided) || content_hash(&value)? != provided {
         return Err(ContractError::HashMismatch);
     }
     Ok(ValidatedContract(value))
@@ -311,6 +388,32 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
         || string_field(obj, "source_qualification")? != "UNVERIFIED"
     {
         return Err(ContractError::Semantic("invalid mechanics literals"));
+    }
+    if !matches!(
+        string_field(obj, "phase")?,
+        "NORMAL" | "BUILDUP" | "IGNITION" | "CASCADE" | "EXHAUSTION" | "AFTERMATH" | "INVALID"
+    ) || !matches!(
+        string_field(obj, "event_type")?,
+        "SHORT_SQUEEZE"
+            | "LONG_LIQUIDATION"
+            | "DERIVATIVES_LED_BREAKOUT"
+            | "SPOT_LED_BREAKOUT"
+            | "BOOK_DISLOCATION"
+            | "MACRO_RISK_ON"
+            | "MACRO_RISK_OFF"
+            | "NEWS_SHOCK"
+            | "FLOW_SHOCK"
+            | "CROSS_ASSET_PROPAGATION"
+            | "VOLATILITY_SHOCK"
+            | "UNKNOWN"
+    ) || !matches!(
+        string_field(obj, "direction")?,
+        "UP" | "DOWN" | "MIXED" | "UNKNOWN"
+    ) || !matches!(
+        string_field(obj, "quality_state")?,
+        "VALIDATED" | "DEGRADED" | "INVALID" | "UNAVAILABLE"
+    ) {
+        return Err(ContractError::Semantic("invalid mechanics enum"));
     }
     for name in [
         "mechanical_intensity",
@@ -464,10 +567,83 @@ fn validate_composite(obj: &Map<String, Value>) -> Result<(), ContractError> {
 }
 
 fn validate_scope(obj: &Map<String, Value>) -> Result<(), ContractError> {
-    if !obj.contains_key("kind") {
-        return Err(ContractError::Structure("scope kind missing"));
+    match string_field(obj, "kind")? {
+        "GLOBAL_CRYPTO" => {
+            require_exact_keys(obj, &["kind", "asset", "venue", "instrument"], &[])?;
+            if obj.get("asset").is_some_and(Value::is_null)
+                && obj.get("venue").is_some_and(Value::is_null)
+                && obj.get("instrument").is_some_and(Value::is_null)
+            {
+                Ok(())
+            } else {
+                Err(ContractError::Semantic("invalid scope"))
+            }
+        }
+        "ASSET" => {
+            require_exact_keys(obj, &["kind", "asset", "venue", "instrument"], &[])?;
+            if obj.get("venue").is_some_and(Value::is_null)
+                && obj.get("instrument").is_some_and(Value::is_null)
+                && obj
+                    .get("asset")
+                    .and_then(Value::as_str)
+                    .is_some_and(is_asset)
+            {
+                Ok(())
+            } else {
+                Err(ContractError::Semantic("invalid scope"))
+            }
+        }
+        "VENUE" => {
+            require_exact_keys(obj, &["kind", "asset", "venue", "instrument"], &[])?;
+            if obj.get("asset").is_some_and(Value::is_null)
+                && obj.get("instrument").is_some_and(Value::is_null)
+                && obj
+                    .get("venue")
+                    .and_then(Value::as_str)
+                    .is_some_and(is_venue)
+            {
+                Ok(())
+            } else {
+                Err(ContractError::Semantic("invalid scope"))
+            }
+        }
+        "PAIR" => {
+            require_exact_keys(obj, &["kind", "asset", "venue", "instrument"], &[])?;
+            let asset = string_field(obj, "asset")?;
+            let venue = string_field(obj, "venue")?;
+            if !is_asset(asset) || !is_venue(venue) {
+                return Err(ContractError::Semantic("invalid scope"));
+            }
+            let instrument = object(field(obj, "instrument")?)?;
+            require_exact_keys(
+                instrument,
+                &[
+                    "base_asset",
+                    "quote_asset",
+                    "market_type",
+                    "venue",
+                    "venue_symbol",
+                ],
+                &[],
+            )?;
+            if string_field(instrument, "base_asset")? != asset
+                || string_field(instrument, "venue")? != venue
+                || !matches!(
+                    string_field(instrument, "quote_asset")?,
+                    "USD" | "USDC" | "USDT"
+                )
+                || !matches!(
+                    string_field(instrument, "market_type")?,
+                    "SPOT" | "PERPETUAL"
+                )
+                || !is_symbol(string_field(instrument, "venue_symbol")?)
+            {
+                return Err(ContractError::Semantic("invalid scope"));
+            }
+            Ok(())
+        }
+        _ => Err(ContractError::Semantic("invalid scope")),
     }
-    Ok(())
 }
 fn validate_causal_time(obj: &Map<String, Value>) -> Result<(), ContractError> {
     require_exact_keys(
@@ -629,6 +805,19 @@ fn is_id(value: &str, prefix: &str) -> bool {
 }
 fn is_epoch(value: &str) -> bool {
     is_id(value, "epoch_") && value.len() <= 70
+}
+fn is_asset(value: &str) -> bool {
+    matches!(value, "BTC" | "ETH" | "SOL" | "BNB" | "HYPE")
+}
+fn is_venue(value: &str) -> bool {
+    matches!(value, "BINANCE" | "HYPERLIQUID")
+}
+fn is_symbol(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value.bytes().all(|b| {
+            b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-' || b == b'_' || b == b'.'
+        })
 }
 fn is_snake(value: &str) -> bool {
     !value.is_empty()

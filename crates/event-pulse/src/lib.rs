@@ -11,7 +11,7 @@ pub mod wire;
 
 pub use contract::{
     ContractBundle, ContractError, ValidatedContract, canonical_json, content_hash,
-    validate_context_revision, validate_revision_transition,
+    try_content_hash, validate_context_revision, validate_revision_transition,
 };
 pub use provenance::{
     ArtifactProvenance, EXPECTED_ROOT_COMMIT, ProvenanceError, ProvenanceManifest,
