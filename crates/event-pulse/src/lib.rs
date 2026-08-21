@@ -5,8 +5,14 @@
 
 #![forbid(unsafe_code)]
 
+mod contract;
 mod provenance;
+pub mod wire;
 
+pub use contract::{
+    ContractBundle, ContractError, ValidatedContract, canonical_json, content_hash,
+    validate_context_revision, validate_revision_transition,
+};
 pub use provenance::{
     ArtifactProvenance, EXPECTED_ROOT_COMMIT, ProvenanceError, ProvenanceManifest,
     VerifiedArtifact, embedded_provenance, verify_artifact_bytes, verify_embedded_contracts,

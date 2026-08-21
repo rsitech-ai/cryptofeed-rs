@@ -2,7 +2,93 @@ use marketfeed_event_pulse::{
     EXPECTED_ROOT_COMMIT, ProvenanceError, embedded_provenance, verify_artifact_bytes,
     verify_embedded_contracts, verify_manifest,
 };
+use serde_json::Value;
 use sha2::{Digest, Sha256};
+
+#[test]
+fn q1_and_e1_published_vectors_are_wire_compatible() {
+    let bundle = marketfeed_event_pulse::ContractBundle::load_embedded().expect("pinned bundle");
+    for bytes in [
+        include_bytes!("../contracts/quant-harness/quant_harness_v1_golden.json").as_slice(),
+        include_bytes!("../contracts/event-pulse/event_pulse_v1_golden.json").as_slice(),
+    ] {
+        let vectors: Value = serde_json::from_slice(bytes).expect("published vectors");
+        for vector in vectors["vectors"].as_array().expect("vectors") {
+            let payload = serde_json::to_vec(&vector["payload"]).expect("payload");
+            let accepted = bundle
+                .validate_json(&payload)
+                .unwrap_or_else(|error| panic!("{}: {error}", vector["name"]));
+            assert_eq!(
+                accepted.canonical_json(),
+                vector["canonical_json"].as_str().unwrap()
+            );
+            assert_eq!(
+                accepted.content_hash(),
+                vector["content_hash"].as_str().unwrap()
+            );
+        }
+    }
+}
+
+#[test]
+fn q1_and_e1_published_rejections_fail_closed() {
+    let bundle = marketfeed_event_pulse::ContractBundle::load_embedded().expect("pinned bundle");
+    let q1: Value = serde_json::from_slice(include_bytes!(
+        "../contracts/quant-harness/quant_harness_v1_rejections.json"
+    ))
+    .unwrap();
+    for vector in q1["vectors"].as_array().unwrap() {
+        let payload = serde_json::to_vec(&vector["payload"]).unwrap();
+        if vector["name"] == "post_hoc_mutation" {
+            let previous = bundle
+                .validate_json(&serde_json::to_vec(&vector["previous"]).unwrap())
+                .unwrap();
+            let current = bundle.validate_json(&payload).unwrap();
+            assert!(
+                marketfeed_event_pulse::validate_revision_transition(&previous, &current).is_err()
+            );
+        } else {
+            assert!(
+                bundle.validate_json(&payload).is_err(),
+                "{}",
+                vector["name"]
+            );
+        }
+    }
+    let e1: Value = serde_json::from_slice(include_bytes!(
+        "../contracts/event-pulse/event_pulse_v1_rejections.json"
+    ))
+    .unwrap();
+    for group in ["semantic_vectors", "structural_vectors"] {
+        for vector in e1[group].as_array().unwrap() {
+            let payload = serde_json::to_vec(&vector["payload"]).unwrap();
+            if vector["name"] == "context_revision_rewrites_evidence" {
+                let previous = bundle
+                    .validate_json(&serde_json::to_vec(&vector["previous"]).unwrap())
+                    .unwrap();
+                let current = bundle.validate_json(&payload).unwrap();
+                assert!(
+                    marketfeed_event_pulse::validate_context_revision(&previous, &current).is_err()
+                );
+            } else if vector["name"] == "eventpulse_revision_changes_scope" {
+                let previous = bundle
+                    .validate_json(&serde_json::to_vec(&vector["previous"]).unwrap())
+                    .unwrap();
+                let current = bundle.validate_json(&payload).unwrap();
+                assert!(
+                    marketfeed_event_pulse::validate_revision_transition(&previous, &current)
+                        .is_err()
+                );
+            } else {
+                assert!(
+                    bundle.validate_json(&payload).is_err(),
+                    "{}",
+                    vector["name"]
+                );
+            }
+        }
+    }
+}
 
 #[test]
 fn provenance_accepts_exact_embedded_artifacts() {
