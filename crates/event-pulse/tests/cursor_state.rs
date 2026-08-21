@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use marketfeed_event_pulse::{
-    CursorError, IngestOutcome, SlotState, SourceStateMachine,
+    CursorError, IngestOutcome, Invalidity, SlotState, SourceStateMachine,
     wire::{
         ClockCursorV1, ClockQualityV1, ClockSourceKeyV1, ClockSourceV1, ClockStateV1,
         ConfiguredTargetKeyV1, ConnectionKeyV1, ContributorKeyV1, ContributorRoleV1,
@@ -677,9 +677,22 @@ fn processor_clock_jump_uses_reserved_derived_cursor_and_clears_clock_observatio
 fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
     let f = fixture();
     let mut state = SourceStateMachine::new(f.config);
-    state
-        .ingest(&market(1, 1, (1, 1), 0, "epoch_a", 0))
-        .unwrap();
+    let initial_snapshot = market_with_payload(
+        1,
+        1,
+        (1, 1),
+        0,
+        "epoch_a",
+        0,
+        MarketEvent::BookSnapshot(marketfeed_model::BookSnapshot {
+            bids: vec![],
+            asks: vec![],
+            depth: Some(0),
+            checksum: None,
+        }),
+    );
+    state.ingest(&initial_snapshot).unwrap();
+    assert_eq!(state.book_eligible(&f.primary), Some(true));
     let contributor = ContributorV1::new(f.primary.clone(), "epoch_a", 0).unwrap();
     let invalidation = MechanicsInputV1::system(
         SystemSourceV1::new(f.book_system.clone(), "epoch_book", 0).unwrap(),
@@ -727,6 +740,12 @@ fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
         state.contributor_state(&f.primary),
         Some(SlotState::Invalid)
     );
+    assert_eq!(
+        state.ingest(&initial_snapshot).unwrap(),
+        IngestOutcome::IgnoredDuplicate
+    );
+    assert_eq!(state.book_eligible(&f.primary), Some(false));
+    assert_eq!(state.book_snapshot_permitted(&f.primary), Some(true));
     let snapshot = market_with_payload(
         1,
         1,
@@ -774,6 +793,14 @@ fn disconnect_latches_connection_and_invalidates_cold_sibling_until_recovery() {
         Some(SlotState::Invalid)
     );
     assert_eq!(
+        state.connection_invalidity(&f.connection),
+        Some(Invalidity::Recoverable)
+    );
+    assert_eq!(
+        state.contributor_invalidity(&f.primary),
+        Some(Invalidity::Recoverable)
+    );
+    assert_eq!(
         state.contributor_state(&f.primary),
         Some(SlotState::Invalid)
     );
@@ -812,8 +839,20 @@ fn reused_greater_connection_epoch_latches_invalid_and_prior_epoch_stays_rejecte
         Some(SlotState::Invalid)
     );
     assert_eq!(
+        state.connection_invalidity(&f.connection),
+        Some(Invalidity::Terminal)
+    );
+    assert_eq!(
+        state.contributor_invalidity(&f.primary),
+        Some(Invalidity::Terminal)
+    );
+    assert_eq!(
         state.ingest(&market(2, 2, (1, 1), 3, "epoch_b", 1)),
-        Err(CursorError::EpochMismatch)
+        Err(CursorError::TerminalInvalid)
+    );
+    assert_eq!(
+        state.ingest(&market(1, 1, (1, 1), 4, "epoch_c", 3)),
+        Err(CursorError::TerminalInvalid)
     );
 }
 
@@ -908,4 +947,179 @@ fn clock_epoch_reset_preflights_backward_time_and_conversion_overflow() {
     .unwrap();
     assert_eq!(overflow.ingest(&input), Err(CursorError::TimeOverflow));
     assert_eq!(overflow.clock_state(&f.clock), Some(SlotState::Invalid));
+}
+
+#[test]
+fn source_epoch_reuse_is_terminal_for_clock_coverage_and_system() {
+    let f = fixture();
+    let mut state = SourceStateMachine::new(f.config);
+    state
+        .ingest(&market(1, 1, (1, 1), 0, "epoch_a", 0))
+        .unwrap();
+    let contributor = ContributorV1::new(f.primary.clone(), "epoch_a", 0).unwrap();
+
+    for (generation, epoch) in [(0, "epoch_clock_a"), (1, "epoch_clock_b")] {
+        let input = MechanicsInputV1::clock(
+            contributor.clone(),
+            ClockSourceV1::new(f.clock.clone(), epoch, generation).unwrap(),
+            time(generation + 1),
+            time(generation + 1),
+            ClockCursorV1::native(1, 1).unwrap(),
+            ClockStateV1::Synchronized,
+            marketfeed_event_pulse::wire::CanonicalDecimal::parse("0", 18, 8).unwrap(),
+            1000,
+            ClockQualityV1::Validated,
+            "SOURCE_CLOCK_VALID",
+        )
+        .unwrap();
+        state.ingest(&input).unwrap();
+    }
+    let reused_clock = MechanicsInputV1::clock(
+        contributor.clone(),
+        ClockSourceV1::new(f.clock.clone(), "epoch_clock_a", 2).unwrap(),
+        time(3),
+        time(3),
+        ClockCursorV1::native(1, 1).unwrap(),
+        ClockStateV1::Synchronized,
+        marketfeed_event_pulse::wire::CanonicalDecimal::parse("0", 18, 8).unwrap(),
+        1000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_VALID",
+    )
+    .unwrap();
+    assert_eq!(state.ingest(&reused_clock), Err(CursorError::EpochReused));
+    assert_eq!(state.clock_invalidity(&f.clock), Some(Invalidity::Terminal));
+    let new_clock = MechanicsInputV1::clock(
+        contributor.clone(),
+        ClockSourceV1::new(f.clock.clone(), "epoch_clock_c", 3).unwrap(),
+        time(4),
+        time(4),
+        ClockCursorV1::native(1, 1).unwrap(),
+        ClockStateV1::Synchronized,
+        marketfeed_event_pulse::wire::CanonicalDecimal::parse("0", 18, 8).unwrap(),
+        1000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_VALID",
+    )
+    .unwrap();
+    assert_eq!(state.ingest(&new_clock), Err(CursorError::TerminalInvalid));
+
+    for (generation, epoch) in [(0, "epoch_coverage_a"), (1, "epoch_coverage_b")] {
+        let input = MechanicsInputV1::coverage(
+            contributor.clone(),
+            CoverageSourceV1::new(f.coverage.clone(), epoch, generation).unwrap(),
+            FamilyV1::Trade,
+            time(0),
+            time(generation + 1),
+            time(generation + 1),
+            CoverageCursorV1::native(1, 1).unwrap(),
+        )
+        .unwrap();
+        state.ingest(&input).unwrap();
+    }
+    let reused_coverage = MechanicsInputV1::coverage(
+        contributor.clone(),
+        CoverageSourceV1::new(f.coverage.clone(), "epoch_coverage_a", 2).unwrap(),
+        FamilyV1::Trade,
+        time(0),
+        time(3),
+        time(3),
+        CoverageCursorV1::native(1, 1).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        state.ingest(&reused_coverage),
+        Err(CursorError::EpochReused)
+    );
+    assert_eq!(
+        state.coverage_invalidity(&f.coverage),
+        Some(Invalidity::Terminal)
+    );
+    let new_coverage = MechanicsInputV1::coverage(
+        contributor.clone(),
+        CoverageSourceV1::new(f.coverage.clone(), "epoch_coverage_c", 3).unwrap(),
+        FamilyV1::Trade,
+        time(0),
+        time(4),
+        time(4),
+        CoverageCursorV1::native(1, 1).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        state.ingest(&new_coverage),
+        Err(CursorError::TerminalInvalid)
+    );
+
+    let scope = FaultScopeV1::contributor(contributor);
+    let mut predecessor = None;
+    for (generation, epoch) in [(0, "epoch_system_a"), (1, "epoch_system_b")] {
+        let input = MechanicsInputV1::system(
+            SystemSourceV1::new(f.book_system.clone(), epoch, generation).unwrap(),
+            scope.clone(),
+            time(generation + 1),
+            time(generation + 1),
+            CursorV1::native(1, 1).unwrap(),
+            SystemFaultV1::book_resynchronized(),
+            predecessor.clone(),
+        )
+        .unwrap();
+        state.ingest(&input).unwrap();
+        predecessor = state.system_chain_head(&f.book_system).map(str::to_owned);
+    }
+    let reused_system = MechanicsInputV1::system(
+        SystemSourceV1::new(f.book_system.clone(), "epoch_system_a", 2).unwrap(),
+        scope.clone(),
+        time(3),
+        time(3),
+        CursorV1::native(1, 1).unwrap(),
+        SystemFaultV1::book_resynchronized(),
+        predecessor,
+    )
+    .unwrap();
+    assert_eq!(state.ingest(&reused_system), Err(CursorError::EpochReused));
+    assert_eq!(
+        state.system_invalidity(&f.book_system),
+        Some(Invalidity::Terminal)
+    );
+    let new_system = MechanicsInputV1::system(
+        SystemSourceV1::new(f.book_system.clone(), "epoch_system_c", 3).unwrap(),
+        scope,
+        time(4),
+        time(4),
+        CursorV1::native(1, 1).unwrap(),
+        SystemFaultV1::book_resynchronized(),
+        state.system_chain_head(&f.book_system).map(str::to_owned),
+    )
+    .unwrap();
+    assert_eq!(state.ingest(&new_system), Err(CursorError::TerminalInvalid));
+}
+
+#[test]
+fn confirmation_time_does_not_couple_primary_connection_availability() {
+    let f = fixture();
+    let mut state = SourceStateMachine::new(f.config);
+    state
+        .ingest(&market(2, 2, (1, 1), 100, "epoch_a", 0))
+        .unwrap();
+    assert_eq!(
+        state.ingest(&market(2, 2, (2, 2), 99, "epoch_a", 0)),
+        Err(CursorError::AvailabilityRegression)
+    );
+    assert_eq!(
+        state.contributor_invalidity(&f.sibling),
+        Some(Invalidity::Recoverable)
+    );
+    state
+        .ingest(&market(1, 1, (1, 1), 10, "epoch_a", 0))
+        .unwrap();
+    assert_eq!(
+        state.contributor_state(&f.primary),
+        Some(SlotState::Warming)
+    );
+    assert_eq!(
+        state
+            .ingest(&market(1, 1, (2, 2), 11, "epoch_a", 0))
+            .unwrap(),
+        IngestOutcome::AcceptedWarming
+    );
 }
