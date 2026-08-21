@@ -536,7 +536,7 @@ fn derived_coordinates_allow_jumps_but_reject_regression() {
 }
 
 #[test]
-fn all_256_epoch_names_are_bounded_and_reuse_fails_closed() {
+fn backward_time_and_market_epoch_history_exhaustion_fail_terminally() {
     let f = fixture();
     let mut state = SourceStateMachine::new(f.config);
     for generation in 0..=u8::MAX {
@@ -556,12 +556,20 @@ fn all_256_epoch_names_are_bounded_and_reuse_fails_closed() {
         );
     }
     assert_eq!(
-        state.ingest(&market(1, 1, (1, 1), 300, "epoch_0", u8::MAX)),
-        Err(CursorError::EpochMismatch)
+        state.ingest(&market(1, 1, (1, 1), -1, "epoch_new", u8::MAX)),
+        Err(CursorError::EpochHistoryExhausted)
     );
     assert_eq!(
-        state.contributor_state(&f.primary),
-        Some(SlotState::Invalid)
+        state.connection_invalidity(&f.connection),
+        Some(Invalidity::Terminal)
+    );
+    assert_eq!(
+        state.contributor_invalidity(&f.primary),
+        Some(Invalidity::Terminal)
+    );
+    assert_eq!(
+        state.ingest(&market(1, 1, (1, 1), 300, "epoch_after", u8::MAX)),
+        Err(CursorError::TerminalInvalid)
     );
 }
 
@@ -831,7 +839,7 @@ fn reused_greater_connection_epoch_latches_invalid_and_prior_epoch_stays_rejecte
         .ingest(&market(1, 1, (1, 1), 1, "epoch_b", 1))
         .unwrap();
     assert_eq!(
-        state.ingest(&market(1, 1, (1, 1), 2, "epoch_a", 2)),
+        state.ingest(&market(1, 1, (1, 1), -1, "epoch_a", 2)),
         Err(CursorError::EpochReused)
     );
     assert_eq!(
@@ -977,8 +985,8 @@ fn source_epoch_reuse_is_terminal_for_clock_coverage_and_system() {
     let reused_clock = MechanicsInputV1::clock(
         contributor.clone(),
         ClockSourceV1::new(f.clock.clone(), "epoch_clock_a", 2).unwrap(),
-        time(3),
-        time(3),
+        time(0),
+        time(0),
         ClockCursorV1::native(1, 1).unwrap(),
         ClockStateV1::Synchronized,
         marketfeed_event_pulse::wire::CanonicalDecimal::parse("0", 18, 8).unwrap(),
@@ -1022,8 +1030,8 @@ fn source_epoch_reuse_is_terminal_for_clock_coverage_and_system() {
         CoverageSourceV1::new(f.coverage.clone(), "epoch_coverage_a", 2).unwrap(),
         FamilyV1::Trade,
         time(0),
-        time(3),
-        time(3),
+        time(0),
+        time(0),
         CoverageCursorV1::native(1, 1).unwrap(),
     )
     .unwrap();
@@ -1069,8 +1077,8 @@ fn source_epoch_reuse_is_terminal_for_clock_coverage_and_system() {
     let reused_system = MechanicsInputV1::system(
         SystemSourceV1::new(f.book_system.clone(), "epoch_system_a", 2).unwrap(),
         scope.clone(),
-        time(3),
-        time(3),
+        time(0),
+        time(0),
         CursorV1::native(1, 1).unwrap(),
         SystemFaultV1::book_resynchronized(),
         predecessor,

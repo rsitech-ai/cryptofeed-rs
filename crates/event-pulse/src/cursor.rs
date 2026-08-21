@@ -171,15 +171,8 @@ impl Slot {
         if self.invalidity == Some(Invalidity::Terminal) {
             return Err(CursorError::TerminalInvalid);
         }
+        self.preflight_epoch_transition(epoch)?;
         self.preflight_time(at_ns)?;
-        if self.history.contains(epoch) {
-            self.invalidate_terminal();
-            return Err(CursorError::EpochReused);
-        }
-        if self.history.len() >= 256 {
-            self.invalidate_terminal();
-            return Err(CursorError::EpochHistoryExhausted);
-        }
         self.history.insert(epoch.to_owned());
         self.epoch = Some(epoch.to_owned());
         self.generation = Some(generation);
@@ -198,6 +191,18 @@ impl Slot {
         Ok(())
     }
 
+    fn preflight_epoch_transition(&mut self, epoch: &str) -> Result<(), CursorError> {
+        if self.history.contains(epoch) {
+            self.invalidate_terminal();
+            return Err(CursorError::EpochReused);
+        }
+        if self.history.len() >= 256 {
+            self.invalidate_terminal();
+            return Err(CursorError::EpochHistoryExhausted);
+        }
+        Ok(())
+    }
+
     fn prepare_epoch(
         &mut self,
         epoch: &str,
@@ -206,6 +211,9 @@ impl Slot {
     ) -> Result<bool, CursorError> {
         if self.invalidity == Some(Invalidity::Terminal) {
             return Err(CursorError::TerminalInvalid);
+        }
+        if self.epoch.as_deref() != Some(epoch) {
+            self.preflight_epoch_transition(epoch)?;
         }
         match (self.generation, self.epoch.as_deref()) {
             (None, None) => self.begin_epoch(epoch, generation, at_ns).map(|()| true),
@@ -757,6 +765,35 @@ impl SourceStateMachine {
         {
             return Err(CursorError::TerminalInvalid);
         }
+        let connection = self
+            .connections
+            .get(&connection_key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let contributor = self
+            .contributors
+            .get(key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let connection_transition = connection.epoch.as_deref() != Some(epoch);
+        let contributor_transition = contributor.epoch.as_deref() != Some(epoch);
+        let epoch_reused = (connection_transition && connection.history.contains(epoch))
+            || (contributor_transition && contributor.history.contains(epoch));
+        let history_exhausted = (connection_transition && connection.history.len() >= 256)
+            || (contributor_transition && contributor.history.len() >= 256);
+        if epoch_reused || history_exhausted {
+            self.connections
+                .get_mut(&connection_key)
+                .expect("preallocated connection")
+                .invalidate_terminal();
+            self.contributors
+                .get_mut(key)
+                .expect("preallocated contributor")
+                .invalidate_terminal();
+            return Err(if epoch_reused {
+                CursorError::EpochReused
+            } else {
+                CursorError::EpochHistoryExhausted
+            });
+        }
         let contributor_time = self
             .contributors
             .get_mut(key)
@@ -792,27 +829,6 @@ impl SourceStateMachine {
                 return Err(CursorError::EpochMismatch);
             }
         };
-        if advance {
-            let connection_reused = self
-                .connections
-                .get(&connection_key)
-                .is_some_and(|slot| slot.history.contains(epoch));
-            let contributor_reused = self
-                .contributors
-                .get(key)
-                .is_some_and(|slot| slot.history.contains(epoch));
-            if connection_reused || contributor_reused {
-                self.connections
-                    .get_mut(&connection_key)
-                    .expect("preallocated connection")
-                    .invalidate_terminal();
-                self.contributors
-                    .get_mut(key)
-                    .expect("preallocated contributor")
-                    .invalidate_terminal();
-                return Err(CursorError::EpochReused);
-            }
-        }
         if advance {
             self.advance_connection(&connection_key, key, epoch, generation, at_ns)?;
         } else {
@@ -1206,8 +1222,9 @@ mod tests {
         for generation in 0..=u8::MAX {
             slot.history.insert(format!("epoch_{generation}"));
         }
+        slot.retained_available_at_ns = Some(10);
         assert_eq!(
-            slot.begin_epoch("epoch_new", 0, 0),
+            slot.begin_epoch("epoch_new", 0, 9),
             Err(CursorError::EpochHistoryExhausted)
         );
         assert_eq!(slot.invalidity, Some(Invalidity::Terminal));
