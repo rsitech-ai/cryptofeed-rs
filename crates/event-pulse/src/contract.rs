@@ -183,12 +183,12 @@ impl ContractBundle {
         {
             return Err(ContractError::HashBinding);
         }
-        let expected_catalyst = context
-            .map(|value| object(value.value()))
-            .transpose()?
-            .and_then(|value| value.get("catalyst_confidence"));
-        if composite.get("catalyst_confidence") != expected_catalyst {
-            return Err(ContractError::HashBinding);
+        if let Some(context) = context {
+            if composite.get("catalyst_confidence")
+                != object(context.value())?.get("catalyst_confidence")
+            {
+                return Err(ContractError::HashBinding);
+            }
         }
         let expires = parse_time(string_field(composite, "expires_at")?)?;
         let half_life_micros = integer_field(mechanics, "expected_half_life_ms")?

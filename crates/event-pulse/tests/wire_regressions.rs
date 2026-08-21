@@ -284,6 +284,23 @@ fn binder_rejects_substituted_mechanics_and_accepts_exact_golden_pair() {
 }
 
 #[test]
+fn binder_accepts_explicit_null_context_triplet() {
+    let bundle = ContractBundle::load_embedded().unwrap();
+    let mechanics = bundle
+        .validate_e1_json(&serde_json::to_vec(&golden(0)).unwrap())
+        .unwrap();
+    let mut composite = golden(2);
+    composite["context_content_hash"] = Value::Null;
+    composite["context_lineage_id"] = Value::Null;
+    composite["catalyst_confidence"] = Value::Null;
+    composite = rehash(composite);
+    let composite = bundle
+        .validate_e1_json(&serde_json::to_vec(&composite).unwrap())
+        .unwrap();
+    bundle.bind_composite(&mechanics, None, &composite).unwrap();
+}
+
+#[test]
 fn nested_scope_and_enum_drift_reject_with_a_stable_semantic_error() {
     let bundle = ContractBundle::load_embedded().unwrap();
     let mut invalid = golden(0);
