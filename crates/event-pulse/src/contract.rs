@@ -19,10 +19,41 @@ pub enum ContractError {
     Semantic(&'static str),
     #[error("contract content hash does not match canonical v1 payload")]
     HashMismatch,
-    #[error("composite does not bind the supplied exact mechanics/context objects")]
-    HashBinding,
+    #[error("EventPulse semantic category: {0}")]
+    EventPulse(EventPulseErrorCode),
     #[error("embedded contract provenance failed: {0}")]
     Provenance(String),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventPulseErrorCode {
+    Identity,
+    NumericBounds,
+    Ordering,
+    Quality,
+    ContextRevision,
+    HashBinding,
+    InputAvailability,
+    FutureAvailability,
+}
+
+impl std::fmt::Display for EventPulseErrorCode {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::Identity => "EVENTPULSE_IDENTITY",
+            Self::NumericBounds => "EVENTPULSE_NUMERIC_BOUNDS",
+            Self::Ordering => "EVENTPULSE_ORDERING",
+            Self::Quality => "EVENTPULSE_QUALITY",
+            Self::ContextRevision => "EVENTPULSE_CONTEXT_REVISION",
+            Self::HashBinding => "EVENTPULSE_HASH_BINDING",
+            Self::InputAvailability => "EVENTPULSE_INPUT_AVAILABILITY",
+            Self::FutureAvailability => "FUTURE_AVAILABILITY",
+        })
+    }
+}
+
+fn ep(code: EventPulseErrorCode) -> ContractError {
+    ContractError::EventPulse(code)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -83,17 +114,20 @@ impl ContractBundle {
         if string_field(mechanics, "contract_type")? != "mechanics"
             || string_field(composite, "contract_type")? != "composite"
         {
-            return Err(ContractError::HashBinding);
+            return Err(ep(EventPulseErrorCode::HashBinding));
         }
         if composite
             .get("mechanics_content_hash")
             .and_then(Value::as_str)
             != Some(string_field(mechanics, "content_hash")?)
             || composite.get("mechanics_lineage_id") != mechanics.get("lineage_id")
-            || composite.get("event_cluster_id") != mechanics.get("event_cluster_id")
+        {
+            return Err(ep(EventPulseErrorCode::HashBinding));
+        }
+        if composite.get("event_cluster_id") != mechanics.get("event_cluster_id")
             || composite.get("scope") != mechanics.get("scope")
         {
-            return Err(ContractError::HashBinding);
+            return Err(ep(EventPulseErrorCode::Identity));
         }
         match context {
             None if !composite
@@ -106,7 +140,7 @@ impl ContractBundle {
                     .get("catalyst_confidence")
                     .is_some_and(Value::is_null) =>
             {
-                return Err(ContractError::HashBinding);
+                return Err(ep(EventPulseErrorCode::HashBinding));
             }
             Some(context) => {
                 let context = object(context.value())?;
@@ -116,10 +150,13 @@ impl ContractBundle {
                         .and_then(Value::as_str)
                         != Some(string_field(context, "content_hash")?)
                     || composite.get("context_lineage_id") != context.get("lineage_id")
-                    || composite.get("event_cluster_id") != context.get("event_cluster_id")
+                {
+                    return Err(ep(EventPulseErrorCode::HashBinding));
+                }
+                if composite.get("event_cluster_id") != context.get("event_cluster_id")
                     || composite.get("scope") != context.get("scope")
                 {
-                    return Err(ContractError::HashBinding);
+                    return Err(ep(EventPulseErrorCode::Identity));
                 }
             }
             _ => {}
@@ -134,7 +171,7 @@ impl ContractBundle {
             "expected_half_life_ms",
         ] {
             if composite.get(field_name) != mechanics.get(field_name) {
-                return Err(ContractError::HashBinding);
+                return Err(ep(EventPulseErrorCode::HashBinding));
             }
         }
         let composite_time = object(field(composite, "causal_time")?)?;
@@ -156,7 +193,7 @@ impl ContractBundle {
                 || input_available > composite_received
                 || input_available > composite_normalized
             {
-                return Err(ContractError::HashBinding);
+                return Err(ep(EventPulseErrorCode::InputAvailability));
             }
         }
         let mut expected_flags = BTreeSet::new();
@@ -168,12 +205,16 @@ impl ContractBundle {
         .flatten()
         {
             for flag in array_field(input, "quality_flags")? {
-                expected_flags.insert(flag.as_str().ok_or(ContractError::HashBinding)?.to_owned());
+                expected_flags.insert(
+                    flag.as_str()
+                        .ok_or(ep(EventPulseErrorCode::Quality))?
+                        .to_owned(),
+                );
             }
         }
         let actual_flags: Vec<_> = array_field(composite, "quality_flags")?
             .iter()
-            .map(|value| value.as_str().ok_or(ContractError::HashBinding))
+            .map(|value| value.as_str().ok_or(ep(EventPulseErrorCode::Quality)))
             .collect::<Result<_, _>>()?;
         if actual_flags
             != expected_flags
@@ -181,21 +222,21 @@ impl ContractBundle {
                 .map(String::as_str)
                 .collect::<Vec<_>>()
         {
-            return Err(ContractError::HashBinding);
+            return Err(ep(EventPulseErrorCode::Quality));
         }
         if let Some(context) = context {
             if composite.get("catalyst_confidence")
                 != object(context.value())?.get("catalyst_confidence")
             {
-                return Err(ContractError::HashBinding);
+                return Err(ep(EventPulseErrorCode::HashBinding));
             }
         }
         let expires = parse_time(string_field(composite, "expires_at")?)?;
         let half_life_micros = integer_field(mechanics, "expected_half_life_ms")?
             .checked_mul(1_000)
-            .ok_or(ContractError::HashBinding)?;
+            .ok_or(ep(EventPulseErrorCode::InputAvailability))?;
         if expires != composite_available + half_life_micros {
-            return Err(ContractError::HashBinding);
+            return Err(ep(EventPulseErrorCode::InputAvailability));
         }
         Ok(())
     }
@@ -224,7 +265,11 @@ pub fn validate_revision_transition(
         }
     }
     if previous.get("scope") != current.get("scope") {
-        return Err(ContractError::Semantic("revision scope mismatch"));
+        return if string_field(previous, "schema_version")? == E1 {
+            Err(ep(EventPulseErrorCode::Identity))
+        } else {
+            Err(ContractError::Semantic("revision scope mismatch"))
+        };
     }
     let previous_available = parse_time(string_field(
         object(field(previous, "causal_time")?)?,
@@ -258,9 +303,7 @@ pub fn validate_context_revision(
     if current_evidence.len() < previous_evidence.len()
         || current_evidence[..previous_evidence.len()] != previous_evidence[..]
     {
-        return Err(ContractError::Semantic(
-            "context evidence is not append-only",
-        ));
+        return Err(ep(EventPulseErrorCode::ContextRevision));
     }
     let previous_available = parse_time(string_field(
         object(field(object(&previous.0)?, "causal_time")?)?,
@@ -268,9 +311,7 @@ pub fn validate_context_revision(
     )?)?;
     for item in &current_evidence[previous_evidence.len()..] {
         if parse_time(string_field(object(item)?, "first_seen_at")?)? < previous_available {
-            return Err(ContractError::Semantic(
-                "context evidence rewrites prior information set",
-            ));
+            return Err(ep(EventPulseErrorCode::ContextRevision));
         }
     }
     Ok(())
@@ -372,7 +413,7 @@ fn validate_value(
     if string_field(obj, "schema_version")? != expected_version {
         return Err(ContractError::Structure("wrong schema_version"));
     }
-    validate_common(obj)?;
+    validate_common(obj, expected_version)?;
     match expected_version {
         Q1 => validate_q1(obj)?,
         E1 => validate_e1(obj)?,
@@ -385,7 +426,7 @@ fn validate_value(
     Ok(ValidatedContract(value))
 }
 
-fn validate_common(obj: &Map<String, Value>) -> Result<(), ContractError> {
+fn validate_common(obj: &Map<String, Value>, schema_version: &str) -> Result<(), ContractError> {
     for key in [
         "schema_version",
         "contract_id",
@@ -412,7 +453,7 @@ fn validate_common(obj: &Map<String, Value>) -> Result<(), ContractError> {
         Some(Value::String(value)) if revision > 1 && is_hash(value) => {}
         _ => return Err(ContractError::Semantic("invalid revision predecessor")),
     }
-    validate_causal_time(object(field(obj, "causal_time")?)?)
+    validate_causal_time(object(field(obj, "causal_time")?)?, schema_version)
 }
 
 fn validate_q1(obj: &Map<String, Value>) -> Result<(), ContractError> {
@@ -584,7 +625,8 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
         "mechanical_confidence",
         "reversal_risk",
     ] {
-        validate_score(string_field(obj, name)?)?;
+        validate_score(string_field(obj, name)?)
+            .map_err(|_| ep(EventPulseErrorCode::NumericBounds))?;
     }
     let availability = parse_time(string_field(
         object(field(obj, "causal_time")?)?,
@@ -610,8 +652,10 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
             &[],
         )?;
         let at = parse_time(string_field(cursor, "available_at")?)?;
-        if at > availability
-            || !is_source(string_field(cursor, "source_id")?)
+        if at > availability {
+            return Err(ep(EventPulseErrorCode::InputAvailability));
+        }
+        if !is_source(string_field(cursor, "source_id")?)
             || !is_epoch(string_field(cursor, "connection_epoch")?)
             || integer_field(cursor, "sequence_start")? > integer_field(cursor, "sequence_end")?
             || integer_field(cursor, "sequence_end")? > i64::MAX as i128
@@ -629,9 +673,7 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
         ));
     }
     if keys.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err(ContractError::Semantic(
-            "source cursors not canonically ordered",
-        ));
+        return Err(ep(EventPulseErrorCode::Ordering));
     }
     let validated = string_field(obj, "quality_state")? == "VALIDATED";
     let unusable = matches!(
@@ -641,7 +683,7 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
     if (string_field(obj, "phase")? == "INVALID") != unusable
         || (unusable && array_field(obj, "quality_flags")?.is_empty())
     {
-        return Err(ContractError::Semantic("inconsistent mechanics quality"));
+        return Err(ep(EventPulseErrorCode::Quality));
     }
     let features = array_field(obj, "features")?;
     if features.is_empty() {
@@ -676,9 +718,7 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
             return Err(ContractError::Semantic("invalid feature vocabulary"));
         }
         if validated && quality != "VALIDATED" {
-            return Err(ContractError::Semantic(
-                "validated mechanics has unusable feature",
-            ));
+            return Err(ep(EventPulseErrorCode::Quality));
         }
         if let Some(Value::String(v)) = feature.get("value") {
             decimal(v, 18, 8)?;
@@ -693,7 +733,7 @@ fn validate_mechanics(obj: &Map<String, Value>) -> Result<(), ContractError> {
         feature_keys.push((name, horizon));
     }
     if feature_keys.windows(2).any(|pair| pair[0] >= pair[1]) {
-        return Err(ContractError::Semantic("features not canonically ordered"));
+        return Err(ep(EventPulseErrorCode::Ordering));
     }
     Ok(())
 }
@@ -731,20 +771,21 @@ fn validate_context(obj: &Map<String, Value>) -> Result<(), ContractError> {
         return Err(ContractError::Semantic("invalid context literals"));
     }
     decimal(string_field(obj, "catalyst_confidence")?, 1, 8)?;
-    validate_score(string_field(obj, "catalyst_confidence")?)?;
+    validate_score(string_field(obj, "catalyst_confidence")?)
+        .map_err(|_| ep(EventPulseErrorCode::NumericBounds))?;
     validate_quality_flags(array_field(obj, "quality_flags")?)?;
     let unavailable = matches!(
         string_field(obj, "quality_state")?,
         "INVALID" | "UNAVAILABLE"
     );
     if unavailable && array_field(obj, "quality_flags")?.is_empty() {
-        return Err(ContractError::Semantic("unusable context requires flags"));
+        return Err(ep(EventPulseErrorCode::Quality));
     }
     if string_field(obj, "attribution_state")? == "UNKNOWN"
         && (string_field(obj, "catalyst_type")? != "UNKNOWN"
             || !decimal_is_zero(string_field(obj, "catalyst_confidence")?))
     {
-        return Err(ContractError::Semantic("unknown attribution has certainty"));
+        return Err(ep(EventPulseErrorCode::Quality));
     }
     validate_context_evidence(obj)?;
     Ok(())
@@ -784,10 +825,13 @@ fn validate_composite(obj: &Map<String, Value>) -> Result<(), ContractError> {
         || obj.get("execution_authority") != Some(&Value::Bool(false))
         || obj.get("risk_authority") != Some(&Value::Bool(false))
         || obj.get("protective_exit_control") != Some(&Value::Bool(false))
-        || string_field(obj, "evidence_state")? != "UNAVAILABLE"
-        || string_field(obj, "source_qualification")? != "UNVERIFIED"
     {
         return Err(ContractError::Semantic("invalid composite literals"));
+    }
+    if string_field(obj, "evidence_state")? != "UNAVAILABLE"
+        || string_field(obj, "source_qualification")? != "UNVERIFIED"
+    {
+        return Err(ep(EventPulseErrorCode::Quality));
     }
     for name in ["mechanics_content_hash"] {
         if !is_hash(string_field(obj, name)?) {
@@ -927,7 +971,10 @@ fn validate_scope(obj: &Map<String, Value>) -> Result<(), ContractError> {
         _ => Err(ContractError::Semantic("invalid scope")),
     }
 }
-fn validate_causal_time(obj: &Map<String, Value>) -> Result<(), ContractError> {
+fn validate_causal_time(
+    obj: &Map<String, Value>,
+    schema_version: &str,
+) -> Result<(), ContractError> {
     require_exact_keys(
         obj,
         &[
@@ -950,6 +997,13 @@ fn validate_causal_time(obj: &Map<String, Value>) -> Result<(), ContractError> {
     .map(|key| parse_time(string_field(obj, key)?));
     let times: Result<Vec<_>, _> = times.into_iter().collect();
     let times = times?;
+    if times[3] > times[4] {
+        return if schema_version == E1 {
+            Err(ep(EventPulseErrorCode::FutureAvailability))
+        } else {
+            Err(ContractError::Semantic("causal time inversion"))
+        };
+    }
     if !(times[0] <= times[1]
         && times[1] <= times[2]
         && times[2] <= times[3]
@@ -979,12 +1033,12 @@ fn validate_causal_time(obj: &Map<String, Value>) -> Result<(), ContractError> {
     ) {
         return Err(ContractError::Semantic("clock state"));
     }
-    if !is_source(string_field(clock, "source_id")?)
+    if string_field(clock, "source_id")?.trim().is_empty()
         || string_field(clock, "reason_code")?.trim().is_empty()
     {
         return Err(ContractError::Semantic("clock identity"));
     }
-    decimal(string_field(clock, "observed_skew_ms")?, 18, 8)?;
+    decimal_unbounded(string_field(clock, "observed_skew_ms")?)?;
     let freshness = integer_field(clock, "freshness_limit_ms")?;
     if freshness <= 0 || times[4] - times[0] > freshness * 1_000 {
         return Err(ContractError::Semantic("clock freshness"));
@@ -1331,7 +1385,14 @@ fn is_id(value: &str, prefix: &str) -> bool {
         })
 }
 fn is_epoch(value: &str) -> bool {
-    is_id(value, "epoch_") && value.len() <= 70
+    value.strip_prefix("epoch_").is_some_and(|suffix| {
+        !suffix.is_empty()
+            && suffix.len() <= 64
+            && suffix.as_bytes()[0].is_ascii_alphanumeric()
+            && suffix
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+    })
 }
 fn is_asset(value: &str) -> bool {
     matches!(value, "BTC" | "ETH" | "SOL" | "BNB" | "HYPE")
@@ -1341,19 +1402,21 @@ fn is_venue(value: &str) -> bool {
 }
 fn is_symbol(value: &str) -> bool {
     !value.is_empty()
-        && value.len() <= 64
-        && value.bytes().all(|b| {
-            b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'-' || b == b'_' || b == b'.'
-        })
+        && (value.as_bytes()[0].is_ascii_uppercase() || value.as_bytes()[0].is_ascii_digit())
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || matches!(b, b'-' | b'_'))
 }
 fn is_snake(value: &str) -> bool {
     !value.is_empty()
+        && value.as_bytes()[0].is_ascii_lowercase()
         && value
             .bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
 }
 fn is_unit(value: &str) -> bool {
     !value.is_empty()
+        && value.as_bytes()[0].is_ascii_uppercase()
         && value.bytes().all(|b| {
             b.is_ascii_uppercase() || b.is_ascii_digit() || matches!(b, b'_' | b'/' | b'-')
         })

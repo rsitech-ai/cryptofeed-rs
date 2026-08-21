@@ -1,5 +1,5 @@
 use marketfeed_event_pulse::{
-    ContractError, EXPECTED_ROOT_COMMIT, ProvenanceError, embedded_provenance,
+    ContractError, EXPECTED_ROOT_COMMIT, EventPulseErrorCode, ProvenanceError, embedded_provenance,
     verify_artifact_bytes, verify_embedded_contracts, verify_manifest,
 };
 use serde_json::Value;
@@ -26,6 +26,34 @@ fn assert_named_contract_error(name: &str, error: ContractError) {
             matches!(error, ContractError::Semantic(_)),
             "{name}: {error}"
         );
+    }
+}
+
+fn expected_event_pulse_code(value: &Value) -> Option<EventPulseErrorCode> {
+    match value["error_code"].as_str()? {
+        "EVENTPULSE_HASH_BINDING" => Some(EventPulseErrorCode::HashBinding),
+        "EVENTPULSE_IDENTITY" => Some(EventPulseErrorCode::Identity),
+        "EVENTPULSE_INPUT_AVAILABILITY" => Some(EventPulseErrorCode::InputAvailability),
+        "EVENTPULSE_NUMERIC_BOUNDS" => Some(EventPulseErrorCode::NumericBounds),
+        "EVENTPULSE_ORDERING" => Some(EventPulseErrorCode::Ordering),
+        "EVENTPULSE_QUALITY" => Some(EventPulseErrorCode::Quality),
+        "EVENTPULSE_CONTEXT_REVISION" => Some(EventPulseErrorCode::ContextRevision),
+        "FUTURE_AVAILABILITY" => Some(EventPulseErrorCode::FutureAvailability),
+        "" => None,
+        other => panic!("unknown published EventPulse error code {other}"),
+    }
+}
+
+fn assert_exact_event_pulse_error(vector: &Value, error: ContractError) {
+    if let Some(expected) = expected_event_pulse_code(vector) {
+        assert_eq!(
+            error,
+            ContractError::EventPulse(expected),
+            "{}",
+            vector["name"]
+        );
+    } else {
+        let _ = error;
     }
 }
 
@@ -77,8 +105,15 @@ fn q1_and_e1_published_rejections_fail_closed() {
                 "{}",
                 vector["name"]
             );
-            let name = vector["name"].as_str().unwrap();
-            assert_named_contract_error(name, bundle.validate_json(&payload).unwrap_err());
+            let error = bundle.validate_json(&payload).unwrap_err();
+            if vector["error_code"]
+                .as_str()
+                .is_some_and(|code| !code.is_empty())
+            {
+                assert_exact_event_pulse_error(vector, error);
+            } else {
+                assert_named_contract_error(vector["name"].as_str().unwrap(), error);
+            }
         }
     }
     let e1: Value = serde_json::from_slice(include_bytes!(
@@ -99,30 +134,34 @@ fn q1_and_e1_published_rejections_fail_closed() {
                 let composite = bundle
                     .validate_json(&serde_json::to_vec(&composite_payload).unwrap())
                     .unwrap();
-                assert!(matches!(
-                    bundle.bind_composite(&mechanics, Some(&context), &composite),
-                    Err(marketfeed_event_pulse::ContractError::HashBinding)
-                ));
+                assert_exact_event_pulse_error(
+                    vector,
+                    bundle
+                        .bind_composite(&mechanics, Some(&context), &composite)
+                        .unwrap_err(),
+                );
             } else if vector["name"] == "context_revision_rewrites_evidence" {
                 let previous = bundle
                     .validate_json(&serde_json::to_vec(&vector["previous"]).unwrap())
                     .unwrap();
                 let current = bundle.validate_json(&payload).unwrap();
-                assert!(
-                    marketfeed_event_pulse::validate_context_revision(&previous, &current).is_err()
+                assert_exact_event_pulse_error(
+                    vector,
+                    marketfeed_event_pulse::validate_context_revision(&previous, &current)
+                        .unwrap_err(),
                 );
             } else if vector["name"] == "eventpulse_revision_changes_scope" {
                 let previous = bundle
                     .validate_json(&serde_json::to_vec(&vector["previous"]).unwrap())
                     .unwrap();
                 let current = bundle.validate_json(&payload).unwrap();
-                assert!(
+                assert_exact_event_pulse_error(
+                    vector,
                     marketfeed_event_pulse::validate_revision_transition(&previous, &current)
-                        .is_err()
+                        .unwrap_err(),
                 );
             } else {
-                let name = vector["name"].as_str().unwrap();
-                assert_named_contract_error(name, bundle.validate_json(&payload).unwrap_err());
+                assert_exact_event_pulse_error(vector, bundle.validate_json(&payload).unwrap_err());
             }
         }
     }

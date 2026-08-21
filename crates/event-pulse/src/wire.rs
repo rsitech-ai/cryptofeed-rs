@@ -23,6 +23,9 @@ pub enum WireError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanonicalDecimal(String);
 impl CanonicalDecimal {
+    pub fn parse_unbounded(value: &str) -> Result<Self, WireError> {
+        Self::parse(value, value.len(), value.len())
+    }
     pub fn parse(value: &str, max_integer: usize, max_fraction: usize) -> Result<Self, WireError> {
         let bytes = value.as_bytes();
         let max_len = max_integer
@@ -71,6 +74,17 @@ impl CanonicalDecimal {
     }
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+impl Serialize for CanonicalDecimal {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+impl<'de> Deserialize<'de> for CanonicalDecimal {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        Self::parse_unbounded(&value).map_err(serde::de::Error::custom)
     }
 }
 
@@ -155,9 +169,21 @@ impl Ord for Rfc3339Time {
         self.utc_micros.cmp(&other.utc_micros)
     }
 }
+impl Serialize for Rfc3339Time {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.canonical())
+    }
+}
+impl<'de> Deserialize<'de> for Rfc3339Time {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        Self::parse(&value).map_err(serde::de::Error::custom)
+    }
+}
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CursorV1 {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+enum CursorKindV1 {
     NativeRange {
         start: u64,
         end: u64,
@@ -168,12 +194,15 @@ pub enum CursorV1 {
         item_index: u32,
     },
 }
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(transparent)]
+pub struct CursorV1(CursorKindV1);
 impl CursorV1 {
     pub fn native(start: u64, end: u64) -> Result<Self, WireError> {
         if start > end || end > MAX_I64_U64 {
             return Err(WireError::Cursor);
         }
-        Ok(Self::NativeRange { start, end })
+        Ok(Self(CursorKindV1::NativeRange { start, end }))
     }
     pub fn derived(
         frame_ordinal: u64,
@@ -188,28 +217,28 @@ impl CursorV1 {
         if display > u128::from(MAX_I64_U64) {
             return Err(WireError::Cursor);
         }
-        Ok(Self::DerivedAction {
+        Ok(Self(CursorKindV1::DerivedAction {
             frame_ordinal,
             action_index,
             item_index,
-        })
+        }))
     }
     pub fn derived_drop(frame_ordinal: u64, item_index: u32) -> Result<Self, WireError> {
         if item_index > 2 {
             return Err(WireError::Cursor);
         }
-        let cursor = Self::DerivedAction {
+        let cursor = Self(CursorKindV1::DerivedAction {
             frame_ordinal,
             action_index: u16::MAX as u32,
             item_index,
-        };
+        });
         cursor.display_sequence()?;
         Ok(cursor)
     }
     pub fn display_sequence(&self) -> Result<u64, WireError> {
-        let (frame, action, item) = match self {
-            Self::NativeRange { end, .. } => return Ok(*end),
-            Self::DerivedAction {
+        let (frame, action, item) = match &self.0 {
+            CursorKindV1::NativeRange { end, .. } => return Ok(*end),
+            CursorKindV1::DerivedAction {
                 frame_ordinal,
                 action_index,
                 item_index,
@@ -220,6 +249,54 @@ impl CursorV1 {
             .ok()
             .filter(|value| *value <= MAX_I64_U64)
             .ok_or(WireError::Cursor)
+    }
+    pub fn native_range(&self) -> Option<(u64, u64)> {
+        match self.0 {
+            CursorKindV1::NativeRange { start, end } => Some((start, end)),
+            CursorKindV1::DerivedAction { .. } => None,
+        }
+    }
+    pub fn derived_coordinate(&self) -> Option<(u64, u32, u32)> {
+        match self.0 {
+            CursorKindV1::DerivedAction {
+                frame_ordinal,
+                action_index,
+                item_index,
+            } => Some((frame_ordinal, action_index, item_index)),
+            CursorKindV1::NativeRange { .. } => None,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+enum CursorWireV1 {
+    NativeRange {
+        start: u64,
+        end: u64,
+    },
+    DerivedAction {
+        frame_ordinal: u64,
+        action_index: u32,
+        item_index: u32,
+    },
+}
+impl<'de> Deserialize<'de> for CursorV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        match CursorWireV1::deserialize(deserializer)? {
+            CursorWireV1::NativeRange { start, end } => Self::native(start, end),
+            CursorWireV1::DerivedAction {
+                frame_ordinal,
+                action_index,
+                item_index,
+            } if action_index == u16::MAX as u32 => Self::derived_drop(frame_ordinal, item_index),
+            CursorWireV1::DerivedAction {
+                frame_ordinal,
+                action_index,
+                item_index,
+            } => Self::derived(frame_ordinal, action_index, item_index),
+        }
+        .map_err(serde::de::Error::custom)
     }
 }
 
@@ -273,12 +350,12 @@ impl SystemChainPreimage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ConnectionKeyV1(String);
 impl ConnectionKeyV1 {
     pub fn new(source_id: &str) -> Result<Self, WireError> {
         if source_id.is_empty()
-            || source_id.len() > 128
+            || !source_id.as_bytes()[0].is_ascii_lowercase()
             || !source_id
                 .bytes()
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
@@ -289,6 +366,11 @@ impl ConnectionKeyV1 {
     }
     pub fn source_id(&self) -> &str {
         &self.0
+    }
+}
+impl<'de> Deserialize<'de> for ConnectionKeyV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Self::new(&String::deserialize(d)?).map_err(serde::de::Error::custom)
     }
 }
 
@@ -304,37 +386,97 @@ fn bounded_identity(value: &str) -> Result<String, WireError> {
     Ok(value.to_owned())
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct InstrumentIdentityV1 {
-    pub base_asset: String,
-    pub quote_asset: String,
-    pub market_type: String,
-    pub venue: String,
-    pub venue_symbol: String,
+    base_asset: String,
+    quote_asset: String,
+    market_type: String,
+    venue: String,
+    venue_symbol: String,
 }
 impl InstrumentIdentityV1 {
+    pub fn new(
+        base_asset: &str,
+        quote_asset: &str,
+        market_type: &str,
+        venue: &str,
+        venue_symbol: &str,
+    ) -> Result<Self, WireError> {
+        if !matches!(base_asset, "BTC" | "ETH" | "SOL" | "BNB" | "HYPE")
+            || !matches!(quote_asset, "USD" | "USDC" | "USDT")
+            || !matches!(market_type, "SPOT" | "PERPETUAL")
+            || !matches!(venue, "BINANCE" | "HYPERLIQUID")
+            || base_asset == quote_asset
+            || venue_symbol.is_empty()
+            || !(venue_symbol.as_bytes()[0].is_ascii_uppercase()
+                || venue_symbol.as_bytes()[0].is_ascii_digit())
+            || !venue_symbol
+                .bytes()
+                .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || matches!(b, b'_' | b'-'))
+        {
+            return Err(WireError::Identity);
+        }
+        Ok(Self {
+            base_asset: base_asset.into(),
+            quote_asset: quote_asset.into(),
+            market_type: market_type.into(),
+            venue: venue.into(),
+            venue_symbol: venue_symbol.into(),
+        })
+    }
     pub fn validate(&self) -> Result<(), WireError> {
-        for value in [
+        Self::new(
             &self.base_asset,
             &self.quote_asset,
             &self.market_type,
             &self.venue,
             &self.venue_symbol,
-        ] {
-            bounded_identity(value)?;
-        }
-        if self.base_asset == self.quote_asset {
-            return Err(WireError::Identity);
-        }
-        Ok(())
+        )
+        .map(|_| ())
+    }
+    pub fn venue(&self) -> &str {
+        &self.venue
+    }
+    pub fn base_asset(&self) -> &str {
+        &self.base_asset
+    }
+    pub fn quote_asset(&self) -> &str {
+        &self.quote_asset
+    }
+    pub fn market_type(&self) -> &str {
+        &self.market_type
+    }
+    pub fn venue_symbol(&self) -> &str {
+        &self.venue_symbol
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InstrumentWire {
+    base_asset: String,
+    quote_asset: String,
+    market_type: String,
+    venue: String,
+    venue_symbol: String,
+}
+impl<'de> Deserialize<'de> for InstrumentIdentityV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = InstrumentWire::deserialize(d)?;
+        Self::new(
+            &w.base_asset,
+            &w.quote_asset,
+            &w.market_type,
+            &w.venue,
+            &w.venue_symbol,
+        )
+        .map_err(serde::de::Error::custom)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ContributorKeyV1 {
-    pub source_id: String,
-    pub instrument: InstrumentIdentityV1,
+    source_id: String,
+    instrument: InstrumentIdentityV1,
 }
 impl ContributorKeyV1 {
     pub fn new(source_id: &str, instrument: InstrumentIdentityV1) -> Result<Self, WireError> {
@@ -345,13 +487,44 @@ impl ContributorKeyV1 {
             instrument,
         })
     }
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+    pub fn instrument(&self) -> &InstrumentIdentityV1 {
+        &self.instrument
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ContributorKeyWire {
+    source_id: String,
+    instrument: InstrumentIdentityV1,
+}
+impl<'de> Deserialize<'de> for ContributorKeyV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = ContributorKeyWire::deserialize(d)?;
+        Self::new(&w.source_id, w.instrument).map_err(serde::de::Error::custom)
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ContributorV1 {
-    pub key: ContributorKeyV1,
-    pub connection_epoch: String,
-    pub epoch_generation: u8,
+    key: ContributorKeyV1,
+    connection_epoch: String,
+    epoch_generation: u8,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ContributorWire {
+    key: ContributorKeyV1,
+    connection_epoch: String,
+    epoch_generation: u8,
+}
+impl<'de> Deserialize<'de> for ContributorV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = ContributorWire::deserialize(d)?;
+        Self::new(w.key, &w.connection_epoch, w.epoch_generation).map_err(serde::de::Error::custom)
+    }
 }
 impl ContributorV1 {
     pub fn new(
@@ -359,16 +532,36 @@ impl ContributorV1 {
         connection_epoch: &str,
         epoch_generation: u8,
     ) -> Result<Self, WireError> {
-        if !connection_epoch.starts_with("epoch_") {
-            return Err(WireError::Identity);
-        }
-        let connection_epoch = bounded_identity(connection_epoch)?;
+        let connection_epoch = checked_epoch(connection_epoch)?;
         Ok(Self {
             key,
             connection_epoch,
             epoch_generation,
         })
     }
+    pub fn key(&self) -> &ContributorKeyV1 {
+        &self.key
+    }
+    pub fn connection_epoch(&self) -> &str {
+        &self.connection_epoch
+    }
+    pub fn epoch_generation(&self) -> u8 {
+        self.epoch_generation
+    }
+}
+
+fn checked_epoch(value: &str) -> Result<String, WireError> {
+    let suffix = value.strip_prefix("epoch_").ok_or(WireError::Identity)?;
+    if suffix.is_empty()
+        || suffix.len() > 64
+        || !suffix.as_bytes()[0].is_ascii_alphanumeric()
+        || !suffix
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+    {
+        return Err(WireError::Identity);
+    }
+    Ok(value.into())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -389,18 +582,19 @@ pub enum CursorModeV1 {
     Derived,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct ClockSourceKeyV1 {
-    pub source_id: String,
-    pub subject: ContributorKeyV1,
+    source_id: String,
+    subject: ContributorKeyV1,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ClockSourceV1 {
-    pub key: ClockSourceKeyV1,
-    pub epoch: String,
-    pub epoch_generation: u8,
+    key: ClockSourceKeyV1,
+    epoch: String,
+    epoch_generation: u8,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct ClockCursorV1(CursorV1);
 impl ClockCursorV1 {
     pub fn native(start: u64, end: u64) -> Result<Self, WireError> {
@@ -411,19 +605,20 @@ impl ClockCursorV1 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 pub struct CoverageSourceKeyV1 {
-    pub source_id: String,
-    pub subject: ContributorKeyV1,
-    pub family: FamilyV1,
+    source_id: String,
+    subject: ContributorKeyV1,
+    family: FamilyV1,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CoverageSourceV1 {
-    pub key: CoverageSourceKeyV1,
-    pub epoch: String,
-    pub epoch_generation: u8,
+    key: CoverageSourceKeyV1,
+    epoch: String,
+    epoch_generation: u8,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct CoverageCursorV1(CursorV1);
 impl CoverageCursorV1 {
     pub fn native(start: u64, end: u64) -> Result<Self, WireError> {
@@ -434,36 +629,105 @@ impl CoverageCursorV1 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ConfiguredTargetKeyV1 {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(tag = "kind", content = "target", rename_all = "SCREAMING_SNAKE_CASE")]
+enum ConfiguredTargetInner {
     Contributor(ContributorKeyV1),
     Connection(ConnectionKeyV1),
     Processor(String),
 }
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct SystemSourceKeyV1 {
-    pub source_id: String,
-    pub scope_kind: FaultScopeKindV1,
-    pub configured_target_key: ConfiguredTargetKeyV1,
-    pub cursor_mode: CursorModeV1,
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(transparent)]
+pub struct ConfiguredTargetKeyV1(ConfiguredTargetInner);
+impl ConfiguredTargetKeyV1 {
+    pub fn contributor(k: ContributorKeyV1) -> Self {
+        Self(ConfiguredTargetInner::Contributor(k))
+    }
+    pub fn connection(k: ConnectionKeyV1) -> Self {
+        Self(ConfiguredTargetInner::Connection(k))
+    }
+    pub fn processor(id: &str) -> Result<Self, WireError> {
+        Ok(Self(ConfiguredTargetInner::Processor(bounded_identity(
+            id,
+        )?)))
+    }
+    pub fn scope_kind(&self) -> FaultScopeKindV1 {
+        match self.0 {
+            ConfiguredTargetInner::Contributor(_) => FaultScopeKindV1::Contributor,
+            ConfiguredTargetInner::Connection(_) => FaultScopeKindV1::ConnectionEpoch,
+            ConfiguredTargetInner::Processor(_) => FaultScopeKindV1::Processor,
+        }
+    }
+    pub fn contributor_key(&self) -> Option<&ContributorKeyV1> {
+        match &self.0 {
+            ConfiguredTargetInner::Contributor(key) => Some(key),
+            _ => None,
+        }
+    }
+    pub fn connection_key(&self) -> Option<&ConnectionKeyV1> {
+        match &self.0 {
+            ConfiguredTargetInner::Connection(key) => Some(key),
+            _ => None,
+        }
+    }
+    pub fn processor_id(&self) -> Option<&str> {
+        match &self.0 {
+            ConfiguredTargetInner::Processor(id) => Some(id),
+            _ => None,
+        }
+    }
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Deserialize)]
+#[serde(
+    tag = "kind",
+    content = "target",
+    rename_all = "SCREAMING_SNAKE_CASE",
+    deny_unknown_fields
+)]
+enum TargetWire {
+    Contributor(ContributorKeyV1),
+    Connection(ConnectionKeyV1),
+    Processor(String),
+}
+impl<'de> Deserialize<'de> for ConfiguredTargetKeyV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        match TargetWire::deserialize(d)? {
+            TargetWire::Contributor(k) => Ok(Self::contributor(k)),
+            TargetWire::Connection(k) => Ok(Self::connection(k)),
+            TargetWire::Processor(id) => Self::processor(&id),
+        }
+        .map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
+pub struct SystemSourceKeyV1 {
+    source_id: String,
+    scope_kind: FaultScopeKindV1,
+    configured_target_key: ConfiguredTargetKeyV1,
+    cursor_mode: CursorModeV1,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SystemSourceV1 {
-    pub key: SystemSourceKeyV1,
-    pub epoch: String,
-    pub epoch_generation: u8,
+    key: SystemSourceKeyV1,
+    epoch: String,
+    epoch_generation: u8,
 }
 pub type SystemCursorV1 = CursorV1;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum FaultScopeKindV1 {
     Contributor,
     ConnectionEpoch,
     Processor,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FaultScopeV1 {
-    Contributor(ContributorV1),
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+enum FaultScopeInner {
+    Contributor {
+        contributor: ContributorV1,
+    },
     ConnectionEpoch {
         connection_key: ConnectionKeyV1,
         connection_epoch: String,
@@ -473,14 +737,73 @@ pub enum FaultScopeV1 {
         processor_id: String,
     },
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct FaultScopeV1(FaultScopeInner);
+impl FaultScopeV1 {
+    pub fn contributor(c: ContributorV1) -> Self {
+        Self(FaultScopeInner::Contributor { contributor: c })
+    }
+    pub fn connection(k: ConnectionKeyV1, e: &str, g: u8) -> Result<Self, WireError> {
+        Ok(Self(FaultScopeInner::ConnectionEpoch {
+            connection_key: k,
+            connection_epoch: checked_epoch(e)?,
+            epoch_generation: g,
+        }))
+    }
+    pub fn processor(id: &str) -> Result<Self, WireError> {
+        Ok(Self(FaultScopeInner::Processor {
+            processor_id: bounded_identity(id)?,
+        }))
+    }
+    pub fn kind(&self) -> FaultScopeKindV1 {
+        match self.0 {
+            FaultScopeInner::Contributor { .. } => FaultScopeKindV1::Contributor,
+            FaultScopeInner::ConnectionEpoch { .. } => FaultScopeKindV1::ConnectionEpoch,
+            FaultScopeInner::Processor { .. } => FaultScopeKindV1::Processor,
+        }
+    }
+}
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+enum ScopeWire {
+    Contributor {
+        contributor: ContributorV1,
+    },
+    ConnectionEpoch {
+        connection_key: ConnectionKeyV1,
+        connection_epoch: String,
+        epoch_generation: u8,
+    },
+    Processor {
+        processor_id: String,
+    },
+}
+impl<'de> Deserialize<'de> for FaultScopeV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        match ScopeWire::deserialize(d)? {
+            ScopeWire::Contributor { contributor } => Ok(Self::contributor(contributor)),
+            ScopeWire::ConnectionEpoch {
+                connection_key,
+                connection_epoch,
+                epoch_generation,
+            } => Self::connection(connection_key, &connection_epoch, epoch_generation),
+            ScopeWire::Processor { processor_id } => Self::processor(&processor_id),
+        }
+        .map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum DropCategoryV1 {
     ActionBuffer,
     MarketDispatch,
     SystemDispatch,
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SystemFaultV1 {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+enum SystemFaultInner {
     Disconnected,
     SequenceGap {
         expected: u64,
@@ -497,17 +820,79 @@ pub enum SystemFaultV1 {
     BookInvalidated,
     BookResynchronized,
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct SystemFaultV1(SystemFaultInner);
+impl SystemFaultV1 {
+    pub fn disconnected() -> Self {
+        Self(SystemFaultInner::Disconnected)
+    }
+    pub fn sequence_gap(expected: u64, actual: u64) -> Self {
+        Self(SystemFaultInner::SequenceGap { expected, actual })
+    }
+    pub fn events_dropped(count: u64, category: DropCategoryV1) -> Result<Self, WireError> {
+        if count == 0 {
+            return Err(WireError::Identity);
+        }
+        Ok(Self(SystemFaultInner::EventsDropped { count, category }))
+    }
+    pub fn checksum_mismatch() -> Self {
+        Self(SystemFaultInner::ChecksumMismatch)
+    }
+    pub fn clock_jump(delta_ns: i64) -> Self {
+        Self(SystemFaultInner::ClockJump { delta_ns })
+    }
+    pub fn book_invalidated() -> Self {
+        Self(SystemFaultInner::BookInvalidated)
+    }
+    pub fn book_resynchronized() -> Self {
+        Self(SystemFaultInner::BookResynchronized)
+    }
+}
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+enum FaultWire {
+    Disconnected,
+    SequenceGap {
+        expected: u64,
+        actual: u64,
+    },
+    EventsDropped {
+        count: u64,
+        category: DropCategoryV1,
+    },
+    ChecksumMismatch,
+    ClockJump {
+        delta_ns: i64,
+    },
+    BookInvalidated,
+    BookResynchronized,
+}
+impl<'de> Deserialize<'de> for SystemFaultV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        match FaultWire::deserialize(d)? {
+            FaultWire::Disconnected => Ok(Self::disconnected()),
+            FaultWire::SequenceGap { expected, actual } => Ok(Self::sequence_gap(expected, actual)),
+            FaultWire::EventsDropped { count, category } => Self::events_dropped(count, category),
+            FaultWire::ChecksumMismatch => Ok(Self::checksum_mismatch()),
+            FaultWire::ClockJump { delta_ns } => Ok(Self::clock_jump(delta_ns)),
+            FaultWire::BookInvalidated => Ok(Self::book_invalidated()),
+            FaultWire::BookResynchronized => Ok(Self::book_resynchronized()),
+        }
+        .map_err(serde::de::Error::custom)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnapshotAuthoringV1 {
-    pub contract_id: String,
-    pub lineage_id: String,
-    pub event_cluster_id: String,
-    pub primary_scope: InstrumentIdentityV1,
-    pub revision_start: u64,
-    pub predecessor_content_hash: Option<String>,
-    pub expected_half_life_ms: u64,
-    pub producer_version: String,
+    contract_id: String,
+    lineage_id: String,
+    event_cluster_id: String,
+    primary_scope: InstrumentIdentityV1,
+    revision_start: u64,
+    predecessor_content_hash: Option<String>,
+    expected_half_life_ms: u64,
+    producer_version: String,
 }
 impl SnapshotAuthoringV1 {
     #[allow(clippy::too_many_arguments)]
@@ -522,12 +907,9 @@ impl SnapshotAuthoringV1 {
         producer_version: &str,
     ) -> Result<Self, WireError> {
         primary_scope.validate()?;
-        for value in [contract_id, lineage_id, event_cluster_id] {
-            bounded_identity(value)?;
-        }
-        if !contract_id.starts_with("event_pulse_mechanics_")
-            || !lineage_id.starts_with("lineage_")
-            || !event_cluster_id.starts_with("event_cluster_")
+        if !valid_prefixed_id(contract_id, "event_pulse_mechanics_")
+            || !valid_prefixed_id(lineage_id, "lineage_")
+            || !valid_prefixed_id(event_cluster_id, "event_cluster_")
             || producer_version.trim().is_empty()
             || producer_version.len() > 128
         {
@@ -552,23 +934,117 @@ impl SnapshotAuthoringV1 {
             producer_version: producer_version.to_owned(),
         })
     }
+    pub fn contract_id(&self) -> &str {
+        &self.contract_id
+    }
+    pub fn lineage_id(&self) -> &str {
+        &self.lineage_id
+    }
+    pub fn event_cluster_id(&self) -> &str {
+        &self.event_cluster_id
+    }
+    pub fn primary_scope(&self) -> &InstrumentIdentityV1 {
+        &self.primary_scope
+    }
+    pub fn revision_start(&self) -> u64 {
+        self.revision_start
+    }
+    pub fn predecessor_content_hash(&self) -> Option<&str> {
+        self.predecessor_content_hash.as_deref()
+    }
+    pub fn expected_half_life_ms(&self) -> u64 {
+        self.expected_half_life_ms
+    }
+    pub fn producer_version(&self) -> &str {
+        &self.producer_version
+    }
+}
+
+fn valid_prefixed_id(value: &str, prefix: &str) -> bool {
+    value.strip_prefix(prefix).is_some_and(|s| {
+        !s.is_empty()
+            && s.as_bytes()[0].is_ascii_alphanumeric()
+            && s.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-'))
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ContributorRoleV1 {
+    PrimaryInstrument,
+    Confirmation,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ContributorSpecV1 {
+    key: ContributorKeyV1,
+    role: ContributorRoleV1,
+    allowed_families: std::collections::BTreeSet<FamilyV1>,
+}
+impl ContributorSpecV1 {
+    pub fn new(
+        key: ContributorKeyV1,
+        role: ContributorRoleV1,
+        families: impl IntoIterator<Item = FamilyV1>,
+    ) -> Result<Self, WireError> {
+        let allowed_families = families
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>();
+        let valid = match role {
+            ContributorRoleV1::PrimaryInstrument => {
+                [FamilyV1::Trade, FamilyV1::Quote, FamilyV1::Book]
+                    .into_iter()
+                    .all(|f| allowed_families.contains(&f))
+                    && allowed_families.iter().all(|f| {
+                        matches!(
+                            f,
+                            FamilyV1::Trade
+                                | FamilyV1::Quote
+                                | FamilyV1::Book
+                                | FamilyV1::OpenInterest
+                                | FamilyV1::Liquidation
+                        )
+                    })
+            }
+            ContributorRoleV1::Confirmation => {
+                allowed_families == [FamilyV1::ConfirmationPrice].into_iter().collect()
+            }
+        };
+        if !valid {
+            return Err(WireError::Identity);
+        }
+        Ok(Self {
+            key,
+            role,
+            allowed_families,
+        })
+    }
+    pub fn key(&self) -> &ContributorKeyV1 {
+        &self.key
+    }
+    pub fn role(&self) -> ContributorRoleV1 {
+        self.role
+    }
+    pub fn allowed_families(&self) -> &std::collections::BTreeSet<FamilyV1> {
+        &self.allowed_families
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MechanicsConfigV1 {
-    pub processor_id: String,
-    pub connections: Vec<ConnectionKeyV1>,
-    pub contributors: Vec<ContributorKeyV1>,
-    pub contributor_connections: BTreeMap<ContributorKeyV1, ConnectionKeyV1>,
-    pub clock_sources: Vec<ClockSourceKeyV1>,
-    pub coverage_sources: Vec<CoverageSourceKeyV1>,
-    pub system_sources: Vec<SystemSourceKeyV1>,
+    processor_id: String,
+    connections: Vec<ConnectionKeyV1>,
+    contributors: Vec<ContributorSpecV1>,
+    contributor_connections: BTreeMap<ContributorKeyV1, ConnectionKeyV1>,
+    clock_sources: Vec<ClockSourceKeyV1>,
+    coverage_sources: Vec<CoverageSourceKeyV1>,
+    system_sources: Vec<SystemSourceKeyV1>,
 }
 impl MechanicsConfigV1 {
     pub fn new(
         processor_id: &str,
         connections: Vec<ConnectionKeyV1>,
-        contributors: Vec<ContributorKeyV1>,
+        contributors: Vec<ContributorSpecV1>,
         contributor_connections: BTreeMap<ContributorKeyV1, ConnectionKeyV1>,
         clock_sources: Vec<ClockSourceKeyV1>,
         coverage_sources: Vec<CoverageSourceKeyV1>,
@@ -587,10 +1063,36 @@ impl MechanicsConfigV1 {
         }
         let contributors_set = contributors
             .iter()
+            .map(ContributorSpecV1::key)
             .collect::<std::collections::BTreeSet<_>>();
         let connections_set = connections
             .iter()
             .collect::<std::collections::BTreeSet<_>>();
+        let primary = contributors
+            .iter()
+            .find(|contributor| contributor.role() == ContributorRoleV1::PrimaryInstrument);
+        let confirmation_count = contributors
+            .iter()
+            .filter(|contributor| contributor.role() == ContributorRoleV1::Confirmation)
+            .count();
+        let confirmation_venues = contributors
+            .iter()
+            .filter(|contributor| contributor.role() == ContributorRoleV1::Confirmation)
+            .map(|contributor| contributor.key.instrument.venue.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        let confirmation_identity_valid = primary.is_some_and(|primary| {
+            let primary = &primary.key.instrument;
+            contributors
+                .iter()
+                .filter(|contributor| contributor.role() == ContributorRoleV1::Confirmation)
+                .all(|contributor| {
+                    let confirmation = &contributor.key.instrument;
+                    confirmation.base_asset == primary.base_asset
+                        && confirmation.quote_asset == primary.quote_asset
+                        && confirmation.market_type == primary.market_type
+                        && confirmation.venue != primary.venue
+                })
+        });
         if connections_set.len() != connections.len()
             || contributors_set.len() != contributors.len()
             || contributor_connections.len() != contributors.len()
@@ -599,6 +1101,14 @@ impl MechanicsConfigV1 {
                 .any(|(contributor, connection)| {
                     !contributors_set.contains(contributor) || !connections_set.contains(connection)
                 })
+            || contributors
+                .iter()
+                .filter(|c| c.role() == ContributorRoleV1::PrimaryInstrument)
+                .count()
+                != 1
+            || confirmation_count > 15
+            || confirmation_venues.len() != confirmation_count
+            || !confirmation_identity_valid
             || clock_sources.len() != contributors.len()
             || clock_sources
                 .iter()
@@ -612,7 +1122,7 @@ impl MechanicsConfigV1 {
         let mut source_ids = std::collections::BTreeSet::new();
         for source_id in contributors
             .iter()
-            .map(|source| source.source_id.as_str())
+            .map(|source| source.key.source_id.as_str())
             .chain(clock_sources.iter().map(|source| source.source_id.as_str()))
             .chain(
                 coverage_sources
@@ -641,8 +1151,23 @@ impl MechanicsConfigV1 {
             .iter()
             .map(|source| (&source.configured_target_key, source.cursor_mode))
             .collect::<std::collections::BTreeSet<_>>();
+        if system_sources
+            .iter()
+            .any(|source| match &source.configured_target_key.0 {
+                ConfiguredTargetInner::Contributor(key) => !contributors_set.contains(key),
+                ConfiguredTargetInner::Connection(key) => !connections_set.contains(key),
+                ConfiguredTargetInner::Processor(id) => id != &processor_id,
+            })
+        {
+            return Err(WireError::Identity);
+        }
+        let expected_coverage = contributors
+            .iter()
+            .flat_map(|c| c.allowed_families().iter().map(move |f| (c.key(), *f)))
+            .collect::<std::collections::BTreeSet<_>>();
         if unique_clocks.len() != clock_sources.len()
             || unique_coverage.len() != coverage_sources.len()
+            || unique_coverage != expected_coverage
             || unique_system.len() != system_sources.len()
         {
             return Err(WireError::Identity);
@@ -657,6 +1182,27 @@ impl MechanicsConfigV1 {
             system_sources,
         })
     }
+    pub fn contributors(&self) -> &[ContributorSpecV1] {
+        &self.contributors
+    }
+    pub fn processor_id(&self) -> &str {
+        &self.processor_id
+    }
+    pub fn connections(&self) -> &[ConnectionKeyV1] {
+        &self.connections
+    }
+    pub fn contributor_connections(&self) -> &BTreeMap<ContributorKeyV1, ConnectionKeyV1> {
+        &self.contributor_connections
+    }
+    pub fn clock_sources(&self) -> &[ClockSourceKeyV1] {
+        &self.clock_sources
+    }
+    pub fn coverage_sources(&self) -> &[CoverageSourceKeyV1] {
+        &self.coverage_sources
+    }
+    pub fn system_sources(&self) -> &[SystemSourceKeyV1] {
+        &self.system_sources
+    }
 }
 
 fn checked_source_epoch(
@@ -665,10 +1211,7 @@ fn checked_source_epoch(
     epoch_generation: u8,
 ) -> Result<(String, String, u8), WireError> {
     let source_id = ConnectionKeyV1::new(source_id)?.0;
-    if !epoch.starts_with("epoch_") {
-        return Err(WireError::Identity);
-    }
-    Ok((source_id, bounded_identity(epoch)?, epoch_generation))
+    Ok((source_id, checked_epoch(epoch)?, epoch_generation))
 }
 
 impl ClockSourceKeyV1 {
@@ -677,6 +1220,12 @@ impl ClockSourceKeyV1 {
             source_id: ConnectionKeyV1::new(source_id)?.0,
             subject,
         })
+    }
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+    pub fn subject(&self) -> &ContributorKeyV1 {
+        &self.subject
     }
 }
 impl ClockSourceV1 {
@@ -693,6 +1242,15 @@ impl ClockSourceV1 {
             epoch_generation,
         })
     }
+    pub fn key(&self) -> &ClockSourceKeyV1 {
+        &self.key
+    }
+    pub fn epoch(&self) -> &str {
+        &self.epoch
+    }
+    pub fn epoch_generation(&self) -> u8 {
+        self.epoch_generation
+    }
 }
 impl CoverageSourceKeyV1 {
     pub fn new(
@@ -705,6 +1263,15 @@ impl CoverageSourceKeyV1 {
             subject,
             family,
         })
+    }
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+    pub fn subject(&self) -> &ContributorKeyV1 {
+        &self.subject
+    }
+    pub fn family(&self) -> FamilyV1 {
+        self.family
     }
 }
 impl CoverageSourceV1 {
@@ -721,6 +1288,66 @@ impl CoverageSourceV1 {
             epoch_generation,
         })
     }
+    pub fn key(&self) -> &CoverageSourceKeyV1 {
+        &self.key
+    }
+    pub fn epoch(&self) -> &str {
+        &self.epoch
+    }
+    pub fn epoch_generation(&self) -> u8 {
+        self.epoch_generation
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClockKeyWire {
+    source_id: String,
+    subject: ContributorKeyV1,
+}
+impl<'de> Deserialize<'de> for ClockSourceKeyV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = ClockKeyWire::deserialize(d)?;
+        Self::new(&w.source_id, w.subject).map_err(serde::de::Error::custom)
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ClockSourceWire {
+    key: ClockSourceKeyV1,
+    epoch: String,
+    epoch_generation: u8,
+}
+impl<'de> Deserialize<'de> for ClockSourceV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = ClockSourceWire::deserialize(d)?;
+        Self::new(w.key, &w.epoch, w.epoch_generation).map_err(serde::de::Error::custom)
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CoverageKeyWire {
+    source_id: String,
+    subject: ContributorKeyV1,
+    family: FamilyV1,
+}
+impl<'de> Deserialize<'de> for CoverageSourceKeyV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = CoverageKeyWire::deserialize(d)?;
+        Self::new(&w.source_id, w.subject, w.family).map_err(serde::de::Error::custom)
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CoverageSourceWire {
+    key: CoverageSourceKeyV1,
+    epoch: String,
+    epoch_generation: u8,
+}
+impl<'de> Deserialize<'de> for CoverageSourceV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = CoverageSourceWire::deserialize(d)?;
+        Self::new(w.key, &w.epoch, w.epoch_generation).map_err(serde::de::Error::custom)
+    }
 }
 impl SystemSourceKeyV1 {
     pub fn new(
@@ -730,22 +1357,22 @@ impl SystemSourceKeyV1 {
         cursor_mode: CursorModeV1,
     ) -> Result<Self, WireError> {
         let target_matches = matches!(
-            (&scope_kind, &configured_target_key),
+            (&scope_kind, &configured_target_key.0),
             (
                 FaultScopeKindV1::Contributor,
-                ConfiguredTargetKeyV1::Contributor(_)
+                ConfiguredTargetInner::Contributor(_)
             ) | (
                 FaultScopeKindV1::ConnectionEpoch,
-                ConfiguredTargetKeyV1::Connection(_)
+                ConfiguredTargetInner::Connection(_)
             ) | (
                 FaultScopeKindV1::Processor,
-                ConfiguredTargetKeyV1::Processor(_)
+                ConfiguredTargetInner::Processor(_)
             )
         );
         if !target_matches {
             return Err(WireError::Identity);
         }
-        if let ConfiguredTargetKeyV1::Processor(id) = &configured_target_key {
+        if let ConfiguredTargetInner::Processor(id) = &configured_target_key.0 {
             bounded_identity(id)?;
         }
         Ok(Self {
@@ -754,6 +1381,38 @@ impl SystemSourceKeyV1 {
             configured_target_key,
             cursor_mode,
         })
+    }
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+    pub fn scope_kind(&self) -> FaultScopeKindV1 {
+        self.scope_kind
+    }
+    pub fn configured_target_key(&self) -> &ConfiguredTargetKeyV1 {
+        &self.configured_target_key
+    }
+    pub fn cursor_mode(&self) -> CursorModeV1 {
+        self.cursor_mode
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SystemKeyWire {
+    source_id: String,
+    scope_kind: FaultScopeKindV1,
+    configured_target_key: ConfiguredTargetKeyV1,
+    cursor_mode: CursorModeV1,
+}
+impl<'de> Deserialize<'de> for SystemSourceKeyV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = SystemKeyWire::deserialize(d)?;
+        Self::new(
+            &w.source_id,
+            w.scope_kind,
+            w.configured_target_key,
+            w.cursor_mode,
+        )
+        .map_err(serde::de::Error::custom)
     }
 }
 impl SystemSourceV1 {
@@ -770,45 +1429,299 @@ impl SystemSourceV1 {
             epoch_generation,
         })
     }
+    pub fn key(&self) -> &SystemSourceKeyV1 {
+        &self.key
+    }
+    pub fn epoch(&self) -> &str {
+        &self.epoch
+    }
+    pub fn epoch_generation(&self) -> u8 {
+        self.epoch_generation
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SystemSourceWire {
+    key: SystemSourceKeyV1,
+    epoch: String,
+    epoch_generation: u8,
+}
+impl<'de> Deserialize<'de> for SystemSourceV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = SystemSourceWire::deserialize(d)?;
+        Self::new(w.key, &w.epoch, w.epoch_generation).map_err(serde::de::Error::custom)
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ClockStateV1 {
     Synchronized,
     Degraded,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ClockQualityV1 {
     Validated,
     Degraded,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ReplayCatalogV1 {
-    pub venue_sources: BTreeMap<u16, String>,
-    pub instruments: BTreeMap<u32, InstrumentIdentityV1>,
-    pub connection_epochs: BTreeMap<(u32, u32), (String, u8)>,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct VenueCatalogEntryV1 {
+    venue: String,
+    source_id: String,
 }
-impl ReplayCatalogV1 {
-    pub fn validate(&self) -> Result<(), WireError> {
-        for source in self.venue_sources.values() {
-            ConnectionKeyV1::new(source)?;
+impl VenueCatalogEntryV1 {
+    pub fn new(venue: &str, source_id_value: &str) -> Result<Self, WireError> {
+        if !matches!(venue, "BINANCE" | "HYPERLIQUID") {
+            return Err(WireError::Identity);
         }
-        for instrument in self.instruments.values() {
-            instrument.validate()?;
+        Ok(Self {
+            venue: venue.into(),
+            source_id: ConnectionKeyV1::new(source_id_value)?.0,
+        })
+    }
+    pub fn venue(&self) -> &str {
+        &self.venue
+    }
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct VenueWire {
+    venue: String,
+    source_id: String,
+}
+impl<'de> Deserialize<'de> for VenueCatalogEntryV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = VenueWire::deserialize(d)?;
+        Self::new(&w.venue, &w.source_id).map_err(serde::de::Error::custom)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReplayEpochEntryV1 {
+    connection_id: u64,
+    session_id: u64,
+    connection_epoch: String,
+    epoch_generation: u8,
+}
+impl ReplayEpochEntryV1 {
+    pub fn new(
+        connection_id: u64,
+        session_id: u64,
+        connection_epoch: &str,
+        epoch_generation: u8,
+    ) -> Result<Self, WireError> {
+        Ok(Self {
+            connection_id,
+            session_id,
+            connection_epoch: checked_epoch(connection_epoch)?,
+            epoch_generation,
+        })
+    }
+    pub fn connection_id(&self) -> u64 {
+        self.connection_id
+    }
+    pub fn session_id(&self) -> u64 {
+        self.session_id
+    }
+    pub fn connection_epoch(&self) -> &str {
+        &self.connection_epoch
+    }
+    pub fn epoch_generation(&self) -> u8 {
+        self.epoch_generation
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EpochWire {
+    connection_id: u64,
+    session_id: u64,
+    connection_epoch: String,
+    epoch_generation: u8,
+}
+impl<'de> Deserialize<'de> for ReplayEpochEntryV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = EpochWire::deserialize(d)?;
+        Self::new(
+            w.connection_id,
+            w.session_id,
+            &w.connection_epoch,
+            w.epoch_generation,
+        )
+        .map_err(serde::de::Error::custom)
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "encoding", rename_all = "SCREAMING_SNAKE_CASE")]
+enum OiEncodingInner {
+    Contracts,
+    Base {
+        contracts_per_base: CanonicalDecimal,
+    },
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct OpenInterestEncodingV1(OiEncodingInner);
+impl OpenInterestEncodingV1 {
+    pub fn contracts() -> Self {
+        Self(OiEncodingInner::Contracts)
+    }
+    pub fn base(value: &str) -> Result<Self, WireError> {
+        let value = CanonicalDecimal::parse(value, 18, 8)?;
+        if value.as_str().starts_with('-')
+            || value
+                .as_str()
+                .bytes()
+                .all(|byte| matches!(byte, b'0' | b'.'))
+        {
+            return Err(WireError::Decimal);
         }
-        for (epoch, _) in self.connection_epochs.values() {
-            if !epoch.starts_with("epoch_") {
-                return Err(WireError::Identity);
-            }
-            bounded_identity(epoch)?;
-        }
-        Ok(())
+        Ok(Self(OiEncodingInner::Base {
+            contracts_per_base: value,
+        }))
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MechanicsInputV1 {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReplayCatalogV1 {
+    venue_sources: BTreeMap<u16, VenueCatalogEntryV1>,
+    instruments: BTreeMap<u32, InstrumentIdentityV1>,
+    connection_epochs: Vec<ReplayEpochEntryV1>,
+    open_interest: BTreeMap<u32, OpenInterestEncodingV1>,
+}
+impl ReplayCatalogV1 {
+    pub fn new(
+        venue_sources: BTreeMap<u16, VenueCatalogEntryV1>,
+        instruments: BTreeMap<u32, InstrumentIdentityV1>,
+        connection_epochs: Vec<ReplayEpochEntryV1>,
+        open_interest: BTreeMap<u32, OpenInterestEncodingV1>,
+    ) -> Result<Self, WireError> {
+        if venue_sources.is_empty()
+            || venue_sources.len() > 32
+            || instruments.is_empty()
+            || instruments.len() > 32
+            || connection_epochs.is_empty()
+            || connection_epochs.len() > 32
+            || open_interest.keys().any(|id| !instruments.contains_key(id))
+        {
+            return Err(WireError::Identity);
+        }
+        if instruments
+            .iter()
+            .any(|(_, i)| !venue_sources.values().any(|v| v.venue == i.venue))
+        {
+            return Err(WireError::Identity);
+        }
+        let epochs = connection_epochs
+            .iter()
+            .map(|e| (e.connection_id, e.session_id))
+            .collect::<std::collections::BTreeSet<_>>();
+        if epochs.len() != connection_epochs.len() {
+            return Err(WireError::Identity);
+        }
+        Ok(Self {
+            venue_sources,
+            instruments,
+            connection_epochs,
+            open_interest,
+        })
+    }
+    pub fn validate(&self) -> Result<(), WireError> {
+        Self::new(
+            self.venue_sources.clone(),
+            self.instruments.clone(),
+            self.connection_epochs.clone(),
+            self.open_interest.clone(),
+        )
+        .map(|_| ())
+    }
+    pub fn venue_source(&self, id: u16) -> Option<&VenueCatalogEntryV1> {
+        self.venue_sources.get(&id)
+    }
+    pub fn instrument(&self, id: u32) -> Option<&InstrumentIdentityV1> {
+        self.instruments.get(&id)
+    }
+    pub fn connection_epochs(&self) -> &[ReplayEpochEntryV1] {
+        &self.connection_epochs
+    }
+    pub fn open_interest_encoding(&self, id: u32) -> Option<&OpenInterestEncodingV1> {
+        self.open_interest.get(&id)
+    }
+    fn contains_envelope(&self, envelope: &marketfeed_model::EventEnvelope) -> bool {
+        let Some(venue) = self.venue_sources.get(&envelope.venue.0) else {
+            return false;
+        };
+        let instrument = match envelope.instrument {
+            Some(id) => match self.instruments.get(&id.0) {
+                Some(instrument) if instrument.venue == venue.venue => Some(id),
+                _ => return false,
+            },
+            None => None,
+        };
+        let timestamp_valid = envelope
+            .exchange_ts
+            .is_some_and(|exchange| exchange <= envelope.receive_ts);
+        let sequence_valid = envelope
+            .source_sequence
+            .is_none_or(|sequence| sequence.first <= sequence.last && sequence.last <= MAX_I64_U64);
+        let oi_valid = !matches!(
+            envelope.payload,
+            marketfeed_model::MarketEvent::OpenInterest(_)
+        ) || instrument.is_some_and(|id| self.open_interest.contains_key(&id.0));
+        envelope.schema_version == 1
+            && timestamp_valid
+            && sequence_valid
+            && oi_valid
+            && self.connection_epochs.iter().any(|epoch| {
+                epoch.connection_id == envelope.connection.0
+                    && epoch.session_id == envelope.session.0
+            })
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CatalogWire {
+    venue_sources: BTreeMap<u16, VenueCatalogEntryV1>,
+    instruments: BTreeMap<u32, InstrumentIdentityV1>,
+    connection_epochs: Vec<ReplayEpochEntryV1>,
+    open_interest: BTreeMap<u32, serde_json::Value>,
+}
+impl<'de> Deserialize<'de> for ReplayCatalogV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let w = CatalogWire::deserialize(d)?;
+        let mut oi = BTreeMap::new();
+        for (id, v) in w.open_interest {
+            let object = v
+                .as_object()
+                .ok_or_else(|| serde::de::Error::custom("OI object"))?;
+            let enc = object
+                .get("encoding")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| serde::de::Error::custom("OI encoding"))?;
+            let parsed = match enc {
+                "CONTRACTS" if object.len() == 1 => OpenInterestEncodingV1::contracts(),
+                "BASE" if object.len() == 2 => OpenInterestEncodingV1::base(
+                    object
+                        .get("contracts_per_base")
+                        .and_then(serde_json::Value::as_str)
+                        .ok_or_else(|| serde::de::Error::custom("contracts_per_base"))?,
+                )
+                .map_err(serde::de::Error::custom)?,
+                _ => return Err(serde::de::Error::custom("OI fields")),
+            };
+            oi.insert(id, parsed);
+        }
+        Self::new(w.venue_sources, w.instruments, w.connection_epochs, oi)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE")]
+enum MechanicsInputInner {
     Market {
         envelope: marketfeed_model::EventEnvelope,
         action_index: u32,
@@ -849,20 +1762,186 @@ pub enum MechanicsInputV1 {
         payload_hash: String,
     },
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct MechanicsInputV1(MechanicsInputInner);
 
 impl MechanicsInputV1 {
+    fn inner_mut_hash(inner: &mut MechanicsInputInner) -> &mut String {
+        match inner {
+            MechanicsInputInner::Market { payload_hash, .. }
+            | MechanicsInputInner::System { payload_hash, .. }
+            | MechanicsInputInner::Coverage { payload_hash, .. }
+            | MechanicsInputInner::Clock { payload_hash, .. } => payload_hash,
+        }
+    }
+    fn authored(mut inner: MechanicsInputInner) -> Result<Self, WireError> {
+        let mut this = Self(inner.clone());
+        let hash = this.expected_payload_hash()?;
+        *Self::inner_mut_hash(&mut inner) = hash;
+        this.0 = inner;
+        Ok(this)
+    }
+    fn verified(inner: MechanicsInputInner) -> Result<Self, WireError> {
+        let this = Self(inner);
+        if this.expected_payload_hash()? != this.payload_hash() {
+            return Err(WireError::Identity);
+        }
+        this.validate_static()?;
+        Ok(this)
+    }
+    pub fn payload_hash(&self) -> &str {
+        match &self.0 {
+            MechanicsInputInner::Market { payload_hash, .. }
+            | MechanicsInputInner::System { payload_hash, .. }
+            | MechanicsInputInner::Coverage { payload_hash, .. }
+            | MechanicsInputInner::Clock { payload_hash, .. } => payload_hash,
+        }
+    }
+    pub fn expected_payload_hash(&self) -> Result<String, WireError> {
+        let mut value = serde_json::to_value(self).map_err(|_| WireError::Identity)?;
+        value
+            .as_object_mut()
+            .ok_or(WireError::Identity)?
+            .remove("payload_hash");
+        Ok(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&value).map_err(|_| WireError::Identity)?)
+        ))
+    }
+    pub fn market(
+        envelope: marketfeed_model::EventEnvelope,
+        action_index: u32,
+        catalog: ReplayCatalogV1,
+    ) -> Result<Self, WireError> {
+        if action_index > 65_534 || !catalog.contains_envelope(&envelope) {
+            return Err(WireError::Identity);
+        }
+        Self::authored(MechanicsInputInner::Market {
+            envelope,
+            action_index,
+            catalog,
+            payload_hash: String::new(),
+        })
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn system(
+        system_source: SystemSourceV1,
+        scope: FaultScopeV1,
+        occurred_at: Rfc3339Time,
+        available_at: Rfc3339Time,
+        system_cursor: SystemCursorV1,
+        fault: SystemFaultV1,
+        predecessor_system_chain_hash: Option<String>,
+    ) -> Result<Self, WireError> {
+        if occurred_at > available_at {
+            return Err(WireError::Time);
+        }
+        if let Some(h) = &predecessor_system_chain_hash {
+            SystemChainPreimage::first(h)?;
+        }
+        validate_system_binding(&system_source, &scope, &system_cursor, &fault)?;
+        Self::authored(MechanicsInputInner::System {
+            system_source,
+            scope,
+            occurred_at,
+            available_at,
+            system_cursor,
+            fault,
+            predecessor_system_chain_hash,
+            payload_hash: String::new(),
+        })
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn coverage(
+        contributor: ContributorV1,
+        coverage_source: CoverageSourceV1,
+        family: FamilyV1,
+        covered_from: Rfc3339Time,
+        covered_through: Rfc3339Time,
+        available_at: Rfc3339Time,
+        coverage_cursor: CoverageCursorV1,
+    ) -> Result<Self, WireError> {
+        if covered_from > covered_through
+            || covered_through > available_at
+            || coverage_source.key.subject != contributor.key
+            || coverage_source.key.family != family
+        {
+            return Err(WireError::Identity);
+        }
+        Self::authored(MechanicsInputInner::Coverage {
+            contributor,
+            coverage_source,
+            family,
+            covered_from,
+            covered_through,
+            available_at,
+            coverage_cursor,
+            payload_hash: String::new(),
+        })
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn clock(
+        contributor: ContributorV1,
+        clock_source: ClockSourceV1,
+        observed_at: Rfc3339Time,
+        available_at: Rfc3339Time,
+        clock_cursor: ClockCursorV1,
+        clock_state: ClockStateV1,
+        observed_skew_ms: CanonicalDecimal,
+        freshness_limit_ms: u64,
+        quality_state: ClockQualityV1,
+        reason_code: &str,
+    ) -> Result<Self, WireError> {
+        if observed_at > available_at
+            || freshness_limit_ms == 0
+            || clock_source.key.subject != contributor.key
+            || reason_code.is_empty()
+            || !reason_code
+                .bytes()
+                .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+        {
+            return Err(WireError::Identity);
+        }
+        Self::authored(MechanicsInputInner::Clock {
+            contributor,
+            clock_source,
+            observed_at,
+            available_at,
+            clock_cursor,
+            clock_state,
+            observed_skew_ms,
+            freshness_limit_ms,
+            quality_state,
+            reason_code: reason_code.into(),
+            payload_hash: String::new(),
+        })
+    }
+    pub fn from_epin_json(bytes: &[u8]) -> Result<Self, WireError> {
+        if bytes.len() > MAX_INPUT_BYTES {
+            return Err(WireError::Identity);
+        }
+        serde_json::from_slice(bytes).map_err(|_| WireError::Identity)
+    }
     pub fn validate_static(&self) -> Result<(), WireError> {
+        if self.expected_payload_hash()? != self.payload_hash() {
+            return Err(WireError::Identity);
+        }
         let hash = |value: &str| SystemChainPreimage::first(value).map(|_| ());
-        match self {
-            Self::Market {
+        match &self.0 {
+            MechanicsInputInner::Market {
                 catalog,
                 payload_hash,
-                ..
+                envelope,
+                action_index,
             } => {
                 catalog.validate()?;
+                if *action_index > 65_534 || !catalog.contains_envelope(envelope) {
+                    return Err(WireError::Identity);
+                }
                 hash(payload_hash)
             }
-            Self::System {
+            MechanicsInputInner::System {
                 system_source,
                 scope,
                 occurred_at,
@@ -881,7 +1960,7 @@ impl MechanicsInputV1 {
                 }
                 validate_system_binding(system_source, scope, system_cursor, fault)
             }
-            Self::Coverage {
+            MechanicsInputInner::Coverage {
                 contributor,
                 coverage_source,
                 family,
@@ -900,7 +1979,7 @@ impl MechanicsInputV1 {
                 }
                 hash(payload_hash)
             }
-            Self::Clock {
+            MechanicsInputInner::Clock {
                 contributor,
                 clock_source,
                 observed_at,
@@ -926,78 +2005,211 @@ impl MechanicsInputV1 {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
+enum MechanicsInputWire {
+    Market {
+        envelope: serde_json::Value,
+        action_index: u32,
+        catalog: ReplayCatalogV1,
+        payload_hash: String,
+    },
+    System {
+        system_source: SystemSourceV1,
+        scope: FaultScopeV1,
+        occurred_at: Rfc3339Time,
+        available_at: Rfc3339Time,
+        system_cursor: SystemCursorV1,
+        fault: SystemFaultV1,
+        predecessor_system_chain_hash: Option<String>,
+        payload_hash: String,
+    },
+    Coverage {
+        contributor: ContributorV1,
+        coverage_source: CoverageSourceV1,
+        family: FamilyV1,
+        covered_from: Rfc3339Time,
+        covered_through: Rfc3339Time,
+        available_at: Rfc3339Time,
+        coverage_cursor: CoverageCursorV1,
+        payload_hash: String,
+    },
+    Clock {
+        contributor: ContributorV1,
+        clock_source: ClockSourceV1,
+        observed_at: Rfc3339Time,
+        available_at: Rfc3339Time,
+        clock_cursor: ClockCursorV1,
+        clock_state: ClockStateV1,
+        observed_skew_ms: CanonicalDecimal,
+        freshness_limit_ms: u64,
+        quality_state: ClockQualityV1,
+        reason_code: String,
+        payload_hash: String,
+    },
+}
+impl<'de> Deserialize<'de> for MechanicsInputV1 {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let inner = match MechanicsInputWire::deserialize(d)? {
+            MechanicsInputWire::Market {
+                envelope,
+                action_index,
+                catalog,
+                payload_hash,
+            } => {
+                let decoded: marketfeed_model::EventEnvelope =
+                    serde_json::from_value(envelope.clone()).map_err(serde::de::Error::custom)?;
+                if serde_json::to_value(&decoded).map_err(serde::de::Error::custom)? != envelope {
+                    return Err(serde::de::Error::custom("non-exact envelope fields"));
+                }
+                MechanicsInputInner::Market {
+                    envelope: decoded,
+                    action_index,
+                    catalog,
+                    payload_hash,
+                }
+            }
+            MechanicsInputWire::System {
+                system_source,
+                scope,
+                occurred_at,
+                available_at,
+                system_cursor,
+                fault,
+                predecessor_system_chain_hash,
+                payload_hash,
+            } => MechanicsInputInner::System {
+                system_source,
+                scope,
+                occurred_at,
+                available_at,
+                system_cursor,
+                fault,
+                predecessor_system_chain_hash,
+                payload_hash,
+            },
+            MechanicsInputWire::Coverage {
+                contributor,
+                coverage_source,
+                family,
+                covered_from,
+                covered_through,
+                available_at,
+                coverage_cursor,
+                payload_hash,
+            } => MechanicsInputInner::Coverage {
+                contributor,
+                coverage_source,
+                family,
+                covered_from,
+                covered_through,
+                available_at,
+                coverage_cursor,
+                payload_hash,
+            },
+            MechanicsInputWire::Clock {
+                contributor,
+                clock_source,
+                observed_at,
+                available_at,
+                clock_cursor,
+                clock_state,
+                observed_skew_ms,
+                freshness_limit_ms,
+                quality_state,
+                reason_code,
+                payload_hash,
+            } => MechanicsInputInner::Clock {
+                contributor,
+                clock_source,
+                observed_at,
+                available_at,
+                clock_cursor,
+                clock_state,
+                observed_skew_ms,
+                freshness_limit_ms,
+                quality_state,
+                reason_code,
+                payload_hash,
+            },
+        };
+        Self::verified(inner).map_err(serde::de::Error::custom)
+    }
+}
+
 fn validate_system_binding(
     source: &SystemSourceV1,
     scope: &FaultScopeV1,
     cursor: &SystemCursorV1,
     fault: &SystemFaultV1,
 ) -> Result<(), WireError> {
-    let mode_matches = matches!(
-        (source.key.cursor_mode, cursor),
-        (CursorModeV1::Native, CursorV1::NativeRange { .. })
-            | (CursorModeV1::Derived, CursorV1::DerivedAction { .. })
-    );
-    let scope_matches = match (&source.key.configured_target_key, scope) {
-        (ConfiguredTargetKeyV1::Contributor(expected), FaultScopeV1::Contributor(actual)) => {
-            expected == &actual.key
-        }
+    let mode_matches = match source.key.cursor_mode {
+        CursorModeV1::Native => cursor.native_range().is_some(),
+        CursorModeV1::Derived => cursor.derived_coordinate().is_some(),
+    };
+    let scope_matches = match (&source.key.configured_target_key.0, &scope.0) {
         (
-            ConfiguredTargetKeyV1::Connection(expected),
-            FaultScopeV1::ConnectionEpoch {
+            ConfiguredTargetInner::Contributor(expected),
+            FaultScopeInner::Contributor {
+                contributor: actual,
+            },
+        ) => expected == actual.key(),
+        (
+            ConfiguredTargetInner::Connection(expected),
+            FaultScopeInner::ConnectionEpoch {
                 connection_key: actual,
                 ..
             },
         ) => expected == actual,
         (
-            ConfiguredTargetKeyV1::Processor(expected),
-            FaultScopeV1::Processor {
+            ConfiguredTargetInner::Processor(expected),
+            FaultScopeInner::Processor {
                 processor_id: actual,
             },
         ) => expected == actual,
         _ => false,
     };
     let scope_kind_matches = matches!(
-        (source.key.scope_kind, scope),
-        (FaultScopeKindV1::Contributor, FaultScopeV1::Contributor(_))
-            | (
-                FaultScopeKindV1::ConnectionEpoch,
-                FaultScopeV1::ConnectionEpoch { .. }
-            )
-            | (FaultScopeKindV1::Processor, FaultScopeV1::Processor { .. })
-    );
-    let fault_matches = matches!(
-        (fault, scope),
+        (source.key.scope_kind, &scope.0),
         (
-            SystemFaultV1::SequenceGap { .. }
-                | SystemFaultV1::ChecksumMismatch
-                | SystemFaultV1::BookInvalidated
-                | SystemFaultV1::BookResynchronized,
-            FaultScopeV1::Contributor(_)
+            FaultScopeKindV1::Contributor,
+            FaultScopeInner::Contributor { .. }
         ) | (
-            SystemFaultV1::Disconnected,
-            FaultScopeV1::ConnectionEpoch { .. }
+            FaultScopeKindV1::ConnectionEpoch,
+            FaultScopeInner::ConnectionEpoch { .. }
         ) | (
-            SystemFaultV1::EventsDropped { .. } | SystemFaultV1::ClockJump { .. },
-            FaultScopeV1::Processor { .. }
+            FaultScopeKindV1::Processor,
+            FaultScopeInner::Processor { .. }
         )
     );
-    let reserved_matches = match (cursor, fault) {
+    let fault_matches = matches!(
+        (&fault.0, &scope.0),
         (
-            CursorV1::DerivedAction {
-                action_index,
-                item_index,
-                ..
-            },
-            SystemFaultV1::EventsDropped { category, .. },
-        ) if *action_index == u16::MAX as u32 => {
-            *item_index
+            SystemFaultInner::SequenceGap { .. }
+                | SystemFaultInner::ChecksumMismatch
+                | SystemFaultInner::BookInvalidated
+                | SystemFaultInner::BookResynchronized,
+            FaultScopeInner::Contributor { .. }
+        ) | (
+            SystemFaultInner::Disconnected,
+            FaultScopeInner::ConnectionEpoch { .. }
+        ) | (
+            SystemFaultInner::EventsDropped { .. } | SystemFaultInner::ClockJump { .. },
+            FaultScopeInner::Processor { .. }
+        )
+    );
+    let reserved_matches = match (cursor.derived_coordinate(), &fault.0) {
+        (Some((_, action_index, item_index)), SystemFaultInner::EventsDropped { category, .. })
+            if action_index == u16::MAX as u32 =>
+        {
+            item_index
                 == match category {
                     DropCategoryV1::ActionBuffer => 0,
                     DropCategoryV1::MarketDispatch => 1,
                     DropCategoryV1::SystemDispatch => 2,
                 }
         }
-        (CursorV1::DerivedAction { action_index, .. }, _) => *action_index != u16::MAX as u32,
+        (Some((_, action_index, _)), _) => action_index != u16::MAX as u32,
         _ => true,
     };
     if mode_matches && scope_matches && scope_kind_matches && fault_matches && reserved_matches {

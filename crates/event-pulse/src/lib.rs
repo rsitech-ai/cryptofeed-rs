@@ -10,8 +10,8 @@ mod provenance;
 pub mod wire;
 
 pub use contract::{
-    ContractBundle, ContractError, ValidatedContract, canonical_json, content_hash,
-    try_content_hash, validate_context_revision, validate_e2_mechanics_profile,
+    ContractBundle, ContractError, EventPulseErrorCode, ValidatedContract, canonical_json,
+    content_hash, try_content_hash, validate_context_revision, validate_e2_mechanics_profile,
     validate_revision_transition,
 };
 pub use provenance::{

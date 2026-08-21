@@ -3,6 +3,8 @@ use marketfeed_event_pulse::{
     wire::{CanonicalDecimal, ConnectionKeyV1, CursorV1, Rfc3339Time, SystemChainPreimage},
 };
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 
 fn golden(index: usize) -> Value {
     let suite: Value = serde_json::from_slice(include_bytes!(
@@ -23,6 +25,13 @@ fn q1_golden(index: usize) -> Value {
 fn rehash(mut value: Value) -> Value {
     value.as_object_mut().unwrap().remove("content_hash");
     value["content_hash"] = json!(marketfeed_event_pulse::content_hash(&value).unwrap());
+    value
+}
+
+fn rehash_epin(mut value: Value) -> Value {
+    value.as_object_mut().unwrap().remove("payload_hash");
+    let hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&value).unwrap()));
+    value["payload_hash"] = json!(hash);
     value
 }
 
@@ -170,7 +179,52 @@ fn canonical_decimal_and_bounded_identity_fail_closed() {
     assert!(
         CanonicalDecimal::parse("123456789012345678901234567890.1", usize::MAX, usize::MAX).is_ok()
     );
-    assert!(ConnectionKeyV1::new(&"a".repeat(129)).is_err());
+    assert!(ConnectionKeyV1::new(&"a".repeat(129)).is_ok());
+    assert!(ConnectionKeyV1::new("1not_lower_leading").is_err());
+    assert!(ConnectionKeyV1::new("Uppercase").is_err());
+}
+
+#[test]
+fn pinned_schema_lexical_patterns_are_exact_not_e2_caps() {
+    let bundle = ContractBundle::load_embedded().unwrap();
+
+    let mut q1 = q1_golden(0);
+    q1["causal_time"]["clock_quality"]["source_id"] = json!("Clock source 1");
+    q1["causal_time"]["clock_quality"]["observed_skew_ms"] =
+        json!(format!("1.{}", "2".repeat(128)));
+    q1 = rehash(q1);
+    bundle
+        .validate_q1_json(&serde_json::to_vec(&q1).unwrap())
+        .unwrap();
+
+    let mut mechanics = golden(0);
+    mechanics["scope"]["instrument"]["venue_symbol"] = json!("A".repeat(129));
+    mechanics = rehash(mechanics);
+    bundle
+        .validate_e1_json(&serde_json::to_vec(&mechanics).unwrap())
+        .unwrap();
+
+    for (path, value) in [("name", json!("1invalid")), ("unit", json!("1INVALID"))] {
+        let mut invalid = golden(0);
+        invalid["features"][0][path] = value;
+        invalid = rehash(invalid);
+        assert!(
+            bundle
+                .validate_e1_json(&serde_json::to_vec(&invalid).unwrap())
+                .is_err()
+        );
+    }
+
+    for symbol in ["_BNBUSDC", "BNB.USDC"] {
+        let mut invalid = golden(0);
+        invalid["scope"]["instrument"]["venue_symbol"] = json!(symbol);
+        invalid = rehash(invalid);
+        assert!(
+            bundle
+                .validate_e1_json(&serde_json::to_vec(&invalid).unwrap())
+                .is_err()
+        );
+    }
 }
 
 #[test]
@@ -216,44 +270,441 @@ fn system_input_is_mode_scope_target_and_reserved_drop_safe() {
     let key = SystemSourceKeyV1::new(
         "system_drop_source",
         FaultScopeKindV1::Processor,
-        ConfiguredTargetKeyV1::Processor("processor_one".into()),
+        ConfiguredTargetKeyV1::processor("processor_one").unwrap(),
         CursorModeV1::Derived,
     )
     .unwrap();
     let source = SystemSourceV1::new(key, "epoch_one", 0).unwrap();
     let at = Rfc3339Time::parse("2026-08-21T10:00:00Z").unwrap();
-    let input = MechanicsInputV1::System {
-        system_source: source.clone(),
-        scope: FaultScopeV1::Processor {
-            processor_id: "processor_one".into(),
-        },
-        occurred_at: at.clone(),
-        available_at: at.clone(),
-        system_cursor: CursorV1::derived_drop(1, 0).unwrap(),
-        fault: SystemFaultV1::EventsDropped {
-            count: 1,
-            category: DropCategoryV1::ActionBuffer,
-        },
-        predecessor_system_chain_hash: None,
-        payload_hash: "aa".repeat(32),
-    };
+    let input = MechanicsInputV1::system(
+        source.clone(),
+        FaultScopeV1::processor("processor_one").unwrap(),
+        at.clone(),
+        at.clone(),
+        CursorV1::derived_drop(1, 0).unwrap(),
+        SystemFaultV1::events_dropped(1, DropCategoryV1::ActionBuffer).unwrap(),
+        None,
+    )
+    .unwrap();
     input.validate_static().unwrap();
-    let wrong_target = MechanicsInputV1::System {
-        system_source: source,
-        scope: FaultScopeV1::Processor {
-            processor_id: "processor_two".into(),
-        },
-        occurred_at: at.clone(),
-        available_at: at,
-        system_cursor: CursorV1::derived_drop(1, 1).unwrap(),
-        fault: SystemFaultV1::EventsDropped {
-            count: 1,
-            category: DropCategoryV1::ActionBuffer,
-        },
-        predecessor_system_chain_hash: None,
-        payload_hash: "aa".repeat(32),
+    assert!(
+        MechanicsInputV1::system(
+            source,
+            FaultScopeV1::processor("processor_two").unwrap(),
+            at.clone(),
+            at,
+            CursorV1::derived_drop(1, 1).unwrap(),
+            SystemFaultV1::events_dropped(1, DropCategoryV1::ActionBuffer).unwrap(),
+            None,
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn epin_system_payload_is_strict_hash_bound_and_tamper_evident() {
+    use marketfeed_event_pulse::wire::{
+        ConfiguredTargetKeyV1, CursorModeV1, DropCategoryV1, FaultScopeKindV1, FaultScopeV1,
+        MechanicsInputV1, SystemFaultV1, SystemSourceKeyV1, SystemSourceV1,
     };
-    assert!(wrong_target.validate_static().is_err());
+    let key = SystemSourceKeyV1::new(
+        "system_drop_source",
+        FaultScopeKindV1::Processor,
+        ConfiguredTargetKeyV1::processor("processor_one").unwrap(),
+        CursorModeV1::Derived,
+    )
+    .unwrap();
+    let source = SystemSourceV1::new(key, "epoch_one", 0).unwrap();
+    let at = Rfc3339Time::parse("2026-08-21T10:00:00Z").unwrap();
+    let input = MechanicsInputV1::system(
+        source,
+        FaultScopeV1::processor("processor_one").unwrap(),
+        at.clone(),
+        at,
+        CursorV1::derived_drop(1, 0).unwrap(),
+        SystemFaultV1::events_dropped(1, DropCategoryV1::ActionBuffer).unwrap(),
+        None,
+    )
+    .unwrap();
+    let value = serde_json::to_value(&input).unwrap();
+    assert_eq!(input.payload_hash(), input.expected_payload_hash().unwrap());
+    MechanicsInputV1::from_epin_json(&serde_json::to_vec(&value).unwrap()).unwrap();
+
+    let mut unknown_top = value.clone();
+    unknown_top["unknown"] = json!(true);
+    assert!(MechanicsInputV1::from_epin_json(&serde_json::to_vec(&unknown_top).unwrap()).is_err());
+
+    let mut unknown_nested = value.clone();
+    unknown_nested["system_source"]["key"]["unknown"] = json!(true);
+    unknown_nested = rehash_epin(unknown_nested);
+    assert!(
+        MechanicsInputV1::from_epin_json(&serde_json::to_vec(&unknown_nested).unwrap()).is_err()
+    );
+
+    let mut tampered = value.clone();
+    tampered["occurred_at"] = json!("2026-08-21T09:59:59Z");
+    assert!(MechanicsInputV1::from_epin_json(&serde_json::to_vec(&tampered).unwrap()).is_err());
+
+    let repaired = rehash_epin(tampered);
+    MechanicsInputV1::from_epin_json(&serde_json::to_vec(&repaired).unwrap()).unwrap();
+
+    let mut wrong_target = value;
+    wrong_target["scope"]["processor_id"] = json!("processor_two");
+    wrong_target = rehash_epin(wrong_target);
+    assert!(MechanicsInputV1::from_epin_json(&serde_json::to_vec(&wrong_target).unwrap()).is_err());
+}
+
+#[test]
+fn epin_contributor_scope_roundtrips_through_strict_tagged_serde() {
+    use marketfeed_event_pulse::wire::{
+        ConfiguredTargetKeyV1, ContributorKeyV1, ContributorV1, CursorModeV1, FaultScopeKindV1,
+        FaultScopeV1, InstrumentIdentityV1, MechanicsInputV1, SystemFaultV1, SystemSourceKeyV1,
+        SystemSourceV1,
+    };
+    let contributor_key = ContributorKeyV1::new(
+        "primary_source",
+        InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap(),
+    )
+    .unwrap();
+    let contributor = ContributorV1::new(contributor_key.clone(), "epoch_one", 0).unwrap();
+    let source_key = SystemSourceKeyV1::new(
+        "system_contributor",
+        FaultScopeKindV1::Contributor,
+        ConfiguredTargetKeyV1::contributor(contributor_key),
+        CursorModeV1::Derived,
+    )
+    .unwrap();
+    let source = SystemSourceV1::new(source_key, "epoch_system", 0).unwrap();
+    let at = Rfc3339Time::parse("2026-08-21T10:00:00Z").unwrap();
+    let input = MechanicsInputV1::system(
+        source,
+        FaultScopeV1::contributor(contributor),
+        at.clone(),
+        at,
+        CursorV1::derived(1, 0, 0).unwrap(),
+        SystemFaultV1::sequence_gap(1, 2),
+        None,
+    )
+    .unwrap();
+    let bytes = serde_json::to_vec(&input).unwrap();
+    MechanicsInputV1::from_epin_json(&bytes).unwrap();
+}
+
+#[test]
+fn mechanics_config_enforces_roles_family_ownership_caps_and_targets() {
+    use marketfeed_event_pulse::wire::{
+        ClockSourceKeyV1, ConfiguredTargetKeyV1, ContributorKeyV1, ContributorRoleV1,
+        ContributorSpecV1, CoverageSourceKeyV1, CursorModeV1, FamilyV1, FaultScopeKindV1,
+        InstrumentIdentityV1, MechanicsConfigV1, SystemSourceKeyV1,
+    };
+
+    let instrument = || {
+        InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap()
+    };
+    let primary_key = || ContributorKeyV1::new("primary_source", instrument()).unwrap();
+    assert!(
+        ContributorSpecV1::new(
+            primary_key(),
+            ContributorRoleV1::PrimaryInstrument,
+            [FamilyV1::Trade, FamilyV1::Quote]
+        )
+        .is_err()
+    );
+    assert!(
+        ContributorSpecV1::new(
+            primary_key(),
+            ContributorRoleV1::PrimaryInstrument,
+            [
+                FamilyV1::Trade,
+                FamilyV1::Quote,
+                FamilyV1::Book,
+                FamilyV1::ConfirmationPrice,
+            ]
+        )
+        .is_err()
+    );
+    assert!(
+        ContributorSpecV1::new(
+            primary_key(),
+            ContributorRoleV1::Confirmation,
+            [FamilyV1::Trade]
+        )
+        .is_err()
+    );
+
+    let make = |confirmation_count: usize,
+                mismatched_confirmation: bool,
+                wrong_system_target: bool| {
+        let connection = ConnectionKeyV1::new("market_connection").unwrap();
+        let primary = ContributorSpecV1::new(
+            primary_key(),
+            ContributorRoleV1::PrimaryInstrument,
+            [FamilyV1::Trade, FamilyV1::Quote, FamilyV1::Book],
+        )
+        .unwrap();
+        let mut contributors = vec![primary];
+        for index in 0..confirmation_count {
+            let confirmation_instrument = InstrumentIdentityV1::new(
+                if mismatched_confirmation {
+                    "ETH"
+                } else {
+                    "BNB"
+                },
+                "USDC",
+                "PERPETUAL",
+                "BINANCE",
+                "BNB-USDC",
+            )
+            .unwrap();
+            let key =
+                ContributorKeyV1::new(&format!("confirmation_{index}"), confirmation_instrument)
+                    .unwrap();
+            contributors.push(
+                ContributorSpecV1::new(
+                    key,
+                    ContributorRoleV1::Confirmation,
+                    [FamilyV1::ConfirmationPrice],
+                )
+                .unwrap(),
+            );
+        }
+        let contributor_connections = contributors
+            .iter()
+            .map(|spec| (spec.key().clone(), connection.clone()))
+            .collect::<BTreeMap<_, _>>();
+        let clock_sources = contributors
+            .iter()
+            .enumerate()
+            .map(|(index, spec)| {
+                ClockSourceKeyV1::new(&format!("clock_{index}"), spec.key().clone()).unwrap()
+            })
+            .collect();
+        let coverage_sources = contributors
+            .iter()
+            .enumerate()
+            .flat_map(|(index, spec)| {
+                spec.allowed_families()
+                    .iter()
+                    .enumerate()
+                    .map(move |(family_index, family)| {
+                        CoverageSourceKeyV1::new(
+                            &format!("coverage_{index}_{family_index}"),
+                            spec.key().clone(),
+                            *family,
+                        )
+                        .unwrap()
+                    })
+            })
+            .collect();
+        let system_sources = if wrong_system_target {
+            vec![
+                SystemSourceKeyV1::new(
+                    "system_processor",
+                    FaultScopeKindV1::Processor,
+                    ConfiguredTargetKeyV1::processor("another_processor").unwrap(),
+                    CursorModeV1::Derived,
+                )
+                .unwrap(),
+            ]
+        } else {
+            Vec::new()
+        };
+        MechanicsConfigV1::new(
+            "processor_one",
+            vec![connection],
+            contributors,
+            contributor_connections,
+            clock_sources,
+            coverage_sources,
+            system_sources,
+        )
+    };
+
+    let config = make(0, false, false).unwrap();
+    assert_eq!(config.processor_id(), "processor_one");
+    assert_eq!(config.connections().len(), 1);
+    assert_eq!(config.contributor_connections().len(), 1);
+    assert_eq!(config.clock_sources().len(), 1);
+    assert_eq!(config.coverage_sources().len(), 3);
+    assert!(config.system_sources().is_empty());
+    make(1, false, false).unwrap();
+    assert!(make(2, false, false).is_err());
+    assert!(make(16, false, false).is_err());
+    assert!(make(1, true, false).is_err());
+    assert!(make(0, false, true).is_err());
+}
+
+#[test]
+fn market_epin_requires_exact_action_and_catalog_mapping() {
+    use marketfeed_event_pulse::wire::{
+        InstrumentIdentityV1, MechanicsInputV1, ReplayCatalogV1, ReplayEpochEntryV1,
+        VenueCatalogEntryV1,
+    };
+    use marketfeed_model::{
+        AggressorSide, ConnectionId, EventEnvelope, EventFlags, Fixed, InstrumentId, MarketEvent,
+        OpenInterest, Price, Quantity, SequenceRange, SessionId, TimestampNs, Trade, VenueId,
+    };
+
+    let venues = BTreeMap::from([
+        (
+            1,
+            VenueCatalogEntryV1::new("BINANCE", "binance_source").unwrap(),
+        ),
+        (
+            2,
+            VenueCatalogEntryV1::new("HYPERLIQUID", "hyperliquid_source").unwrap(),
+        ),
+    ]);
+    let instruments = BTreeMap::from([(
+        7,
+        InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap(),
+    )]);
+    let catalog = ReplayCatalogV1::new(
+        venues,
+        instruments,
+        vec![ReplayEpochEntryV1::new(3, 4, "epoch_one", 0).unwrap()],
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let trade = MarketEvent::Trade(Trade {
+        price: Price(Fixed::new(100, 0)),
+        quantity: Quantity(Fixed::new(1, 0)),
+        aggressor: AggressorSide::Buy,
+        trade_id: None,
+    });
+    let envelope = EventEnvelope {
+        schema_version: 1,
+        venue: VenueId(1),
+        instrument: Some(InstrumentId(7)),
+        connection: ConnectionId(3),
+        session: SessionId(4),
+        frame_seq: 1,
+        event_index: 0,
+        exchange_ts: Some(TimestampNs(1)),
+        receive_ts: TimestampNs(2),
+        source_sequence: None,
+        flags: EventFlags::empty(),
+        payload: trade,
+    };
+    assert!(MechanicsInputV1::market(envelope.clone(), 0, catalog.clone()).is_err());
+
+    let mut correct = envelope;
+    correct.venue = VenueId(2);
+    MechanicsInputV1::market(correct.clone(), 0, catalog.clone()).unwrap();
+
+    correct.exchange_ts = None;
+    assert!(MechanicsInputV1::market(correct.clone(), 0, catalog.clone()).is_err());
+    correct.exchange_ts = Some(TimestampNs(1));
+    correct.source_sequence = Some(SequenceRange {
+        first: 1,
+        last: u64::MAX,
+    });
+    assert!(MechanicsInputV1::market(correct.clone(), 0, catalog.clone()).is_err());
+
+    correct.source_sequence = None;
+    correct.payload = MarketEvent::OpenInterest(OpenInterest {
+        quantity: Quantity(Fixed::new(1, 0)),
+    });
+    assert!(MechanicsInputV1::market(correct, 0, catalog).is_err());
+}
+
+#[test]
+fn checked_identity_deserialization_and_replay_bounds_cannot_be_bypassed() {
+    use marketfeed_event_pulse::wire::{
+        ContributorV1, InstrumentIdentityV1, OpenInterestEncodingV1, ReplayCatalogV1,
+        SnapshotAuthoringV1,
+    };
+
+    assert!(serde_json::from_value::<ConnectionKeyV1>(json!("1bad")).is_err());
+    assert!(
+        serde_json::from_value::<InstrumentIdentityV1>(json!({
+            "base_asset":"DOGE",
+            "quote_asset":"USDC",
+            "market_type":"PERPETUAL",
+            "venue":"HYPERLIQUID",
+            "venue_symbol":"DOGE-USDC"
+        }))
+        .is_err()
+    );
+    assert!(
+        serde_json::from_value::<ContributorV1>(json!({
+            "key": {
+                "source_id":"source_one",
+                "instrument": {
+                    "base_asset":"BNB",
+                    "quote_asset":"USDC",
+                    "market_type":"PERPETUAL",
+                    "venue":"HYPERLIQUID",
+                    "venue_symbol":"BNB-USDC"
+                }
+            },
+            "connection_epoch":"epoch_",
+            "epoch_generation":0
+        }))
+        .is_err()
+    );
+    assert!(OpenInterestEncodingV1::base("0.0").is_err());
+
+    let instrument =
+        InstrumentIdentityV1::new("BNB", "USDC", "PERPETUAL", "HYPERLIQUID", "BNB-USDC").unwrap();
+    assert!(
+        SnapshotAuthoringV1::new(
+            "event_pulse_mechanics_",
+            "lineage_one",
+            "event_cluster_one",
+            instrument.clone(),
+            1,
+            None,
+            15_000,
+            "v1"
+        )
+        .is_err()
+    );
+    let snapshot = SnapshotAuthoringV1::new(
+        "event_pulse_mechanics_one",
+        "lineage_one",
+        "event_cluster_one",
+        instrument,
+        1,
+        None,
+        15_000,
+        "v1",
+    )
+    .unwrap();
+    assert_eq!(snapshot.contract_id(), "event_pulse_mechanics_one");
+    assert_eq!(snapshot.lineage_id(), "lineage_one");
+    assert_eq!(snapshot.event_cluster_id(), "event_cluster_one");
+    assert_eq!(snapshot.revision_start(), 1);
+    assert_eq!(snapshot.expected_half_life_ms(), 15_000);
+    assert_eq!(snapshot.producer_version(), "v1");
+    assert!(snapshot.predecessor_content_hash().is_none());
+
+    let too_many_venues = (0..33)
+        .map(|id| {
+            (
+                id.to_string(),
+                json!({"venue":"BINANCE","source_id":format!("source_{id}")}),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>();
+    let oversized = json!({
+        "venue_sources": too_many_venues,
+        "instruments": {"1": {
+            "base_asset":"BNB",
+            "quote_asset":"USDC",
+            "market_type":"PERPETUAL",
+            "venue":"BINANCE",
+            "venue_symbol":"BNB-USDC"
+        }},
+        "connection_epochs":[{
+            "connection_id":1,
+            "session_id":1,
+            "connection_epoch":"epoch_one",
+            "epoch_generation":0
+        }],
+        "open_interest":{}
+    });
+    assert!(serde_json::from_value::<ReplayCatalogV1>(oversized).is_err());
 }
 
 #[test]
@@ -279,7 +730,9 @@ fn binder_rejects_substituted_mechanics_and_accepts_exact_golden_pair() {
         .unwrap();
     assert!(matches!(
         bundle.bind_composite(&mechanics, Some(&context), &altered),
-        Err(ContractError::HashBinding)
+        Err(ContractError::EventPulse(
+            marketfeed_event_pulse::EventPulseErrorCode::HashBinding
+        ))
     ));
 }
 
