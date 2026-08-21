@@ -1,22 +1,30 @@
 //! Atomic canonical EventPulse mechanics snapshot authorship.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
+use marketfeed_model::{AggressorSide, MarketEvent};
 use serde_json::{Value, json};
 use thiserror::Error;
 
 use crate::{
-    ContractBundle, ValidatedContract, content_hash,
+    ContractBundle, IngestOutcome, SlotState, SourceStateMachine, ValidatedContract, content_hash,
     features::{
-        Direction, EnvelopeQuality, FeatureName, FeatureQuality, FeatureSet, FlagConditions,
-        MechanicsFlag, SCALE, canonical_decimal, envelope_quality, mechanics_flags,
+        BookProjection, Direction, EnvelopeQuality, FeatureCondition, FeatureConditions,
+        FeatureName, FeatureQuality, FeatureSet, FlagConditions, MechanicsFlag, ReversalPolicy,
+        SCALE, canonical_decimal, cvd_slope, envelope_quality, evaluate_feature, evaluate_reversal,
+        liquidation_notional, log_return, mechanics_flags, open_interest_change, rescale,
+        spread_bps, taker_imbalance,
     },
     mechanics::{FamilyFlags, MechanicsEvidence, Phase, PhaseError, PhaseMachine},
-    wire::{Rfc3339Time, SnapshotAuthoringV1},
+    window::{FixedWindow, PROCESSOR_RECORD_CAPACITY},
+    wire::{
+        ClockQualityV1, ClockStateV1, ContributorKeyV1, ContributorRoleV1, CursorV1,
+        MechanicsConfigV1, MechanicsInputRefV1, MechanicsInputV1, Rfc3339Time, SnapshotAuthoringV1,
+    },
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MarketAnchor {
+struct MarketAnchor {
     pub source_event_time: Rfc3339Time,
     pub received_at: Rfc3339Time,
     pub normalized_at: Rfc3339Time,
@@ -25,7 +33,7 @@ pub struct MarketAnchor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SnapshotCursor {
+struct SnapshotCursor {
     pub source_id: String,
     pub connection_epoch: String,
     pub sequence_start: u64,
@@ -35,7 +43,7 @@ pub struct SnapshotCursor {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ClockEvidence {
+struct ClockEvidence {
     pub source_id: String,
     pub available_at: Rfc3339Time,
     /// Fixed point S=1e8 milliseconds.
@@ -45,7 +53,7 @@ pub struct ClockEvidence {
 }
 
 #[derive(Debug, Clone)]
-pub struct SnapshotObservation {
+struct SnapshotObservation {
     pub available_at: Rfc3339Time,
     pub features: FeatureSet,
     pub flag_conditions: FlagConditions,
@@ -61,6 +69,12 @@ pub struct SnapshotObservation {
 pub enum SnapshotError {
     #[error("input availability decreased")]
     InputTimeRegression,
+    #[error("input cursor ordering regressed")]
+    InputOrderRegression,
+    #[error("validated mechanics input was rejected: {0}")]
+    InvalidInput(String),
+    #[error("bounded processor capacity was breached")]
+    Capacity,
     #[error("input belongs to an already sealed prefix")]
     SealedInput,
     #[error("snapshot decision time decreased")]
@@ -118,13 +132,37 @@ struct SuccessfulCache {
     snapshot: AuthoredSnapshot,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cause {
+    None,
+    Sequence,
+    Book,
+    QueueDrop,
+    Warmup,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct InputOrderKey {
+    available_micros: i64,
+    source_id: String,
+    epoch: String,
+    sequence_start: u64,
+    sequence_end: u64,
+    payload_hash: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct MechanicsProcessor {
+    config: MechanicsConfigV1,
     authoring: SnapshotAuthoringV1,
-    pending: Vec<SnapshotObservation>,
+    sources: SourceStateMachine,
+    records: FixedWindow<MechanicsInputV1>,
+    active_causes: BTreeMap<ContributorKeyV1, Cause>,
+    pending: Option<SnapshotObservation>,
     current: Option<SnapshotObservation>,
     phase: PhaseMachine,
     last_input_micros: Option<i64>,
+    last_order: Option<InputOrderKey>,
     sealed_micros: Option<i64>,
     last_decision_micros: Option<i64>,
     next_revision: u64,
@@ -133,38 +171,101 @@ pub struct MechanicsProcessor {
 }
 
 impl MechanicsProcessor {
-    pub fn new(authoring: SnapshotAuthoringV1) -> Self {
+    pub fn new(
+        config: MechanicsConfigV1,
+        authoring: SnapshotAuthoringV1,
+    ) -> Result<Self, SnapshotError> {
+        let primary = config
+            .contributors()
+            .iter()
+            .find(|spec| spec.role() == ContributorRoleV1::Primary)
+            .ok_or_else(|| SnapshotError::InvalidInput("missing primary".into()))?;
+        if primary.key().instrument() != authoring.primary_scope() {
+            return Err(SnapshotError::InvalidInput("scope/config mismatch".into()));
+        }
         let next_revision = authoring.revision_start();
         let predecessor = authoring.predecessor_content_hash().map(str::to_owned);
-        Self {
+        let active_causes = config
+            .contributors()
+            .iter()
+            .map(|spec| (spec.key().clone(), Cause::None))
+            .collect();
+        Ok(Self {
+            sources: SourceStateMachine::new(config.clone()),
+            config,
             authoring,
-            pending: Vec::new(),
+            records: FixedWindow::new(5_000_000_000, i64::MIN)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+            active_causes,
+            pending: None,
             current: None,
             phase: PhaseMachine::new(),
             last_input_micros: None,
+            last_order: None,
             sealed_micros: None,
             last_decision_micros: None,
             next_revision,
             predecessor,
             cache: None,
-        }
+        })
     }
 
     pub fn next_revision(&self) -> u64 {
         self.next_revision
     }
 
-    pub fn ingest(&mut self, observation: SnapshotObservation) -> Result<(), SnapshotError> {
-        let at = observation.available_at.utc_micros();
+    pub fn ingest(&mut self, input: &MechanicsInputV1) -> Result<IngestOutcome, SnapshotError> {
+        input
+            .validate_static()
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        let order = input_order(input)?;
+        let at = order.available_micros;
         if self.sealed_micros.is_some_and(|sealed| at <= sealed) {
             return Err(SnapshotError::SealedInput);
         }
         if self.last_input_micros.is_some_and(|last| at < last) {
             return Err(SnapshotError::InputTimeRegression);
         }
-        self.last_input_micros = Some(at);
-        self.pending.push(observation);
-        Ok(())
+        if self
+            .last_order
+            .as_ref()
+            .is_some_and(|last| last.available_micros == at && order < *last)
+        {
+            return Err(SnapshotError::InputOrderRegression);
+        }
+        if self.last_order.as_ref() != Some(&order) {
+            ensure_record_capacity(self.records.len())?;
+        }
+        let mut candidate = self.clone();
+        if candidate.last_input_micros.is_some_and(|last| at > last) {
+            candidate.commit_pending_phase()?;
+        }
+        let outcome = match candidate.sources.ingest(input) {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                candidate.record_failure(input, &error.to_string());
+                *self = candidate;
+                return Err(SnapshotError::InvalidInput(error.to_string()));
+            }
+        };
+        if outcome != IngestOutcome::IgnoredDuplicate {
+            ensure_record_capacity(candidate.records.len())?;
+            candidate
+                .records
+                .push(
+                    at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
+                    input.clone(),
+                )
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        }
+        candidate.apply_input_cause(input);
+        candidate.clear_recovered_causes();
+        let observation = candidate.derive_owned_observation(at)?;
+        candidate.pending = Some(observation);
+        candidate.last_input_micros = Some(at);
+        candidate.last_order = Some(order);
+        *self = candidate;
+        Ok(outcome)
     }
 
     pub fn snapshot(
@@ -184,58 +285,568 @@ impl MechanicsProcessor {
             return Err(SnapshotError::DecisionTimeRegression);
         }
 
-        let eligible = self
-            .pending
-            .iter()
-            .filter(|observation| observation.available_at.utc_micros() <= decision_micros)
-            .cloned()
-            .collect::<Vec<_>>();
-        if eligible.is_empty() && self.current.is_none() {
+        if self.pending.is_none() && self.current.is_none() {
             return Err(SnapshotError::MissingCausalAnchor);
         }
-        let mut phase = self.phase.clone();
-        for group in equal_time_groups(&eligible) {
-            let aggregate = aggregate_group(group)?;
-            phase
-                .observe(&derive_evidence(&aggregate)?)
-                .map_err(phase_error)?;
-        }
-        phase
+        let mut candidate = self.clone();
+        candidate.commit_pending_phase()?;
+        candidate
+            .records
+            .evict(
+                decision_micros
+                    .checked_mul(1_000)
+                    .ok_or(SnapshotError::Capacity)?,
+            )
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        let aggregate = candidate.derive_owned_observation(decision_micros)?;
+        candidate
+            .phase
             .advance_to(
                 decision_micros
                     .checked_mul(1_000)
                     .ok_or_else(|| SnapshotError::Phase("decision nanoseconds overflow".into()))?,
             )
             .map_err(phase_error)?;
-        let aggregate = match &self.current {
-            Some(current) => {
-                let mut observations = Vec::with_capacity(eligible.len() + 1);
-                observations.push(current.clone());
-                observations.extend(eligible.iter().cloned());
-                aggregate_all(&observations)?
-            }
-            None => aggregate_all(&eligible)?,
-        };
+        let mut decision_evidence = derive_evidence(&aggregate)?;
+        decision_evidence.available_at_ns = decision_micros
+            .checked_mul(1_000)
+            .ok_or(SnapshotError::Capacity)?;
+        candidate
+            .phase
+            .observe(&decision_evidence)
+            .map_err(phase_error)?;
         let following_revision = self
             .next_revision
             .checked_add(1)
             .ok_or(SnapshotError::RevisionOverflow)?;
-        let snapshot = self.author(&decision_time, &aggregate, &phase)?;
+        let snapshot = candidate.author(&decision_time, &aggregate, &candidate.phase)?;
 
         let sealed = decision_micros;
-        self.pending
-            .retain(|observation| observation.available_at.utc_micros() > sealed);
-        self.phase = phase;
-        self.current = Some(aggregate);
-        self.sealed_micros = Some(sealed);
-        self.last_decision_micros = Some(decision_micros);
-        self.predecessor = Some(snapshot.content_hash().to_owned());
-        self.next_revision = following_revision;
-        self.cache = Some(SuccessfulCache {
+        candidate.pending = None;
+        candidate.current = Some(aggregate);
+        candidate.sealed_micros = Some(sealed);
+        candidate.last_decision_micros = Some(decision_micros);
+        candidate.predecessor = Some(snapshot.content_hash().to_owned());
+        candidate.next_revision = following_revision;
+        candidate.cache = Some(SuccessfulCache {
             decision_micros,
             snapshot: snapshot.clone(),
         });
+        *self = candidate;
         Ok(snapshot)
+    }
+
+    fn commit_pending_phase(&mut self) -> Result<(), SnapshotError> {
+        if let Some(observation) = self.pending.take() {
+            self.phase
+                .observe(&derive_evidence(&observation)?)
+                .map_err(phase_error)?;
+            self.current = Some(observation);
+        }
+        Ok(())
+    }
+
+    fn record_failure(&mut self, input: &MechanicsInputV1, _message: &str) {
+        for key in input_subjects(input, &self.config) {
+            self.active_causes.insert(key, Cause::Sequence);
+        }
+    }
+
+    fn apply_input_cause(&mut self, input: &MechanicsInputV1) {
+        let MechanicsInputRefV1::System { fault, .. } = input.view() else {
+            return;
+        };
+        let cause = match fault.view() {
+            crate::wire::SystemFaultRefV1::ChecksumMismatch
+            | crate::wire::SystemFaultRefV1::BookInvalidated
+            | crate::wire::SystemFaultRefV1::BookResynchronized => Cause::Book,
+            crate::wire::SystemFaultRefV1::EventsDropped { .. } => Cause::QueueDrop,
+            crate::wire::SystemFaultRefV1::Disconnected => Cause::Warmup,
+            crate::wire::SystemFaultRefV1::SequenceGap { .. }
+            | crate::wire::SystemFaultRefV1::ClockJump { .. } => Cause::Sequence,
+        };
+        for key in input_subjects(input, &self.config) {
+            self.active_causes.insert(key, cause);
+        }
+    }
+
+    fn clear_recovered_causes(&mut self) {
+        for spec in self.config.contributors() {
+            if self.sources.contributor_state(spec.key()) == Some(SlotState::Live) {
+                self.active_causes.insert(spec.key().clone(), Cause::None);
+            }
+        }
+    }
+
+    fn derive_owned_observation(
+        &self,
+        decision_micros: i64,
+    ) -> Result<SnapshotObservation, SnapshotError> {
+        let decision_ns = decision_micros
+            .checked_mul(1_000)
+            .ok_or(SnapshotError::Capacity)?;
+        let records = self.records.records();
+        let primary = self
+            .config
+            .contributors()
+            .iter()
+            .find(|spec| spec.role() == ContributorRoleV1::Primary)
+            .ok_or_else(|| SnapshotError::InvalidInput("missing primary".into()))?;
+        let primary_key = primary.key();
+
+        let mut trades = Vec::with_capacity(records.len());
+        let mut quotes = Vec::with_capacity(records.len());
+        let mut oi = Vec::with_capacity(records.len());
+        let mut liquidations = Vec::with_capacity(records.len());
+        let mut latest_book = None;
+        let mut anchor = None;
+        let mut clocks = BTreeMap::new();
+        let mut available_micros = i64::MIN;
+        for record in records.iter().filter(|record| {
+            record.available_at_ns <= decision_ns && self.input_is_current(&record.value)
+        }) {
+            match record.value.view() {
+                MechanicsInputRefV1::Market {
+                    envelope,
+                    catalog,
+                    payload_hash,
+                    ..
+                } => {
+                    let venue = catalog
+                        .venue_source(envelope.venue.0)
+                        .ok_or_else(|| SnapshotError::InvalidInput("venue mapping".into()))?;
+                    let instrument = envelope
+                        .instrument
+                        .and_then(|id| catalog.instrument(id.0))
+                        .ok_or_else(|| SnapshotError::InvalidInput("instrument mapping".into()))?;
+                    let key = ContributorKeyV1::new(venue.source_id(), instrument.clone())
+                        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                    let source_event = envelope
+                        .exchange_ts
+                        .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?
+                        .0;
+                    let event_anchor = MarketAnchor {
+                        source_event_time: Rfc3339Time::from_unix_nanos(source_event)
+                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+                        received_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
+                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+                        normalized_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
+                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+                        available_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
+                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+                        payload_hash: payload_hash.to_owned(),
+                    };
+                    if anchor.as_ref().is_none_or(|current: &MarketAnchor| {
+                        current.available_at < event_anchor.available_at
+                    }) {
+                        anchor = Some(event_anchor);
+                    }
+                    available_micros = available_micros.max(envelope.receive_ts.0 / 1_000);
+                    if &key != primary_key {
+                        continue;
+                    }
+                    match &envelope.payload {
+                        MarketEvent::Trade(trade) => trades.push((
+                            envelope.receive_ts.0,
+                            rescale(trade.price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            rescale(trade.quantity.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            trade.aggressor,
+                        )),
+                        MarketEvent::Quote(quote) => quotes.push((
+                            envelope.receive_ts.0,
+                            rescale(quote.bid_price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            rescale(quote.ask_price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                        )),
+                        MarketEvent::BookSnapshot(snapshot) => {
+                            latest_book = Some((envelope.receive_ts.0, snapshot.clone()));
+                        }
+                        MarketEvent::OpenInterest(value) => oi.push((
+                            envelope.receive_ts.0,
+                            rescale(value.quantity.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                        )),
+                        MarketEvent::Liquidation(value) => liquidations.push((
+                            envelope.receive_ts.0,
+                            rescale(value.price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            rescale(value.quantity.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            value.side,
+                        )),
+                        _ => {}
+                    }
+                }
+                MechanicsInputRefV1::Clock {
+                    clock_source,
+                    available_at,
+                    observed_skew_ms,
+                    freshness_limit_ms,
+                    clock_state,
+                    quality_state,
+                    ..
+                } => {
+                    let clock = ClockEvidence {
+                        source_id: clock_source.key().source_id().to_owned(),
+                        available_at: available_at.clone(),
+                        observed_skew_ms: parse_scaled(observed_skew_ms.as_str())?,
+                        freshness_limit_ms,
+                        degraded: clock_state == ClockStateV1::Degraded
+                            || quality_state == ClockQualityV1::Degraded,
+                    };
+                    available_micros = available_micros.max(available_at.utc_micros());
+                    clocks.insert(clock.source_id.clone(), clock);
+                }
+                MechanicsInputRefV1::Coverage { available_at, .. }
+                | MechanicsInputRefV1::System { available_at, .. } => {
+                    available_micros = available_micros.max(available_at.utc_micros());
+                }
+            }
+        }
+
+        let one_second = decision_ns.saturating_sub(1_000_000_000);
+        let five_seconds = decision_ns.saturating_sub(5_000_000_000);
+        let mut trade_1s: Vec<&(i64, i128, i128, AggressorSide)> = Vec::with_capacity(trades.len());
+        trade_1s.extend(trades.iter().filter(|(at, ..)| *at >= one_second));
+        let mut trade_5s: Vec<&(i64, i128, i128, AggressorSide)> = Vec::with_capacity(trades.len());
+        trade_5s.extend(trades.iter().filter(|(at, ..)| *at >= five_seconds));
+        let log = if trade_1s.len() >= 2 {
+            Some(
+                log_return(trade_1s[0].1, trade_1s.last().expect("two trades").1)
+                    .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+            )
+        } else {
+            None
+        };
+        let direction = match log.unwrap_or(0).signum() {
+            1 => Direction::Up,
+            -1 => Direction::Down,
+            _ => Direction::Unknown,
+        };
+        let buy = trade_1s
+            .iter()
+            .filter(|(_, _, _, side)| *side == AggressorSide::Buy)
+            .map(|(_, _, quantity, _)| *quantity)
+            .sum::<i128>();
+        let sell = trade_1s
+            .iter()
+            .filter(|(_, _, _, side)| *side == AggressorSide::Sell)
+            .map(|(_, _, quantity, _)| *quantity)
+            .sum::<i128>();
+        let flow_known = trade_1s
+            .iter()
+            .all(|(_, _, _, side)| *side != AggressorSide::Unknown);
+        let imbalance = if flow_known && buy + sell > 0 {
+            Some(
+                taker_imbalance(buy, sell)
+                    .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+            )
+        } else {
+            None
+        };
+        let cvd = if flow_known && trade_1s.len() >= 2 {
+            let signed = |quantity: i128, side: AggressorSide| {
+                if side == AggressorSide::Sell {
+                    -quantity
+                } else {
+                    quantity
+                }
+            };
+            let first = signed(trade_1s[0].2, trade_1s[0].3);
+            let last = trade_1s
+                .iter()
+                .map(|(_, _, quantity, side)| signed(*quantity, *side))
+                .sum();
+            Some(
+                cvd_slope(
+                    first,
+                    last,
+                    i128::from(trade_1s.last().expect("two").0 - trade_1s[0].0) / 1_000,
+                )
+                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+            )
+        } else {
+            None
+        };
+        let quote = quotes
+            .iter()
+            .filter(|(at, ..)| *at >= decision_ns.saturating_sub(250_000_000))
+            .next_back();
+        let spread = quote
+            .map(|(_, bid, ask)| spread_bps(*bid, *ask))
+            .transpose()
+            .map_err(|error| SnapshotError::Contract(error.to_string()))?;
+        let depth = if let Some((at, snapshot)) = latest_book {
+            let mut projection = BookProjection::new(8, 8, None);
+            projection
+                .snapshot_derived(&snapshot, at)
+                .map_err(|error| SnapshotError::Contract(error.to_string()))?;
+            projection.depth_10bps(decision_ns).ok()
+        } else {
+            None
+        };
+        let mut oi_5s: Vec<&(i64, i128)> = Vec::with_capacity(oi.len());
+        oi_5s.extend(oi.iter().filter(|(at, _)| *at >= five_seconds));
+        let oi_change = if oi_5s.len() >= 2 {
+            Some(
+                open_interest_change(oi_5s[0].1, oi_5s.last().expect("two").1)
+                    .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+            )
+        } else {
+            None
+        };
+        let mut liq_5s: Vec<&(i64, i128, i128, AggressorSide)> =
+            Vec::with_capacity(liquidations.len());
+        liq_5s.extend(liquidations.iter().filter(|(at, ..)| *at >= five_seconds));
+        let liquidation = if liq_5s.is_empty() {
+            None
+        } else {
+            let mut notional_inputs = Vec::with_capacity(liq_5s.len());
+            notional_inputs.extend(
+                liq_5s
+                    .iter()
+                    .map(|(_, price, quantity, _)| (*price, *quantity)),
+            );
+            Some(
+                liquidation_notional(&notional_inputs)
+                    .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+            )
+        };
+        let reversal_policy = if matches!(self.phase.phase(), Phase::Normal | Phase::Invalid) {
+            ReversalPolicy::PreEventZero
+        } else if direction == Direction::Up {
+            ReversalPolicy::ReversalRequired {
+                direction: crate::features::KnownDirection::Up,
+            }
+        } else if direction == Direction::Down {
+            ReversalPolicy::ReversalRequired {
+                direction: crate::features::KnownDirection::Down,
+            }
+        } else {
+            ReversalPolicy::UnknownNormalZero
+        };
+        let degraded_clock = clocks.values().any(|clock| clock.degraded);
+        let critical_invalid = self.sources.contributor_state(primary_key) != Some(SlotState::Live)
+            || self
+                .active_causes
+                .get(primary_key)
+                .copied()
+                .unwrap_or(Cause::None)
+                != Cause::None;
+        let stale = quote.is_none();
+        let mut flag_conditions = FlagConditions::default();
+        match self
+            .active_causes
+            .get(primary_key)
+            .copied()
+            .unwrap_or(Cause::None)
+        {
+            Cause::Sequence => flag_conditions.sequence_failure = true,
+            Cause::Book => flag_conditions.book_resyncing = true,
+            Cause::QueueDrop => flag_conditions.queue_drop = true,
+            Cause::Warmup => flag_conditions.reconnect_warmup = true,
+            Cause::None => {}
+        }
+        flag_conditions.reconnect_warmup |=
+            self.sources.contributor_state(primary_key) != Some(SlotState::Live);
+        flag_conditions.source_stale = stale;
+        flag_conditions.clock_degraded = degraded_clock;
+        flag_conditions.incomplete_critical = [log, imbalance, cvd, spread, depth]
+            .iter()
+            .any(Option::is_none);
+        flag_conditions.oi_stale_or_unavailable = oi_change.is_none();
+        flag_conditions.breadth_unavailable_or_divergent = true;
+
+        let mut rows = Vec::with_capacity(9);
+        for (name, value) in [
+            (FeatureName::BookDepth10bps, depth),
+            (FeatureName::CrossVenueBreadth, None),
+            (FeatureName::CvdSlope, cvd),
+            (FeatureName::LiquidationNotional, liquidation),
+            (FeatureName::LogReturn, log),
+            (FeatureName::OpenInterestChange, oi_change),
+            (FeatureName::SpreadBps, spread),
+            (FeatureName::TakerImbalance, imbalance),
+        ] {
+            let optional = name.is_optional();
+            let conditions = feature_conditions(
+                name,
+                value,
+                critical_invalid,
+                stale,
+                degraded_clock,
+                optional,
+            );
+            rows.push(
+                evaluate_feature(name, value, &conditions, reversal_policy)
+                    .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+            );
+        }
+        let reversal_conditions = feature_conditions(
+            FeatureName::ReversalFromExtreme,
+            Some(0),
+            critical_invalid,
+            false,
+            degraded_clock,
+            false,
+        );
+        let reversal = if trade_5s.len() >= 2 {
+            let anchor_price = trade_5s[0].1;
+            let extreme = if direction == Direction::Down {
+                trade_5s
+                    .iter()
+                    .map(|(_, price, ..)| *price)
+                    .min()
+                    .expect("two")
+            } else {
+                trade_5s
+                    .iter()
+                    .map(|(_, price, ..)| *price)
+                    .max()
+                    .expect("two")
+            };
+            let current = trade_5s.last().expect("two").1;
+            evaluate_reversal(
+                reversal_policy,
+                anchor_price,
+                extreme,
+                current,
+                &reversal_conditions,
+            )
+            .map_err(|error| SnapshotError::Contract(error.to_string()))?
+        } else {
+            evaluate_reversal(ReversalPolicy::PreEventZero, 1, 1, 1, &reversal_conditions)
+                .map_err(|error| SnapshotError::Contract(error.to_string()))?
+        };
+        rows.push(reversal);
+        let features = FeatureSet::new(rows, reversal_policy)
+            .map_err(|error| SnapshotError::Contract(error.to_string()))?;
+
+        let cursors = self.current_cursors()?;
+        let mut required_clock_sources = Vec::with_capacity(self.config.clock_sources().len());
+        required_clock_sources.extend(
+            self.config
+                .clock_sources()
+                .iter()
+                .filter(|key| self.sources.contributor_cursor(key.subject()).is_some())
+                .map(|key| key.source_id().to_owned()),
+        );
+        available_micros = available_micros.max(
+            cursors
+                .iter()
+                .map(|cursor| cursor.available_at.utc_micros())
+                .max()
+                .unwrap_or(i64::MIN),
+        );
+        let fully_warmed = !flag_conditions.reconnect_warmup;
+        Ok(SnapshotObservation {
+            available_at: Rfc3339Time::from_unix_nanos(
+                available_micros
+                    .checked_mul(1_000)
+                    .ok_or(SnapshotError::Capacity)?,
+            )
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+            features,
+            flag_conditions,
+            liquidation_confirms_direction: liq_5s.iter().any(|(_, _, _, side)| {
+                matches!(
+                    (direction, side),
+                    (Direction::Up, AggressorSide::Buy) | (Direction::Down, AggressorSide::Sell)
+                )
+            }),
+            fully_warmed,
+            anchor,
+            cursors,
+            required_clock_sources,
+            clocks: clocks.into_values().collect(),
+        })
+    }
+
+    fn input_is_current(&self, input: &MechanicsInputV1) -> bool {
+        match input.view() {
+            MechanicsInputRefV1::Market {
+                envelope, catalog, ..
+            } => {
+                let Some(venue) = catalog.venue_source(envelope.venue.0) else {
+                    return false;
+                };
+                let Some(instrument) = envelope.instrument.and_then(|id| catalog.instrument(id.0))
+                else {
+                    return false;
+                };
+                let Ok(key) = ContributorKeyV1::new(venue.source_id(), instrument.clone()) else {
+                    return false;
+                };
+                let Some(epoch) = catalog.connection_epochs().iter().find(|entry| {
+                    entry.connection_id() == envelope.connection.0
+                        && entry.session_id() == envelope.session.0
+                }) else {
+                    return false;
+                };
+                self.sources
+                    .contributor_cursor(&key)
+                    .is_some_and(|current| {
+                        current.epoch == epoch.connection_epoch()
+                            && current.epoch_generation == epoch.epoch_generation()
+                    })
+            }
+            MechanicsInputRefV1::Clock { clock_source, .. } => self
+                .sources
+                .clock_cursor(clock_source.key())
+                .is_some_and(|current| {
+                    current.epoch == clock_source.epoch()
+                        && current.epoch_generation == clock_source.epoch_generation()
+                }),
+            MechanicsInputRefV1::Coverage {
+                coverage_source, ..
+            } => self
+                .sources
+                .coverage_cursor(coverage_source.key())
+                .is_some_and(|current| {
+                    current.epoch == coverage_source.epoch()
+                        && current.epoch_generation == coverage_source.epoch_generation()
+                }),
+            MechanicsInputRefV1::System { system_source, .. } => self
+                .sources
+                .system_cursor(system_source.key())
+                .is_some_and(|current| {
+                    current.epoch == system_source.epoch()
+                        && current.epoch_generation == system_source.epoch_generation()
+                }),
+        }
+    }
+
+    fn current_cursors(&self) -> Result<Vec<SnapshotCursor>, SnapshotError> {
+        let mut cursors = Vec::with_capacity(
+            self.config.contributors().len()
+                + self.config.clock_sources().len()
+                + self.config.coverage_sources().len()
+                + self.config.system_sources().len(),
+        );
+        for spec in self.config.contributors() {
+            if let Some(view) = self.sources.contributor_cursor(spec.key()) {
+                cursors.push(snapshot_cursor(spec.key().source_id(), view)?);
+            }
+        }
+        for key in self.config.clock_sources() {
+            if let Some(view) = self.sources.clock_cursor(key) {
+                cursors.push(snapshot_cursor(key.source_id(), view)?);
+            }
+        }
+        for key in self.config.coverage_sources() {
+            if let Some(view) = self.sources.coverage_cursor(key) {
+                cursors.push(snapshot_cursor(key.source_id(), view)?);
+            }
+        }
+        for key in self.config.system_sources() {
+            if let Some(view) = self.sources.system_cursor(key) {
+                cursors.push(snapshot_cursor(key.source_id(), view)?);
+            }
+        }
+        Ok(cursors)
     }
 
     fn author(
@@ -350,102 +961,200 @@ impl MechanicsProcessor {
     }
 }
 
+fn ensure_record_capacity(current: usize) -> Result<(), SnapshotError> {
+    if current == crate::window::PER_WINDOW_CAPACITY || current == PROCESSOR_RECORD_CAPACITY {
+        Err(SnapshotError::Capacity)
+    } else {
+        Ok(())
+    }
+}
+
 fn phase_error(error: PhaseError) -> SnapshotError {
     SnapshotError::Phase(error.to_string())
 }
 
-fn equal_time_groups(observations: &[SnapshotObservation]) -> Vec<&[SnapshotObservation]> {
-    let mut groups = Vec::new();
-    let mut start = 0;
-    for index in 1..=observations.len() {
-        if index == observations.len()
-            || observations[index].available_at.utc_micros()
-                != observations[start].available_at.utc_micros()
-        {
-            groups.push(&observations[start..index]);
-            start = index;
+fn input_order(input: &MechanicsInputV1) -> Result<InputOrderKey, SnapshotError> {
+    let (available_micros, source_id, epoch, cursor) = match input.view() {
+        MechanicsInputRefV1::Market {
+            envelope,
+            action_index,
+            catalog,
+            ..
+        } => {
+            let venue = catalog
+                .venue_source(envelope.venue.0)
+                .ok_or_else(|| SnapshotError::InvalidInput("venue mapping".into()))?;
+            let epoch = catalog
+                .connection_epochs()
+                .iter()
+                .find(|entry| {
+                    entry.connection_id() == envelope.connection.0
+                        && entry.session_id() == envelope.session.0
+                })
+                .ok_or_else(|| SnapshotError::InvalidInput("epoch mapping".into()))?;
+            let cursor = match envelope.source_sequence {
+                Some(range) => CursorV1::native(range.first, range.last),
+                None => CursorV1::derived(
+                    envelope.frame_seq,
+                    action_index,
+                    u32::from(envelope.event_index),
+                ),
+            }
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            (
+                envelope.receive_ts.0 / 1_000,
+                venue.source_id(),
+                epoch.connection_epoch(),
+                cursor,
+            )
         }
-    }
-    groups
-}
-
-fn aggregate_group(group: &[SnapshotObservation]) -> Result<SnapshotObservation, SnapshotError> {
-    aggregate_all(group)
-}
-
-fn aggregate_all(
-    observations: &[SnapshotObservation],
-) -> Result<SnapshotObservation, SnapshotError> {
-    let latest = observations.last().expect("nonempty aggregate");
-    let mut cursors = BTreeMap::new();
-    let mut clocks = BTreeMap::new();
-    let mut required = BTreeSet::new();
-    let mut anchor: Option<MarketAnchor> = None;
-    let mut flags = FlagConditions::default();
-    for observation in observations {
-        if let Some(candidate) = &observation.anchor {
-            anchor = Some(match anchor {
-                None => candidate.clone(),
-                Some(current) => MarketAnchor {
-                    source_event_time: max_time(
-                        &current.source_event_time,
-                        &candidate.source_event_time,
-                    ),
-                    received_at: max_time(&current.received_at, &candidate.received_at),
-                    normalized_at: max_time(&current.normalized_at, &candidate.normalized_at),
-                    available_at: max_time(&current.available_at, &candidate.available_at),
-                    payload_hash: if candidate.available_at.utc_micros()
-                        >= current.available_at.utc_micros()
-                    {
-                        candidate.payload_hash.clone()
-                    } else {
-                        current.payload_hash
-                    },
-                },
-            });
-        }
-        merge_flags(&mut flags, &observation.flag_conditions);
-        for cursor in &observation.cursors {
-            cursors.insert(cursor.source_id.clone(), cursor.clone());
-        }
-        for source in &observation.required_clock_sources {
-            required.insert(source.clone());
-        }
-        for clock in &observation.clocks {
-            clocks.insert(clock.source_id.clone(), clock.clone());
-        }
-    }
-    Ok(SnapshotObservation {
-        available_at: latest.available_at.clone(),
-        features: latest.features.clone(),
-        flag_conditions: flags,
-        liquidation_confirms_direction: latest.liquidation_confirms_direction,
-        fully_warmed: latest.fully_warmed,
-        anchor,
-        cursors: cursors.into_values().collect(),
-        required_clock_sources: required.into_iter().collect(),
-        clocks: clocks.into_values().collect(),
+        MechanicsInputRefV1::System {
+            system_source,
+            available_at,
+            system_cursor,
+            ..
+        } => (
+            available_at.utc_micros(),
+            system_source.key().source_id(),
+            system_source.epoch(),
+            system_cursor.clone(),
+        ),
+        MechanicsInputRefV1::Coverage {
+            coverage_source,
+            available_at,
+            coverage_cursor,
+            ..
+        } => (
+            available_at.utc_micros(),
+            coverage_source.key().source_id(),
+            coverage_source.epoch(),
+            coverage_cursor.cursor().clone(),
+        ),
+        MechanicsInputRefV1::Clock {
+            clock_source,
+            available_at,
+            clock_cursor,
+            ..
+        } => (
+            available_at.utc_micros(),
+            clock_source.key().source_id(),
+            clock_source.epoch(),
+            clock_cursor.cursor().clone(),
+        ),
+    };
+    let sequence = cursor
+        .display_sequence()
+        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+    let (sequence_start, sequence_end) = cursor.native_range().unwrap_or((sequence, sequence));
+    Ok(InputOrderKey {
+        available_micros,
+        source_id: source_id.to_owned(),
+        epoch: epoch.to_owned(),
+        sequence_start,
+        sequence_end,
+        payload_hash: input.payload_hash().to_owned(),
     })
 }
 
-fn max_time(left: &Rfc3339Time, right: &Rfc3339Time) -> Rfc3339Time {
-    if left.utc_micros() >= right.utc_micros() {
-        left.clone()
-    } else {
-        right.clone()
+fn input_subjects(input: &MechanicsInputV1, config: &MechanicsConfigV1) -> Vec<ContributorKeyV1> {
+    match input.view() {
+        MechanicsInputRefV1::Market {
+            envelope, catalog, ..
+        } => catalog
+            .venue_source(envelope.venue.0)
+            .zip(envelope.instrument.and_then(|id| catalog.instrument(id.0)))
+            .and_then(|(venue, instrument)| {
+                ContributorKeyV1::new(venue.source_id(), instrument.clone()).ok()
+            })
+            .into_iter()
+            .collect(),
+        MechanicsInputRefV1::Clock { contributor, .. }
+        | MechanicsInputRefV1::Coverage { contributor, .. } => vec![contributor.key().clone()],
+        MechanicsInputRefV1::System { scope, .. } => match scope.view() {
+            crate::wire::FaultScopeRefV1::Contributor { contributor } => {
+                vec![contributor.key().clone()]
+            }
+            crate::wire::FaultScopeRefV1::ConnectionEpoch { connection_key, .. } => config
+                .contributor_connections()
+                .iter()
+                .filter(|(_, connection)| *connection == connection_key)
+                .map(|(key, _)| key.clone())
+                .collect(),
+            crate::wire::FaultScopeRefV1::Processor { .. } => config
+                .contributors()
+                .iter()
+                .map(|spec| spec.key().clone())
+                .collect(),
+        },
     }
 }
 
-fn merge_flags(target: &mut FlagConditions, source: &FlagConditions) {
-    target.sequence_failure |= source.sequence_failure;
-    target.book_resyncing |= source.book_resyncing;
-    target.clock_degraded |= source.clock_degraded;
-    target.source_stale |= source.source_stale;
-    target.oi_stale_or_unavailable |= source.oi_stale_or_unavailable;
-    target.queue_drop |= source.queue_drop;
-    target.reconnect_warmup |= source.reconnect_warmup;
-    target.incomplete_critical |= source.incomplete_critical;
-    target.breadth_unavailable_or_divergent |= source.breadth_unavailable_or_divergent;
+fn snapshot_cursor(
+    source_id: &str,
+    view: crate::CursorView,
+) -> Result<SnapshotCursor, SnapshotError> {
+    let (start, end) = view.cursor.native_range().unwrap_or((
+        view.cursor
+            .display_sequence()
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+        view.cursor
+            .display_sequence()
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+    ));
+    Ok(SnapshotCursor {
+        source_id: source_id.to_owned(),
+        connection_epoch: view.epoch,
+        sequence_start: start,
+        sequence_end: end,
+        available_at: Rfc3339Time::from_unix_nanos(view.available_at_ns)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+        payload_hash: view.payload_hash,
+    })
+}
+
+fn feature_conditions(
+    name: FeatureName,
+    value: Option<i128>,
+    invalid: bool,
+    stale: bool,
+    degraded: bool,
+    optional: bool,
+) -> FeatureConditions {
+    let mut conditions = Vec::new();
+    if invalid {
+        conditions.push(FeatureCondition::SourceInvalidated);
+    } else if stale && matches!(name, FeatureName::SpreadBps | FeatureName::BookDepth10bps) {
+        conditions.push(FeatureCondition::SourceStale);
+    } else if value.is_none() {
+        conditions.push(if optional {
+            FeatureCondition::OptionalSourceUnavailable
+        } else {
+            FeatureCondition::InsufficientCoverage
+        });
+    }
+    if degraded {
+        conditions.push(FeatureCondition::ClockDegraded);
+    }
+    FeatureConditions::new(name, conditions).expect("conditions match feature")
+}
+
+fn parse_scaled(value: &str) -> Result<i128, SnapshotError> {
+    let negative = value.starts_with('-');
+    let unsigned = value.trim_start_matches('-');
+    let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+    let whole = whole
+        .parse::<i128>()
+        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+    let mut fraction = fraction.to_owned();
+    fraction.push_str(&"0".repeat(8usize.saturating_sub(fraction.len())));
+    let fraction = fraction
+        .parse::<i128>()
+        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+    let scaled = whole
+        .checked_mul(SCALE)
+        .and_then(|whole| whole.checked_add(fraction))
+        .ok_or(SnapshotError::Capacity)?;
+    Ok(if negative { -scaled } else { scaled })
 }
 
 fn derive_evidence(observation: &SnapshotObservation) -> Result<MechanicsEvidence, SnapshotError> {
@@ -708,5 +1417,19 @@ fn flag_string(flag: MechanicsFlag) -> &'static str {
         MechanicsFlag::ReconnectWarmup => "RECONNECT_WARMUP",
         MechanicsFlag::SequenceGap => "SEQUENCE_GAP",
         MechanicsFlag::SourceStale => "SOURCE_STALE",
+    }
+}
+
+#[cfg(test)]
+mod bounded_processor_tests {
+    use super::{SnapshotError, ensure_record_capacity};
+    use crate::window::PER_WINDOW_CAPACITY;
+
+    #[test]
+    fn processor_capacity_is_rejected_before_ingest_mutation() {
+        assert_eq!(
+            ensure_record_capacity(PER_WINDOW_CAPACITY),
+            Err(SnapshotError::Capacity)
+        );
     }
 }

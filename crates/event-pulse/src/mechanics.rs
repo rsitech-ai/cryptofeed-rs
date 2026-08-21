@@ -135,7 +135,7 @@ impl PhaseMachine {
         {
             return Err(PhaseError::ScoreDomain);
         }
-        self.now_ns = Some(evidence.available_at_ns);
+        self.advance_to(evidence.available_at_ns)?;
         self.evidence = Some(evidence.clone());
         if !evidence.valid {
             self.phase = Phase::Invalid;
@@ -149,6 +149,22 @@ impl PhaseMachine {
     pub fn advance_to(&mut self, at_ns: i64) -> Result<(), PhaseError> {
         if self.now_ns.is_some_and(|now| at_ns < now) {
             return Err(PhaseError::TimeRegression);
+        }
+        loop {
+            self.refresh_candidate(self.now_ns.unwrap_or(at_ns));
+            let Some(candidate) = self.candidate else {
+                break;
+            };
+            let deadline = candidate
+                .start_ns
+                .checked_add(candidate.dwell_ns)
+                .ok_or(PhaseError::ScoreDomain)?;
+            if deadline > at_ns {
+                break;
+            }
+            self.now_ns = Some(deadline);
+            self.phase = candidate.target;
+            self.candidate = None;
         }
         self.now_ns = Some(at_ns);
         self.refresh_candidate(at_ns);
@@ -171,28 +187,12 @@ impl PhaseMachine {
                 dwell_ns,
             },
         };
-        if at_ns.saturating_sub(candidate.start_ns) >= candidate.dwell_ns {
-            self.phase = candidate.target;
-            self.candidate = None;
-            // A new phase may immediately begin a different dwell at this same
-            // deterministic phase time, but never chains a zero-time transition.
-            if candidate.dwell_ns != 0 {
-                if let Some((next, dwell_ns)) = transition(self.phase, evidence) {
-                    self.candidate = Some(Candidate {
-                        target: next,
-                        start_ns: at_ns,
-                        dwell_ns,
-                    });
-                }
-            }
-        } else {
-            self.candidate = Some(candidate);
-        }
+        self.candidate = Some(candidate);
     }
 }
 
 fn transition(phase: Phase, e: &MechanicsEvidence) -> Option<(Phase, i64)> {
-    if !e.valid {
+    if !e.valid && phase != Phase::Invalid {
         return Some((Phase::Invalid, 0));
     }
     let high = e.intensity >= 80_000_000 && e.families.price && e.families.flow;
