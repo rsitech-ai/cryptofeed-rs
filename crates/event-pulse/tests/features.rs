@@ -236,7 +236,9 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     );
     let zero = evaluate_reversal(
         pre_event,
-        Err(ArithmeticError::OutOfDomain),
+        0,
+        0,
+        0,
         &FeatureConditions::valid(FeatureName::ReversalFromExtreme),
     )
     .unwrap();
@@ -247,7 +249,9 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     assert_eq!(
         evaluate_reversal(
             ReversalPolicy::UnknownNormalZero,
-            Err(ArithmeticError::OutOfDomain),
+            0,
+            0,
+            0,
             &FeatureConditions::valid(FeatureName::ReversalFromExtreme)
         )
         .unwrap()
@@ -257,15 +261,37 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     assert_eq!(
         evaluate_reversal(
             event,
-            Err(ArithmeticError::OutOfDomain),
+            100 * SCALE,
+            80 * SCALE,
+            90 * SCALE,
             &FeatureConditions::valid(FeatureName::ReversalFromExtreme)
         ),
         Err(FeatureAuthoringError::CriticalFeatureAuthoringError)
     );
+    let computed = evaluate_reversal(
+        event,
+        100 * SCALE,
+        120 * SCALE,
+        110 * SCALE,
+        &FeatureConditions::valid(FeatureName::ReversalFromExtreme),
+    )
+    .unwrap();
+    assert_eq!(computed.value(), Some(50_000_000));
+    let clamped = evaluate_reversal(
+        event,
+        100 * SCALE,
+        120 * SCALE,
+        80 * SCALE,
+        &FeatureConditions::valid(FeatureName::ReversalFromExtreme),
+    )
+    .unwrap();
+    assert_eq!(clamped.value(), Some(SCALE));
     assert_eq!(
         evaluate_reversal(
             event,
-            Err(ArithmeticError::OutOfDomain),
+            100 * SCALE,
+            120 * SCALE,
+            110 * SCALE,
             &FeatureConditions::new(
                 FeatureName::ReversalFromExtreme,
                 [FeatureCondition::DirectionUnknown]
@@ -307,8 +333,7 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
                 FeatureConditions::valid(*name)
             };
             if *name == FeatureName::ReversalFromExtreme {
-                evaluate_reversal(pre_event, Err(ArithmeticError::OutOfDomain), &conditions)
-                    .unwrap()
+                evaluate_reversal(pre_event, 0, 0, 0, &conditions).unwrap()
             } else {
                 evaluate_feature(
                     *name,

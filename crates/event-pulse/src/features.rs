@@ -961,7 +961,9 @@ fn evaluate_feature_inner(
 
 pub fn evaluate_reversal(
     policy: ReversalPolicy,
-    computed: Result<i128, ArithmeticError>,
+    anchor: i128,
+    extreme: i128,
+    current: i128,
     conditions: &FeatureConditions,
 ) -> Result<FeatureObservation, FeatureAuthoringError> {
     if conditions.name != FeatureName::ReversalFromExtreme {
@@ -983,6 +985,17 @@ pub fn evaluate_reversal(
         });
     }
     let mut conditions = conditions.clone();
+    let computed = match policy {
+        ReversalPolicy::ReversalRequired {
+            direction: KnownDirection::Up,
+        } => reversal_from_extreme(Direction::Up, anchor, extreme, current),
+        ReversalPolicy::ReversalRequired {
+            direction: KnownDirection::Down,
+        } => reversal_from_extreme(Direction::Down, anchor, extreme, current),
+        ReversalPolicy::PreEventZero | ReversalPolicy::UnknownNormalZero => {
+            unreachable!("zero policies return before reversal calculation")
+        }
+    };
     let value = match computed {
         Ok(value) => Some(value),
         Err(ArithmeticError::OutOfDomain) => {
