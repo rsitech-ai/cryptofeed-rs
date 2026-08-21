@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 mod contract;
+mod cursor;
 mod provenance;
 pub mod wire;
 
@@ -14,6 +15,7 @@ pub use contract::{
     content_hash, try_content_hash, validate_context_revision, validate_e2_mechanics_profile,
     validate_revision_transition,
 };
+pub use cursor::{CursorError, CursorView, IngestOutcome, SlotState, SourceStateMachine};
 pub use provenance::{
     ArtifactProvenance, EXPECTED_ROOT_COMMIT, ProvenanceError, ProvenanceManifest,
     VerifiedArtifact, embedded_provenance, verify_artifact_bytes, verify_embedded_contracts,
