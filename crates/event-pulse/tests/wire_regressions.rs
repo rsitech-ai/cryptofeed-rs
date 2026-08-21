@@ -751,6 +751,22 @@ fn market_epin_requires_exact_action_and_catalog_mapping() {
         trade_id: None,
     });
     valid.source_sequence = None;
+    let mut native = valid.clone();
+    native.source_sequence = Some(SequenceRange { first: 1, last: 1 });
+    let native_max = MechanicsInputV1::market(native.clone(), 65_534, catalog.clone()).unwrap();
+    assert!(MechanicsInputV1::market(native.clone(), 65_535, catalog.clone()).is_err());
+    assert!(MechanicsInputV1::market(native, u32::MAX, catalog.clone()).is_err());
+
+    for invalid_action in [65_535, u32::MAX] {
+        let mut rehashed_native = serde_json::to_value(native_max.clone()).unwrap();
+        rehashed_native["action_index"] = json!(invalid_action);
+        rehashed_native = rehash_epin(rehashed_native);
+        assert!(
+            MechanicsInputV1::from_epin_json(&serde_json::to_vec(&rehashed_native).unwrap())
+                .is_err()
+        );
+    }
+
     let authored = MechanicsInputV1::market(valid, 0, catalog).unwrap();
     let mut rehashed_overflow = serde_json::to_value(authored).unwrap();
     rehashed_overflow["envelope"]["frame_seq"] = json!(u64::MAX);

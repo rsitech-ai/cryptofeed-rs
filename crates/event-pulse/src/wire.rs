@@ -1852,7 +1852,7 @@ fn validate_market_mapping(
     envelope: &marketfeed_model::EventEnvelope,
     action_index: u32,
 ) -> Result<(), WireError> {
-    if !catalog.contains_envelope(envelope) {
+    if action_index > 65_534 || !catalog.contains_envelope(envelope) {
         return Err(WireError::Identity);
     }
     match envelope.source_sequence {
