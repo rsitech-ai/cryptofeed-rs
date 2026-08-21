@@ -81,6 +81,7 @@ impl CursorError {
                 | Self::EpochReused
                 | Self::EpochHistoryExhausted
                 | Self::CursorMode
+                | Self::TimeOverflow
         )
     }
 }
@@ -103,6 +104,7 @@ struct Slot {
     first_available_ns: Option<i64>,
     cursor: Option<CursorV1>,
     available_at_ns: Option<i64>,
+    retained_available_at_ns: Option<i64>,
     payload_hash: Option<String>,
     cursor_mode: Option<CursorModeV1>,
     observation_present: bool,
@@ -121,12 +123,13 @@ impl Default for Slot {
             first_available_ns: None,
             cursor: None,
             available_at_ns: None,
+            retained_available_at_ns: None,
             payload_hash: None,
             cursor_mode: None,
             observation_present: false,
             observation_subject_epoch: None,
             book_eligible: false,
-            book_snapshot_permitted: true,
+            book_snapshot_permitted: false,
         }
     }
 }
@@ -144,10 +147,11 @@ impl Slot {
         self.observation_present = false;
         self.observation_subject_epoch = None;
         self.book_eligible = false;
-        self.book_snapshot_permitted = true;
+        self.book_snapshot_permitted = false;
     }
 
     fn begin_epoch(&mut self, epoch: &str, generation: u8, at_ns: i64) -> Result<(), CursorError> {
+        self.preflight_time(at_ns)?;
         if self.history.contains(epoch) {
             self.state = SlotState::Invalid;
             return Err(CursorError::EpochReused);
@@ -162,12 +166,13 @@ impl Slot {
         self.first_available_ns = Some(at_ns);
         self.cursor = None;
         self.available_at_ns = None;
+        self.retained_available_at_ns = Some(at_ns);
         self.payload_hash = None;
         self.cursor_mode = None;
         self.observation_present = false;
         self.observation_subject_epoch = None;
         self.book_eligible = false;
-        self.book_snapshot_permitted = true;
+        self.book_snapshot_permitted = false;
         self.state = SlotState::Warming;
         Ok(())
     }
@@ -210,6 +215,7 @@ impl Slot {
         payload_hash: &str,
         mode: CursorModeV1,
     ) -> Result<IngestOutcome, CursorError> {
+        self.preflight_time(at_ns)?;
         if self.cursor_mode.is_some_and(|current| current != mode) {
             self.state = SlotState::Invalid;
             return Err(CursorError::CursorMode);
@@ -267,13 +273,20 @@ impl Slot {
                 _ => {}
             }
         }
+        let first = self.first_available_ns.ok_or_else(|| {
+            self.state = SlotState::Invalid;
+            CursorError::TimeOverflow
+        })?;
+        let elapsed = at_ns.checked_sub(first).ok_or_else(|| {
+            self.state = SlotState::Invalid;
+            CursorError::TimeOverflow
+        })?;
         self.cursor = Some(cursor.clone());
         self.cursor_mode = Some(mode);
         self.available_at_ns = Some(at_ns);
+        self.retained_available_at_ns = Some(at_ns);
         self.payload_hash = Some(payload_hash.to_owned());
         self.observation_present = true;
-        let first = self.first_available_ns.ok_or(CursorError::TimeOverflow)?;
-        let elapsed = at_ns.checked_sub(first).ok_or(CursorError::TimeOverflow)?;
         if elapsed >= WARMUP_NS {
             self.state = SlotState::Live;
             Ok(IngestOutcome::AcceptedLive)
@@ -307,7 +320,18 @@ impl Slot {
         self.cursor_mode = None;
         self.clear_observation();
         self.book_eligible = false;
-        self.book_snapshot_permitted = true;
+        self.book_snapshot_permitted = false;
+    }
+
+    fn preflight_time(&mut self, at_ns: i64) -> Result<(), CursorError> {
+        if self
+            .retained_available_at_ns
+            .is_some_and(|retained| at_ns < retained)
+        {
+            self.state = SlotState::Invalid;
+            return Err(CursorError::AvailabilityRegression);
+        }
+        Ok(())
     }
 }
 
@@ -381,6 +405,9 @@ impl SourceStateMachine {
 
     pub fn contributor_state(&self, key: &ContributorKeyV1) -> Option<SlotState> {
         self.contributors.get(key).map(|slot| slot.state)
+    }
+    pub fn connection_state(&self, key: &ConnectionKeyV1) -> Option<SlotState> {
+        self.connections.get(key).map(|slot| slot.state)
     }
     pub fn contributor_cursor(&self, key: &ContributorKeyV1) -> Option<CursorView> {
         self.contributors.get(key)?.view()
@@ -474,6 +501,10 @@ impl SourceStateMachine {
                     &cursor,
                     envelope.receive_ts.0,
                     payload_hash,
+                    matches!(
+                        envelope.payload,
+                        marketfeed_model::MarketEvent::BookSnapshot(_)
+                    ),
                 )
             }
             MechanicsInputRefV1::Coverage {
@@ -489,11 +520,17 @@ impl SourceStateMachine {
                     contributor.connection_epoch(),
                     contributor.epoch_generation(),
                 )?;
-                let at = time_ns(available_at)?;
                 let slot = self
                     .coverage
                     .get_mut(coverage_source.key())
                     .ok_or(CursorError::UnconfiguredIdentity)?;
+                let at = match time_ns(available_at) {
+                    Ok(at) => at,
+                    Err(error) => {
+                        slot.state = SlotState::Invalid;
+                        return Err(error);
+                    }
+                };
                 slot.prepare_epoch(
                     coverage_source.epoch(),
                     coverage_source.epoch_generation(),
@@ -524,11 +561,17 @@ impl SourceStateMachine {
                     contributor.connection_epoch(),
                     contributor.epoch_generation(),
                 )?;
-                let at = time_ns(available_at)?;
                 let slot = self
                     .clocks
                     .get_mut(clock_source.key())
                     .ok_or(CursorError::UnconfiguredIdentity)?;
+                let at = match time_ns(available_at) {
+                    Ok(at) => at,
+                    Err(error) => {
+                        slot.state = SlotState::Invalid;
+                        return Err(error);
+                    }
+                };
                 slot.prepare_epoch(clock_source.epoch(), clock_source.epoch_generation(), at)?;
                 let outcome = slot.accept_cursor(
                     clock_cursor.cursor(),
@@ -573,6 +616,7 @@ impl SourceStateMachine {
         cursor: &CursorV1,
         at_ns: i64,
         payload_hash: &str,
+        is_book_snapshot: bool,
     ) -> Result<IngestOutcome, CursorError> {
         let connection_key = self
             .config
@@ -580,6 +624,27 @@ impl SourceStateMachine {
             .get(key)
             .cloned()
             .ok_or(CursorError::UnconfiguredIdentity)?;
+        let connection_time = self
+            .connections
+            .get_mut(&connection_key)
+            .ok_or(CursorError::UnconfiguredIdentity)?
+            .preflight_time(at_ns);
+        let contributor_time = self
+            .contributors
+            .get_mut(key)
+            .ok_or(CursorError::UnconfiguredIdentity)?
+            .preflight_time(at_ns);
+        if connection_time.is_err() || contributor_time.is_err() {
+            self.connections
+                .get_mut(&connection_key)
+                .expect("preallocated connection")
+                .state = SlotState::Invalid;
+            self.contributors
+                .get_mut(key)
+                .expect("preallocated contributor")
+                .state = SlotState::Invalid;
+            return Err(CursorError::AvailabilityRegression);
+        }
         let connection = self
             .connections
             .get(&connection_key)
@@ -590,6 +655,9 @@ impl SourceStateMachine {
             Some(current)
                 if generation == current && connection.epoch.as_deref() == Some(epoch) =>
             {
+                if connection.state == SlotState::Invalid {
+                    return Err(CursorError::EpochMismatch);
+                }
                 false
             }
             _ => {
@@ -611,9 +679,26 @@ impl SourceStateMachine {
                 contributor.begin_epoch(epoch, generation, at_ns)?;
             } else if contributor.generation != Some(generation)
                 || contributor.epoch.as_deref() != Some(epoch)
-                || contributor.state == SlotState::Invalid
             {
                 contributor.state = SlotState::Invalid;
+                return Err(CursorError::EpochMismatch);
+            } else if contributor.state == SlotState::Invalid {
+                if is_book_snapshot && contributor.book_snapshot_permitted {
+                    let mode = if cursor.native_range().is_some() {
+                        CursorModeV1::Native
+                    } else {
+                        CursorModeV1::Derived
+                    };
+                    contributor.accept_cursor(cursor, at_ns, payload_hash, mode)?;
+                    contributor.state = SlotState::Invalid;
+                    contributor.book_eligible = true;
+                    contributor.book_snapshot_permitted = false;
+                    self.connections
+                        .get_mut(&connection_key)
+                        .expect("preallocated connection")
+                        .retained_available_at_ns = Some(at_ns);
+                    return Ok(IngestOutcome::Invalidated);
+                }
                 return Err(CursorError::EpochMismatch);
             }
         }
@@ -622,10 +707,16 @@ impl SourceStateMachine {
         } else {
             CursorModeV1::Derived
         };
-        self.contributors
+        let outcome = self
+            .contributors
             .get_mut(key)
             .ok_or(CursorError::UnconfiguredIdentity)?
-            .accept_cursor(cursor, at_ns, payload_hash, mode)
+            .accept_cursor(cursor, at_ns, payload_hash, mode)?;
+        self.connections
+            .get_mut(&connection_key)
+            .expect("preallocated connection")
+            .retained_available_at_ns = Some(at_ns);
+        Ok(outcome)
     }
 
     fn advance_connection(
@@ -731,13 +822,19 @@ impl SourceStateMachine {
         payload_hash: &str,
     ) -> Result<IngestOutcome, CursorError> {
         self.validate_scope(scope, key.configured_target_key())?;
-        let at = time_ns(available_at)?;
         let index = self
             .systems
             .iter()
             .position(|slot| &slot.source == key)
             .ok_or(CursorError::UnconfiguredIdentity)?;
         let system = &mut self.systems[index];
+        let at = match time_ns(available_at) {
+            Ok(at) => at,
+            Err(error) => {
+                system.slot.state = SlotState::Invalid;
+                return Err(error);
+            }
+        };
         let same_epoch = system.slot.generation == Some(generation)
             && system.slot.epoch.as_deref() == Some(epoch);
         if same_epoch && system.slot.cursor.as_ref() == Some(cursor) {
@@ -836,24 +933,12 @@ impl SourceStateMachine {
     ) -> Result<(), CursorError> {
         let targets: Vec<ContributorKeyV1> = match scope {
             FaultScopeRefV1::Contributor { contributor } => vec![contributor.key().clone()],
-            FaultScopeRefV1::ConnectionEpoch {
-                connection_key,
-                connection_epoch,
-                epoch_generation,
-            } => self
+            FaultScopeRefV1::ConnectionEpoch { connection_key, .. } => self
                 .config
                 .contributor_connections()
                 .iter()
                 .filter(|(_, connection)| *connection == connection_key)
-                .filter_map(|(key, _)| {
-                    self.contributors
-                        .get(key)
-                        .filter(|slot| {
-                            slot.epoch.as_deref() == Some(connection_epoch)
-                                && slot.generation == Some(epoch_generation)
-                        })
-                        .map(|_| key.clone())
-                })
+                .map(|(key, _)| key.clone())
                 .collect(),
             FaultScopeRefV1::Processor { .. } => self
                 .config
@@ -908,6 +993,16 @@ impl SourceStateMachine {
                         .expect("configured target")
                         .state = SlotState::Invalid;
                 }
+                if let (
+                    SystemFaultRefV1::Disconnected,
+                    FaultScopeRefV1::ConnectionEpoch { connection_key, .. },
+                ) = (fault, scope)
+                {
+                    self.connections
+                        .get_mut(connection_key)
+                        .expect("configured connection")
+                        .state = SlotState::Invalid;
+                }
             }
         }
         Ok(())
@@ -916,24 +1011,12 @@ impl SourceStateMachine {
     fn invalidate_targets(&mut self, scope: FaultScopeRefV1<'_>) -> Result<(), CursorError> {
         let targets: Vec<_> = match scope {
             FaultScopeRefV1::Contributor { contributor } => vec![contributor.key().clone()],
-            FaultScopeRefV1::ConnectionEpoch {
-                connection_key,
-                connection_epoch,
-                epoch_generation,
-            } => self
+            FaultScopeRefV1::ConnectionEpoch { connection_key, .. } => self
                 .config
                 .contributor_connections()
                 .iter()
                 .filter(|(_, connection)| *connection == connection_key)
-                .filter_map(|(key, _)| {
-                    self.contributors
-                        .get(key)
-                        .filter(|slot| {
-                            slot.epoch.as_deref() == Some(connection_epoch)
-                                && slot.generation == Some(epoch_generation)
-                        })
-                        .map(|_| key.clone())
-                })
+                .map(|(key, _)| key.clone())
                 .collect(),
             FaultScopeRefV1::Processor { .. } => self
                 .config

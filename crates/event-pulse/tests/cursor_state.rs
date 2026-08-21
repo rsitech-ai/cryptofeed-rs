@@ -162,6 +162,31 @@ fn market(
     epoch: &str,
     generation: u8,
 ) -> MechanicsInputV1 {
+    market_with_payload(
+        venue,
+        instrument,
+        sequence,
+        ns,
+        epoch,
+        generation,
+        MarketEvent::Trade(Trade {
+            price: Price(Fixed::new(100, 0)),
+            quantity: Quantity(Fixed::new(1, 0)),
+            aggressor: AggressorSide::Buy,
+            trade_id: None,
+        }),
+    )
+}
+
+fn market_with_payload(
+    venue: u16,
+    instrument: u32,
+    sequence: (u64, u64),
+    ns: i64,
+    epoch: &str,
+    generation: u8,
+    payload: MarketEvent,
+) -> MechanicsInputV1 {
     MechanicsInputV1::market(
         EventEnvelope {
             schema_version: 1,
@@ -178,12 +203,7 @@ fn market(
                 last: sequence.1,
             }),
             flags: EventFlags::empty(),
-            payload: MarketEvent::Trade(Trade {
-                price: Price(Fixed::new(100, 0)),
-                quantity: Quantity(Fixed::new(1, 0)),
-                aggressor: AggressorSide::Buy,
-                trade_id: None,
-            }),
+            payload,
         },
         0,
         catalog(epoch, generation),
@@ -674,6 +694,21 @@ fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
     state.ingest(&invalidation).unwrap();
     assert_eq!(state.book_eligible(&f.primary), Some(false));
     assert_eq!(state.book_snapshot_permitted(&f.primary), Some(false));
+    let premature = market_with_payload(
+        1,
+        1,
+        (2, 2),
+        2,
+        "epoch_a",
+        0,
+        MarketEvent::BookSnapshot(marketfeed_model::BookSnapshot {
+            bids: vec![],
+            asks: vec![],
+            depth: Some(0),
+            checksum: None,
+        }),
+    );
+    assert_eq!(state.ingest(&premature), Err(CursorError::EpochMismatch));
     let head = state.system_chain_head(&f.book_system).unwrap().to_owned();
     let resync = MechanicsInputV1::system(
         SystemSourceV1::new(f.book_system.clone(), "epoch_book", 0).unwrap(),
@@ -692,4 +727,185 @@ fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
         state.contributor_state(&f.primary),
         Some(SlotState::Invalid)
     );
+    let snapshot = market_with_payload(
+        1,
+        1,
+        (2, 2),
+        3,
+        "epoch_a",
+        0,
+        MarketEvent::BookSnapshot(marketfeed_model::BookSnapshot {
+            bids: vec![],
+            asks: vec![],
+            depth: Some(0),
+            checksum: None,
+        }),
+    );
+    assert_eq!(state.ingest(&snapshot).unwrap(), IngestOutcome::Invalidated);
+    assert_eq!(state.book_eligible(&f.primary), Some(true));
+    assert_eq!(state.book_snapshot_permitted(&f.primary), Some(false));
+    assert_eq!(
+        state.contributor_state(&f.primary),
+        Some(SlotState::Invalid)
+    );
+}
+
+#[test]
+fn disconnect_latches_connection_and_invalidates_cold_sibling_until_recovery() {
+    let f = fixture();
+    let mut state = SourceStateMachine::new(f.config);
+    state
+        .ingest(&market(1, 1, (1, 1), 0, "epoch_a", 0))
+        .unwrap();
+    assert_eq!(state.contributor_state(&f.sibling), Some(SlotState::Cold));
+    let disconnect = MechanicsInputV1::system(
+        SystemSourceV1::new(f.system.clone(), "epoch_system", 0).unwrap(),
+        FaultScopeV1::connection(f.connection.clone(), "epoch_a", 0).unwrap(),
+        time(1),
+        time(1),
+        CursorV1::native(1, 1).unwrap(),
+        SystemFaultV1::disconnected(),
+        None,
+    )
+    .unwrap();
+    state.ingest(&disconnect).unwrap();
+    assert_eq!(
+        state.connection_state(&f.connection),
+        Some(SlotState::Invalid)
+    );
+    assert_eq!(
+        state.contributor_state(&f.primary),
+        Some(SlotState::Invalid)
+    );
+    assert_eq!(
+        state.contributor_state(&f.sibling),
+        Some(SlotState::Invalid)
+    );
+    assert_eq!(
+        state.ingest(&market(2, 2, (1, 1), 2, "epoch_a", 0)),
+        Err(CursorError::EpochMismatch)
+    );
+    assert_eq!(
+        state
+            .ingest(&market(1, 1, (1, 1), 3, "epoch_b", 1))
+            .unwrap(),
+        IngestOutcome::AcceptedWarming
+    );
+}
+
+#[test]
+fn reused_greater_connection_epoch_latches_invalid_and_prior_epoch_stays_rejected() {
+    let f = fixture();
+    let mut state = SourceStateMachine::new(f.config);
+    state
+        .ingest(&market(1, 1, (1, 1), 0, "epoch_a", 0))
+        .unwrap();
+    state
+        .ingest(&market(1, 1, (1, 1), 1, "epoch_b", 1))
+        .unwrap();
+    assert_eq!(
+        state.ingest(&market(1, 1, (1, 1), 2, "epoch_a", 2)),
+        Err(CursorError::EpochReused)
+    );
+    assert_eq!(
+        state.connection_state(&f.connection),
+        Some(SlotState::Invalid)
+    );
+    assert_eq!(
+        state.ingest(&market(2, 2, (1, 1), 3, "epoch_b", 1)),
+        Err(CursorError::EpochMismatch)
+    );
+}
+
+#[test]
+fn epoch_reset_preflights_market_time_and_elapsed_overflow_invalidates() {
+    let f = fixture();
+    let mut backward = SourceStateMachine::new(f.config.clone());
+    backward
+        .ingest(&market(1, 1, (1, 1), 10, "epoch_a", 0))
+        .unwrap();
+    assert_eq!(
+        backward.ingest(&market(1, 1, (1, 1), 9, "epoch_b", 1)),
+        Err(CursorError::AvailabilityRegression)
+    );
+    assert_eq!(
+        backward.contributor_state(&f.primary),
+        Some(SlotState::Invalid)
+    );
+
+    let mut overflow = SourceStateMachine::new(f.config);
+    overflow
+        .ingest(&market(1, 1, (1, 1), i64::MIN, "epoch_a", 0))
+        .unwrap();
+    assert_eq!(
+        overflow.ingest(&market(1, 1, (2, 2), i64::MAX, "epoch_a", 0)),
+        Err(CursorError::TimeOverflow)
+    );
+    assert_eq!(
+        overflow.contributor_state(&f.primary),
+        Some(SlotState::Invalid)
+    );
+}
+
+#[test]
+fn clock_epoch_reset_preflights_backward_time_and_conversion_overflow() {
+    let f = fixture();
+    let contributor = ContributorV1::new(f.primary.clone(), "epoch_a", 0).unwrap();
+    let mut state = SourceStateMachine::new(f.config.clone());
+    state
+        .ingest(&market(1, 1, (1, 1), 0, "epoch_a", 0))
+        .unwrap();
+    let first = MechanicsInputV1::clock(
+        contributor.clone(),
+        ClockSourceV1::new(f.clock.clone(), "epoch_clock_a", 0).unwrap(),
+        time(2),
+        time(2),
+        ClockCursorV1::native(1, 1).unwrap(),
+        ClockStateV1::Synchronized,
+        marketfeed_event_pulse::wire::CanonicalDecimal::parse("0", 18, 8).unwrap(),
+        1000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_VALID",
+    )
+    .unwrap();
+    state.ingest(&first).unwrap();
+    let backward = MechanicsInputV1::clock(
+        contributor.clone(),
+        ClockSourceV1::new(f.clock.clone(), "epoch_clock_b", 1).unwrap(),
+        time(1),
+        time(1),
+        ClockCursorV1::native(1, 1).unwrap(),
+        ClockStateV1::Synchronized,
+        marketfeed_event_pulse::wire::CanonicalDecimal::parse("0", 18, 8).unwrap(),
+        1000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_VALID",
+    )
+    .unwrap();
+    assert_eq!(
+        state.ingest(&backward),
+        Err(CursorError::AvailabilityRegression)
+    );
+    assert_eq!(state.clock_state(&f.clock), Some(SlotState::Invalid));
+
+    let mut overflow = SourceStateMachine::new(f.config);
+    overflow
+        .ingest(&market(1, 1, (1, 1), 0, "epoch_a", 0))
+        .unwrap();
+    let far = Rfc3339Time::parse("9999-12-31T23:59:59Z").unwrap();
+    let input = MechanicsInputV1::clock(
+        contributor,
+        ClockSourceV1::new(f.clock.clone(), "epoch_clock_a", 0).unwrap(),
+        far.clone(),
+        far,
+        ClockCursorV1::native(1, 1).unwrap(),
+        ClockStateV1::Synchronized,
+        marketfeed_event_pulse::wire::CanonicalDecimal::parse("0", 18, 8).unwrap(),
+        1000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_VALID",
+    )
+    .unwrap();
+    assert_eq!(overflow.ingest(&input), Err(CursorError::TimeOverflow));
+    assert_eq!(overflow.clock_state(&f.clock), Some(SlotState::Invalid));
 }
