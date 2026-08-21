@@ -371,6 +371,38 @@ fn warmed_processor(clock_ns: i64) -> MechanicsProcessor {
     )
 }
 
+fn clock_input(
+    fixture: &Fixture,
+    available_ns: i64,
+    epoch: &str,
+    generation: u8,
+    native: u64,
+    skew: &str,
+) -> MechanicsInputV1 {
+    MechanicsInputV1::clock(
+        ContributorV1::new(
+            fixture.contributor.clone(),
+            if generation == 0 {
+                "epoch_a"
+            } else {
+                "epoch_b"
+            },
+            generation,
+        )
+        .unwrap(),
+        ClockSourceV1::new(fixture.clock.clone(), epoch, generation).unwrap(),
+        time_ns(available_ns),
+        time_ns(available_ns),
+        ClockCursorV1::native(native, native).unwrap(),
+        ClockStateV1::Synchronized,
+        CanonicalDecimal::parse(skew, 18, 8).unwrap(),
+        2_000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_WITHIN_TOLERANCE",
+    )
+    .unwrap()
+}
+
 #[test]
 fn public_processor_derives_snapshot_from_validated_inputs_and_causal_maximum() {
     let clock_ns = 60_080_000_000;
@@ -865,6 +897,156 @@ fn recovered_generation_retires_prior_failure_and_provenance() {
 }
 
 #[test]
+fn rejected_clock_mutation_never_replaces_evidence_and_recovers_only_on_greater_generation() {
+    let fixture = fixture();
+    let mut processor = warmed_processor(60_080_000_000);
+    assert!(
+        processor
+            .ingest(&clock_input(
+                &fixture,
+                60_100_000_000,
+                "epoch_clock_a",
+                0,
+                1,
+                "1.25",
+            ))
+            .is_err()
+    );
+    assert_eq!(
+        processor.snapshot(time_ns(60_110_000_000)),
+        Err(SnapshotError::MissingClockEvidence)
+    );
+    processor
+        .ingest(&market_in_epoch(
+            1,
+            60_115_000_000,
+            trade(102 * SCALE),
+            "epoch_b",
+            1,
+        ))
+        .unwrap();
+    processor
+        .ingest(&market_in_epoch(
+            2,
+            60_116_000_000,
+            trade(103 * SCALE),
+            "epoch_b",
+            1,
+        ))
+        .unwrap();
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            60_120_000_000,
+            "epoch_clock_b",
+            1,
+            1,
+            "0.25",
+        ))
+        .unwrap();
+    ingest_coverage_round(&mut processor, &fixture, 60_125_000_000, 1, "epoch_b", 1);
+    let snapshot = processor.snapshot(time_ns(60_130_000_000)).unwrap();
+    assert_eq!(
+        snapshot.value()["causal_time"]["available_at"],
+        time_ns(60_125_000_000).canonical()
+    );
+    assert!(
+        !snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+}
+
+#[test]
+fn rejected_market_gap_is_fault_only_not_anchor_or_availability_evidence() {
+    let mut processor = warmed_processor(60_080_000_000);
+    assert!(
+        processor
+            .ingest(&market(10, 60_100_000_000, trade(999 * SCALE)))
+            .is_err()
+    );
+    let snapshot = processor.snapshot(time_ns(60_110_000_000)).unwrap();
+    assert_eq!(
+        snapshot.value()["causal_time"]["available_at"],
+        time_ns(60_090_000_000).canonical()
+    );
+    assert_eq!(
+        snapshot.value()["causal_time"]["source_event_time"],
+        time_ns(60_060_000_000).canonical()
+    );
+    assert!(
+        snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+}
+
+#[test]
+fn snapshot_result_at_t_is_independent_of_intermediate_snapshot() {
+    let direct = warmed_processor(60_080_000_000);
+    let mut with_intermediate = direct.clone();
+    let mut direct = direct;
+    with_intermediate.snapshot(time_ns(60_085_000_000)).unwrap();
+    let direct_at_t = direct.snapshot(time_ns(60_500_000_000)).unwrap();
+    let intermediate_at_t = with_intermediate.snapshot(time_ns(60_500_000_000)).unwrap();
+    assert_eq!(
+        direct_at_t.value()["phase"],
+        intermediate_at_t.value()["phase"]
+    );
+    assert_eq!(
+        direct_at_t.value()["features"],
+        intermediate_at_t.value()["features"]
+    );
+    assert_eq!(
+        direct_at_t.value()["quality_state"],
+        intermediate_at_t.value()["quality_state"]
+    );
+}
+
+#[test]
+fn sealed_checkpoint_evicts_old_master_records_and_later_ingest_continues() {
+    let fixture = fixture();
+    let mut processor = warmed_processor(60_080_000_000);
+    let mut sequence = 8_u64;
+    let mut at_ns = 60_100_000_000_i64;
+    for batch in 0..4_u64 {
+        for _ in 0..250 {
+            sequence += 1;
+            processor
+                .ingest(&market(sequence, at_ns, trade(102 * SCALE)))
+                .unwrap();
+            at_ns += 100_000_000;
+        }
+        processor
+            .ingest(&clock_input(
+                &fixture,
+                at_ns,
+                "epoch_clock_a",
+                0,
+                batch + 2,
+                "0.25",
+            ))
+            .unwrap();
+        at_ns += 1_000_000;
+        ingest_coverage_round(&mut processor, &fixture, at_ns, batch + 2, "epoch_a", 0);
+        processor.snapshot(time_ns(at_ns)).unwrap();
+        at_ns += 1_000_000;
+    }
+    let snapshot = processor.snapshot(time_ns(at_ns)).unwrap();
+    let market_cursor = snapshot.value()["source_cursors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|cursor| cursor["source_id"] == "market_source")
+        .unwrap();
+    assert_eq!(market_cursor["sequence_end"], sequence);
+}
+
+#[test]
 fn successful_revisions_chain_and_regressing_decisions_are_atomic() {
     let mut processor = warmed_processor(60_080_000_000);
     let first = processor.snapshot(time_ns(60_090_000_000)).unwrap();
@@ -947,16 +1129,38 @@ fn snapshot_seals_only_the_requested_prefix_and_retains_future_groups() {
 }
 
 #[test]
-fn missing_configured_coverage_is_atomic_and_does_not_consume_revision() {
+fn missing_configured_coverage_authors_truthful_invalid_snapshot() {
     let fixture = fixture();
-    let mut processor = MechanicsProcessor::new(fixture.config, authoring()).unwrap();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
     processor.ingest(&market(1, 0, trade(100 * SCALE))).unwrap();
     processor
         .ingest(&market(2, 60_000_000_000, trade(101 * SCALE)))
         .unwrap();
-    assert_eq!(
-        processor.snapshot(time_ns(60_100_000_000)),
-        Err(SnapshotError::MissingCoverageEvidence)
+    processor
+        .ingest(
+            &MechanicsInputV1::clock(
+                ContributorV1::new(fixture.contributor, "epoch_a", 0).unwrap(),
+                ClockSourceV1::new(fixture.clock, "epoch_clock_a", 0).unwrap(),
+                time_ns(60_080_000_000),
+                time_ns(60_080_000_000),
+                ClockCursorV1::native(1, 1).unwrap(),
+                ClockStateV1::Synchronized,
+                CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+                2_000,
+                ClockQualityV1::Validated,
+                "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let snapshot = processor.snapshot(time_ns(60_100_000_000)).unwrap();
+    assert_eq!(snapshot.value()["quality_state"], "INVALID");
+    assert!(
+        snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "INSUFFICIENT_COVERAGE")
     );
-    assert_eq!(processor.next_revision(), 1);
+    assert_eq!(processor.next_revision(), 2);
 }
