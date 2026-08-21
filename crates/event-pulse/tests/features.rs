@@ -181,18 +181,23 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
 
 #[test]
 fn feature_order_classification_and_reason_precedence_are_frozen() {
-    let pre_event = ReversalPolicy::pre_event_normal(Direction::Unknown);
-    let event = ReversalPolicy::new(CurrentPhase::Buildup, Direction::Up, true);
+    let pre_event = ReversalPolicy::PreEventZero;
+    let event = ReversalPolicy::ReversalRequired {
+        direction: KnownDirection::Up,
+    };
     assert_eq!(FeatureName::CANONICAL.len(), 9);
     assert!(FeatureName::LogReturn.is_critical(pre_event));
     assert!(!FeatureName::ReversalFromExtreme.is_critical(pre_event));
     assert!(FeatureName::ReversalFromExtreme.is_critical(event));
     assert!(FeatureName::OpenInterestChange.is_optional());
-    let conditions = FeatureConditions {
-        clock_degraded: true,
-        insufficient_samples: true,
-        ..Default::default()
-    };
+    let conditions = FeatureConditions::new(
+        FeatureName::OpenInterestChange,
+        [
+            FeatureCondition::ClockDegraded,
+            FeatureCondition::InsufficientSamples,
+        ],
+    )
+    .unwrap();
     let row = evaluate_feature(
         FeatureName::OpenInterestChange,
         None,
@@ -210,10 +215,7 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     let degraded = evaluate_feature(
         FeatureName::LogReturn,
         Some(1),
-        &FeatureConditions {
-            clock_degraded: true,
-            ..Default::default()
-        },
+        &FeatureConditions::new(FeatureName::LogReturn, [FeatureCondition::ClockDegraded]).unwrap(),
         pre_event,
     )
     .unwrap();
@@ -226,10 +228,8 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
         evaluate_feature(
             FeatureName::LogReturn,
             None,
-            &FeatureConditions {
-                out_of_domain: true,
-                ..Default::default()
-            },
+            &FeatureConditions::new(FeatureName::LogReturn, [FeatureCondition::OutOfDomain])
+                .unwrap(),
             pre_event
         ),
         Err(FeatureAuthoringError::CriticalFeatureAuthoringError)
@@ -237,7 +237,7 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     let zero = evaluate_reversal(
         pre_event,
         Err(ArithmeticError::OutOfDomain),
-        &FeatureConditions::default(),
+        &FeatureConditions::valid(FeatureName::ReversalFromExtreme),
     )
     .unwrap();
     assert_eq!(
@@ -246,9 +246,9 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     );
     assert_eq!(
         evaluate_reversal(
-            ReversalPolicy::new(CurrentPhase::Normal, Direction::Unknown, true),
+            ReversalPolicy::UnknownNormalZero,
             Err(ArithmeticError::OutOfDomain),
-            &FeatureConditions::default()
+            &FeatureConditions::valid(FeatureName::ReversalFromExtreme)
         )
         .unwrap()
         .quality(),
@@ -256,21 +256,23 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
     );
     assert_eq!(
         evaluate_reversal(
-            ReversalPolicy::new(CurrentPhase::Buildup, Direction::Unknown, true),
+            event,
             Err(ArithmeticError::OutOfDomain),
-            &FeatureConditions::default()
-        )
-        .unwrap()
-        .quality(),
-        FeatureQuality::Unavailable
+            &FeatureConditions::valid(FeatureName::ReversalFromExtreme)
+        ),
+        Err(FeatureAuthoringError::CriticalFeatureAuthoringError)
     );
     assert_eq!(
         evaluate_reversal(
-            ReversalPolicy::new(CurrentPhase::Normal, Direction::Up, true),
+            event,
             Err(ArithmeticError::OutOfDomain),
-            &FeatureConditions::default()
+            &FeatureConditions::new(
+                FeatureName::ReversalFromExtreme,
+                [FeatureCondition::DirectionUnknown]
+            )
+            .unwrap()
         ),
-        Err(FeatureAuthoringError::CriticalFeatureAuthoringError)
+        Err(FeatureAuthoringError::InvalidFeatureConditions)
     );
     assert_eq!(
         mechanics_flags(&FlagConditions {
@@ -289,7 +291,7 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
         evaluate_feature(
             FeatureName::LogReturn,
             None,
-            &FeatureConditions::default(),
+            &FeatureConditions::valid(FeatureName::LogReturn),
             pre_event
         ),
         Err(FeatureAuthoringError::InvalidFeatureObservation)
@@ -299,12 +301,10 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
         .iter()
         .map(|(name, _)| {
             let conditions = if *name == FeatureName::OpenInterestChange {
-                FeatureConditions {
-                    optional_source_unavailable: true,
-                    ..Default::default()
-                }
+                FeatureConditions::new(*name, [FeatureCondition::OptionalSourceUnavailable])
+                    .unwrap()
             } else {
-                FeatureConditions::default()
+                FeatureConditions::valid(*name)
             };
             if *name == FeatureName::ReversalFromExtreme {
                 evaluate_reversal(pre_event, Err(ArithmeticError::OutOfDomain), &conditions)
@@ -320,21 +320,50 @@ fn feature_order_classification_and_reason_precedence_are_frozen() {
             }
         })
         .collect::<Vec<_>>();
-    let set = FeatureSet::new(rows.clone()).unwrap();
-    assert_eq!(envelope_quality(&set, pre_event), EnvelopeQuality::Degraded);
+    let set = FeatureSet::new(rows.clone(), pre_event).unwrap();
+    assert_eq!(envelope_quality(&set), EnvelopeQuality::Degraded);
+    assert_eq!(set.reversal_policy(), pre_event);
+    assert_eq!(
+        FeatureSet::new(rows.clone(), ReversalPolicy::UnknownNormalZero),
+        Err(FeatureAuthoringError::InvalidFeatureSet)
+    );
+    assert_eq!(
+        FeatureConditions::new(
+            FeatureName::LogReturn,
+            [FeatureCondition::OptionalSourceUnavailable]
+        ),
+        Err(FeatureAuthoringError::InvalidFeatureConditions)
+    );
+    assert_eq!(
+        FeatureConditions::new(FeatureName::LogReturn, [FeatureCondition::BookResyncing]),
+        Err(FeatureAuthoringError::InvalidFeatureConditions)
+    );
+    assert_eq!(
+        FeatureConditions::new(FeatureName::SpreadBps, [FeatureCondition::DirectionUnknown]),
+        Err(FeatureAuthoringError::InvalidFeatureConditions)
+    );
+    assert_eq!(
+        evaluate_feature(
+            FeatureName::SpreadBps,
+            Some(0),
+            &FeatureConditions::valid(FeatureName::LogReturn),
+            pre_event,
+        ),
+        Err(FeatureAuthoringError::InvalidFeatureConditions)
+    );
     let mut duplicate = rows.clone();
     duplicate[8] = duplicate[0].clone();
     assert_eq!(
-        FeatureSet::new(duplicate),
+        FeatureSet::new(duplicate, pre_event),
         Err(FeatureAuthoringError::InvalidFeatureSet)
     );
     rows.pop();
     assert_eq!(
-        FeatureSet::new(rows),
+        FeatureSet::new(rows.clone(), pre_event),
         Err(FeatureAuthoringError::InvalidFeatureSet)
     );
     assert_eq!(
-        FeatureSet::new(Vec::new()),
+        FeatureSet::new(Vec::new(), pre_event),
         Err(FeatureAuthoringError::InvalidFeatureSet)
     );
 }

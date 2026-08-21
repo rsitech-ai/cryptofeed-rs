@@ -281,39 +281,20 @@ pub enum Direction {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CurrentPhase {
-    Normal,
-    Buildup,
-    Ignition,
-    Cascade,
-    Exhaustion,
-    Aftermath,
-    Invalid,
+pub enum KnownDirection {
+    Up,
+    Down,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ReversalPolicy {
-    current_phase: CurrentPhase,
-    direction: Direction,
-    has_left_normal: bool,
+pub enum ReversalPolicy {
+    PreEventZero,
+    UnknownNormalZero,
+    ReversalRequired { direction: KnownDirection },
 }
 impl ReversalPolicy {
-    pub fn new(current_phase: CurrentPhase, direction: Direction, has_left_normal: bool) -> Self {
-        Self {
-            current_phase,
-            direction,
-            has_left_normal,
-        }
-    }
-    pub fn pre_event_normal(direction: Direction) -> Self {
-        Self::new(CurrentPhase::Normal, direction, false)
-    }
-    fn validated_zero_allowed(self) -> bool {
-        !self.has_left_normal
-            || self.current_phase == CurrentPhase::Normal && self.direction == Direction::Unknown
-    }
     fn reversal_is_critical(self) -> bool {
-        !self.validated_zero_allowed()
+        matches!(self, Self::ReversalRequired { .. })
     }
 }
 
@@ -742,7 +723,8 @@ pub enum EnvelopeQuality {
     Validated,
 }
 
-pub fn envelope_quality(rows: &FeatureSet, policy: ReversalPolicy) -> EnvelopeQuality {
+pub fn envelope_quality(rows: &FeatureSet) -> EnvelopeQuality {
+    let policy = rows.reversal_policy;
     if rows.rows.iter().any(|row| {
         row.name.is_critical(policy)
             && matches!(
@@ -770,6 +752,7 @@ pub struct FeatureObservation {
     value: Option<i128>,
     quality: FeatureQuality,
     reason: FeatureReason,
+    reversal_policy: Option<ReversalPolicy>,
 }
 impl FeatureObservation {
     pub fn name(&self) -> FeatureName {
@@ -792,9 +775,13 @@ impl FeatureObservation {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeatureSet {
     rows: Vec<FeatureObservation>,
+    reversal_policy: ReversalPolicy,
 }
 impl FeatureSet {
-    pub fn new(mut rows: Vec<FeatureObservation>) -> Result<Self, FeatureAuthoringError> {
+    pub fn new(
+        mut rows: Vec<FeatureObservation>,
+        reversal_policy: ReversalPolicy,
+    ) -> Result<Self, FeatureAuthoringError> {
         if rows.len() != FeatureName::CANONICAL.len() {
             return Err(FeatureAuthoringError::InvalidFeatureSet);
         }
@@ -806,10 +793,25 @@ impl FeatureSet {
         {
             return Err(FeatureAuthoringError::InvalidFeatureSet);
         }
-        Ok(Self { rows })
+        if rows.iter().any(|row| {
+            if row.name == FeatureName::ReversalFromExtreme {
+                row.reversal_policy != Some(reversal_policy)
+            } else {
+                row.reversal_policy.is_some()
+            }
+        }) {
+            return Err(FeatureAuthoringError::InvalidFeatureSet);
+        }
+        Ok(Self {
+            rows,
+            reversal_policy,
+        })
     }
     pub fn rows(&self) -> &[FeatureObservation] {
         &self.rows
+    }
+    pub fn reversal_policy(&self) -> ReversalPolicy {
+        self.reversal_policy
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -822,21 +824,59 @@ pub enum FeatureAuthoringError {
     InvalidFeatureObservation,
     #[error("feature set must contain exactly the nine canonical unique rows")]
     InvalidFeatureSet,
+    #[error("feature condition does not apply to that feature")]
+    InvalidFeatureConditions,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum FeatureCondition {
+    ArithmeticInvalid,
+    SourceInvalidated,
+    BookResyncing,
+    ClockDegraded,
+    ReconnectWarmup,
+    SourceStale,
+    InsufficientCoverage,
+    InsufficientSamples,
+    DirectionUnknown,
+    OutOfDomain,
+    OptionalSourceUnavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeatureConditions {
-    pub arithmetic_invalid: bool,
-    pub source_invalidated: bool,
-    pub book_resyncing: bool,
-    pub clock_degraded: bool,
-    pub reconnect_warmup: bool,
-    pub source_stale: bool,
-    pub insufficient_coverage: bool,
-    pub insufficient_samples: bool,
-    pub direction_unknown: bool,
-    pub out_of_domain: bool,
-    pub optional_source_unavailable: bool,
+    name: FeatureName,
+    conditions: BTreeSet<FeatureCondition>,
+}
+impl FeatureConditions {
+    pub fn valid(name: FeatureName) -> Self {
+        Self {
+            name,
+            conditions: BTreeSet::new(),
+        }
+    }
+    pub fn new(
+        name: FeatureName,
+        conditions: impl IntoIterator<Item = FeatureCondition>,
+    ) -> Result<Self, FeatureAuthoringError> {
+        let conditions = conditions.into_iter().collect::<BTreeSet<_>>();
+        let applicable = conditions.iter().all(|condition| match condition {
+            FeatureCondition::BookResyncing => name == FeatureName::BookDepth10bps,
+            FeatureCondition::DirectionUnknown => matches!(
+                name,
+                FeatureName::CrossVenueBreadth | FeatureName::ReversalFromExtreme
+            ),
+            FeatureCondition::OptionalSourceUnavailable => name.is_optional(),
+            _ => true,
+        });
+        if !applicable {
+            return Err(FeatureAuthoringError::InvalidFeatureConditions);
+        }
+        Ok(Self { name, conditions })
+    }
+    fn contains(&self, condition: FeatureCondition) -> bool {
+        self.conditions.contains(&condition)
+    }
 }
 
 pub fn evaluate_feature(
@@ -857,40 +897,43 @@ fn evaluate_feature_inner(
     c: &FeatureConditions,
     policy: ReversalPolicy,
 ) -> Result<FeatureObservation, FeatureAuthoringError> {
-    if c.arithmetic_invalid {
+    if c.name != name {
+        return Err(FeatureAuthoringError::InvalidFeatureConditions);
+    }
+    if c.contains(FeatureCondition::ArithmeticInvalid) {
         return Err(FeatureAuthoringError::ArithmeticAuthoringError);
     }
-    let (reason, quality) = if c.source_invalidated {
+    let (reason, quality) = if c.contains(FeatureCondition::SourceInvalidated) {
         (FeatureReason::SourceInvalidated, FeatureQuality::Invalid)
-    } else if c.book_resyncing {
+    } else if c.contains(FeatureCondition::BookResyncing) {
         (FeatureReason::BookResyncing, FeatureQuality::Invalid)
-    } else if c.reconnect_warmup {
+    } else if c.contains(FeatureCondition::ReconnectWarmup) {
         (FeatureReason::ReconnectWarmup, FeatureQuality::Unavailable)
-    } else if c.source_stale {
+    } else if c.contains(FeatureCondition::SourceStale) {
         (FeatureReason::SourceStale, FeatureQuality::Unavailable)
-    } else if c.insufficient_coverage {
+    } else if c.contains(FeatureCondition::InsufficientCoverage) {
         (
             FeatureReason::InsufficientCoverage,
             FeatureQuality::Unavailable,
         )
-    } else if c.insufficient_samples {
+    } else if c.contains(FeatureCondition::InsufficientSamples) {
         (
             FeatureReason::InsufficientSamples,
             FeatureQuality::Unavailable,
         )
-    } else if c.direction_unknown {
+    } else if c.contains(FeatureCondition::DirectionUnknown) {
         (FeatureReason::DirectionUnknown, FeatureQuality::Unavailable)
-    } else if c.out_of_domain {
+    } else if c.contains(FeatureCondition::OutOfDomain) {
         if name.is_critical(policy) {
             return Err(FeatureAuthoringError::CriticalFeatureAuthoringError);
         }
         (FeatureReason::OutOfDomain, FeatureQuality::Unavailable)
-    } else if c.optional_source_unavailable {
+    } else if c.contains(FeatureCondition::OptionalSourceUnavailable) {
         (
             FeatureReason::OptionalSourceUnavailable,
             FeatureQuality::Unavailable,
         )
-    } else if c.clock_degraded {
+    } else if c.contains(FeatureCondition::ClockDegraded) {
         (FeatureReason::ClockDegraded, FeatureQuality::Degraded)
     } else {
         (FeatureReason::ObservationValid, FeatureQuality::Validated)
@@ -912,6 +955,7 @@ fn evaluate_feature_inner(
         .flatten(),
         quality,
         reason,
+        reversal_policy: (name == FeatureName::ReversalFromExtreme).then_some(policy),
     })
 }
 
@@ -920,27 +964,35 @@ pub fn evaluate_reversal(
     computed: Result<i128, ArithmeticError>,
     conditions: &FeatureConditions,
 ) -> Result<FeatureObservation, FeatureAuthoringError> {
-    if policy.validated_zero_allowed() {
+    if conditions.name != FeatureName::ReversalFromExtreme {
+        return Err(FeatureAuthoringError::InvalidFeatureConditions);
+    }
+    if policy.reversal_is_critical() && conditions.contains(FeatureCondition::DirectionUnknown) {
+        return Err(FeatureAuthoringError::InvalidFeatureConditions);
+    }
+    if matches!(
+        policy,
+        ReversalPolicy::PreEventZero | ReversalPolicy::UnknownNormalZero
+    ) {
         return Ok(FeatureObservation {
             name: FeatureName::ReversalFromExtreme,
             value: Some(0),
             quality: FeatureQuality::Validated,
             reason: FeatureReason::ObservationValid,
+            reversal_policy: Some(policy),
         });
     }
     let mut conditions = conditions.clone();
     let value = match computed {
         Ok(value) => Some(value),
-        Err(ArithmeticError::OutOfDomain) if policy.direction == Direction::Unknown => {
-            conditions.direction_unknown = true;
-            None
-        }
         Err(ArithmeticError::OutOfDomain) => {
-            conditions.out_of_domain = true;
+            conditions.conditions.insert(FeatureCondition::OutOfDomain);
             None
         }
         Err(_) => {
-            conditions.arithmetic_invalid = true;
+            conditions
+                .conditions
+                .insert(FeatureCondition::ArithmeticInvalid);
             None
         }
     };
