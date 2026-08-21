@@ -7,7 +7,9 @@
 
 mod contract;
 mod cursor;
+pub mod features;
 mod provenance;
+pub mod window;
 pub mod wire;
 
 pub use contract::{
