@@ -19,8 +19,8 @@ use crate::{
     },
     mechanics::{FamilyFlags, MechanicsEvidence, Phase, PhaseError, PhaseMachine},
     window::{
-        CoverageInterval, FixedWindow, PROCESSOR_RECORD_CAPACITY, WindowBank, WindowError,
-        WindowKey, WindowKind, WindowSource, WindowSpec, has_exact_coverage,
+        CoverageInterval, FixedWindow, PER_WINDOW_CAPACITY, PROCESSOR_RECORD_CAPACITY, WindowBank,
+        WindowError, WindowKey, WindowKind, WindowSource, WindowSpec, has_exact_coverage,
     },
     wire::{
         ClockQualityV1, ClockSourceKeyV1, ClockStateV1, ConfiguredTargetKeyV1, ContributorKeyV1,
@@ -59,10 +59,18 @@ struct CoverageState {
 
 #[derive(Debug, Clone)]
 struct ContributorCausal {
-    generation: u8,
-    max_source_event_ns: i64,
-    max_receive_ns: i64,
-    max_normalized_ns: i64,
+    generation: Option<u8>,
+    capacity: usize,
+    records: VecDeque<CausalRecord>,
+}
+
+#[derive(Debug, Clone)]
+struct CausalRecord {
+    available_at_ns: i64,
+    horizon_ns: i64,
+    source_event_ns: i64,
+    receive_ns: i64,
+    normalized_ns: i64,
     exact_anchor: MarketAnchor,
 }
 
@@ -80,7 +88,17 @@ impl FeatureRuntime {
     fn new(config: &MechanicsConfigV1) -> Result<Self, SnapshotError> {
         let mut specs = Vec::with_capacity(config.contributors().len() * 6);
         let mut books = BTreeMap::new();
+        let mut causal = BTreeMap::new();
         for contributor in config.contributors() {
+            let causal_capacity = contributor.allowed_families().len() * PER_WINDOW_CAPACITY;
+            causal.insert(
+                contributor.key().clone(),
+                ContributorCausal {
+                    generation: None,
+                    capacity: causal_capacity,
+                    records: VecDeque::with_capacity(causal_capacity),
+                },
+            );
             let source = WindowSource::new(contributor.key().source_id())
                 .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
             for family in contributor.allowed_families() {
@@ -131,7 +149,7 @@ impl FeatureRuntime {
             coverage,
             books,
             generations: BTreeMap::new(),
-            causal: BTreeMap::new(),
+            causal,
             retained_anchor: None,
         })
     }
@@ -166,8 +184,15 @@ impl FeatureRuntime {
                         .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
                 }
                 self.generations.insert(contributor.clone(), generation);
+                self.causal
+                    .get_mut(contributor)
+                    .ok_or_else(|| {
+                        SnapshotError::InvalidInput("unconfigured causal source".into())
+                    })?
+                    .generation = Some(generation);
             }
             Some(current) if generation > current => {
+                self.retain_before_clear(contributor)?;
                 let source = WindowSource::new(contributor.source_id())
                     .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
                 self.windows
@@ -177,10 +202,62 @@ impl FeatureRuntime {
                     *book = BookProjection::new(8, 8, None);
                 }
                 self.generations.insert(contributor.clone(), generation);
-                self.causal.remove(contributor);
+                let causal = self.causal.get_mut(contributor).ok_or_else(|| {
+                    SnapshotError::InvalidInput("unconfigured causal source".into())
+                })?;
+                causal.generation = Some(generation);
+                causal.records.clear();
             }
             _ => {}
         }
+        Ok(())
+    }
+
+    fn retain_before_clear(&mut self, contributor: &ContributorKeyV1) -> Result<(), SnapshotError> {
+        let candidate = self
+            .causal
+            .get(contributor)
+            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured causal source".into()))?
+            .records
+            .iter()
+            .max_by_key(|record| record.available_at_ns)
+            .map(|record| record.exact_anchor.clone());
+        if let Some(candidate) = candidate {
+            if self
+                .retained_anchor
+                .as_ref()
+                .is_none_or(|retained| candidate.available_at >= retained.available_at)
+            {
+                self.retained_anchor = Some(candidate);
+            }
+        }
+        Ok(())
+    }
+
+    fn clear_causal(&mut self, contributor: &ContributorKeyV1) -> Result<(), SnapshotError> {
+        self.retain_before_clear(contributor)?;
+        self.causal
+            .get_mut(contributor)
+            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured causal source".into()))?
+            .records
+            .clear();
+        Ok(())
+    }
+
+    fn push_causal(
+        &mut self,
+        contributor: &ContributorKeyV1,
+        record: CausalRecord,
+    ) -> Result<(), SnapshotError> {
+        let causal = self
+            .causal
+            .get_mut(contributor)
+            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured causal source".into()))?;
+        if causal.records.len() == causal.capacity {
+            return Err(SnapshotError::FeatureQueueDrop);
+        }
+        causal.records.push_back(record);
+        self.retained_anchor = None;
         Ok(())
     }
 
@@ -355,38 +432,35 @@ impl FeatureRuntime {
                     )?,
                     _ => {}
                 }
-                let exact_anchor = market_anchor(input)?.ok_or_else(|| {
-                    SnapshotError::InvalidInput("market input has no causal anchor".into())
-                })?;
-                let source_event_ns = envelope
-                    .exchange_ts
-                    .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?
-                    .0;
-                let generation = epoch.epoch_generation();
-                self.causal
-                    .entry(contributor.clone())
-                    .and_modify(|state| {
-                        state.max_source_event_ns = state.max_source_event_ns.max(source_event_ns);
-                        state.max_receive_ns = state.max_receive_ns.max(envelope.receive_ts.0);
-                        state.max_normalized_ns =
-                            state.max_normalized_ns.max(envelope.receive_ts.0);
-                        if exact_anchor.available_at >= state.exact_anchor.available_at {
-                            state.exact_anchor = exact_anchor.clone();
-                        }
-                    })
-                    .or_insert_with(|| ContributorCausal {
-                        generation,
-                        max_source_event_ns: source_event_ns,
-                        max_receive_ns: envelope.receive_ts.0,
-                        max_normalized_ns: envelope.receive_ts.0,
-                        exact_anchor: exact_anchor.clone(),
-                    });
-                if self
-                    .retained_anchor
-                    .as_ref()
-                    .is_none_or(|retained| exact_anchor.available_at >= retained.available_at)
-                {
-                    self.retained_anchor = Some(exact_anchor);
+                let causal_horizon_ns = match envelope.payload {
+                    MarketEvent::Trade(_)
+                    | MarketEvent::OpenInterest(_)
+                    | MarketEvent::Liquidation(_) => Some(5_000_000_000),
+                    MarketEvent::Quote(_)
+                    | MarketEvent::BookSnapshot(_)
+                    | MarketEvent::BookDelta(_) => Some(250_000_000),
+                    MarketEvent::MarkPrice(_) | MarketEvent::IndexPrice(_) => Some(1_000_000_000),
+                    _ => None,
+                };
+                if let Some(horizon_ns) = causal_horizon_ns {
+                    let exact_anchor = market_anchor(input)?.ok_or_else(|| {
+                        SnapshotError::InvalidInput("market input has no causal anchor".into())
+                    })?;
+                    let source_event_ns = envelope
+                        .exchange_ts
+                        .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?
+                        .0;
+                    self.push_causal(
+                        &contributor,
+                        CausalRecord {
+                            available_at_ns: at_ns,
+                            horizon_ns,
+                            source_event_ns,
+                            receive_ns: envelope.receive_ts.0,
+                            normalized_ns: envelope.receive_ts.0,
+                            exact_anchor,
+                        },
+                    )?;
                 }
             }
             MechanicsInputRefV1::Coverage {
@@ -426,7 +500,7 @@ impl FeatureRuntime {
                         if let Some(book) = self.books.get_mut(&target) {
                             book.invalidate();
                         }
-                        self.causal.remove(&target);
+                        self.clear_causal(&target)?;
                     }
                 }
                 crate::wire::SystemFaultRefV1::BookResynchronized => {
@@ -438,7 +512,7 @@ impl FeatureRuntime {
                 }
                 _ => {
                     for target in input_subjects(input, config) {
-                        self.causal.remove(&target);
+                        self.clear_causal(&target)?;
                     }
                 }
             },
@@ -459,7 +533,20 @@ impl FeatureRuntime {
         if let Some(book) = self.books.get_mut(contributor) {
             book.invalidate();
         }
-        self.causal.remove(contributor);
+        self.clear_causal(contributor)?;
+        Ok(())
+    }
+
+    fn invalidate_coverage(
+        &mut self,
+        coverage: &CoverageSourceKeyV1,
+        at_ns: i64,
+    ) -> Result<(), SnapshotError> {
+        self.coverage
+            .get_mut(coverage)
+            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured coverage".into()))?
+            .window
+            .clear_for_new_epoch(at_ns);
         Ok(())
     }
 
@@ -532,6 +619,18 @@ impl FeatureRuntime {
                 .window
                 .evict(decision_ns)
                 .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        }
+        for causal in self.causal.values_mut() {
+            let mut retained = VecDeque::with_capacity(causal.capacity);
+            while let Some(record) = causal.records.pop_front() {
+                let boundary = decision_ns
+                    .checked_sub(record.horizon_ns)
+                    .ok_or_else(arithmetic_overflow)?;
+                if record.available_at_ns >= boundary {
+                    retained.push_back(record);
+                }
+            }
+            causal.records = retained;
         }
         Ok(())
     }
@@ -757,6 +856,7 @@ pub struct MechanicsProcessor {
     records: ProcessorLog<ProcessorRecord>,
     checkpoint: Option<ReplayCheckpoint>,
     active_causes: BTreeMap<CauseKey, Cause>,
+    master_queue_drops: BTreeMap<CauseKey, Option<u8>>,
     current: Option<SnapshotObservation>,
     phase: PhaseMachine,
     last_input_micros: Option<i64>,
@@ -793,10 +893,13 @@ impl MechanicsProcessor {
             .collect::<BTreeMap<_, _>>();
         let next_revision = authoring.revision_start();
         let predecessor = authoring.predecessor_content_hash().map(str::to_owned);
-        let active_causes = configured_cause_keys(&config)
-            .into_iter()
+        let cause_keys = configured_cause_keys(&config);
+        let active_causes = cause_keys
+            .iter()
+            .cloned()
             .map(|key| (key, Cause::None))
             .collect();
+        let master_queue_drops = cause_keys.into_iter().map(|key| (key, None)).collect();
         let feature_runtime = FeatureRuntime::new(&config)?;
         Ok(Self {
             sources: SourceStateMachine::new(config.clone()),
@@ -807,6 +910,7 @@ impl MechanicsProcessor {
             records: ProcessorLog::new(),
             checkpoint: None,
             active_causes,
+            master_queue_drops,
             current: None,
             phase: PhaseMachine::new(),
             last_input_micros: None,
@@ -856,14 +960,9 @@ impl MechanicsProcessor {
             Err(error) => {
                 self.sources = candidate_sources;
                 self.record_failure(input, &error);
-                let master_drop_latched =
-                    input_subjects(input, &self.config).iter().any(|subject| {
-                        matches!(
-                            self.active_causes
-                                .get(&CauseKey::Contributor(subject.clone())),
-                            Some(Cause::QueueDrop(_))
-                        )
-                    });
+                let master_drop_latched = input_cause_keys(input, &self.config)
+                    .iter()
+                    .any(|key| matches!(self.active_causes.get(key), Some(Cause::QueueDrop(_))));
                 if error.invalidates_state() && !master_drop_latched {
                     ensure_record_capacity(self.records.len())?;
                     self.records
@@ -883,7 +982,8 @@ impl MechanicsProcessor {
         };
         if outcome != IngestOutcome::IgnoredDuplicate {
             ensure_record_capacity(self.records.len())?;
-            if let Err(error) = self.feature_runtime.ingest(input, &self.config) {
+            let mut candidate_runtime = self.feature_runtime.clone();
+            if let Err(error) = candidate_runtime.ingest(input, &self.config) {
                 if error == SnapshotError::FeatureQueueDrop {
                     for cause_key in input_cause_keys(input, &self.config) {
                         if let Some(cause) = self.active_causes.get_mut(&cause_key) {
@@ -903,6 +1003,7 @@ impl MechanicsProcessor {
                         },
                     )?;
                     self.sources = candidate_sources;
+                    self.feature_runtime = candidate_runtime;
                     self.last_input_micros = Some(at);
                     self.last_order = Some(order);
                 }
@@ -917,6 +1018,7 @@ impl MechanicsProcessor {
                     },
                 )
                 .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            self.feature_runtime = candidate_runtime;
         }
         self.sources = candidate_sources;
         self.apply_input_cause(input);
@@ -1067,10 +1169,16 @@ impl MechanicsProcessor {
     fn record_queue_drop(
         &mut self,
         input: &MechanicsInputV1,
-        _at_micros: i64,
+        at_micros: i64,
     ) -> Result<(), SnapshotError> {
         let keys = input_cause_keys(input, &self.config);
+        let at_ns = at_micros
+            .checked_mul(1_000)
+            .ok_or(SnapshotError::Capacity)?;
         for key in &keys {
+            if let Some(latch) = self.master_queue_drops.get_mut(key) {
+                *latch = Some(input_generation(input));
+            }
             if let Some(cause) = self.active_causes.get_mut(key) {
                 *cause = Cause::QueueDrop(input_generation(input));
             }
@@ -1079,32 +1187,28 @@ impl MechanicsProcessor {
                     *cause = Cause::QueueDrop(input_generation(input));
                 }
             }
-        }
-        let subjects = input_subjects(input, &self.config);
-        for subject in &subjects {
-            self.sources
-                .invalidate_contributor_for_queue_drop(subject)
-                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
-            self.feature_runtime.invalidate_contributor(subject)?;
+            invalidate_queue_drop_slot(
+                &mut self.sources,
+                &mut self.feature_runtime,
+                &self.config,
+                key,
+                at_ns,
+            )?;
             if let Some(checkpoint) = self.checkpoint.as_mut() {
-                checkpoint
-                    .sources
-                    .invalidate_contributor_for_queue_drop(subject)
-                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
-                checkpoint.runtime.invalidate_contributor(subject)?;
+                invalidate_queue_drop_slot(
+                    &mut checkpoint.sources,
+                    &mut checkpoint.runtime,
+                    &self.config,
+                    key,
+                    at_ns,
+                )?;
             }
         }
         let config = self.config.clone();
         self.records.retain(|record| {
-            if subjects.is_empty() {
-                !input_cause_keys(&record.value.input, &config)
-                    .iter()
-                    .any(|key| keys.contains(key))
-            } else {
-                !input_subjects(&record.value.input, &config)
-                    .iter()
-                    .any(|subject| subjects.contains(subject))
-            }
+            !input_cause_keys(&record.value.input, &config)
+                .iter()
+                .any(|key| keys.contains(key))
         });
         self.cache = None;
         Ok(())
@@ -1143,6 +1247,17 @@ impl MechanicsProcessor {
                 }
             };
             if recovered {
+                if self
+                    .master_queue_drops
+                    .get(&key)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|generation| input_generation(input) > generation)
+                {
+                    if let Some(latch) = self.master_queue_drops.get_mut(&key) {
+                        *latch = None;
+                    }
+                }
                 if let Some(cause) = self.active_causes.get_mut(&key) {
                     let generation = match *cause {
                         Cause::Sequence(generation)
@@ -1158,7 +1273,13 @@ impl MechanicsProcessor {
                 }
             }
         }
-        clear_retired_system_causes(&self.sources, input, &self.config, &mut self.active_causes);
+        clear_retired_system_causes(
+            &self.sources,
+            input,
+            &self.config,
+            &self.master_queue_drops,
+            &mut self.active_causes,
+        );
     }
 
     fn derive_owned_observation(
@@ -1187,17 +1308,24 @@ impl MechanicsProcessor {
             .as_ref()
             .filter(|checkpoint| checkpoint.at_ns <= decision_ns);
         let checkpoint_ns = checkpoint.map(|checkpoint| checkpoint.at_ns);
-        let current_causal = runtime
-            .causal
-            .iter()
-            .filter(|(key, causal)| {
-                sources.contributor_invalidity(key).is_none()
-                    && sources
-                        .contributor_cursor(key)
-                        .is_some_and(|cursor| cursor.epoch_generation == causal.generation)
-            })
-            .map(|(_, causal)| causal)
-            .collect::<Vec<_>>();
+        let mut current_causal = Vec::new();
+        for (key, causal) in &runtime.causal {
+            if sources.contributor_invalidity(key).is_some()
+                || sources
+                    .contributor_cursor(key)
+                    .is_none_or(|cursor| Some(cursor.epoch_generation) != causal.generation)
+            {
+                continue;
+            }
+            for record in &causal.records {
+                let boundary = decision_ns
+                    .checked_sub(record.horizon_ns)
+                    .ok_or_else(arithmetic_overflow)?;
+                if record.available_at_ns >= boundary {
+                    current_causal.push(record);
+                }
+            }
+        }
         let anchor = if current_causal.is_empty() {
             runtime
                 .retained_anchor
@@ -1212,17 +1340,17 @@ impl MechanicsProcessor {
                 .clone();
             let max_source_event_ns = current_causal
                 .iter()
-                .map(|causal| causal.max_source_event_ns)
+                .map(|causal| causal.source_event_ns)
                 .max()
                 .expect("non-empty causal state");
             let max_receive_ns = current_causal
                 .iter()
-                .map(|causal| causal.max_receive_ns)
+                .map(|causal| causal.receive_ns)
                 .max()
                 .expect("non-empty causal state");
             let max_normalized_ns = current_causal
                 .iter()
-                .map(|causal| causal.max_normalized_ns)
+                .map(|causal| causal.normalized_ns)
                 .max()
                 .expect("non-empty causal state");
             exact.source_event_time = Rfc3339Time::from_unix_nanos(max_source_event_ns)
@@ -1916,13 +2044,24 @@ impl MechanicsProcessor {
                         }
                     }
                     if record.value.accepted_evidence {
-                        clear_recovered_input_cause(&sources, input, &self.config, &mut causes);
+                        clear_recovered_input_cause(
+                            &sources,
+                            input,
+                            &self.config,
+                            &self.master_queue_drops,
+                            &mut causes,
+                        );
                     }
                 }
                 Err(error) if error.invalidates_state() => {
                     for key in input_cause_keys(input, &self.config) {
                         if let Some(cause) = causes.get_mut(&key) {
                             *cause = Cause::Sequence(input_generation(input));
+                        }
+                    }
+                    if matches!(input.view(), MechanicsInputRefV1::Market { .. }) {
+                        for subject in input_subjects(input, &self.config) {
+                            runtime.invalidate_contributor(&subject)?;
                         }
                     }
                 }
@@ -1936,12 +2075,7 @@ impl MechanicsProcessor {
             if let Some(cause) = causes.get_mut(key) {
                 *cause = *active;
             }
-            if let CauseKey::Contributor(subject) = key {
-                sources
-                    .invalidate_contributor_for_queue_drop(subject)
-                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
-                runtime.invalidate_contributor(subject)?;
-            }
+            invalidate_queue_drop_slot(&mut sources, &mut runtime, &self.config, key, decision_ns)?;
         }
         Ok((sources, runtime, causes))
     }
@@ -2367,6 +2501,46 @@ fn configured_cause_keys(config: &MechanicsConfigV1) -> Vec<CauseKey> {
     keys
 }
 
+fn invalidate_queue_drop_slot(
+    sources: &mut SourceStateMachine,
+    runtime: &mut FeatureRuntime,
+    config: &MechanicsConfigV1,
+    key: &CauseKey,
+    at_ns: i64,
+) -> Result<(), SnapshotError> {
+    match key {
+        CauseKey::Contributor(contributor) => {
+            sources
+                .invalidate_contributor_for_queue_drop(contributor)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            runtime.invalidate_contributor(contributor)?;
+        }
+        CauseKey::Clock(clock) => sources
+            .invalidate_clock_for_queue_drop(clock)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+        CauseKey::Coverage(coverage) => {
+            sources
+                .invalidate_coverage_for_queue_drop(coverage)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            runtime.invalidate_coverage(coverage, at_ns)?;
+        }
+        CauseKey::System(system) => {
+            let configured = config
+                .system_sources()
+                .iter()
+                .find(|configured| {
+                    configured.source_id() == system.source_id
+                        && configured.configured_target_key() == &system.target
+                })
+                .ok_or_else(|| SnapshotError::InvalidInput("unconfigured system".into()))?;
+            sources
+                .invalidate_system_for_queue_drop(configured)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        }
+    }
+    Ok(())
+}
+
 fn input_cause_keys(input: &MechanicsInputV1, config: &MechanicsConfigV1) -> Vec<CauseKey> {
     match input.view() {
         MechanicsInputRefV1::Market { .. } => input_subjects(input, config)
@@ -2412,6 +2586,7 @@ fn clear_recovered_input_cause(
     sources: &SourceStateMachine,
     input: &MechanicsInputV1,
     config: &MechanicsConfigV1,
+    master_queue_drops: &BTreeMap<CauseKey, Option<u8>>,
     causes: &mut BTreeMap<CauseKey, Cause>,
 ) {
     for key in input_cause_keys(input, config) {
@@ -2445,20 +2620,27 @@ fn clear_recovered_input_cause(
             }
         }
     }
-    clear_retired_system_causes(sources, input, config, causes);
+    clear_retired_system_causes(sources, input, config, master_queue_drops, causes);
 }
 
 fn clear_retired_system_causes(
     sources: &SourceStateMachine,
     input: &MechanicsInputV1,
     config: &MechanicsConfigV1,
+    master_queue_drops: &BTreeMap<CauseKey, Option<u8>>,
     causes: &mut BTreeMap<CauseKey, Cause>,
 ) {
     if !matches!(input.view(), MechanicsInputRefV1::Market { .. }) {
         return;
     }
-    let recovery_generation = input_generation(input);
+    let Some(recovery_subject) = input_subjects(input, config).into_iter().next() else {
+        return;
+    };
+    let recovery_connection = config.contributor_connections().get(&recovery_subject);
     for (key, cause) in causes.iter_mut() {
+        if master_queue_drops.get(key).copied().flatten().is_some() {
+            continue;
+        }
         let CauseKey::System(system_cause) = key else {
             continue;
         };
@@ -2468,14 +2650,17 @@ fn clear_retired_system_causes(
         }) else {
             continue;
         };
-        let fault_generation = match *cause {
-            Cause::Sequence(generation)
-            | Cause::Book(generation)
-            | Cause::QueueDrop(generation)
-            | Cause::Warmup(generation) => generation,
+        match *cause {
+            Cause::Sequence(_) | Cause::Book(_) | Cause::QueueDrop(_) | Cause::Warmup(_) => {}
             Cause::None => continue,
-        };
-        if recovery_generation > fault_generation && sources.system_cursor(configured).is_none() {
+        }
+        let target = configured.configured_target_key();
+        let exact_target_recovered = target.contributor_key() == Some(&recovery_subject)
+            || target
+                .connection_key()
+                .zip(recovery_connection)
+                .is_some_and(|(target, recovery)| target == recovery);
+        if exact_target_recovered && sources.system_cursor(configured).is_none() {
             *cause = Cause::None;
         }
     }

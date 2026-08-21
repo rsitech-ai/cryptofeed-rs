@@ -682,6 +682,37 @@ fn processor_clock_jump_uses_reserved_derived_cursor_and_clears_clock_observatio
 }
 
 #[test]
+fn processor_system_chain_survives_contributor_connection_restarts() {
+    let f = fixture();
+    let mut state = SourceStateMachine::new(f.config);
+    state
+        .ingest(&market(1, 1, (1, 1), 0, "epoch_a", 0))
+        .unwrap();
+    let fault = MechanicsInputV1::system(
+        SystemSourceV1::new(f.processor_system.clone(), "epoch_system", 0).unwrap(),
+        FaultScopeV1::processor("event_pulse_processor").unwrap(),
+        time(2),
+        time(2),
+        CursorV1::derived(7, 0, 0).unwrap(),
+        SystemFaultV1::clock_jump(1_000),
+        None,
+    )
+    .unwrap();
+    let head = SystemChainPreimage::hash_first(fault.payload_hash()).unwrap();
+    state.ingest(&fault).unwrap();
+    state
+        .ingest(&market(1, 1, (1, 1), 60_000_000_002, "epoch_b", 1))
+        .unwrap();
+    state
+        .ingest(&market(1, 1, (1, 1), 120_000_000_002, "epoch_c", 2))
+        .unwrap();
+    assert_eq!(
+        state.system_chain_head(&f.processor_system),
+        Some(head.as_str())
+    );
+}
+
+#[test]
 fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
     let f = fixture();
     let mut state = SourceStateMachine::new(f.config);

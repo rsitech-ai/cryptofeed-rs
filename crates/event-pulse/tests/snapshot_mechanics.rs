@@ -12,8 +12,8 @@ use marketfeed_event_pulse::{
         ContributorSpecV1, ContributorV1, CoverageCursorV1, CoverageSourceKeyV1, CoverageSourceV1,
         CursorModeV1, CursorV1, DropCategoryV1, FamilyV1, FaultScopeKindV1, FaultScopeV1,
         InstrumentIdentityV1, MechanicsConfigV1, MechanicsInputV1, OpenInterestEncodingV1,
-        ReplayCatalogV1, ReplayEpochEntryV1, Rfc3339Time, SnapshotAuthoringV1, SystemFaultV1,
-        SystemSourceKeyV1, SystemSourceV1, VenueCatalogEntryV1,
+        ReplayCatalogV1, ReplayEpochEntryV1, Rfc3339Time, SnapshotAuthoringV1, SystemChainPreimage,
+        SystemFaultV1, SystemSourceKeyV1, SystemSourceV1, VenueCatalogEntryV1,
     },
 };
 use marketfeed_model::{
@@ -559,6 +559,86 @@ fn ingest_capacity_controls(
     }
 }
 
+fn capacity_clock(
+    fixture: &CapacityFixture,
+    contributor_index: usize,
+    sequence: u64,
+    at: i64,
+    source_epoch: &str,
+    source_generation: u8,
+) -> MechanicsInputV1 {
+    MechanicsInputV1::clock(
+        ContributorV1::new(
+            fixture.contributors[contributor_index].clone(),
+            "epoch_a",
+            0,
+        )
+        .unwrap(),
+        ClockSourceV1::new(
+            fixture.clocks[contributor_index].clone(),
+            source_epoch,
+            source_generation,
+        )
+        .unwrap(),
+        time_ns(at),
+        time_ns(at),
+        ClockCursorV1::native(sequence, sequence).unwrap(),
+        ClockStateV1::Synchronized,
+        CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+        2_000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_WITHIN_TOLERANCE",
+    )
+    .unwrap()
+}
+
+fn fill_master_with_clock(
+    processor: &mut MechanicsProcessor,
+    fixture: &CapacityFixture,
+    already_present: usize,
+) {
+    let remaining = PROCESSOR_RECORD_CAPACITY - already_present;
+    for sequence in 1..=u64::try_from(remaining).unwrap() {
+        processor
+            .ingest(&capacity_clock(
+                fixture,
+                0,
+                sequence,
+                i64::try_from(sequence).unwrap() * 1_000,
+                "epoch_clock_a",
+                0,
+            ))
+            .unwrap();
+    }
+}
+
+fn initialize_capacity_markets(processor: &mut MechanicsProcessor, fixture: &CapacityFixture) {
+    processor
+        .ingest(&capacity_market(
+            fixture,
+            0,
+            1,
+            0,
+            "epoch_a",
+            0,
+            trade(100 * SCALE),
+        ))
+        .unwrap();
+    processor
+        .ingest(&capacity_market(
+            fixture,
+            1,
+            1,
+            0,
+            "epoch_a",
+            0,
+            MarketEvent::MarkPrice(PricePoint {
+                price: Price(Fixed::new(100 * SCALE, 8)),
+            }),
+        ))
+        .unwrap();
+}
+
 fn trade(price: i128) -> MarketEvent {
     trade_with_side(price, AggressorSide::Buy)
 }
@@ -968,8 +1048,20 @@ fn system_input(
     at: i64,
     fault: SystemFaultV1,
 ) -> MechanicsInputV1 {
+    system_input_in_epoch(key, scope, sequence, at, fault, "epoch_system_a", 0)
+}
+
+fn system_input_in_epoch(
+    key: &SystemSourceKeyV1,
+    scope: FaultScopeV1,
+    sequence: u64,
+    at: i64,
+    fault: SystemFaultV1,
+    epoch: &str,
+    generation: u8,
+) -> MechanicsInputV1 {
     MechanicsInputV1::system(
-        SystemSourceV1::new(key.clone(), "epoch_system_a", 0).unwrap(),
+        SystemSourceV1::new(key.clone(), epoch, generation).unwrap(),
         scope,
         time_ns(at),
         time_ns(at),
@@ -1559,12 +1651,14 @@ fn contributor_system_fault_is_scoped_to_its_book_owner_and_retires_on_greater_g
     let (mut processor, _) = warmed_split_processor_for(fixture);
     let fault_at = 61_100_000_000;
     processor
-        .ingest(&system_input(
+        .ingest(&system_input_in_epoch(
             &key,
             FaultScopeV1::contributor(ContributorV1::new(target.clone(), "epoch_a", 0).unwrap()),
             1,
             fault_at,
             SystemFaultV1::book_invalidated(),
+            "epoch_system_b",
+            1,
         ))
         .unwrap();
 
@@ -2483,6 +2577,94 @@ fn causal_market_anchor_uses_componentwise_current_maxima() {
 }
 
 #[test]
+fn rejected_wrong_family_generation_change_is_feature_runtime_atomic() {
+    let mut affected = warmed_processor(60_080_000_000);
+    let mut fresh = affected.clone();
+    let wrong_family = market_in_epoch(
+        1,
+        60_090_000_000,
+        MarketEvent::MarkPrice(PricePoint {
+            price: Price(Fixed::new(100 * SCALE, 8)),
+        }),
+        "epoch_b",
+        1,
+    );
+    let rejected = affected.ingest(&wrong_family);
+    assert!(rejected.is_err(), "{rejected:?}");
+    let valid_prefix = market(9, 60_091_000_000, trade(102 * SCALE));
+    affected.ingest(&valid_prefix).unwrap();
+    fresh.ingest(&valid_prefix).unwrap();
+    let affected_snapshot = affected.snapshot(time_ns(60_092_000_000)).unwrap();
+    let fresh_snapshot = fresh.snapshot(time_ns(60_092_000_000)).unwrap();
+    assert_eq!(
+        affected_snapshot.canonical_json(),
+        fresh_snapshot.canonical_json()
+    );
+    assert_eq!(
+        affected_snapshot.content_hash(),
+        fresh_snapshot.content_hash()
+    );
+}
+
+#[test]
+fn causal_maxima_expire_with_the_sealed_feature_horizon() {
+    let fixture = fixture();
+    let mut processor = warmed_processor(60_080_000_000);
+    processor
+        .ingest(&market(
+            9,
+            66_200_000_000,
+            MarketEvent::Quote(Quote {
+                bid_price: Price(Fixed::new(100 * SCALE, 8)),
+                bid_quantity: None,
+                ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
+                ask_quantity: None,
+            }),
+        ))
+        .unwrap();
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            66_200_000_000,
+            "epoch_clock_a",
+            0,
+            2,
+            "0.25",
+        ))
+        .unwrap();
+    ingest_coverage_round(&mut processor, &fixture, 66_200_000_000, 2, "epoch_a", 0);
+    processor.snapshot(time_ns(66_200_000_000)).unwrap();
+
+    let base = market(10, 66_490_000_000, trade(102 * SCALE));
+    let mut envelope = match base.view() {
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Market { envelope, .. } => {
+            envelope.clone()
+        }
+        _ => unreachable!(),
+    };
+    envelope.exchange_ts = Some(TimestampNs(66_100_000_000));
+    processor
+        .ingest(&MechanicsInputV1::market(envelope, 0, catalog_epoch("epoch_a", 0)).unwrap())
+        .unwrap();
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            66_495_000_000,
+            "epoch_clock_a",
+            0,
+            3,
+            "0.25",
+        ))
+        .unwrap();
+    ingest_coverage_round(&mut processor, &fixture, 66_495_000_000, 3, "epoch_a", 0);
+    let snapshot = processor.snapshot(time_ns(66_500_000_000)).unwrap();
+    assert_eq!(
+        snapshot.value()["causal_time"]["source_event_time"],
+        "1970-01-01T00:01:06.100000Z"
+    );
+}
+
+#[test]
 fn snapshot_seals_only_the_requested_prefix_and_retains_future_groups() {
     let mut processor = warmed_processor(60_080_000_000);
     processor
@@ -2714,21 +2896,24 @@ fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation(
             }),
         ))
         .unwrap();
-    processor
-        .ingest(&capacity_market(
-            &fixture,
-            1,
-            1,
-            0,
-            "epoch_a",
-            0,
-            MarketEvent::MarkPrice(PricePoint {
-                price: Price(Fixed::new(100 * SCALE, 8)),
-            }),
-        ))
-        .unwrap();
-    for contributor_index in 0..2 {
-        for sequence in 1..=32_767 {
+    for sequence in 1..=20 {
+        processor
+            .ingest(&capacity_market(
+                &fixture,
+                1,
+                sequence,
+                0,
+                "epoch_a",
+                0,
+                MarketEvent::MarkPrice(PricePoint {
+                    price: Price(Fixed::new(100 * SCALE, 8)),
+                }),
+            ))
+            .unwrap();
+    }
+    let clock_counts = [32_758_u64, 32_757_u64];
+    for (contributor_index, count) in clock_counts.into_iter().enumerate() {
+        for sequence in 1..=count {
             processor
                 .ingest(
                     &MechanicsInputV1::clock(
@@ -2758,12 +2943,15 @@ fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation(
                 .unwrap();
         }
     }
-    assert_eq!(2 + 2 * 32_767, PROCESSOR_RECORD_CAPACITY);
+    assert_eq!(
+        21 + clock_counts.iter().sum::<u64>() as usize,
+        PROCESSOR_RECORD_CAPACITY
+    );
 
     let overflow = capacity_market(
         &fixture,
         1,
-        2,
+        21,
         2_000_000,
         "epoch_a",
         0,
@@ -2827,7 +3015,7 @@ fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation(
                 ClockSourceV1::new(fixture.clocks[0].clone(), "epoch_clock_a", 0).unwrap(),
                 time_ns(60_009_000_000),
                 time_ns(60_009_000_000),
-                ClockCursorV1::native(32_768, 32_768).unwrap(),
+                ClockCursorV1::native(clock_counts[0] + 1, clock_counts[0] + 1).unwrap(),
                 ClockStateV1::Synchronized,
                 CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
                 2_000,
@@ -2898,7 +3086,7 @@ fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation(
         .iter()
         .find(|cursor| cursor["source_id"] == "x_clock_00")
         .unwrap();
-    assert_eq!(unrelated["sequence_end"], 32_768);
+    assert_eq!(unrelated["sequence_end"], clock_counts[0] + 1);
     let recovered = cursors
         .iter()
         .find(|cursor| cursor["source_id"] == "b_confirmation")
@@ -2912,4 +3100,194 @@ fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation(
             .iter()
             .any(|flag| flag == "QUEUE_DROP")
     );
+}
+
+#[test]
+fn public_master_capacity_clock_drop_is_exact_slot_scoped() {
+    let fixture = capacity_fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    initialize_capacity_markets(&mut processor, &fixture);
+    for sequence in 1..=2 {
+        processor
+            .ingest(&capacity_clock(
+                &fixture,
+                1,
+                sequence,
+                0,
+                "epoch_clock_a",
+                0,
+            ))
+            .unwrap();
+    }
+    fill_master_with_clock(&mut processor, &fixture, 4);
+    let overflow = capacity_clock(&fixture, 1, 3, 70_000_000, "epoch_clock_a", 0);
+    assert!(matches!(
+        processor.ingest(&overflow),
+        Err(SnapshotError::InvalidInput(message))
+            if message == "bounded processor queue dropped the unaccepted input"
+    ));
+    assert!(processor.ingest(&overflow).is_err());
+    processor
+        .ingest(&capacity_market(
+            &fixture,
+            1,
+            2,
+            70_001_000,
+            "epoch_a",
+            0,
+            MarketEvent::MarkPrice(PricePoint {
+                price: Price(Fixed::new(101 * SCALE, 8)),
+            }),
+        ))
+        .unwrap();
+    processor
+        .ingest(&capacity_clock(
+            &fixture,
+            1,
+            1,
+            70_002_000,
+            "epoch_clock_b",
+            1,
+        ))
+        .unwrap();
+}
+
+#[test]
+fn public_master_capacity_coverage_drop_is_exact_slot_scoped() {
+    let fixture = capacity_fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    initialize_capacity_markets(&mut processor, &fixture);
+    let coverage = fixture
+        .config
+        .coverage_sources()
+        .iter()
+        .find(|key| key.subject() == &fixture.contributors[1])
+        .unwrap()
+        .clone();
+    let coverage_input = |sequence, at, epoch: &str, generation| {
+        MechanicsInputV1::coverage(
+            ContributorV1::new(fixture.contributors[1].clone(), "epoch_a", 0).unwrap(),
+            CoverageSourceV1::new(coverage.clone(), epoch, generation).unwrap(),
+            coverage.family(),
+            time_ns(0),
+            time_ns(at),
+            time_ns(at),
+            CoverageCursorV1::native(sequence, sequence).unwrap(),
+        )
+        .unwrap()
+    };
+    for sequence in 1..=2 {
+        processor
+            .ingest(&coverage_input(sequence, 0, "epoch_coverage_a", 0))
+            .unwrap();
+    }
+    fill_master_with_clock(&mut processor, &fixture, 4);
+    let overflow = coverage_input(3, 70_000_000, "epoch_coverage_a", 0);
+    assert!(processor.ingest(&overflow).is_err());
+    assert!(processor.ingest(&overflow).is_err());
+    processor
+        .ingest(&capacity_market(
+            &fixture,
+            1,
+            2,
+            70_001_000,
+            "epoch_a",
+            0,
+            MarketEvent::MarkPrice(PricePoint {
+                price: Price(Fixed::new(101 * SCALE, 8)),
+            }),
+        ))
+        .unwrap();
+    processor
+        .ingest(&coverage_input(1, 70_002_000, "epoch_coverage_b", 1))
+        .unwrap();
+}
+
+#[test]
+fn public_master_capacity_system_drop_is_exact_slot_scoped() {
+    let mut fixture = capacity_fixture();
+    let system_key = SystemSourceKeyV1::new(
+        "z_capacity_system",
+        FaultScopeKindV1::Contributor,
+        ConfiguredTargetKeyV1::contributor(fixture.contributors[0].clone()),
+        CursorModeV1::Native,
+    )
+    .unwrap();
+    fixture.config = MechanicsConfigV1::new(
+        fixture.config.processor_id(),
+        fixture.config.connections().to_vec(),
+        fixture.config.contributors().to_vec(),
+        fixture.config.contributor_connections().clone(),
+        fixture.config.clock_sources().to_vec(),
+        fixture.config.coverage_sources().to_vec(),
+        vec![system_key.clone()],
+    )
+    .unwrap();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    initialize_capacity_markets(&mut processor, &fixture);
+    let scope = FaultScopeV1::contributor(
+        ContributorV1::new(fixture.contributors[0].clone(), "epoch_a", 0).unwrap(),
+    );
+    let first = system_input(
+        &system_key,
+        scope.clone(),
+        1,
+        0,
+        SystemFaultV1::book_resynchronized(),
+    );
+    let head_one = SystemChainPreimage::hash_first(first.payload_hash()).unwrap();
+    processor.ingest(&first).unwrap();
+    let second = MechanicsInputV1::system(
+        SystemSourceV1::new(system_key.clone(), "epoch_system_a", 0).unwrap(),
+        scope.clone(),
+        time_ns(0),
+        time_ns(0),
+        CursorV1::native(2, 2).unwrap(),
+        SystemFaultV1::book_resynchronized(),
+        Some(head_one),
+    )
+    .unwrap();
+    let head_two = SystemChainPreimage::hash_next(
+        SystemChainPreimage::hash_first(first.payload_hash())
+            .unwrap()
+            .as_str(),
+        second.payload_hash(),
+    )
+    .unwrap();
+    processor.ingest(&second).unwrap();
+    fill_master_with_clock(&mut processor, &fixture, 4);
+    let overflow = MechanicsInputV1::system(
+        SystemSourceV1::new(system_key.clone(), "epoch_system_a", 0).unwrap(),
+        scope.clone(),
+        time_ns(70_000_000),
+        time_ns(70_000_000),
+        CursorV1::native(3, 3).unwrap(),
+        SystemFaultV1::book_resynchronized(),
+        Some(head_two.clone()),
+    )
+    .unwrap();
+    assert!(processor.ingest(&overflow).is_err());
+    assert!(processor.ingest(&overflow).is_err());
+    processor
+        .ingest(&capacity_market(
+            &fixture,
+            0,
+            2,
+            70_001_000,
+            "epoch_a",
+            0,
+            trade(101 * SCALE),
+        ))
+        .unwrap();
+    let recovered = MechanicsInputV1::system(
+        SystemSourceV1::new(system_key, "epoch_system_b", 1).unwrap(),
+        scope,
+        time_ns(70_002_000),
+        time_ns(70_002_000),
+        CursorV1::native(1, 1).unwrap(),
+        SystemFaultV1::book_resynchronized(),
+        Some(head_two),
+    )
+    .unwrap();
+    processor.ingest(&recovered).unwrap();
 }

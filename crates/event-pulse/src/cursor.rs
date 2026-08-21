@@ -600,6 +600,44 @@ impl SourceStateMachine {
         Ok(())
     }
 
+    pub(crate) fn invalidate_clock_for_queue_drop(
+        &mut self,
+        key: &ClockSourceKeyV1,
+    ) -> Result<(), CursorError> {
+        let slot = self
+            .clocks
+            .get_mut(key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        invalidate_slot_for_queue_drop(slot);
+        Ok(())
+    }
+
+    pub(crate) fn invalidate_coverage_for_queue_drop(
+        &mut self,
+        key: &CoverageSourceKeyV1,
+    ) -> Result<(), CursorError> {
+        let slot = self
+            .coverage
+            .get_mut(key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        invalidate_slot_for_queue_drop(slot);
+        Ok(())
+    }
+
+    pub(crate) fn invalidate_system_for_queue_drop(
+        &mut self,
+        key: &SystemSourceKeyV1,
+    ) -> Result<(), CursorError> {
+        let slot = &mut self
+            .systems
+            .iter_mut()
+            .find(|slot| &slot.source == key)
+            .ok_or(CursorError::UnconfiguredIdentity)?
+            .slot;
+        invalidate_slot_for_queue_drop(slot);
+        Ok(())
+    }
+
     fn ingest_inner(&mut self, input: &MechanicsInputV1) -> Result<IngestOutcome, CursorError> {
         match input.view() {
             MechanicsInputRefV1::Market {
@@ -947,7 +985,6 @@ impl SourceStateMachine {
                 || target
                     .contributor_key()
                     .is_some_and(|key| bound.contains(key))
-                || target.processor_id().is_some()
             {
                 system.slot.retire_cursor();
                 system.chain_head = None;
@@ -1222,6 +1259,12 @@ impl SourceStateMachine {
         }
         Ok(())
     }
+}
+
+fn invalidate_slot_for_queue_drop(slot: &mut Slot) {
+    slot.invalidate_recoverable();
+    slot.retire_cursor();
+    slot.invalidate_recoverable();
 }
 
 fn time_ns(value: &Rfc3339Time) -> Result<i64, CursorError> {
