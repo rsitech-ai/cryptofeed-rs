@@ -8,7 +8,9 @@
 mod contract;
 mod cursor;
 pub mod features;
+pub mod mechanics;
 mod provenance;
+pub mod snapshot;
 pub mod window;
 pub mod wire;
 
