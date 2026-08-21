@@ -784,7 +784,15 @@ struct InputOrderKey {
 #[derive(Debug, Clone)]
 struct ProcessorRecord {
     input: MechanicsInputV1,
-    accepted_evidence: bool,
+    kind: ProcessorRecordKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProcessorRecordKind {
+    Evidence,
+    RejectedState,
+    FeatureQueueDrop,
+    MasterQueueDrop,
 }
 
 #[derive(Debug, Clone)]
@@ -821,9 +829,6 @@ impl<T> ProcessorLog<T> {
         }
         Ok(())
     }
-    fn retain(&mut self, mut keep: impl FnMut(&crate::window::Timed<T>) -> bool) {
-        self.records.retain(|record| keep(record));
-    }
     fn records(&self) -> &VecDeque<crate::window::Timed<T>> {
         &self.records
     }
@@ -841,6 +846,7 @@ struct ReplayCheckpoint {
     sources: SourceStateMachine,
     runtime: FeatureRuntime,
     causes: BTreeMap<CauseKey, Cause>,
+    master_queue_drops: BTreeMap<CauseKey, Option<u8>>,
     phase: PhaseMachine,
     observation: SnapshotObservation,
     exact_anchor: Option<MarketAnchor>,
@@ -946,18 +952,54 @@ impl MechanicsProcessor {
         {
             return Err(SnapshotError::InputOrderRegression);
         }
+        let mut records_before_recovery_admission = None;
         if self.last_order.as_ref() != Some(&order)
             && ensure_record_capacity(self.records.len()).is_err()
         {
-            self.record_queue_drop(input, at)?;
-            return Err(SnapshotError::InvalidInput(
-                "bounded processor queue dropped the unaccepted input".into(),
-            ));
+            let keys = input_cause_keys(input, &self.config);
+            let greater_latched_recovery = keys.iter().any(|key| {
+                self.master_queue_drops
+                    .get(key)
+                    .copied()
+                    .flatten()
+                    .is_some_and(|generation| input_generation(input) > generation)
+            });
+            if greater_latched_recovery {
+                let saved = self.records.clone();
+                let removable = self.records.records().iter().rposition(|record| {
+                    record.value.kind == ProcessorRecordKind::MasterQueueDrop
+                        && input_cause_keys(&record.value.input, &self.config)
+                            .iter()
+                            .any(|key| keys.contains(key))
+                });
+                if let Some(index) = removable {
+                    self.records.records.remove(index);
+                    records_before_recovery_admission = Some(saved);
+                } else {
+                    self.record_queue_drop(input, at)?;
+                    self.last_input_micros = Some(at);
+                    self.last_order = Some(order);
+                    return Err(SnapshotError::InvalidInput(
+                        "bounded processor queue dropped the unaccepted input".into(),
+                    ));
+                }
+            } else {
+                self.record_queue_drop(input, at)?;
+                self.last_input_micros = Some(at);
+                self.last_order = Some(order);
+                return Err(SnapshotError::InvalidInput(
+                    "bounded processor queue dropped the unaccepted input".into(),
+                ));
+            }
         }
         let mut candidate_sources = self.sources.clone();
         let outcome = match candidate_sources.ingest(input) {
             Ok(outcome) => outcome,
             Err(error) => {
+                if let Some(saved) = records_before_recovery_admission {
+                    self.records = saved;
+                    return Err(SnapshotError::InvalidInput(error.to_string()));
+                }
                 self.sources = candidate_sources;
                 self.record_failure(input, &error);
                 let master_drop_latched = input_cause_keys(input, &self.config)
@@ -970,7 +1012,7 @@ impl MechanicsProcessor {
                             at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
                             ProcessorRecord {
                                 input: input.clone(),
-                                accepted_evidence: false,
+                                kind: ProcessorRecordKind::RejectedState,
                             },
                         )
                         .map_err(|window| SnapshotError::InvalidInput(window.to_string()))?;
@@ -989,17 +1031,12 @@ impl MechanicsProcessor {
                         if let Some(cause) = self.active_causes.get_mut(&cause_key) {
                             *cause = Cause::QueueDrop(input_generation(input));
                         }
-                        if let Some(checkpoint) = self.checkpoint.as_mut() {
-                            if let Some(cause) = checkpoint.causes.get_mut(&cause_key) {
-                                *cause = Cause::QueueDrop(input_generation(input));
-                            }
-                        }
                     }
                     self.records.push(
                         at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
                         ProcessorRecord {
                             input: input.clone(),
-                            accepted_evidence: false,
+                            kind: ProcessorRecordKind::FeatureQueueDrop,
                         },
                     )?;
                     self.sources = candidate_sources;
@@ -1014,7 +1051,7 @@ impl MechanicsProcessor {
                     at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
                     ProcessorRecord {
                         input: input.clone(),
-                        accepted_evidence: true,
+                        kind: ProcessorRecordKind::Evidence,
                     },
                 )
                 .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
@@ -1080,8 +1117,12 @@ impl MechanicsProcessor {
         let decision_ns = decision_micros
             .checked_mul(1_000)
             .ok_or(SnapshotError::Capacity)?;
-        let (checkpoint_sources, mut checkpoint_runtime, checkpoint_causes) =
-            candidate.replay_state(decision_ns)?;
+        let (
+            checkpoint_sources,
+            mut checkpoint_runtime,
+            checkpoint_causes,
+            checkpoint_master_queue_drops,
+        ) = candidate.replay_state(decision_ns)?;
         checkpoint_runtime.evict(&candidate.config, decision_ns)?;
         let checkpoint_exact_anchor = checkpoint_runtime.retained_anchor.clone();
         candidate.checkpoint = Some(ReplayCheckpoint {
@@ -1089,6 +1130,7 @@ impl MechanicsProcessor {
             sources: checkpoint_sources,
             runtime: checkpoint_runtime,
             causes: checkpoint_causes,
+            master_queue_drops: checkpoint_master_queue_drops,
             phase: candidate.phase.clone(),
             observation: aggregate.clone(),
             exact_anchor: checkpoint_exact_anchor,
@@ -1103,10 +1145,12 @@ impl MechanicsProcessor {
             .max(decision_micros)
             .checked_mul(1_000)
             .ok_or(SnapshotError::Capacity)?;
-        let (live_sources, live_runtime, live_causes) = candidate.replay_state(live_ns)?;
+        let (live_sources, live_runtime, live_causes, live_master_queue_drops) =
+            candidate.replay_state(live_ns)?;
         candidate.sources = live_sources;
         candidate.feature_runtime = live_runtime;
         candidate.active_causes = live_causes;
+        candidate.master_queue_drops = live_master_queue_drops;
         *self = candidate;
         Ok(snapshot)
     }
@@ -1175,17 +1219,33 @@ impl MechanicsProcessor {
         let at_ns = at_micros
             .checked_mul(1_000)
             .ok_or(SnapshotError::Capacity)?;
+        let config = self.config.clone();
+        let preserve_market_initializer =
+            matches!(input.view(), MechanicsInputRefV1::Market { .. });
+        let mut initializer_preserved = false;
+        self.records.records.retain(|record| {
+            let matches_slot = input_cause_keys(&record.value.input, &config)
+                .iter()
+                .any(|key| keys.contains(key));
+            if !matches_slot {
+                return true;
+            }
+            if preserve_market_initializer
+                && !initializer_preserved
+                && record.value.kind == ProcessorRecordKind::Evidence
+            {
+                initializer_preserved = true;
+                return true;
+            }
+            false
+        });
+        ensure_record_capacity(self.records.len())?;
         for key in &keys {
             if let Some(latch) = self.master_queue_drops.get_mut(key) {
                 *latch = Some(input_generation(input));
             }
             if let Some(cause) = self.active_causes.get_mut(key) {
                 *cause = Cause::QueueDrop(input_generation(input));
-            }
-            if let Some(checkpoint) = self.checkpoint.as_mut() {
-                if let Some(cause) = checkpoint.causes.get_mut(key) {
-                    *cause = Cause::QueueDrop(input_generation(input));
-                }
             }
             invalidate_queue_drop_slot(
                 &mut self.sources,
@@ -1194,22 +1254,14 @@ impl MechanicsProcessor {
                 key,
                 at_ns,
             )?;
-            if let Some(checkpoint) = self.checkpoint.as_mut() {
-                invalidate_queue_drop_slot(
-                    &mut checkpoint.sources,
-                    &mut checkpoint.runtime,
-                    &self.config,
-                    key,
-                    at_ns,
-                )?;
-            }
         }
-        let config = self.config.clone();
-        self.records.retain(|record| {
-            !input_cause_keys(&record.value.input, &config)
-                .iter()
-                .any(|key| keys.contains(key))
-        });
+        self.records.push(
+            at_ns,
+            ProcessorRecord {
+                input: input.clone(),
+                kind: ProcessorRecordKind::MasterQueueDrop,
+            },
+        )?;
         self.cache = None;
         Ok(())
     }
@@ -1291,7 +1343,7 @@ impl MechanicsProcessor {
             .checked_mul(1_000)
             .ok_or(SnapshotError::Capacity)?;
         let records = self.records.records();
-        let (sources, runtime, active_causes) = self.replay_state(decision_ns)?;
+        let (sources, runtime, active_causes, _) = self.replay_state(decision_ns)?;
         let owner = |family| {
             self.family_owners.get(&family).ok_or_else(|| {
                 SnapshotError::InvalidInput("missing configured family owner".into())
@@ -1385,8 +1437,11 @@ impl MechanicsProcessor {
         for record in records.iter().filter(|record| {
             record.available_at_ns <= decision_ns
                 && checkpoint_ns.is_none_or(|at| record.available_at_ns > at)
-                && record.value.accepted_evidence
-                && self.input_is_current(&sources, &record.value.input)
+                && record.value.kind != ProcessorRecordKind::RejectedState
+                && (matches!(
+                    record.value.kind,
+                    ProcessorRecordKind::FeatureQueueDrop | ProcessorRecordKind::MasterQueueDrop
+                ) || self.input_is_current(&sources, &record.value.input))
         }) {
             match record.value.input.view() {
                 MechanicsInputRefV1::Market { envelope, .. } => {
@@ -1986,6 +2041,7 @@ impl MechanicsProcessor {
             SourceStateMachine,
             FeatureRuntime,
             BTreeMap<CauseKey, Cause>,
+            BTreeMap<CauseKey, Option<u8>>,
         ),
         SnapshotError,
     > {
@@ -2010,30 +2066,66 @@ impl MechanicsProcessor {
             },
             |checkpoint| checkpoint.causes.clone(),
         );
+        let mut master_queue_drops = checkpoint.map_or_else(
+            || {
+                configured_cause_keys(&self.config)
+                    .into_iter()
+                    .map(|key| (key, None))
+                    .collect::<BTreeMap<_, _>>()
+            },
+            |checkpoint| checkpoint.master_queue_drops.clone(),
+        );
         for record in self.records.records().iter().filter(|record| {
             record.available_at_ns <= decision_ns
                 && checkpoint.is_none_or(|checkpoint| record.available_at_ns > checkpoint.at_ns)
         }) {
             let input = &record.value.input;
+            if record.value.kind == ProcessorRecordKind::MasterQueueDrop {
+                for key in input_cause_keys(input, &self.config) {
+                    if let Some(cause) = causes.get_mut(&key) {
+                        *cause = Cause::QueueDrop(input_generation(input));
+                    }
+                    if let Some(latch) = master_queue_drops.get_mut(&key) {
+                        *latch = Some(input_generation(input));
+                    }
+                    invalidate_queue_drop_slot(
+                        &mut sources,
+                        &mut runtime,
+                        &self.config,
+                        &key,
+                        record.available_at_ns,
+                    )?;
+                }
+                continue;
+            }
             match sources.ingest(input) {
                 Ok(IngestOutcome::IgnoredDuplicate) => {}
                 Ok(_) => {
-                    if record.value.accepted_evidence {
-                        runtime.ingest(input, &self.config)?;
-                    } else {
-                        match runtime.ingest(input, &self.config) {
-                            Err(SnapshotError::FeatureQueueDrop) => {}
-                            Err(error) => return Err(error),
-                            Ok(()) => {
-                                return Err(SnapshotError::Contract(
-                                    "fault-only queue record did not reproduce its drop".into(),
-                                ));
+                    match record.value.kind {
+                        ProcessorRecordKind::Evidence => {
+                            runtime.ingest(input, &self.config)?;
+                        }
+                        ProcessorRecordKind::FeatureQueueDrop => {
+                            match runtime.ingest(input, &self.config) {
+                                Err(SnapshotError::FeatureQueueDrop) => {}
+                                Err(error) => return Err(error),
+                                Ok(()) => {
+                                    return Err(SnapshotError::Contract(
+                                        "fault-only queue record did not reproduce its drop".into(),
+                                    ));
+                                }
+                            }
+                            for key in input_cause_keys(input, &self.config) {
+                                if let Some(cause) = causes.get_mut(&key) {
+                                    *cause = Cause::QueueDrop(input_generation(input));
+                                }
                             }
                         }
-                        for key in input_cause_keys(input, &self.config) {
-                            if let Some(cause) = causes.get_mut(&key) {
-                                *cause = Cause::QueueDrop(input_generation(input));
-                            }
+                        ProcessorRecordKind::RejectedState
+                        | ProcessorRecordKind::MasterQueueDrop => {
+                            return Err(SnapshotError::Contract(
+                                "fault record replayed as accepted evidence".into(),
+                            ));
                         }
                     }
                     if let Some(cause) = input_cause(input) {
@@ -2043,17 +2135,20 @@ impl MechanicsProcessor {
                             }
                         }
                     }
-                    if record.value.accepted_evidence {
+                    if record.value.kind == ProcessorRecordKind::Evidence {
                         clear_recovered_input_cause(
                             &sources,
                             input,
                             &self.config,
-                            &self.master_queue_drops,
+                            &mut master_queue_drops,
                             &mut causes,
                         );
                     }
                 }
-                Err(error) if error.invalidates_state() => {
+                Err(error)
+                    if error.invalidates_state()
+                        && record.value.kind == ProcessorRecordKind::RejectedState =>
+                {
                     for key in input_cause_keys(input, &self.config) {
                         if let Some(cause) = causes.get_mut(&key) {
                             *cause = Cause::Sequence(input_generation(input));
@@ -2065,19 +2160,15 @@ impl MechanicsProcessor {
                         }
                     }
                 }
-                Err(_) => {}
+                Err(_) if record.value.kind == ProcessorRecordKind::RejectedState => {}
+                Err(error) => {
+                    return Err(SnapshotError::Contract(format!(
+                        "accepted replay record failed cursor validation: {error}"
+                    )));
+                }
             }
         }
-        for (key, active) in &self.active_causes {
-            if !matches!(active, Cause::QueueDrop(_)) {
-                continue;
-            }
-            if let Some(cause) = causes.get_mut(key) {
-                *cause = *active;
-            }
-            invalidate_queue_drop_slot(&mut sources, &mut runtime, &self.config, key, decision_ns)?;
-        }
-        Ok((sources, runtime, causes))
+        Ok((sources, runtime, causes, master_queue_drops))
     }
 
     fn input_is_current(&self, sources: &SourceStateMachine, input: &MechanicsInputV1) -> bool {
@@ -2586,7 +2677,7 @@ fn clear_recovered_input_cause(
     sources: &SourceStateMachine,
     input: &MechanicsInputV1,
     config: &MechanicsConfigV1,
-    master_queue_drops: &BTreeMap<CauseKey, Option<u8>>,
+    master_queue_drops: &mut BTreeMap<CauseKey, Option<u8>>,
     causes: &mut BTreeMap<CauseKey, Cause>,
 ) {
     for key in input_cause_keys(input, config) {
@@ -2605,6 +2696,16 @@ fn clear_recovered_input_cause(
             }
         };
         if recovered {
+            if master_queue_drops
+                .get(&key)
+                .copied()
+                .flatten()
+                .is_some_and(|generation| input_generation(input) > generation)
+            {
+                if let Some(latch) = master_queue_drops.get_mut(&key) {
+                    *latch = None;
+                }
+            }
             if let Some(cause) = causes.get_mut(&key) {
                 let generation = match *cause {
                     Cause::Sequence(generation)
@@ -2655,7 +2756,13 @@ fn clear_retired_system_causes(
             Cause::None => continue,
         }
         let target = configured.configured_target_key();
+        let contributor_connection_recovered = target
+            .contributor_key()
+            .and_then(|contributor| config.contributor_connections().get(contributor))
+            .zip(recovery_connection)
+            .is_some_and(|(target, recovery)| target == recovery);
         let exact_target_recovered = target.contributor_key() == Some(&recovery_subject)
+            || contributor_connection_recovered
             || target
                 .connection_key()
                 .zip(recovery_connection)

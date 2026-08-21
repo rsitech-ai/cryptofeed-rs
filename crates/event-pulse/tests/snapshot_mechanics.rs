@@ -2877,6 +2877,200 @@ fn negative_submicrosecond_availability_uses_floor_for_ordering_and_seal() {
 }
 
 #[test]
+fn future_feature_queue_drop_and_recovery_do_not_change_an_earlier_snapshot_prefix() {
+    let mut affected = warmed_processor(60_080_000_000);
+    let mut prefix_only = affected.clone();
+    let sealed_at = 60_090_000_000;
+    affected.snapshot(time_ns(sealed_at)).unwrap();
+    prefix_only.snapshot(time_ns(sealed_at)).unwrap();
+
+    let future_at = 61_000_000_000;
+    let mut sequence = 9_u64;
+    loop {
+        let result = affected.ingest(&market(sequence, future_at, trade(102 * SCALE)));
+        sequence += 1;
+        if result == Err(SnapshotError::FeatureQueueDrop) {
+            break;
+        }
+        result.unwrap();
+        assert!(sequence < 5_000, "configured feature queue never filled");
+    }
+    affected
+        .ingest(&market_in_epoch(
+            1,
+            future_at + 1_000,
+            trade(103 * SCALE),
+            "epoch_b",
+            1,
+        ))
+        .unwrap();
+    affected
+        .ingest(&market_in_epoch(
+            2,
+            future_at + 60_000_001_000,
+            trade(104 * SCALE),
+            "epoch_b",
+            1,
+        ))
+        .unwrap();
+
+    let affected_prefix = affected.snapshot(time_ns(60_500_000_000)).unwrap();
+    let expected_prefix = prefix_only.snapshot(time_ns(60_500_000_000)).unwrap();
+    assert_eq!(
+        affected_prefix.canonical_json(),
+        expected_prefix.canonical_json()
+    );
+    assert_eq!(
+        affected_prefix.content_hash(),
+        expected_prefix.content_hash()
+    );
+}
+
+#[test]
+fn future_master_queue_drop_and_recovery_do_not_change_an_earlier_snapshot_prefix() {
+    let fixture = fixture();
+    let mut affected = warmed_processor(60_080_000_000);
+    let mut prefix_only = affected.clone();
+    let sealed_at = 60_090_000_000;
+    affected.snapshot(time_ns(sealed_at)).unwrap();
+    prefix_only.snapshot(time_ns(sealed_at)).unwrap();
+
+    let future_at = 61_000_000_000;
+    let mut sequence = 2_u64;
+    loop {
+        let input = clock_input(&fixture, future_at, "epoch_clock_a", 0, sequence, "0.25");
+        let result = affected.ingest(&input);
+        sequence += 1;
+        if matches!(
+            result,
+            Err(SnapshotError::InvalidInput(ref message))
+                if message == "bounded processor queue dropped the unaccepted input"
+        ) {
+            break;
+        }
+        result.unwrap();
+        assert!(
+            sequence <= u64::try_from(PROCESSOR_RECORD_CAPACITY).unwrap() + 2,
+            "configured master queue never filled"
+        );
+    }
+    affected
+        .ingest(
+            &MechanicsInputV1::clock(
+                ContributorV1::new(fixture.contributor.clone(), "epoch_a", 0).unwrap(),
+                ClockSourceV1::new(fixture.clock.clone(), "epoch_clock_b", 1).unwrap(),
+                time_ns(future_at + 1_000),
+                time_ns(future_at + 1_000),
+                ClockCursorV1::native(1, 1).unwrap(),
+                ClockStateV1::Synchronized,
+                CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+                2_000,
+                ClockQualityV1::Validated,
+                "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+    let affected_prefix = affected.snapshot(time_ns(60_500_000_000)).unwrap();
+    let expected_prefix = prefix_only.snapshot(time_ns(60_500_000_000)).unwrap();
+    assert_eq!(
+        affected_prefix.canonical_json(),
+        expected_prefix.canonical_json()
+    );
+    assert_eq!(
+        affected_prefix.content_hash(),
+        expected_prefix.content_hash()
+    );
+}
+
+#[test]
+fn connection_recovery_clears_a_sibling_contributor_system_cause() {
+    let mut fixture = split_fixture();
+    let shared_connection = fixture
+        .config
+        .contributor_connections()
+        .get(&fixture.contributors[0])
+        .unwrap()
+        .clone();
+    let mut bindings = fixture.config.contributor_connections().clone();
+    bindings.insert(fixture.contributors[1].clone(), shared_connection);
+    let system_key = SystemSourceKeyV1::new(
+        "quote_sibling_system",
+        FaultScopeKindV1::Contributor,
+        ConfiguredTargetKeyV1::contributor(fixture.contributors[1].clone()),
+        CursorModeV1::Native,
+    )
+    .unwrap();
+    fixture.config = MechanicsConfigV1::new(
+        fixture.config.processor_id(),
+        fixture.config.connections().to_vec(),
+        fixture.config.contributors().to_vec(),
+        bindings,
+        fixture.config.clock_sources().to_vec(),
+        fixture.config.coverage_sources().to_vec(),
+        vec![system_key.clone()],
+    )
+    .unwrap();
+    let (mut processor, fixture) = warmed_split_processor_for(fixture);
+    processor
+        .ingest(&system_input_in_epoch(
+            &system_key,
+            FaultScopeV1::contributor(
+                ContributorV1::new(fixture.contributors[1].clone(), "epoch_a", 0).unwrap(),
+            ),
+            1,
+            61_100_000_000,
+            SystemFaultV1::sequence_gap(10, 12),
+            "epoch_system_b",
+            1,
+        ))
+        .unwrap();
+    processor
+        .ingest(&market_from_source_in_epoch(
+            "a_trade",
+            1,
+            61_200_000_000,
+            trade(102 * SCALE),
+            "epoch_b",
+            1,
+        ))
+        .unwrap();
+    processor
+        .ingest(
+            &MechanicsInputV1::clock(
+                ContributorV1::new(fixture.contributors[0].clone(), "epoch_b", 1).unwrap(),
+                ClockSourceV1::new(fixture.clocks[0].clone(), "epoch_clock_b", 1).unwrap(),
+                time_ns(61_201_000_000),
+                time_ns(61_201_000_000),
+                ClockCursorV1::native(1, 1).unwrap(),
+                ClockStateV1::Synchronized,
+                CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+                2_000,
+                ClockQualityV1::Validated,
+                "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let snapshot = processor.snapshot(time_ns(61_210_000_000)).unwrap();
+    assert!(
+        snapshot.value()["source_cursors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|cursor| cursor["source_id"] != "quote_sibling_system")
+    );
+    assert!(
+        !snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+}
+
+#[test]
 fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation() {
     let fixture = capacity_fixture();
     let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
