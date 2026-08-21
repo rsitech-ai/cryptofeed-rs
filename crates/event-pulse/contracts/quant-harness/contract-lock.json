@@ -1,0 +1,46 @@
+{
+  "contract_lock_version": "quant-harness-contract-lock/1.0",
+  "generated_artifacts": [
+    {
+      "name": "quant_harness_v1",
+      "rejection_vector_path": "research_os/fixtures/quant-harness/quant_harness_v1_rejections.json",
+      "rejection_vector_sha256": "ceddd2c43858cbbfb102e27af768be1bcc5aeed39b715eab5cec47d9420b0ed4",
+      "schema_path": "research_os/schemas/quant-harness/quant_harness_v1.schema.json",
+      "schema_sha256": "8ab03a198d257bd30d934591776ec2855194ea9e192a64752484740b5998b2ca",
+      "success_vector_path": "research_os/fixtures/quant-harness/quant_harness_v1_golden.json",
+      "success_vector_sha256": "9a76e0192b46cee859233c67b3a0413e1b4a05d86367ca28d0b3116fe219d117"
+    },
+    {
+      "name": "risk_decision_v1",
+      "rejection_vector_path": "research_os/fixtures/quant-harness/risk_decision_v1_rejections.json",
+      "rejection_vector_sha256": "c706eec6777c9c4f7b6e99db555abf922d5907dc9a2767ade254a36d3c2365a0",
+      "schema_path": "research_os/schemas/quant-harness/risk_decision_v1.schema.json",
+      "schema_sha256": "06a483c06d4186bc05979bcd9f232f0ccc67aee5fbe453ac0e2e9bf74462cf48",
+      "success_vector_path": "research_os/fixtures/quant-harness/risk_decision_v1_golden.json",
+      "success_vector_sha256": "97eb8772358470a9885797d19c24e9449245823ec42ec28cd8d62e8004bfe984"
+    }
+  ],
+  "readiness": {
+    "non_python_consumer_proof": "unverified",
+    "q1": "canonical-schema-ready"
+  },
+  "schema_version": "quant-harness/1.0",
+  "sources": [
+    {
+      "path": "research_os/src/research_os/domain/quant_harness.py",
+      "sha256": "764c12b14e2f62c2d952831af4f1d9367015c6a5d1be5b6a37db975e489f1875"
+    },
+    {
+      "path": "research_os/src/research_os/domain/quant_harness_temporal.py",
+      "sha256": "b919c924b7f9ad921c3b0db8b7bba5add428af5fc3bb8f3ef0633aa883c6fc66"
+    },
+    {
+      "path": "research_os/src/research_os/domain/quant_harness_serialization.py",
+      "sha256": "d8fe37b2862317ff70327a2e032aa1290e3c92262a04d73990e81ebf1f49b8bc"
+    },
+    {
+      "path": "research_os/src/research_os/domain/quant_harness_errors.py",
+      "sha256": "4bb18b6dfab517bec78e1c2426e1a1ebecf0c9d17590333f6cfa4b322f060cbe"
+    }
+  ]
+}

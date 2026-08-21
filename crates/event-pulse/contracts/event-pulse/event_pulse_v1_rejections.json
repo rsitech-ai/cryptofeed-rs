@@ -1,0 +1,2609 @@
+{
+  "schema_version": "event-pulse/1.0",
+  "semantic_vectors": [
+    {
+      "contract_type": "mechanics",
+      "error_code": "EVENTPULSE_INPUT_AVAILABILITY",
+      "name": "cursor_after_mechanics_availability",
+      "operation": "validate_contract",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "5d89c48d4dbdb64fc00993018428b43ce8cc715828ac85fa6316929e4e79aac0",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.031000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "contract_type": "mechanics",
+      "error_code": "FUTURE_AVAILABILITY",
+      "name": "future_availability",
+      "operation": "validate_contract",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.029000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "2a26c256bd3053775e26efcba89c5961bfa2d80d5d508cf3a0f75913837915c7",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "contract_type": "mechanics",
+      "error_code": "EVENTPULSE_NUMERIC_BOUNDS",
+      "name": "negative_zero_score",
+      "operation": "validate_contract",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "bd55356da8313d860092bc95b34eb9a984e3fd9bed1f81d0184404109b8f2392",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "-0",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "contract_type": "mechanics",
+      "error_code": "EVENTPULSE_ORDERING",
+      "name": "noncanonical_source_order",
+      "operation": "validate_contract",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b3e9fb730a061172e6a46512d80560629580b8a1b151eda23c49aa32fa0949a3",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "contract_type": "mechanics",
+      "error_code": "EVENTPULSE_QUALITY",
+      "name": "validated_mechanics_hides_unavailable_feature",
+      "operation": "validate_contract",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "9ea3ddb476b89d4b6a0f324d481fdf246a37dbb2f07ce18ac96aacc83564d4b1",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "UNAVAILABLE",
+            "reason_code": "SOURCE_WINDOW_UNAVAILABLE",
+            "unit": "RATIO",
+            "value": null
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "contract_type": "composite",
+      "error_code": "EVENTPULSE_QUALITY",
+      "name": "unverified_composite_claims_complete",
+      "operation": "validate_contract",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.068000Z",
+          "received_at": "2026-08-21T10:00:00.065000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b6f4a948fb3be06aa82946c6d68f92903f4656e71c48905ff9247732ea4dc278",
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "COMPLETE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000Z",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "context": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.060000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "error_code": "EVENTPULSE_HASH_BINDING",
+      "mechanics": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      },
+      "name": "binder_substituted_mechanics_hash",
+      "operation": "bind_composite",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.068000Z",
+          "received_at": "2026-08-21T10:00:00.065000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b539ce891fa21bdbebe09c5bc1f92c82b50ecc620eda5b6c22567ae479e5909d",
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000Z",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "context": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.060000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "error_code": "EVENTPULSE_IDENTITY",
+      "mechanics": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      },
+      "name": "binder_scope_mismatch",
+      "operation": "bind_composite",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.068000Z",
+          "received_at": "2026-08-21T10:00:00.065000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b539ce891fa21bdbebe09c5bc1f92c82b50ecc620eda5b6c22567ae479e5909d",
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000Z",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": null,
+          "kind": "ASSET",
+          "venue": null
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "context": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.090000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "f6033682e7aa1063aab54e9cdedd1e80148bc5f821f41db40b86d0c8ef161c1d",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "error_code": "EVENTPULSE_INPUT_AVAILABILITY",
+      "mechanics": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      },
+      "name": "binder_context_available_after_composite",
+      "operation": "bind_composite",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000+00:00",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000+00:00",
+          "normalized_at": "2026-08-21T10:00:00.068000+00:00",
+          "received_at": "2026-08-21T10:00:00.065000+00:00",
+          "source_event_time": "2026-08-21T10:00:00+00:00"
+        },
+        "context_content_hash": "f6033682e7aa1063aab54e9cdedd1e80148bc5f821f41db40b86d0c8ef161c1d",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000+00:00",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "context": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.060000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "error_code": "EVENTPULSE_INPUT_AVAILABILITY",
+      "mechanics": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      },
+      "name": "binder_composition_starts_before_input",
+      "operation": "bind_composite",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.060000Z",
+          "received_at": "2026-08-21T10:00:00.059000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b539ce891fa21bdbebe09c5bc1f92c82b50ecc620eda5b6c22567ae479e5909d",
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000Z",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "context": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.060000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "error_code": "EVENTPULSE_QUALITY",
+      "mechanics": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "4716786e10dcdcdf02e69a54a4e44977b7c4eefc0a0c8a745e05980a9bcdd9d8",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [
+          "SOURCE_STALE"
+        ],
+        "quality_state": "DEGRADED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      },
+      "name": "binder_drops_input_quality_flag",
+      "operation": "bind_composite",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000+00:00",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000+00:00",
+          "normalized_at": "2026-08-21T10:00:00.068000+00:00",
+          "received_at": "2026-08-21T10:00:00.065000+00:00",
+          "source_event_time": "2026-08-21T10:00:00+00:00"
+        },
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000+00:00",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "4716786e10dcdcdf02e69a54a4e44977b7c4eefc0a0c8a745e05980a9bcdd9d8",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "context": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.060000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "error_code": "EVENTPULSE_INPUT_AVAILABILITY",
+      "mechanics": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      },
+      "name": "binder_extends_expiry",
+      "operation": "bind_composite",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.068000Z",
+          "received_at": "2026-08-21T10:00:00.065000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b539ce891fa21bdbebe09c5bc1f92c82b50ecc620eda5b6c22567ae479e5909d",
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.071000Z",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "error_code": "EVENTPULSE_CONTEXT_REVISION",
+      "name": "context_revision_rewrites_evidence",
+      "operation": "validate_context_revision",
+      "payload": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.090000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "ccb1a62e75a7f3a7a9fae97d7938a288a95e9406e5af56e2ad7aee5508493695",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 2,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "previous": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.060000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "error_code": "EVENTPULSE_IDENTITY",
+      "name": "eventpulse_revision_changes_scope",
+      "operation": "validate_eventpulse_revision",
+      "payload": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.090000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "87dfe9db1ebb8901eb9d4d6e9933d86d4a94821418f67806ea70887325a1ba0b",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 2,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": null,
+          "kind": "ASSET",
+          "venue": null
+        },
+        "source_qualification": "UNVERIFIED"
+      },
+      "previous": {
+        "attribution_state": "CANDIDATE",
+        "catalyst_confidence": "0.20",
+        "catalyst_type": "UNKNOWN",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.060000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "contract_id": "event_pulse_context_bnb_breakout",
+        "contract_type": "context",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "evidence": [
+          {
+            "attribution_state": "CANDIDATE",
+            "available_at": "2026-08-21T10:00:00.055000Z",
+            "evidence_id": "event_evidence_bnb_notice",
+            "evidence_type": "OFFICIAL_RELEASE",
+            "first_seen_at": "2026-08-21T10:00:00.050000Z",
+            "source_id": "public_exchange_status",
+            "source_payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_context",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    }
+  ],
+  "structural_vectors": [
+    {
+      "name": "wrong_schema_version",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/2.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "name": "float_score",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": 0.82,
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "name": "negative_zero_score",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "-0",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "name": "decimal_precision_overflow",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.123456789"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "name": "unknown_event_type",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "RUMOR_PUMP",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "name": "unproven_qualified_source",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "QUALIFIED"
+      }
+    },
+    {
+      "name": "sequence_overflow",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 9223372036854775808,
+            "sequence_start": 9223372036854775808,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "name": "invalid_connection_epoch",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.020000Z",
+          "received_at": "2026-08-21T10:00:00.010000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "contract_id": "event_pulse_mechanics_bnb_breakout",
+        "contract_type": "mechanics",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "expected_half_life_ms": 15000,
+        "features": [
+          {
+            "horizon_ms": 1000,
+            "name": "taker_imbalance",
+            "quality_state": "VALIDATED",
+            "reason_code": "SOURCE_WINDOW_COMPLETE",
+            "unit": "RATIO",
+            "value": "0.72"
+          }
+        ],
+        "lineage_id": "lineage_event_pulse_bnb_breakout",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "cryptofeed_rs",
+        "quality_flags": [],
+        "quality_state": "VALIDATED",
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_cursors": [
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch bad",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_public_perpetual_trades",
+            "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "available_at": "2026-08-21T10:00:00.025000Z",
+            "connection_epoch": "epoch_20260821a",
+            "sequence_end": 10,
+            "sequence_start": 10,
+            "source_id": "hyperliquid_public_perpetual_trades",
+            "source_payload_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "source_qualification": "UNVERIFIED"
+      }
+    },
+    {
+      "name": "forbidden_strategy_field",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.068000Z",
+          "received_at": "2026-08-21T10:00:00.065000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b539ce891fa21bdbebe09c5bc1f92c82b50ecc620eda5b6c22567ae479e5909d",
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": false,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000Z",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED",
+        "strategy_eligible": true
+      }
+    },
+    {
+      "name": "authority_true",
+      "payload": {
+        "catalyst_confidence": "0.20",
+        "causal_time": {
+          "available_at": "2026-08-21T10:00:00.070000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "2.50",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-21T10:00:00.100000Z",
+          "normalized_at": "2026-08-21T10:00:00.068000Z",
+          "received_at": "2026-08-21T10:00:00.065000Z",
+          "source_event_time": "2026-08-21T10:00:00Z"
+        },
+        "content_hash": "b539ce891fa21bdbebe09c5bc1f92c82b50ecc620eda5b6c22567ae479e5909d",
+        "context_content_hash": "7e87b25900c737fdaab70baafb22627d684b24650fa79f2569802d0821937355",
+        "context_lineage_id": "lineage_event_pulse_bnb_breakout_context",
+        "contract_id": "event_pulse_composite_bnb_breakout",
+        "contract_type": "composite",
+        "direction": "UP",
+        "event_cluster_id": "event_cluster_bnb_breakout",
+        "event_type": "DERIVATIVES_LED_BREAKOUT",
+        "evidence_state": "UNAVAILABLE",
+        "execution_authority": true,
+        "expected_half_life_ms": 15000,
+        "expires_at": "2026-08-21T10:00:15.070000Z",
+        "lineage_id": "lineage_event_pulse_bnb_breakout_composite",
+        "mechanical_confidence": "0.91",
+        "mechanical_intensity": "0.82",
+        "mechanics_content_hash": "3a1020b2ed895b977351269a293964254876dfd0cbe2d5eb8110eae0cc1a06bf",
+        "mechanics_lineage_id": "lineage_event_pulse_bnb_breakout",
+        "phase": "IGNITION",
+        "predecessor_content_hash": null,
+        "producer": "hummingbot_api_event_pulse_composite",
+        "protective_exit_control": false,
+        "quality_flags": [],
+        "reversal_risk": "0.18",
+        "revision": 1,
+        "risk_authority": false,
+        "schema_version": "event-pulse/1.0",
+        "scope": {
+          "asset": "BNB",
+          "instrument": {
+            "base_asset": "BNB",
+            "market_type": "PERPETUAL",
+            "quote_asset": "USDC",
+            "venue": "HYPERLIQUID",
+            "venue_symbol": "BNB-USDC"
+          },
+          "kind": "PAIR",
+          "venue": "HYPERLIQUID"
+        },
+        "source_qualification": "UNVERIFIED"
+      }
+    }
+  ]
+}

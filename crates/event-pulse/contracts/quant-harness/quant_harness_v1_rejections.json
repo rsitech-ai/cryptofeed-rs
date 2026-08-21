@@ -1,0 +1,606 @@
+{
+  "schema_version": "quant-harness/1.0",
+  "vectors": [
+    {
+      "error_match": "TIMEZONE_NAIVE",
+      "name": "timezone_naive",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00"
+        },
+        "content_hash": "3ba6ea2fd129eda85c28f629a160c50e96a118766f3ee5f5022f992978f6c222",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "CAUSAL_ORDERING",
+      "name": "causal_ordering",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T11:59:59Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "382c8b4c6f9f7200843b4da12b8034aeabc0d6a2612b74e8ca442ed414394b65",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "FUTURE_AVAILABILITY",
+      "name": "future_availability",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:00Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "5be788d5b16fe2e8e1af498e00de8c9c764e020071533be218e87614355ac1c0",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "STALE_EVIDENCE",
+      "name": "stale_evidence",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:03Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "aee18f9cec72f4dd4deef62b7cb522c236b2afd698eb68f666b0c879df86a7c9",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "CLOCK_STATE_DISALLOWED",
+      "name": "clock_state_disallowed",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "unsynchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "52166753b661afd14b76b0905b818d1cb71cd58b699612e6c33e0062a1da6d7a",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "QUALITY_STATE_DISALLOWED",
+      "name": "quality_state_disallowed",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "invalid",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "6e42e171c5af7c27ed630dc9673e8c8d11c9e148fdb1dc7f298085d1109eccfd",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "canonical decimal string",
+      "name": "noncanonical_decimal",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "4f50cfdcee7c332a37123e4c696892631f8e0d5dc1097da8a6e4d61e156700b6",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "065000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "measurement name",
+      "name": "invalid_measurement_name",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "fbca7e77696bd273b3bc2aa8263e5eaa35e9a717c73f55ffe81f710d0839fbd3",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "Mark Price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "measurement unit",
+      "name": "invalid_measurement_unit",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "cf09c49a186ad221c582aea7bf5ac174ec2845f487fbb4acc548bd1bd11058f5",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "usdc",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "contract identity",
+      "name": "invalid_contract_id",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "c239b0bee01791fa63820a4e5a8d0c93820fa6d72bed973c72de44505bbfb8eb",
+        "contract_id": "invalid",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "lineage",
+      "name": "invalid_lineage_id",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "714aa4ae056fca44a0869fd1fbb696d1d0e0a2466c0ab5a4d1d0a1c4868b4ce9",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "invalid",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "SHA-256",
+      "name": "invalid_source_payload_hash",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "def524dcd3fee7c49b2e729c2af47733872b926160e47f1228503a3dfe3d42cf",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "abc"
+      }
+    },
+    {
+      "error_match": "SHA-256",
+      "name": "invalid_predecessor_hash",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "5f12148496fcf2ed70df2e0e0a63c771aa874baafe61ca80c1553bdfdc176a24",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": "abc",
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "error_match": "unique",
+      "name": "duplicate_proposal_evidence_hashes",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "9294edbd5504c5e70583c7000fac28a37fab351bfb6f680c197e70325a9c8d55",
+        "contract_id": "proposal_request_rsi_v5_review",
+        "contract_type": "proposal_request",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83",
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "lineage_id": "lineage_rsi_v5_review",
+        "predecessor_content_hash": null,
+        "proposal_kind": "strategy_evaluation",
+        "requested_capability": "evaluate_only",
+        "requester_id": "condor_quant_harness",
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "POST_HOC_MUTATION",
+      "name": "post_hoc_mutation",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "a1200a0e5124466113e55fc7847e24c3a4bb4c23567a5886464591e9dd874c16",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65001.0000"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "previous": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ]
+}

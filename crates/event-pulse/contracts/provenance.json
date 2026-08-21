@@ -1,0 +1,62 @@
+{
+  "provenance_version": "marketfeed-event-pulse-provenance/1.0",
+  "source_root_commit": "c32fa67c0e5921bd4a9c4da163daf5c8b6bae08d",
+  "artifacts": [
+    {
+      "family": "quant-harness/1.0",
+      "source_path": "research_os/schemas/quant-harness/quant_harness_v1.schema.json",
+      "embedded_path": "contracts/quant-harness/quant_harness_v1.schema.json",
+      "byte_length": 10701,
+      "sha256": "8ab03a198d257bd30d934591776ec2855194ea9e192a64752484740b5998b2ca"
+    },
+    {
+      "family": "quant-harness/1.0",
+      "source_path": "research_os/fixtures/quant-harness/quant_harness_v1_golden.json",
+      "embedded_path": "contracts/quant-harness/quant_harness_v1_golden.json",
+      "byte_length": 5291,
+      "sha256": "9a76e0192b46cee859233c67b3a0413e1b4a05d86367ca28d0b3116fe219d117"
+    },
+    {
+      "family": "quant-harness/1.0",
+      "source_path": "research_os/fixtures/quant-harness/quant_harness_v1_rejections.json",
+      "embedded_path": "contracts/quant-harness/quant_harness_v1_rejections.json",
+      "byte_length": 22913,
+      "sha256": "ceddd2c43858cbbfb102e27af768be1bcc5aeed39b715eab5cec47d9420b0ed4"
+    },
+    {
+      "family": "quant-harness/1.0",
+      "source_path": "docs/superpowers/specs/quant-harness-contract-lock.json",
+      "embedded_path": "contracts/quant-harness/contract-lock.json",
+      "byte_length": 2194,
+      "sha256": "0b9dbc6aab8085951da6d189d191f22ad26a86b55f13f353c889d375de519557"
+    },
+    {
+      "family": "event-pulse/1.0",
+      "source_path": "research_os/schemas/event-pulse/event_pulse_v1.schema.json",
+      "embedded_path": "contracts/event-pulse/event_pulse_v1.schema.json",
+      "byte_length": 28158,
+      "sha256": "a56e39cbc6c27d851aeec20b6923f6320d8740073b637bcfe87cfae463856b30"
+    },
+    {
+      "family": "event-pulse/1.0",
+      "source_path": "research_os/fixtures/event-pulse/event_pulse_v1_golden.json",
+      "embedded_path": "contracts/event-pulse/event_pulse_v1_golden.json",
+      "byte_length": 14209,
+      "sha256": "0170e425247348c16391b2d3575c22664c0e274f08c0f4dbaa79722c2c0572e8"
+    },
+    {
+      "family": "event-pulse/1.0",
+      "source_path": "research_os/fixtures/event-pulse/event_pulse_v1_rejections.json",
+      "embedded_path": "contracts/event-pulse/event_pulse_v1_rejections.json",
+      "byte_length": 101104,
+      "sha256": "74d69764d6db3436f608a28bb90a7fe8888ea1d5b81d527b120d40a53a84bd39"
+    },
+    {
+      "family": "event-pulse/1.0",
+      "source_path": "docs/superpowers/specs/event-pulse-contract-lock.json",
+      "embedded_path": "contracts/event-pulse/contract-lock.json",
+      "byte_length": 1392,
+      "sha256": "f0c85ebb498dd96a1cda0f918733ed7a237a4f16640b4e1d86e0268fd6cb69c2"
+    }
+  ]
+}

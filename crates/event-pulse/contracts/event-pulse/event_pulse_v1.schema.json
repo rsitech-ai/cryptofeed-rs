@@ -1,0 +1,1157 @@
+{
+  "$defs": {
+    "Asset": {
+      "enum": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "BNB",
+        "HYPE"
+      ],
+      "title": "Asset",
+      "type": "string"
+    },
+    "AttributionState": {
+      "enum": [
+        "UNKNOWN",
+        "CANDIDATE",
+        "CONFIRMED",
+        "DISPUTED"
+      ],
+      "title": "AttributionState",
+      "type": "string"
+    },
+    "CausalTime": {
+      "additionalProperties": false,
+      "properties": {
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "clock_quality": {
+          "$ref": "#/$defs/ClockQualityState"
+        },
+        "decision_time": {
+          "format": "date-time",
+          "title": "Decision Time",
+          "type": "string"
+        },
+        "normalized_at": {
+          "format": "date-time",
+          "title": "Normalized At",
+          "type": "string"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "source_event_time": {
+          "format": "date-time",
+          "title": "Source Event Time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_event_time",
+        "received_at",
+        "normalized_at",
+        "available_at",
+        "decision_time",
+        "clock_quality"
+      ],
+      "title": "CausalTime",
+      "type": "object"
+    },
+    "ClockQualityState": {
+      "additionalProperties": false,
+      "properties": {
+        "clock_state": {
+          "$ref": "#/$defs/ClockState",
+          "enum": [
+            "synchronized",
+            "degraded"
+          ]
+        },
+        "freshness_limit_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Freshness Limit Ms",
+          "type": "integer"
+        },
+        "observed_skew_ms": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "title": "Observed Skew Ms",
+          "type": "string"
+        },
+        "quality_state": {
+          "$ref": "#/$defs/QualityState",
+          "enum": [
+            "validated",
+            "degraded"
+          ]
+        },
+        "reason_code": {
+          "minLength": 1,
+          "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "source_id": {
+          "minLength": 1,
+          "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "clock_state",
+        "observed_skew_ms",
+        "freshness_limit_ms",
+        "quality_state",
+        "reason_code"
+      ],
+      "title": "ClockQualityState",
+      "type": "object"
+    },
+    "ClockState": {
+      "enum": [
+        "synchronized",
+        "degraded",
+        "unsynchronized",
+        "unknown"
+      ],
+      "title": "ClockState",
+      "type": "string"
+    },
+    "ContextEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "attribution_state": {
+          "$ref": "#/$defs/AttributionState"
+        },
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "evidence_id": {
+          "pattern": "^event_evidence_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "evidence_type": {
+          "$ref": "#/$defs/ContextEvidenceType"
+        },
+        "first_seen_at": {
+          "format": "date-time",
+          "title": "First Seen At",
+          "type": "string"
+        },
+        "source_id": {
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_payload_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Payload Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "evidence_type",
+        "source_id",
+        "source_payload_hash",
+        "first_seen_at",
+        "available_at",
+        "attribution_state"
+      ],
+      "title": "ContextEvidence",
+      "type": "object"
+    },
+    "ContextEvidenceType": {
+      "enum": [
+        "OFFICIAL_RELEASE",
+        "NEWS",
+        "WALLET_FLOW",
+        "EXCHANGE_FLOW",
+        "ONCHAIN",
+        "MARKET_CONTEXT"
+      ],
+      "title": "ContextEvidenceType",
+      "type": "string"
+    },
+    "Direction": {
+      "enum": [
+        "UP",
+        "DOWN",
+        "MIXED",
+        "UNKNOWN"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "EventPhase": {
+      "enum": [
+        "NORMAL",
+        "BUILDUP",
+        "IGNITION",
+        "CASCADE",
+        "EXHAUSTION",
+        "AFTERMATH",
+        "INVALID"
+      ],
+      "title": "EventPhase",
+      "type": "string"
+    },
+    "EventPulseComposite": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "const": 1
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "predecessor_content_hash"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "catalyst_confidence": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Catalyst Confidence"
+        },
+        "causal_time": {
+          "$ref": "#/$defs/CausalTime"
+        },
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "context_content_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Context Content Hash"
+        },
+        "context_lineage_id": {
+          "anyOf": [
+            {
+              "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Context Lineage Id"
+        },
+        "contract_id": {
+          "pattern": "^event_pulse_composite_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_type": {
+          "const": "composite",
+          "title": "Contract Type",
+          "type": "string"
+        },
+        "direction": {
+          "$ref": "#/$defs/Direction"
+        },
+        "event_cluster_id": {
+          "pattern": "^event_cluster_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Event Cluster Id",
+          "type": "string"
+        },
+        "event_type": {
+          "$ref": "#/$defs/EventType"
+        },
+        "evidence_state": {
+          "$ref": "#/$defs/EvidenceState"
+        },
+        "execution_authority": {
+          "const": false,
+          "default": false,
+          "title": "Execution Authority",
+          "type": "boolean"
+        },
+        "expected_half_life_ms": {
+          "maximum": 86400000,
+          "minimum": 1,
+          "title": "Expected Half Life Ms",
+          "type": "integer"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "lineage_id": {
+          "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Lineage Id",
+          "type": "string"
+        },
+        "mechanical_confidence": {
+          "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+          "title": "Mechanical Confidence",
+          "type": "string"
+        },
+        "mechanical_intensity": {
+          "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+          "title": "Mechanical Intensity",
+          "type": "string"
+        },
+        "mechanics_content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Mechanics Content Hash",
+          "type": "string"
+        },
+        "mechanics_lineage_id": {
+          "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Mechanics Lineage Id",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/EventPhase"
+        },
+        "predecessor_content_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predecessor Content Hash"
+        },
+        "producer": {
+          "const": "hummingbot_api_event_pulse_composite",
+          "title": "Producer",
+          "type": "string"
+        },
+        "protective_exit_control": {
+          "const": false,
+          "default": false,
+          "title": "Protective Exit Control",
+          "type": "boolean"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlag"
+          },
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "reversal_risk": {
+          "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+          "title": "Reversal Risk",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "risk_authority": {
+          "const": false,
+          "default": false,
+          "title": "Risk Authority",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": "event-pulse/1.0",
+          "default": "event-pulse/1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/EventScope"
+        },
+        "source_qualification": {
+          "$ref": "#/$defs/SourceQualification"
+        }
+      },
+      "required": [
+        "schema_version",
+        "contract_id",
+        "lineage_id",
+        "revision",
+        "predecessor_content_hash",
+        "content_hash",
+        "causal_time",
+        "producer",
+        "event_cluster_id",
+        "scope",
+        "contract_type",
+        "mechanics_content_hash",
+        "context_content_hash",
+        "mechanics_lineage_id",
+        "context_lineage_id",
+        "phase",
+        "event_type",
+        "direction",
+        "mechanical_intensity",
+        "mechanical_confidence",
+        "catalyst_confidence",
+        "reversal_risk",
+        "evidence_state",
+        "source_qualification",
+        "quality_flags",
+        "expected_half_life_ms",
+        "expires_at",
+        "execution_authority",
+        "risk_authority",
+        "protective_exit_control"
+      ],
+      "title": "EventPulseComposite",
+      "type": "object"
+    },
+    "EventPulseContext": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "const": 1
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "predecessor_content_hash"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "attribution_state": {
+          "$ref": "#/$defs/AttributionState"
+        },
+        "catalyst_confidence": {
+          "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+          "title": "Catalyst Confidence",
+          "type": "string"
+        },
+        "catalyst_type": {
+          "$ref": "#/$defs/EventType"
+        },
+        "causal_time": {
+          "$ref": "#/$defs/CausalTime"
+        },
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "contract_id": {
+          "pattern": "^event_pulse_context_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_type": {
+          "const": "context",
+          "title": "Contract Type",
+          "type": "string"
+        },
+        "event_cluster_id": {
+          "pattern": "^event_cluster_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Event Cluster Id",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/ContextEvidence"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "lineage_id": {
+          "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Lineage Id",
+          "type": "string"
+        },
+        "predecessor_content_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predecessor Content Hash"
+        },
+        "producer": {
+          "const": "hummingbot_api_event_pulse_context",
+          "title": "Producer",
+          "type": "string"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlag"
+          },
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "quality_state": {
+          "$ref": "#/$defs/EventQualityState"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "event-pulse/1.0",
+          "default": "event-pulse/1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/EventScope"
+        },
+        "source_qualification": {
+          "$ref": "#/$defs/SourceQualification"
+        }
+      },
+      "required": [
+        "schema_version",
+        "contract_id",
+        "lineage_id",
+        "revision",
+        "predecessor_content_hash",
+        "content_hash",
+        "causal_time",
+        "producer",
+        "event_cluster_id",
+        "scope",
+        "contract_type",
+        "attribution_state",
+        "catalyst_type",
+        "catalyst_confidence",
+        "quality_state",
+        "source_qualification",
+        "quality_flags",
+        "evidence"
+      ],
+      "title": "EventPulseContext",
+      "type": "object"
+    },
+    "EventPulseMechanics": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "const": 1
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "predecessor_content_hash"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "causal_time": {
+          "$ref": "#/$defs/CausalTime"
+        },
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "contract_id": {
+          "pattern": "^event_pulse_mechanics_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_type": {
+          "const": "mechanics",
+          "title": "Contract Type",
+          "type": "string"
+        },
+        "direction": {
+          "$ref": "#/$defs/Direction"
+        },
+        "event_cluster_id": {
+          "pattern": "^event_cluster_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Event Cluster Id",
+          "type": "string"
+        },
+        "event_type": {
+          "$ref": "#/$defs/EventType"
+        },
+        "expected_half_life_ms": {
+          "maximum": 86400000,
+          "minimum": 1,
+          "title": "Expected Half Life Ms",
+          "type": "integer"
+        },
+        "features": {
+          "items": {
+            "$ref": "#/$defs/FeatureObservation"
+          },
+          "minItems": 1,
+          "title": "Features",
+          "type": "array"
+        },
+        "lineage_id": {
+          "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Lineage Id",
+          "type": "string"
+        },
+        "mechanical_confidence": {
+          "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+          "title": "Mechanical Confidence",
+          "type": "string"
+        },
+        "mechanical_intensity": {
+          "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+          "title": "Mechanical Intensity",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/EventPhase"
+        },
+        "predecessor_content_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predecessor Content Hash"
+        },
+        "producer": {
+          "const": "cryptofeed_rs",
+          "title": "Producer",
+          "type": "string"
+        },
+        "quality_flags": {
+          "items": {
+            "$ref": "#/$defs/QualityFlag"
+          },
+          "title": "Quality Flags",
+          "type": "array"
+        },
+        "quality_state": {
+          "$ref": "#/$defs/EventQualityState"
+        },
+        "reversal_risk": {
+          "pattern": "^(?:0(?:\\.[0-9]{1,8})?|1(?:\\.0{1,8})?)$",
+          "title": "Reversal Risk",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "event-pulse/1.0",
+          "default": "event-pulse/1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/EventScope"
+        },
+        "source_cursors": {
+          "items": {
+            "$ref": "#/$defs/SourceCursor"
+          },
+          "minItems": 1,
+          "title": "Source Cursors",
+          "type": "array"
+        },
+        "source_qualification": {
+          "$ref": "#/$defs/SourceQualification"
+        }
+      },
+      "required": [
+        "schema_version",
+        "contract_id",
+        "lineage_id",
+        "revision",
+        "predecessor_content_hash",
+        "content_hash",
+        "causal_time",
+        "producer",
+        "event_cluster_id",
+        "scope",
+        "contract_type",
+        "phase",
+        "event_type",
+        "direction",
+        "mechanical_intensity",
+        "mechanical_confidence",
+        "reversal_risk",
+        "quality_state",
+        "source_qualification",
+        "quality_flags",
+        "expected_half_life_ms",
+        "features",
+        "source_cursors"
+      ],
+      "title": "EventPulseMechanics",
+      "type": "object"
+    },
+    "EventQualityState": {
+      "enum": [
+        "VALIDATED",
+        "DEGRADED",
+        "INVALID",
+        "UNAVAILABLE"
+      ],
+      "title": "EventQualityState",
+      "type": "string"
+    },
+    "EventScope": {
+      "additionalProperties": false,
+      "properties": {
+        "asset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Asset"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "instrument": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InstrumentIdentity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "$ref": "#/$defs/ScopeKind"
+        },
+        "venue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Venue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind",
+        "asset",
+        "venue",
+        "instrument"
+      ],
+      "title": "EventScope",
+      "type": "object"
+    },
+    "EventType": {
+      "enum": [
+        "SHORT_SQUEEZE",
+        "LONG_LIQUIDATION",
+        "DERIVATIVES_LED_BREAKOUT",
+        "SPOT_LED_BREAKOUT",
+        "BOOK_DISLOCATION",
+        "MACRO_RISK_ON",
+        "MACRO_RISK_OFF",
+        "NEWS_SHOCK",
+        "FLOW_SHOCK",
+        "CROSS_ASSET_PROPAGATION",
+        "VOLATILITY_SHOCK",
+        "UNKNOWN"
+      ],
+      "title": "EventType",
+      "type": "string"
+    },
+    "EvidenceState": {
+      "enum": [
+        "COMPLETE",
+        "DEGRADED",
+        "INVALID",
+        "UNAVAILABLE"
+      ],
+      "title": "EvidenceState",
+      "type": "string"
+    },
+    "FeatureName": {
+      "enum": [
+        "log_return",
+        "taker_imbalance",
+        "cvd_slope",
+        "spread_bps",
+        "book_depth_10bps",
+        "open_interest_change",
+        "liquidation_notional",
+        "cross_venue_breadth",
+        "reversal_from_extreme"
+      ],
+      "title": "FeatureName",
+      "type": "string"
+    },
+    "FeatureObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "horizon_ms": {
+          "maximum": 86400000,
+          "minimum": 1,
+          "title": "Horizon Ms",
+          "type": "integer"
+        },
+        "name": {
+          "$ref": "#/$defs/FeatureName"
+        },
+        "quality_state": {
+          "$ref": "#/$defs/EventQualityState"
+        },
+        "reason_code": {
+          "minLength": 1,
+          "pattern": "^[A-Z][A-Z0-9_]*$",
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "unit": {
+          "$ref": "#/$defs/FeatureUnit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "pattern": "^-?(?:0|[1-9][0-9]{0,17})(?:\\.[0-9]{1,8})?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "unit",
+        "horizon_ms",
+        "quality_state",
+        "reason_code"
+      ],
+      "title": "FeatureObservation",
+      "type": "object"
+    },
+    "FeatureUnit": {
+      "enum": [
+        "LOG_RETURN",
+        "RATIO",
+        "BASE_PER_SECOND",
+        "BPS",
+        "USDC",
+        "CONTRACTS"
+      ],
+      "title": "FeatureUnit",
+      "type": "string"
+    },
+    "InstrumentIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "base_asset": {
+          "$ref": "#/$defs/Asset"
+        },
+        "market_type": {
+          "$ref": "#/$defs/MarketType"
+        },
+        "quote_asset": {
+          "$ref": "#/$defs/QuoteAsset"
+        },
+        "venue": {
+          "$ref": "#/$defs/Venue"
+        },
+        "venue_symbol": {
+          "minLength": 1,
+          "pattern": "^[A-Z0-9][A-Z0-9_-]*$",
+          "title": "Venue Symbol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "base_asset",
+        "quote_asset",
+        "market_type",
+        "venue",
+        "venue_symbol"
+      ],
+      "title": "InstrumentIdentity",
+      "type": "object"
+    },
+    "MarketType": {
+      "enum": [
+        "SPOT",
+        "PERPETUAL"
+      ],
+      "title": "MarketType",
+      "type": "string"
+    },
+    "QualityFlag": {
+      "enum": [
+        "SEQUENCE_GAP",
+        "BOOK_RESYNCING",
+        "CLOCK_UNCERTAIN",
+        "SOURCE_STALE",
+        "OI_STALE",
+        "MARK_MISSING",
+        "CROSS_VENUE_DIVERGENCE",
+        "QUEUE_DROP",
+        "RECONNECT_WARMUP",
+        "INSUFFICIENT_COVERAGE",
+        "LATE_CONTEXT"
+      ],
+      "title": "QualityFlag",
+      "type": "string"
+    },
+    "QualityState": {
+      "enum": [
+        "validated",
+        "degraded",
+        "invalid",
+        "unavailable"
+      ],
+      "title": "QualityState",
+      "type": "string"
+    },
+    "QuoteAsset": {
+      "enum": [
+        "USD",
+        "USDC",
+        "USDT"
+      ],
+      "title": "QuoteAsset",
+      "type": "string"
+    },
+    "ScopeKind": {
+      "enum": [
+        "GLOBAL_CRYPTO",
+        "ASSET",
+        "VENUE",
+        "PAIR"
+      ],
+      "title": "ScopeKind",
+      "type": "string"
+    },
+    "SourceCursor": {
+      "additionalProperties": false,
+      "properties": {
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "connection_epoch": {
+          "maxLength": 70,
+          "minLength": 7,
+          "pattern": "^epoch_[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+          "title": "Connection Epoch",
+          "type": "string"
+        },
+        "sequence_end": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "title": "Sequence End",
+          "type": "integer"
+        },
+        "sequence_start": {
+          "maximum": 9223372036854775807,
+          "minimum": 0,
+          "title": "Sequence Start",
+          "type": "integer"
+        },
+        "source_id": {
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_payload_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Payload Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "connection_epoch",
+        "sequence_start",
+        "sequence_end",
+        "available_at",
+        "source_payload_hash"
+      ],
+      "title": "SourceCursor",
+      "type": "object"
+    },
+    "SourceQualification": {
+      "enum": [
+        "UNVERIFIED"
+      ],
+      "title": "SourceQualification",
+      "type": "string"
+    },
+    "Venue": {
+      "enum": [
+        "BINANCE",
+        "HYPERLIQUID"
+      ],
+      "title": "Venue",
+      "type": "string"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "composite": "#/$defs/EventPulseComposite",
+      "context": "#/$defs/EventPulseContext",
+      "mechanics": "#/$defs/EventPulseMechanics"
+    },
+    "propertyName": "contract_type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/EventPulseMechanics"
+    },
+    {
+      "$ref": "#/$defs/EventPulseContext"
+    },
+    {
+      "$ref": "#/$defs/EventPulseComposite"
+    }
+  ]
+}
