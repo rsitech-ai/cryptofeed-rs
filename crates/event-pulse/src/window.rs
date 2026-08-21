@@ -340,6 +340,17 @@ impl<T> WindowBank<T> {
         self.total_records
     }
 
+    pub(crate) fn invalidate_configured_source(
+        &mut self,
+        source: &WindowSource,
+    ) -> Result<(), WindowError> {
+        if !self.source_generations.contains_key(source) {
+            return Err(WindowError::UnconfiguredKey);
+        }
+        self.invalidate_source(source);
+        Ok(())
+    }
+
     pub fn advance_source_epoch(
         &mut self,
         source: &WindowSource,

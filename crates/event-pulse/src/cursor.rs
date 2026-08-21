@@ -586,6 +586,20 @@ impl SourceStateMachine {
             .map(|slot| slot.book_snapshot_permitted)
     }
 
+    pub(crate) fn invalidate_contributor_for_queue_drop(
+        &mut self,
+        key: &ContributorKeyV1,
+    ) -> Result<(), CursorError> {
+        let slot = self
+            .contributors
+            .get_mut(key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        slot.invalidate_recoverable();
+        slot.retire_cursor();
+        slot.invalidate_recoverable();
+        Ok(())
+    }
+
     fn ingest_inner(&mut self, input: &MechanicsInputV1) -> Result<IngestOutcome, CursorError> {
         match input.view() {
             MechanicsInputRefV1::Market {
@@ -933,6 +947,7 @@ impl SourceStateMachine {
                 || target
                     .contributor_key()
                     .is_some_and(|key| bound.contains(key))
+                || target.processor_id().is_some()
             {
                 system.slot.retire_cursor();
                 system.chain_head = None;

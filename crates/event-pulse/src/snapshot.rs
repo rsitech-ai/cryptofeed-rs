@@ -23,9 +23,10 @@ use crate::{
         WindowKey, WindowKind, WindowSource, WindowSpec, has_exact_coverage,
     },
     wire::{
-        ClockQualityV1, ClockSourceKeyV1, ClockStateV1, ContributorKeyV1, ContributorRoleV1,
-        CoverageSourceKeyV1, CursorV1, FamilyV1, MechanicsConfigV1, MechanicsInputRefV1,
-        MechanicsInputV1, OpenInterestEncodingRefV1, Rfc3339Time, SnapshotAuthoringV1,
+        ClockQualityV1, ClockSourceKeyV1, ClockStateV1, ConfiguredTargetKeyV1, ContributorKeyV1,
+        ContributorRoleV1, CoverageSourceKeyV1, CursorV1, FamilyV1, MechanicsConfigV1,
+        MechanicsInputRefV1, MechanicsInputV1, OpenInterestEncodingRefV1, Rfc3339Time,
+        SnapshotAuthoringV1,
     },
 };
 
@@ -57,11 +58,22 @@ struct CoverageState {
 }
 
 #[derive(Debug, Clone)]
+struct ContributorCausal {
+    generation: u8,
+    max_source_event_ns: i64,
+    max_receive_ns: i64,
+    max_normalized_ns: i64,
+    exact_anchor: MarketAnchor,
+}
+
+#[derive(Debug, Clone)]
 struct FeatureRuntime {
     windows: WindowBank<FeatureSample>,
     coverage: BTreeMap<CoverageSourceKeyV1, CoverageState>,
     books: BTreeMap<ContributorKeyV1, BookProjection>,
     generations: BTreeMap<ContributorKeyV1, u8>,
+    causal: BTreeMap<ContributorKeyV1, ContributorCausal>,
+    retained_anchor: Option<MarketAnchor>,
 }
 
 impl FeatureRuntime {
@@ -119,6 +131,8 @@ impl FeatureRuntime {
             coverage,
             books,
             generations: BTreeMap::new(),
+            causal: BTreeMap::new(),
+            retained_anchor: None,
         })
     }
 
@@ -163,6 +177,7 @@ impl FeatureRuntime {
                     *book = BookProjection::new(8, 8, None);
                 }
                 self.generations.insert(contributor.clone(), generation);
+                self.causal.remove(contributor);
             }
             _ => {}
         }
@@ -185,7 +200,11 @@ impl FeatureRuntime {
             })
     }
 
-    fn ingest(&mut self, input: &MechanicsInputV1) -> Result<(), SnapshotError> {
+    fn ingest(
+        &mut self,
+        input: &MechanicsInputV1,
+        config: &MechanicsConfigV1,
+    ) -> Result<(), SnapshotError> {
         match input.view() {
             MechanicsInputRefV1::Market {
                 envelope, catalog, ..
@@ -253,9 +272,10 @@ impl FeatureRuntime {
                         },
                     )?,
                     MarketEvent::BookSnapshot(snapshot) => {
-                        let projection = self.books.get_mut(&contributor).ok_or_else(|| {
-                            SnapshotError::InvalidInput("unconfigured book family".into())
-                        })?;
+                        let mut projection =
+                            self.books.get(&contributor).cloned().ok_or_else(|| {
+                                SnapshotError::InvalidInput("unconfigured book family".into())
+                            })?;
                         match envelope.source_sequence {
                             Some(sequence) => projection.snapshot_native(snapshot, sequence, at_ns),
                             None => projection.snapshot_derived(snapshot, at_ns),
@@ -268,11 +288,13 @@ impl FeatureRuntime {
                             at_ns,
                             FeatureSample::Book,
                         )?;
+                        self.books.insert(contributor.clone(), projection);
                     }
                     MarketEvent::BookDelta(delta) => {
-                        let projection = self.books.get_mut(&contributor).ok_or_else(|| {
-                            SnapshotError::InvalidInput("unconfigured book family".into())
-                        })?;
+                        let mut projection =
+                            self.books.get(&contributor).cloned().ok_or_else(|| {
+                                SnapshotError::InvalidInput("unconfigured book family".into())
+                            })?;
                         match envelope.source_sequence {
                             Some(sequence) => projection.delta_native(delta, sequence, at_ns),
                             None => projection.delta_derived(delta, at_ns),
@@ -285,6 +307,7 @@ impl FeatureRuntime {
                             at_ns,
                             FeatureSample::Book,
                         )?;
+                        self.books.insert(contributor.clone(), projection);
                     }
                     MarketEvent::OpenInterest(value) => {
                         let conversion = match catalog
@@ -332,6 +355,39 @@ impl FeatureRuntime {
                     )?,
                     _ => {}
                 }
+                let exact_anchor = market_anchor(input)?.ok_or_else(|| {
+                    SnapshotError::InvalidInput("market input has no causal anchor".into())
+                })?;
+                let source_event_ns = envelope
+                    .exchange_ts
+                    .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?
+                    .0;
+                let generation = epoch.epoch_generation();
+                self.causal
+                    .entry(contributor.clone())
+                    .and_modify(|state| {
+                        state.max_source_event_ns = state.max_source_event_ns.max(source_event_ns);
+                        state.max_receive_ns = state.max_receive_ns.max(envelope.receive_ts.0);
+                        state.max_normalized_ns =
+                            state.max_normalized_ns.max(envelope.receive_ts.0);
+                        if exact_anchor.available_at >= state.exact_anchor.available_at {
+                            state.exact_anchor = exact_anchor.clone();
+                        }
+                    })
+                    .or_insert_with(|| ContributorCausal {
+                        generation,
+                        max_source_event_ns: source_event_ns,
+                        max_receive_ns: envelope.receive_ts.0,
+                        max_normalized_ns: envelope.receive_ts.0,
+                        exact_anchor: exact_anchor.clone(),
+                    });
+                if self
+                    .retained_anchor
+                    .as_ref()
+                    .is_none_or(|retained| exact_anchor.available_at >= retained.available_at)
+                {
+                    self.retained_anchor = Some(exact_anchor);
+                }
             }
             MechanicsInputRefV1::Coverage {
                 coverage_source,
@@ -366,19 +422,44 @@ impl FeatureRuntime {
             MechanicsInputRefV1::System { fault, .. } => match fault.view() {
                 crate::wire::SystemFaultRefV1::BookInvalidated
                 | crate::wire::SystemFaultRefV1::ChecksumMismatch => {
-                    for book in self.books.values_mut() {
-                        book.invalidate();
+                    for target in input_subjects(input, config) {
+                        if let Some(book) = self.books.get_mut(&target) {
+                            book.invalidate();
+                        }
+                        self.causal.remove(&target);
                     }
                 }
                 crate::wire::SystemFaultRefV1::BookResynchronized => {
-                    for book in self.books.values_mut() {
-                        book.permit_resnapshot();
+                    for target in input_subjects(input, config) {
+                        if let Some(book) = self.books.get_mut(&target) {
+                            book.permit_resnapshot();
+                        }
                     }
                 }
-                _ => {}
+                _ => {
+                    for target in input_subjects(input, config) {
+                        self.causal.remove(&target);
+                    }
+                }
             },
             MechanicsInputRefV1::Clock { .. } => {}
         }
+        Ok(())
+    }
+
+    fn invalidate_contributor(
+        &mut self,
+        contributor: &ContributorKeyV1,
+    ) -> Result<(), SnapshotError> {
+        let source = WindowSource::new(contributor.source_id())
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        self.windows
+            .invalidate_configured_source(&source)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        if let Some(book) = self.books.get_mut(contributor) {
+            book.invalidate();
+        }
+        self.causal.remove(contributor);
         Ok(())
     }
 
@@ -492,6 +573,7 @@ struct SnapshotObservation {
     pub flag_conditions: FlagConditions,
     pub liquidation_confirms_direction: bool,
     pub fully_warmed: bool,
+    pub critical_fault: bool,
     pub anchor: Option<MarketAnchor>,
     pub cursors: Vec<SnapshotCursor>,
     pub required_clock_sources: Vec<String>,
@@ -581,7 +663,13 @@ enum CauseKey {
     Contributor(ContributorKeyV1),
     Clock(ClockSourceKeyV1),
     Coverage(CoverageSourceKeyV1),
-    System(String),
+    System(SystemCauseKey),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct SystemCauseKey {
+    source_id: String,
+    target: ConfiguredTargetKeyV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -634,8 +722,8 @@ impl<T> ProcessorLog<T> {
         }
         Ok(())
     }
-    fn clear_for_new_epoch(&mut self, _at_ns: i64) {
-        self.records.clear();
+    fn retain(&mut self, mut keep: impl FnMut(&crate::window::Timed<T>) -> bool) {
+        self.records.retain(|record| keep(record));
     }
     fn records(&self) -> &VecDeque<crate::window::Timed<T>> {
         &self.records
@@ -757,22 +845,28 @@ impl MechanicsProcessor {
         if self.last_order.as_ref() != Some(&order)
             && ensure_record_capacity(self.records.len()).is_err()
         {
-            let mut candidate = self.clone();
-            candidate.record_queue_drop(input, at)?;
-            *self = candidate;
+            self.record_queue_drop(input, at)?;
             return Err(SnapshotError::InvalidInput(
                 "bounded processor queue dropped the unaccepted input".into(),
             ));
         }
-        let mut candidate = self.clone();
-        let outcome = match candidate.sources.ingest(input) {
+        let mut candidate_sources = self.sources.clone();
+        let outcome = match candidate_sources.ingest(input) {
             Ok(outcome) => outcome,
             Err(error) => {
-                candidate.record_failure(input, &error);
-                if error.invalidates_state() {
-                    ensure_record_capacity(candidate.records.len())?;
-                    candidate
-                        .records
+                self.sources = candidate_sources;
+                self.record_failure(input, &error);
+                let master_drop_latched =
+                    input_subjects(input, &self.config).iter().any(|subject| {
+                        matches!(
+                            self.active_causes
+                                .get(&CauseKey::Contributor(subject.clone())),
+                            Some(Cause::QueueDrop(_))
+                        )
+                    });
+                if error.invalidates_state() && !master_drop_latched {
+                    ensure_record_capacity(self.records.len())?;
+                    self.records
                         .push(
                             at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
                             ProcessorRecord {
@@ -781,42 +875,40 @@ impl MechanicsProcessor {
                             },
                         )
                         .map_err(|window| SnapshotError::InvalidInput(window.to_string()))?;
-                    candidate.last_input_micros = Some(at);
-                    candidate.last_order = Some(order);
+                    self.last_input_micros = Some(at);
+                    self.last_order = Some(order);
                 }
-                *self = candidate;
                 return Err(SnapshotError::InvalidInput(error.to_string()));
             }
         };
         if outcome != IngestOutcome::IgnoredDuplicate {
-            ensure_record_capacity(candidate.records.len())?;
-            if let Err(error) = candidate.feature_runtime.ingest(input) {
+            ensure_record_capacity(self.records.len())?;
+            if let Err(error) = self.feature_runtime.ingest(input, &self.config) {
                 if error == SnapshotError::FeatureQueueDrop {
-                    for cause_key in input_cause_keys(input, &candidate.config) {
-                        if let Some(cause) = candidate.active_causes.get_mut(&cause_key) {
+                    for cause_key in input_cause_keys(input, &self.config) {
+                        if let Some(cause) = self.active_causes.get_mut(&cause_key) {
                             *cause = Cause::QueueDrop(input_generation(input));
                         }
-                        if let Some(checkpoint) = candidate.checkpoint.as_mut() {
+                        if let Some(checkpoint) = self.checkpoint.as_mut() {
                             if let Some(cause) = checkpoint.causes.get_mut(&cause_key) {
                                 *cause = Cause::QueueDrop(input_generation(input));
                             }
                         }
                     }
-                    candidate.records.push(
+                    self.records.push(
                         at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
                         ProcessorRecord {
                             input: input.clone(),
                             accepted_evidence: false,
                         },
                     )?;
-                    candidate.last_input_micros = Some(at);
-                    candidate.last_order = Some(order);
-                    *self = candidate;
+                    self.sources = candidate_sources;
+                    self.last_input_micros = Some(at);
+                    self.last_order = Some(order);
                 }
                 return Err(error);
             }
-            candidate
-                .records
+            self.records
                 .push(
                     at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
                     ProcessorRecord {
@@ -826,11 +918,11 @@ impl MechanicsProcessor {
                 )
                 .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
         }
-        candidate.apply_input_cause(input);
-        candidate.clear_recovered_causes(input);
-        candidate.last_input_micros = Some(at);
-        candidate.last_order = Some(order);
-        *self = candidate;
+        self.sources = candidate_sources;
+        self.apply_input_cause(input);
+        self.clear_recovered_causes(input);
+        self.last_input_micros = Some(at);
+        self.last_order = Some(order);
         Ok(outcome)
     }
 
@@ -889,6 +981,7 @@ impl MechanicsProcessor {
         let (checkpoint_sources, mut checkpoint_runtime, checkpoint_causes) =
             candidate.replay_state(decision_ns)?;
         checkpoint_runtime.evict(&candidate.config, decision_ns)?;
+        let checkpoint_exact_anchor = checkpoint_runtime.retained_anchor.clone();
         candidate.checkpoint = Some(ReplayCheckpoint {
             at_ns: decision_ns,
             sources: checkpoint_sources,
@@ -896,7 +989,7 @@ impl MechanicsProcessor {
             causes: checkpoint_causes,
             phase: candidate.phase.clone(),
             observation: aggregate.clone(),
-            exact_anchor: candidate.latest_accepted_market_anchor(decision_ns)?,
+            exact_anchor: checkpoint_exact_anchor,
         });
         candidate
             .records
@@ -964,7 +1057,9 @@ impl MechanicsProcessor {
         }
         for key in input_cause_keys(input, &self.config) {
             if let Some(cause) = self.active_causes.get_mut(&key) {
-                *cause = Cause::Sequence(input_generation(input));
+                if !matches!(cause, Cause::QueueDrop(_)) {
+                    *cause = Cause::Sequence(input_generation(input));
+                }
             }
         }
     }
@@ -972,23 +1067,45 @@ impl MechanicsProcessor {
     fn record_queue_drop(
         &mut self,
         input: &MechanicsInputV1,
-        at_micros: i64,
+        _at_micros: i64,
     ) -> Result<(), SnapshotError> {
-        for key in input_cause_keys(input, &self.config) {
-            if let Some(cause) = self.active_causes.get_mut(&key) {
+        let keys = input_cause_keys(input, &self.config);
+        for key in &keys {
+            if let Some(cause) = self.active_causes.get_mut(key) {
                 *cause = Cause::QueueDrop(input_generation(input));
             }
             if let Some(checkpoint) = self.checkpoint.as_mut() {
-                if let Some(cause) = checkpoint.causes.get_mut(&key) {
+                if let Some(cause) = checkpoint.causes.get_mut(key) {
                     *cause = Cause::QueueDrop(input_generation(input));
                 }
             }
         }
-        self.records.clear_for_new_epoch(
-            at_micros
-                .checked_mul(1_000)
-                .ok_or(SnapshotError::Capacity)?,
-        );
+        let subjects = input_subjects(input, &self.config);
+        for subject in &subjects {
+            self.sources
+                .invalidate_contributor_for_queue_drop(subject)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            self.feature_runtime.invalidate_contributor(subject)?;
+            if let Some(checkpoint) = self.checkpoint.as_mut() {
+                checkpoint
+                    .sources
+                    .invalidate_contributor_for_queue_drop(subject)
+                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                checkpoint.runtime.invalidate_contributor(subject)?;
+            }
+        }
+        let config = self.config.clone();
+        self.records.retain(|record| {
+            if subjects.is_empty() {
+                !input_cause_keys(&record.value.input, &config)
+                    .iter()
+                    .any(|key| keys.contains(key))
+            } else {
+                !input_subjects(&record.value.input, &config)
+                    .iter()
+                    .any(|subject| subjects.contains(subject))
+            }
+        });
         self.cache = None;
         Ok(())
     }
@@ -1041,36 +1158,7 @@ impl MechanicsProcessor {
                 }
             }
         }
-    }
-
-    fn latest_accepted_market_anchor(
-        &self,
-        decision_ns: i64,
-    ) -> Result<Option<MarketAnchor>, SnapshotError> {
-        self.records
-            .records()
-            .iter()
-            .filter(|record| {
-                record.available_at_ns <= decision_ns && record.value.accepted_evidence
-            })
-            .try_fold(
-                self.checkpoint
-                    .as_ref()
-                    .filter(|checkpoint| checkpoint.at_ns <= decision_ns)
-                    .and_then(|checkpoint| checkpoint.exact_anchor.clone()),
-                |latest, record| {
-                    let candidate = market_anchor(&record.value.input)?;
-                    Ok(match (latest, candidate) {
-                        (Some(current), Some(candidate))
-                            if candidate.available_at > current.available_at =>
-                        {
-                            Some(candidate)
-                        }
-                        (None, candidate) => candidate,
-                        (current, _) => current,
-                    })
-                },
-            )
+        clear_retired_system_causes(&self.sources, input, &self.config, &mut self.active_causes);
     }
 
     fn derive_owned_observation(
@@ -1099,58 +1187,52 @@ impl MechanicsProcessor {
             .as_ref()
             .filter(|checkpoint| checkpoint.at_ns <= decision_ns);
         let checkpoint_ns = checkpoint.map(|checkpoint| checkpoint.at_ns);
-        let retained_anchor = records
+        let current_causal = runtime
+            .causal
             .iter()
-            .filter(|record| {
-                record.available_at_ns <= decision_ns
-                    && checkpoint_ns.is_none_or(|at| record.available_at_ns > at)
-                    && record.value.accepted_evidence
+            .filter(|(key, causal)| {
+                sources.contributor_invalidity(key).is_none()
+                    && sources
+                        .contributor_cursor(key)
+                        .is_some_and(|cursor| cursor.epoch_generation == causal.generation)
             })
-            .try_fold(
-                checkpoint.and_then(|value| value.exact_anchor.clone()),
-                |latest: Option<MarketAnchor>, record| {
-                    let candidate = market_anchor(&record.value.input)?;
-                    Ok::<_, SnapshotError>(match (latest, candidate) {
-                        (Some(current), Some(candidate))
-                            if candidate.available_at > current.available_at =>
-                        {
-                            Some(candidate)
-                        }
-                        (None, candidate) => candidate,
-                        (current, _) => current,
-                    })
-                },
-            )?;
-        let generation_changed = checkpoint.is_some_and(|checkpoint| {
-            self.config.contributors().iter().any(|spec| {
-                checkpoint
-                    .sources
-                    .contributor_cursor(spec.key())
-                    .zip(sources.contributor_cursor(spec.key()))
-                    .is_some_and(|(before, now)| {
-                        before.epoch_generation != now.epoch_generation || before.epoch != now.epoch
-                    })
-            })
-        });
-        let mut anchor = if generation_changed {
-            None
+            .map(|(_, causal)| causal)
+            .collect::<Vec<_>>();
+        let anchor = if current_causal.is_empty() {
+            runtime
+                .retained_anchor
+                .clone()
+                .or_else(|| checkpoint.and_then(|value| value.exact_anchor.clone()))
         } else {
-            checkpoint.and_then(|value| value.observation.anchor.clone())
+            let mut exact = current_causal
+                .iter()
+                .map(|causal| &causal.exact_anchor)
+                .max_by_key(|anchor| anchor.available_at.utc_micros())
+                .expect("non-empty causal state")
+                .clone();
+            let max_source_event_ns = current_causal
+                .iter()
+                .map(|causal| causal.max_source_event_ns)
+                .max()
+                .expect("non-empty causal state");
+            let max_receive_ns = current_causal
+                .iter()
+                .map(|causal| causal.max_receive_ns)
+                .max()
+                .expect("non-empty causal state");
+            let max_normalized_ns = current_causal
+                .iter()
+                .map(|causal| causal.max_normalized_ns)
+                .max()
+                .expect("non-empty causal state");
+            exact.source_event_time = Rfc3339Time::from_unix_nanos(max_source_event_ns)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            exact.received_at = Rfc3339Time::from_unix_nanos(max_receive_ns)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            exact.normalized_at = Rfc3339Time::from_unix_nanos(max_normalized_ns)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            Some(exact)
         };
-        let anchor_ns = |value: Option<&Rfc3339Time>| {
-            value
-                .map(|value| {
-                    value
-                        .utc_micros()
-                        .checked_mul(1_000)
-                        .ok_or(SnapshotError::Capacity)
-                })
-                .transpose()
-                .map(|value| value.unwrap_or(i64::MIN))
-        };
-        let mut max_source_event_ns = anchor_ns(anchor.as_ref().map(|v| &v.source_event_time))?;
-        let mut max_receive_ns = anchor_ns(anchor.as_ref().map(|v| &v.received_at))?;
-        let mut max_normalized_ns = anchor_ns(anchor.as_ref().map(|v| &v.normalized_at))?;
         let mut clocks = checkpoint
             .map(|value| {
                 value
@@ -1179,36 +1261,7 @@ impl MechanicsProcessor {
                 && self.input_is_current(&sources, &record.value.input)
         }) {
             match record.value.input.view() {
-                MechanicsInputRefV1::Market {
-                    envelope,
-                    catalog,
-                    payload_hash,
-                    ..
-                } => {
-                    let _ = catalog;
-                    let source_event = envelope
-                        .exchange_ts
-                        .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?
-                        .0;
-                    let event_anchor = MarketAnchor {
-                        source_event_time: Rfc3339Time::from_unix_nanos(source_event)
-                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
-                        received_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
-                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
-                        normalized_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
-                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
-                        available_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
-                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
-                        payload_hash: payload_hash.to_owned(),
-                    };
-                    max_source_event_ns = max_source_event_ns.max(source_event);
-                    max_receive_ns = max_receive_ns.max(envelope.receive_ts.0);
-                    max_normalized_ns = max_normalized_ns.max(envelope.receive_ts.0);
-                    if anchor.as_ref().is_none_or(|current: &MarketAnchor| {
-                        current.available_at < event_anchor.available_at
-                    }) {
-                        anchor = Some(event_anchor);
-                    }
+                MechanicsInputRefV1::Market { envelope, .. } => {
                     available_micros =
                         available_micros.max(envelope.receive_ts.0.div_euclid(1_000));
                 }
@@ -1238,17 +1291,6 @@ impl MechanicsProcessor {
                 }
             }
         }
-        if let Some(current) = anchor.as_mut() {
-            current.source_event_time = Rfc3339Time::from_unix_nanos(max_source_event_ns)
-                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
-            current.received_at = Rfc3339Time::from_unix_nanos(max_receive_ns)
-                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
-            current.normalized_at = Rfc3339Time::from_unix_nanos(max_normalized_ns)
-                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
-        } else {
-            anchor = retained_anchor;
-        }
-
         let one_second = decision_ns
             .checked_sub(1_000_000_000)
             .ok_or_else(arithmetic_overflow)?;
@@ -1585,6 +1627,12 @@ impl MechanicsProcessor {
         let trade_invalid = owner_invalid(trade_owner, FamilyV1::Trade);
         let quote_invalid = owner_invalid(quote_owner, FamilyV1::Quote);
         let book_invalid = owner_invalid(book_owner, FamilyV1::Book);
+        let breadth_source_invalid = self
+            .config
+            .contributors()
+            .iter()
+            .filter(|contributor| contributor.role() == ContributorRoleV1::Confirmation)
+            .any(|contributor| owner_invalid(contributor.key(), FamilyV1::ConfirmationPrice));
         let stale = quote.is_none();
         let mut flag_conditions = FlagConditions::default();
         for cause in active_causes.values() {
@@ -1632,7 +1680,9 @@ impl MechanicsProcessor {
             (
                 FeatureName::CrossVenueBreadth,
                 breadth,
-                if direction == Direction::Unknown {
+                if breadth_source_invalid {
+                    FeatureOutcomeCause::SourceInvalidated
+                } else if direction == Direction::Unknown {
                     FeatureOutcomeCause::DirectionUnknown
                 } else if !breadth_coverage_complete {
                     FeatureOutcomeCause::InsufficientCoverage
@@ -1771,7 +1821,11 @@ impl MechanicsProcessor {
                 .max()
                 .unwrap_or(i64::MIN),
         );
-        let fully_warmed = !flag_conditions.reconnect_warmup;
+        let critical_fault = trade_invalid || quote_invalid || book_invalid;
+        let fully_warmed = !critical_fault
+            && [trade_owner, quote_owner, book_owner]
+                .iter()
+                .all(|key| sources.contributor_state(key) == Some(SlotState::Live));
         Ok(SnapshotObservation {
             available_at: Rfc3339Time::from_unix_nanos(
                 available_micros
@@ -1788,6 +1842,7 @@ impl MechanicsProcessor {
                 )
             }),
             fully_warmed,
+            critical_fault,
             anchor,
             cursors,
             required_clock_sources,
@@ -1836,9 +1891,9 @@ impl MechanicsProcessor {
                 Ok(IngestOutcome::IgnoredDuplicate) => {}
                 Ok(_) => {
                     if record.value.accepted_evidence {
-                        runtime.ingest(input)?;
+                        runtime.ingest(input, &self.config)?;
                     } else {
-                        match runtime.ingest(input) {
+                        match runtime.ingest(input, &self.config) {
                             Err(SnapshotError::FeatureQueueDrop) => {}
                             Err(error) => return Err(error),
                             Ok(()) => {
@@ -1872,6 +1927,20 @@ impl MechanicsProcessor {
                     }
                 }
                 Err(_) => {}
+            }
+        }
+        for (key, active) in &self.active_causes {
+            if !matches!(active, Cause::QueueDrop(_)) {
+                continue;
+            }
+            if let Some(cause) = causes.get_mut(key) {
+                *cause = *active;
+            }
+            if let CauseKey::Contributor(subject) = key {
+                sources
+                    .invalidate_contributor_for_queue_drop(subject)
+                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                runtime.invalidate_contributor(subject)?;
             }
         }
         Ok((sources, runtime, causes))
@@ -2289,12 +2358,12 @@ fn configured_cause_keys(config: &MechanicsConfigV1) -> Vec<CauseKey> {
             .cloned()
             .map(CauseKey::Coverage),
     );
-    keys.extend(
-        config
-            .system_sources()
-            .iter()
-            .map(|key| CauseKey::System(key.source_id().to_owned())),
-    );
+    keys.extend(config.system_sources().iter().map(|key| {
+        CauseKey::System(SystemCauseKey {
+            source_id: key.source_id().to_owned(),
+            target: key.configured_target_key().clone(),
+        })
+    }));
     keys
 }
 
@@ -2311,7 +2380,10 @@ fn input_cause_keys(input: &MechanicsInputV1, config: &MechanicsConfigV1) -> Vec
             coverage_source, ..
         } => vec![CauseKey::Coverage(coverage_source.key().clone())],
         MechanicsInputRefV1::System { system_source, .. } => {
-            vec![CauseKey::System(system_source.key().source_id().to_owned())]
+            vec![CauseKey::System(SystemCauseKey {
+                source_id: system_source.key().source_id().to_owned(),
+                target: system_source.key().configured_target_key().clone(),
+            })]
         }
     }
 }
@@ -2371,6 +2443,40 @@ fn clear_recovered_input_cause(
                 }
                 *cause = Cause::None;
             }
+        }
+    }
+    clear_retired_system_causes(sources, input, config, causes);
+}
+
+fn clear_retired_system_causes(
+    sources: &SourceStateMachine,
+    input: &MechanicsInputV1,
+    config: &MechanicsConfigV1,
+    causes: &mut BTreeMap<CauseKey, Cause>,
+) {
+    if !matches!(input.view(), MechanicsInputRefV1::Market { .. }) {
+        return;
+    }
+    let recovery_generation = input_generation(input);
+    for (key, cause) in causes.iter_mut() {
+        let CauseKey::System(system_cause) = key else {
+            continue;
+        };
+        let Some(configured) = config.system_sources().iter().find(|configured| {
+            configured.source_id() == system_cause.source_id
+                && configured.configured_target_key() == &system_cause.target
+        }) else {
+            continue;
+        };
+        let fault_generation = match *cause {
+            Cause::Sequence(generation)
+            | Cause::Book(generation)
+            | Cause::QueueDrop(generation)
+            | Cause::Warmup(generation) => generation,
+            Cause::None => continue,
+        };
+        if recovery_generation > fault_generation && sources.system_cursor(configured).is_none() {
+            *cause = Cause::None;
         }
     }
 }
@@ -2472,12 +2578,10 @@ fn derive_evidence(observation: &SnapshotObservation) -> Result<MechanicsEvidenc
             .and_then(|row| row.value())
     };
     let log_return = value(FeatureName::LogReturn).unwrap_or(0);
-    let direction = if log_return > 0 {
-        Direction::Up
-    } else if log_return < 0 {
-        Direction::Down
-    } else {
-        Direction::Unknown
+    let direction = match log_return.cmp(&0) {
+        std::cmp::Ordering::Greater => Direction::Up,
+        std::cmp::Ordering::Less => Direction::Down,
+        std::cmp::Ordering::Equal => Direction::Unknown,
     };
     let oi = value(FeatureName::OpenInterestChange);
     let liquidation = value(FeatureName::LiquidationNotional);
@@ -2505,11 +2609,9 @@ fn derive_evidence(observation: &SnapshotObservation) -> Result<MechanicsEvidenc
     };
     let quality = envelope_quality(&observation.features);
     let invalid = quality == EnvelopeQuality::Invalid
-        || observation.flag_conditions.sequence_failure
-        || observation.flag_conditions.book_resyncing
-        || observation.flag_conditions.queue_drop
+        || observation.critical_fault
         || observation.flag_conditions.incomplete_critical
-        || observation.flag_conditions.reconnect_warmup;
+        || !observation.fully_warmed;
     let degraded = quality == EnvelopeQuality::Degraded
         || observation.flag_conditions.clock_degraded
         || observation.flag_conditions.oi_stale_or_unavailable
