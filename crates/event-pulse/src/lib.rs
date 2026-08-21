@@ -9,5 +9,6 @@ mod provenance;
 
 pub use provenance::{
     ArtifactProvenance, EXPECTED_ROOT_COMMIT, ProvenanceError, ProvenanceManifest,
-    VerifiedArtifact, embedded_provenance, verify_embedded_contracts, verify_manifest,
+    VerifiedArtifact, embedded_provenance, verify_artifact_bytes, verify_embedded_contracts,
+    verify_manifest,
 };

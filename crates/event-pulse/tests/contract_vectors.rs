@@ -1,7 +1,8 @@
 use marketfeed_event_pulse::{
-    EXPECTED_ROOT_COMMIT, ProvenanceError, embedded_provenance, verify_embedded_contracts,
-    verify_manifest,
+    EXPECTED_ROOT_COMMIT, ProvenanceError, embedded_provenance, verify_artifact_bytes,
+    verify_embedded_contracts, verify_manifest,
 };
+use sha2::{Digest, Sha256};
 
 #[test]
 fn provenance_accepts_exact_embedded_artifacts() {
@@ -21,10 +22,9 @@ fn provenance_rejects_missing_or_drifted_bytes() {
         Err(ProvenanceError::MissingArtifact { .. })
     ));
 
-    let mut drifted = manifest;
-    drifted.artifacts[0].sha256 = "0".repeat(64);
+    let drifted = manifest;
     assert!(matches!(
-        verify_manifest(&drifted),
+        verify_artifact_bytes(&drifted.artifacts[0], b"drifted artifact bytes"),
         Err(ProvenanceError::ArtifactDrift { .. })
     ));
 }
@@ -67,4 +67,57 @@ fn provenance_rejects_unapproved_family() {
         verify_manifest(&manifest),
         Err(ProvenanceError::UnapprovedFamily { .. })
     ));
+}
+
+#[test]
+fn provenance_rejects_coordinated_bytes_and_metadata_drift() {
+    let mut manifest = embedded_provenance().expect("embedded provenance");
+    let drifted_bytes = b"coordinated artifact and metadata drift";
+    manifest.artifacts[0].byte_length = drifted_bytes.len() as u64;
+    manifest.artifacts[0].sha256 = format!("{:x}", Sha256::digest(drifted_bytes));
+
+    assert!(matches!(
+        verify_artifact_bytes(&manifest.artifacts[0], drifted_bytes),
+        Err(ProvenanceError::PinnedRecordMismatch { .. })
+    ));
+}
+
+#[test]
+fn provenance_rejects_safe_wrong_source_path() {
+    let mut manifest = embedded_provenance().expect("embedded provenance");
+    manifest.artifacts[0].source_path =
+        "research_os/schemas/quant-harness/renamed.schema.json".into();
+
+    assert!(matches!(
+        verify_manifest(&manifest),
+        Err(ProvenanceError::PinnedRecordMismatch { .. })
+    ));
+}
+
+#[test]
+fn provenance_rejects_approved_wrong_family_swap() {
+    let mut manifest = embedded_provenance().expect("embedded provenance");
+    manifest.artifacts[0].family = "event-pulse/1.0".into();
+
+    assert!(matches!(
+        verify_manifest(&manifest),
+        Err(ProvenanceError::PinnedRecordMismatch { .. })
+    ));
+}
+
+#[test]
+fn provenance_rejects_unknown_top_level_or_artifact_field() {
+    let manifest = embedded_provenance().expect("embedded provenance");
+
+    let mut top_level = serde_json::to_value(&manifest).expect("serialize provenance");
+    top_level["unknown"] = serde_json::json!(true);
+    assert!(
+        serde_json::from_value::<marketfeed_event_pulse::ProvenanceManifest>(top_level).is_err()
+    );
+
+    let mut artifact = serde_json::to_value(&manifest).expect("serialize provenance");
+    artifact["artifacts"][0]["unknown"] = serde_json::json!(true);
+    assert!(
+        serde_json::from_value::<marketfeed_event_pulse::ProvenanceManifest>(artifact).is_err()
+    );
 }
