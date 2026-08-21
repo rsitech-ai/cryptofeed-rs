@@ -95,7 +95,7 @@ pub struct Rfc3339Time {
 }
 impl Rfc3339Time {
     pub fn from_unix_nanos(value: i64) -> Result<Self, WireError> {
-        let micros = value / 1_000;
+        let micros = value.div_euclid(1_000);
         let instant = OffsetDateTime::from_unix_timestamp_nanos(i128::from(micros) * 1_000)
             .map_err(|_| WireError::Time)?;
         let rendered = instant.format(&Rfc3339).map_err(|_| WireError::Time)?;

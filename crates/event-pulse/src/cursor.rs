@@ -76,7 +76,7 @@ pub enum CursorError {
 }
 
 impl CursorError {
-    fn invalidates_slot(&self) -> bool {
+    pub fn invalidates_state(&self) -> bool {
         matches!(
             self,
             Self::NativeOverlap
@@ -92,6 +92,10 @@ impl CursorError {
                 | Self::TimeOverflow
                 | Self::TerminalInvalid
         )
+    }
+
+    fn invalidates_slot(&self) -> bool {
+        self.invalidates_state()
     }
 }
 

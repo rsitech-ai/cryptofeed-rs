@@ -7,21 +7,406 @@ use serde_json::{Value, json};
 use thiserror::Error;
 
 use crate::{
-    ContractBundle, IngestOutcome, SlotState, SourceStateMachine, ValidatedContract, content_hash,
+    ContractBundle, CursorError, IngestOutcome, SlotState, SourceStateMachine, ValidatedContract,
+    content_hash,
     features::{
         BookProjection, Direction, EnvelopeQuality, FeatureCondition, FeatureConditions,
         FeatureName, FeatureQuality, FeatureSet, FlagConditions, MechanicsFlag, ReversalPolicy,
-        SCALE, canonical_decimal, cvd_slope, envelope_quality, evaluate_feature, evaluate_reversal,
-        liquidation_notional, log_return, mechanics_flags, open_interest_change, rescale,
-        spread_bps, taker_imbalance,
+        SCALE, VenueReturn, canonical_decimal, configured_cross_venue_breadth, cvd_slope,
+        envelope_quality, evaluate_feature, evaluate_reversal, liquidation_notional, log_return,
+        mechanics_flags, open_interest_change, open_interest_contracts, rescale, spread_bps,
+        taker_imbalance,
     },
     mechanics::{FamilyFlags, MechanicsEvidence, Phase, PhaseError, PhaseMachine},
-    window::{FixedWindow, PROCESSOR_RECORD_CAPACITY},
+    window::{
+        CoverageInterval, FixedWindow, PROCESSOR_RECORD_CAPACITY, WindowBank, WindowKey,
+        WindowKind, WindowSource, WindowSpec, has_exact_coverage,
+    },
     wire::{
-        ClockQualityV1, ClockStateV1, ContributorKeyV1, ContributorRoleV1, CursorV1,
-        MechanicsConfigV1, MechanicsInputRefV1, MechanicsInputV1, Rfc3339Time, SnapshotAuthoringV1,
+        ClockQualityV1, ClockStateV1, ContributorKeyV1, ContributorRoleV1, CoverageSourceKeyV1,
+        CursorV1, FamilyV1, MechanicsConfigV1, MechanicsInputRefV1, MechanicsInputV1,
+        OpenInterestEncodingRefV1, Rfc3339Time, SnapshotAuthoringV1,
     },
 };
+
+#[derive(Debug, Clone)]
+enum FeatureSample {
+    Trade {
+        price: i128,
+        quantity: i128,
+        side: AggressorSide,
+    },
+    Quote {
+        bid: i128,
+        ask: i128,
+    },
+    Book,
+    OpenInterest(i128),
+    Liquidation {
+        price: i128,
+        quantity: i128,
+        side: AggressorSide,
+    },
+    ConfirmationPrice(i128),
+}
+
+#[derive(Debug, Clone)]
+struct CoverageState {
+    generation: u8,
+    window: FixedWindow<CoverageInterval>,
+}
+
+#[derive(Debug, Clone)]
+struct FeatureRuntime {
+    windows: WindowBank<FeatureSample>,
+    coverage: BTreeMap<CoverageSourceKeyV1, CoverageState>,
+    books: BTreeMap<ContributorKeyV1, BookProjection>,
+    generations: BTreeMap<ContributorKeyV1, u8>,
+}
+
+impl FeatureRuntime {
+    fn new(config: &MechanicsConfigV1) -> Result<Self, SnapshotError> {
+        let mut specs = Vec::with_capacity(config.contributors().len() * 6);
+        let mut books = BTreeMap::new();
+        for contributor in config.contributors() {
+            let source = WindowSource::new(contributor.key().source_id())
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            for family in contributor.allowed_families() {
+                let windows: &[(i64, WindowKind)] = match family {
+                    FamilyV1::Trade => &[
+                        (1_000_000_000, WindowKind::Trade),
+                        (5_000_000_000, WindowKind::Trade),
+                    ],
+                    FamilyV1::Quote => &[(250_000_000, WindowKind::Quote)],
+                    FamilyV1::Book => &[(250_000_000, WindowKind::Book)],
+                    FamilyV1::OpenInterest => &[(5_000_000_000, WindowKind::OpenInterest)],
+                    FamilyV1::Liquidation => &[(5_000_000_000, WindowKind::Liquidation)],
+                    FamilyV1::ConfirmationPrice => {
+                        &[(1_000_000_000, WindowKind::ConfirmationPrice)]
+                    }
+                };
+                for (horizon_ns, kind) in windows {
+                    specs.push(WindowSpec {
+                        key: WindowKey::new(source.clone(), *horizon_ns, *kind)
+                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+                        epoch_generation: 0,
+                        epoch_first_available_ns: i64::MIN,
+                    });
+                }
+                if *family == FamilyV1::Book {
+                    books.insert(contributor.key().clone(), BookProjection::new(8, 8, None));
+                }
+            }
+        }
+        let windows = WindowBank::new(specs)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        let coverage = config
+            .coverage_sources()
+            .iter()
+            .map(|key| {
+                Ok((
+                    key.clone(),
+                    CoverageState {
+                        generation: 0,
+                        window: FixedWindow::new(60_000_000_000, i64::MIN)
+                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+                    },
+                ))
+            })
+            .collect::<Result<BTreeMap<_, _>, SnapshotError>>()?;
+        Ok(Self {
+            windows,
+            coverage,
+            books,
+            generations: BTreeMap::new(),
+        })
+    }
+
+    fn key(
+        contributor: &ContributorKeyV1,
+        horizon_ns: i64,
+        kind: WindowKind,
+    ) -> Result<WindowKey, SnapshotError> {
+        WindowKey::new(
+            WindowSource::new(contributor.source_id())
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+            horizon_ns,
+            kind,
+        )
+        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))
+    }
+
+    fn sync_generation(
+        &mut self,
+        contributor: &ContributorKeyV1,
+        generation: u8,
+        at_ns: i64,
+    ) -> Result<(), SnapshotError> {
+        match self.generations.get(contributor).copied() {
+            None => {
+                if generation > 0 {
+                    let source = WindowSource::new(contributor.source_id())
+                        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                    self.windows
+                        .advance_source_epoch(&source, generation, at_ns)
+                        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                }
+                self.generations.insert(contributor.clone(), generation);
+            }
+            Some(current) if generation > current => {
+                let source = WindowSource::new(contributor.source_id())
+                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                self.windows
+                    .advance_source_epoch(&source, generation, at_ns)
+                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                if let Some(book) = self.books.get_mut(contributor) {
+                    *book = BookProjection::new(8, 8, None);
+                }
+                self.generations.insert(contributor.clone(), generation);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn push(
+        &mut self,
+        contributor: &ContributorKeyV1,
+        horizon_ns: i64,
+        kind: WindowKind,
+        at_ns: i64,
+        value: FeatureSample,
+    ) -> Result<(), SnapshotError> {
+        self.windows
+            .push(&Self::key(contributor, horizon_ns, kind)?, at_ns, value)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))
+    }
+
+    fn ingest(&mut self, input: &MechanicsInputV1) -> Result<(), SnapshotError> {
+        match input.view() {
+            MechanicsInputRefV1::Market {
+                envelope, catalog, ..
+            } => {
+                let venue = catalog
+                    .venue_source(envelope.venue.0)
+                    .ok_or_else(|| SnapshotError::InvalidInput("venue mapping".into()))?;
+                let instrument_id = envelope
+                    .instrument
+                    .ok_or_else(|| SnapshotError::InvalidInput("instrument mapping".into()))?;
+                let instrument = catalog
+                    .instrument(instrument_id.0)
+                    .ok_or_else(|| SnapshotError::InvalidInput("instrument mapping".into()))?;
+                let contributor = ContributorKeyV1::new(venue.source_id(), instrument.clone())
+                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                let epoch = catalog
+                    .connection_epochs()
+                    .iter()
+                    .find(|entry| {
+                        entry.connection_id() == envelope.connection.0
+                            && entry.session_id() == envelope.session.0
+                    })
+                    .ok_or_else(|| SnapshotError::InvalidInput("epoch mapping".into()))?;
+                let at_ns = envelope.receive_ts.0;
+                self.sync_generation(&contributor, epoch.epoch_generation(), at_ns)?;
+                match &envelope.payload {
+                    MarketEvent::Trade(trade) => {
+                        let sample = FeatureSample::Trade {
+                            price: rescale(trade.price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            quantity: rescale(trade.quantity.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            side: trade.aggressor,
+                        };
+                        self.push(
+                            &contributor,
+                            1_000_000_000,
+                            WindowKind::Trade,
+                            at_ns,
+                            sample.clone(),
+                        )?;
+                        self.push(
+                            &contributor,
+                            5_000_000_000,
+                            WindowKind::Trade,
+                            at_ns,
+                            sample,
+                        )?;
+                    }
+                    MarketEvent::Quote(quote) => self.push(
+                        &contributor,
+                        250_000_000,
+                        WindowKind::Quote,
+                        at_ns,
+                        FeatureSample::Quote {
+                            bid: rescale(quote.bid_price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            ask: rescale(quote.ask_price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                        },
+                    )?,
+                    MarketEvent::BookSnapshot(snapshot) => {
+                        let projection = self.books.get_mut(&contributor).ok_or_else(|| {
+                            SnapshotError::InvalidInput("unconfigured book family".into())
+                        })?;
+                        match envelope.source_sequence {
+                            Some(sequence) => projection.snapshot_native(snapshot, sequence, at_ns),
+                            None => projection.snapshot_derived(snapshot, at_ns),
+                        }
+                        .map_err(|error| SnapshotError::Contract(error.to_string()))?;
+                        self.push(
+                            &contributor,
+                            250_000_000,
+                            WindowKind::Book,
+                            at_ns,
+                            FeatureSample::Book,
+                        )?;
+                    }
+                    MarketEvent::BookDelta(delta) => {
+                        let projection = self.books.get_mut(&contributor).ok_or_else(|| {
+                            SnapshotError::InvalidInput("unconfigured book family".into())
+                        })?;
+                        match envelope.source_sequence {
+                            Some(sequence) => projection.delta_native(delta, sequence, at_ns),
+                            None => projection.delta_derived(delta, at_ns),
+                        }
+                        .map_err(|error| SnapshotError::Contract(error.to_string()))?;
+                        self.push(
+                            &contributor,
+                            250_000_000,
+                            WindowKind::Book,
+                            at_ns,
+                            FeatureSample::Book,
+                        )?;
+                    }
+                    MarketEvent::OpenInterest(value) => {
+                        let conversion = match catalog
+                            .open_interest_encoding(instrument_id.0)
+                            .ok_or_else(|| SnapshotError::InvalidInput("OI encoding".into()))?
+                            .view()
+                        {
+                            OpenInterestEncodingRefV1::Contracts => None,
+                            OpenInterestEncodingRefV1::Base { contracts_per_base } => {
+                                Some(parse_scaled(contracts_per_base.as_str())?)
+                            }
+                        };
+                        let contracts = open_interest_contracts(value.quantity.0, conversion)
+                            .map_err(|error| SnapshotError::Contract(error.to_string()))?;
+                        self.push(
+                            &contributor,
+                            5_000_000_000,
+                            WindowKind::OpenInterest,
+                            at_ns,
+                            FeatureSample::OpenInterest(contracts),
+                        )?;
+                    }
+                    MarketEvent::Liquidation(value) => self.push(
+                        &contributor,
+                        5_000_000_000,
+                        WindowKind::Liquidation,
+                        at_ns,
+                        FeatureSample::Liquidation {
+                            price: rescale(value.price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            quantity: rescale(value.quantity.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                            side: value.side,
+                        },
+                    )?,
+                    MarketEvent::MarkPrice(value) | MarketEvent::IndexPrice(value) => self.push(
+                        &contributor,
+                        1_000_000_000,
+                        WindowKind::ConfirmationPrice,
+                        at_ns,
+                        FeatureSample::ConfirmationPrice(
+                            rescale(value.price.0)
+                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                        ),
+                    )?,
+                    _ => {}
+                }
+            }
+            MechanicsInputRefV1::Coverage {
+                coverage_source,
+                covered_from,
+                covered_through,
+                available_at,
+                ..
+            } => {
+                let state = self
+                    .coverage
+                    .get_mut(coverage_source.key())
+                    .ok_or_else(|| SnapshotError::InvalidInput("unconfigured coverage".into()))?;
+                if coverage_source.epoch_generation() > state.generation {
+                    state.generation = coverage_source.epoch_generation();
+                    state.window.clear_for_new_epoch(time_to_ns(available_at)?);
+                }
+                state
+                    .window
+                    .push(
+                        time_to_ns(available_at)?,
+                        CoverageInterval {
+                            covered_from_ns: time_to_ns(covered_from)?,
+                            covered_through_ns: time_to_ns(covered_through)?,
+                            available_at_ns: time_to_ns(available_at)?,
+                        },
+                    )
+                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            }
+            MechanicsInputRefV1::System { fault, .. } => match fault.view() {
+                crate::wire::SystemFaultRefV1::BookInvalidated
+                | crate::wire::SystemFaultRefV1::ChecksumMismatch => {
+                    for book in self.books.values_mut() {
+                        book.invalidate();
+                    }
+                }
+                crate::wire::SystemFaultRefV1::BookResynchronized => {
+                    for book in self.books.values_mut() {
+                        book.permit_resnapshot();
+                    }
+                }
+                _ => {}
+            },
+            MechanicsInputRefV1::Clock { .. } => {}
+        }
+        Ok(())
+    }
+
+    fn records(
+        &self,
+        contributor: &ContributorKeyV1,
+        horizon_ns: i64,
+        kind: WindowKind,
+    ) -> Result<&std::collections::VecDeque<crate::window::Timed<FeatureSample>>, SnapshotError>
+    {
+        self.windows
+            .get(&Self::key(contributor, horizon_ns, kind)?)
+            .map(FixedWindow::records)
+            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured feature window".into()))
+    }
+
+    fn covered(
+        &self,
+        config: &MechanicsConfigV1,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+        decision_ns: i64,
+        horizon_ns: i64,
+    ) -> Result<bool, SnapshotError> {
+        let key = config
+            .coverage_sources()
+            .iter()
+            .find(|key| key.subject() == contributor && key.family() == family)
+            .ok_or_else(|| SnapshotError::InvalidInput("missing configured coverage".into()))?;
+        let state = self
+            .coverage
+            .get(key)
+            .ok_or_else(|| SnapshotError::InvalidInput("missing coverage state".into()))?;
+        let mut intervals = Vec::with_capacity(state.window.len());
+        intervals.extend(state.window.records().iter().map(|record| record.value));
+        has_exact_coverage(&intervals, decision_ns, horizon_ns)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct MarketAnchor {
@@ -87,6 +472,8 @@ pub enum SnapshotError {
     StaleCausalAnchor,
     #[error("complete fresh clock evidence is missing")]
     MissingClockEvidence,
+    #[error("configured coverage has no evidence")]
+    MissingCoverageEvidence,
     #[error("causal timestamps are not monotonic")]
     InvalidCausalTime,
     #[error("source cursor provenance is ambiguous")]
@@ -156,6 +543,7 @@ pub struct MechanicsProcessor {
     config: MechanicsConfigV1,
     authoring: SnapshotAuthoringV1,
     sources: SourceStateMachine,
+    feature_runtime: FeatureRuntime,
     records: FixedWindow<MechanicsInputV1>,
     active_causes: BTreeMap<ContributorKeyV1, Cause>,
     pending: Option<SnapshotObservation>,
@@ -190,11 +578,13 @@ impl MechanicsProcessor {
             .iter()
             .map(|spec| (spec.key().clone(), Cause::None))
             .collect();
+        let feature_runtime = FeatureRuntime::new(&config)?;
         Ok(Self {
             sources: SourceStateMachine::new(config.clone()),
+            feature_runtime,
             config,
             authoring,
-            records: FixedWindow::new(5_000_000_000, i64::MIN)
+            records: FixedWindow::new(60_000_000_000, i64::MIN)
                 .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
             active_causes,
             pending: None,
@@ -237,19 +627,29 @@ impl MechanicsProcessor {
             ensure_record_capacity(self.records.len())?;
         }
         let mut candidate = self.clone();
-        if candidate.last_input_micros.is_some_and(|last| at > last) {
-            candidate.commit_pending_phase()?;
-        }
         let outcome = match candidate.sources.ingest(input) {
             Ok(outcome) => outcome,
             Err(error) => {
-                candidate.record_failure(input, &error.to_string());
+                candidate.record_failure(input, &error);
+                if error.invalidates_state() {
+                    ensure_record_capacity(candidate.records.len())?;
+                    candidate
+                        .records
+                        .push(
+                            at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
+                            input.clone(),
+                        )
+                        .map_err(|window| SnapshotError::InvalidInput(window.to_string()))?;
+                    candidate.last_input_micros = Some(at);
+                    candidate.last_order = Some(order);
+                }
                 *self = candidate;
                 return Err(SnapshotError::InvalidInput(error.to_string()));
             }
         };
         if outcome != IngestOutcome::IgnoredDuplicate {
             ensure_record_capacity(candidate.records.len())?;
+            candidate.feature_runtime.ingest(input)?;
             candidate
                 .records
                 .push(
@@ -260,8 +660,11 @@ impl MechanicsProcessor {
         }
         candidate.apply_input_cause(input);
         candidate.clear_recovered_causes();
-        let observation = candidate.derive_owned_observation(at)?;
-        candidate.pending = Some(observation);
+        candidate.pending = match candidate.derive_owned_observation(at) {
+            Ok(observation) => Some(observation),
+            Err(SnapshotError::MissingCoverageEvidence) => None,
+            Err(error) => return Err(error),
+        };
         candidate.last_input_micros = Some(at);
         candidate.last_order = Some(order);
         *self = candidate;
@@ -285,28 +688,12 @@ impl MechanicsProcessor {
             return Err(SnapshotError::DecisionTimeRegression);
         }
 
-        if self.pending.is_none() && self.current.is_none() {
+        if self.records.is_empty() && self.current.is_none() {
             return Err(SnapshotError::MissingCausalAnchor);
         }
         let mut candidate = self.clone();
-        candidate.commit_pending_phase()?;
-        candidate
-            .records
-            .evict(
-                decision_micros
-                    .checked_mul(1_000)
-                    .ok_or(SnapshotError::Capacity)?,
-            )
-            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
         let aggregate = candidate.derive_owned_observation(decision_micros)?;
-        candidate
-            .phase
-            .advance_to(
-                decision_micros
-                    .checked_mul(1_000)
-                    .ok_or_else(|| SnapshotError::Phase("decision nanoseconds overflow".into()))?,
-            )
-            .map_err(phase_error)?;
+        candidate.phase = candidate.phase_at(decision_micros)?;
         let mut decision_evidence = derive_evidence(&aggregate)?;
         decision_evidence.available_at_ns = decision_micros
             .checked_mul(1_000)
@@ -322,7 +709,12 @@ impl MechanicsProcessor {
         let snapshot = candidate.author(&decision_time, &aggregate, &candidate.phase)?;
 
         let sealed = decision_micros;
-        candidate.pending = None;
+        if candidate
+            .last_input_micros
+            .is_some_and(|last| last <= decision_micros)
+        {
+            candidate.pending = None;
+        }
         candidate.current = Some(aggregate);
         candidate.sealed_micros = Some(sealed);
         candidate.last_decision_micros = Some(decision_micros);
@@ -336,44 +728,70 @@ impl MechanicsProcessor {
         Ok(snapshot)
     }
 
-    fn commit_pending_phase(&mut self) -> Result<(), SnapshotError> {
-        if let Some(observation) = self.pending.take() {
-            self.phase
+    fn phase_at(&self, decision_micros: i64) -> Result<PhaseMachine, SnapshotError> {
+        let mut phase = PhaseMachine::new();
+        let mut previous = None;
+        for at in self
+            .records
+            .records()
+            .iter()
+            .map(|record| record.available_at_ns / 1_000)
+            .filter(|at| *at <= decision_micros)
+        {
+            if previous == Some(at) {
+                continue;
+            }
+            let observation = match self.derive_owned_observation(at) {
+                Ok(observation) => observation,
+                Err(SnapshotError::MissingCoverageEvidence) => {
+                    previous = Some(at);
+                    continue;
+                }
+                Err(error) => return Err(error),
+            };
+            phase
                 .observe(&derive_evidence(&observation)?)
                 .map_err(phase_error)?;
-            self.current = Some(observation);
+            previous = Some(at);
         }
-        Ok(())
+        phase
+            .advance_to(
+                decision_micros
+                    .checked_mul(1_000)
+                    .ok_or_else(|| SnapshotError::Phase("decision nanoseconds overflow".into()))?,
+            )
+            .map_err(phase_error)?;
+        Ok(phase)
     }
 
-    fn record_failure(&mut self, input: &MechanicsInputV1, _message: &str) {
+    fn record_failure(&mut self, input: &MechanicsInputV1, error: &CursorError) {
+        if !error.invalidates_state() {
+            return;
+        }
         for key in input_subjects(input, &self.config) {
-            self.active_causes.insert(key, Cause::Sequence);
+            if let Some(cause) = self.active_causes.get_mut(&key) {
+                *cause = Cause::Sequence;
+            }
         }
     }
 
     fn apply_input_cause(&mut self, input: &MechanicsInputV1) {
-        let MechanicsInputRefV1::System { fault, .. } = input.view() else {
+        let Some(cause) = input_cause(input) else {
             return;
         };
-        let cause = match fault.view() {
-            crate::wire::SystemFaultRefV1::ChecksumMismatch
-            | crate::wire::SystemFaultRefV1::BookInvalidated
-            | crate::wire::SystemFaultRefV1::BookResynchronized => Cause::Book,
-            crate::wire::SystemFaultRefV1::EventsDropped { .. } => Cause::QueueDrop,
-            crate::wire::SystemFaultRefV1::Disconnected => Cause::Warmup,
-            crate::wire::SystemFaultRefV1::SequenceGap { .. }
-            | crate::wire::SystemFaultRefV1::ClockJump { .. } => Cause::Sequence,
-        };
         for key in input_subjects(input, &self.config) {
-            self.active_causes.insert(key, cause);
+            if let Some(current) = self.active_causes.get_mut(&key) {
+                *current = cause;
+            }
         }
     }
 
     fn clear_recovered_causes(&mut self) {
         for spec in self.config.contributors() {
             if self.sources.contributor_state(spec.key()) == Some(SlotState::Live) {
-                self.active_causes.insert(spec.key().clone(), Cause::None);
+                if let Some(cause) = self.active_causes.get_mut(spec.key()) {
+                    *cause = Cause::None;
+                }
             }
         }
     }
@@ -386,6 +804,14 @@ impl MechanicsProcessor {
             .checked_mul(1_000)
             .ok_or(SnapshotError::Capacity)?;
         let records = self.records.records();
+        let (sources, runtime, active_causes) = self.replay_state(decision_ns)?;
+        if runtime
+            .coverage
+            .values()
+            .all(|state| state.window.is_empty())
+        {
+            return Err(SnapshotError::MissingCoverageEvidence);
+        }
         let primary = self
             .config
             .contributors()
@@ -394,16 +820,29 @@ impl MechanicsProcessor {
             .ok_or_else(|| SnapshotError::InvalidInput("missing primary".into()))?;
         let primary_key = primary.key();
 
-        let mut trades = Vec::with_capacity(records.len());
-        let mut quotes = Vec::with_capacity(records.len());
-        let mut oi = Vec::with_capacity(records.len());
-        let mut liquidations = Vec::with_capacity(records.len());
-        let mut latest_book = None;
+        let retained_anchor = records
+            .iter()
+            .filter(|record| record.available_at_ns <= decision_ns)
+            .try_fold(None, |latest: Option<MarketAnchor>, record| {
+                let candidate = market_anchor(&record.value)?;
+                Ok::<_, SnapshotError>(match (latest, candidate) {
+                    (Some(current), Some(candidate))
+                        if candidate.available_at > current.available_at =>
+                    {
+                        Some(candidate)
+                    }
+                    (None, candidate) => candidate,
+                    (current, _) => current,
+                })
+            })?;
         let mut anchor = None;
+        let mut max_source_event_ns = i64::MIN;
+        let mut max_receive_ns = i64::MIN;
+        let mut max_normalized_ns = i64::MIN;
         let mut clocks = BTreeMap::new();
         let mut available_micros = i64::MIN;
         for record in records.iter().filter(|record| {
-            record.available_at_ns <= decision_ns && self.input_is_current(&record.value)
+            record.available_at_ns <= decision_ns && self.input_is_current(&sources, &record.value)
         }) {
             match record.value.view() {
                 MechanicsInputRefV1::Market {
@@ -412,15 +851,7 @@ impl MechanicsProcessor {
                     payload_hash,
                     ..
                 } => {
-                    let venue = catalog
-                        .venue_source(envelope.venue.0)
-                        .ok_or_else(|| SnapshotError::InvalidInput("venue mapping".into()))?;
-                    let instrument = envelope
-                        .instrument
-                        .and_then(|id| catalog.instrument(id.0))
-                        .ok_or_else(|| SnapshotError::InvalidInput("instrument mapping".into()))?;
-                    let key = ContributorKeyV1::new(venue.source_id(), instrument.clone())
-                        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                    let _ = catalog;
                     let source_event = envelope
                         .exchange_ts
                         .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?
@@ -436,49 +867,15 @@ impl MechanicsProcessor {
                             .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
                         payload_hash: payload_hash.to_owned(),
                     };
+                    max_source_event_ns = max_source_event_ns.max(source_event);
+                    max_receive_ns = max_receive_ns.max(envelope.receive_ts.0);
+                    max_normalized_ns = max_normalized_ns.max(envelope.receive_ts.0);
                     if anchor.as_ref().is_none_or(|current: &MarketAnchor| {
                         current.available_at < event_anchor.available_at
                     }) {
                         anchor = Some(event_anchor);
                     }
                     available_micros = available_micros.max(envelope.receive_ts.0 / 1_000);
-                    if &key != primary_key {
-                        continue;
-                    }
-                    match &envelope.payload {
-                        MarketEvent::Trade(trade) => trades.push((
-                            envelope.receive_ts.0,
-                            rescale(trade.price.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                            rescale(trade.quantity.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                            trade.aggressor,
-                        )),
-                        MarketEvent::Quote(quote) => quotes.push((
-                            envelope.receive_ts.0,
-                            rescale(quote.bid_price.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                            rescale(quote.ask_price.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                        )),
-                        MarketEvent::BookSnapshot(snapshot) => {
-                            latest_book = Some((envelope.receive_ts.0, snapshot.clone()));
-                        }
-                        MarketEvent::OpenInterest(value) => oi.push((
-                            envelope.receive_ts.0,
-                            rescale(value.quantity.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                        )),
-                        MarketEvent::Liquidation(value) => liquidations.push((
-                            envelope.receive_ts.0,
-                            rescale(value.price.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                            rescale(value.quantity.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                            value.side,
-                        )),
-                        _ => {}
-                    }
                 }
                 MechanicsInputRefV1::Clock {
                     clock_source,
@@ -506,14 +903,64 @@ impl MechanicsProcessor {
                 }
             }
         }
+        if let Some(current) = anchor.as_mut() {
+            current.source_event_time = Rfc3339Time::from_unix_nanos(max_source_event_ns)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            current.received_at = Rfc3339Time::from_unix_nanos(max_receive_ns)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            current.normalized_at = Rfc3339Time::from_unix_nanos(max_normalized_ns)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        } else {
+            anchor = retained_anchor;
+        }
 
         let one_second = decision_ns.saturating_sub(1_000_000_000);
         let five_seconds = decision_ns.saturating_sub(5_000_000_000);
-        let mut trade_1s: Vec<&(i64, i128, i128, AggressorSide)> = Vec::with_capacity(trades.len());
-        trade_1s.extend(trades.iter().filter(|(at, ..)| *at >= one_second));
-        let mut trade_5s: Vec<&(i64, i128, i128, AggressorSide)> = Vec::with_capacity(trades.len());
-        trade_5s.extend(trades.iter().filter(|(at, ..)| *at >= five_seconds));
-        let log = if trade_1s.len() >= 2 {
+        let trade_1s_covered = runtime.covered(
+            &self.config,
+            primary_key,
+            FamilyV1::Trade,
+            decision_ns,
+            1_000_000_000,
+        )?;
+        let trade_5s_covered = runtime.covered(
+            &self.config,
+            primary_key,
+            FamilyV1::Trade,
+            decision_ns,
+            5_000_000_000,
+        )?;
+        let trade_window_1s = runtime.records(primary_key, 1_000_000_000, WindowKind::Trade)?;
+        let mut trade_1s = Vec::with_capacity(trade_window_1s.len());
+        trade_1s.extend(trade_window_1s.iter().filter_map(|record| {
+            if record.available_at_ns < one_second {
+                return None;
+            }
+            match record.value {
+                FeatureSample::Trade {
+                    price,
+                    quantity,
+                    side,
+                } => Some((record.available_at_ns, price, quantity, side)),
+                _ => None,
+            }
+        }));
+        let trade_window_5s = runtime.records(primary_key, 5_000_000_000, WindowKind::Trade)?;
+        let mut trade_5s = Vec::with_capacity(trade_window_5s.len());
+        trade_5s.extend(trade_window_5s.iter().filter_map(|record| {
+            if record.available_at_ns < five_seconds {
+                return None;
+            }
+            match record.value {
+                FeatureSample::Trade {
+                    price,
+                    quantity,
+                    side,
+                } => Some((record.available_at_ns, price, quantity, side)),
+                _ => None,
+            }
+        }));
+        let log = if trade_1s_covered && trade_1s.len() >= 2 {
             Some(
                 log_return(trade_1s[0].1, trade_1s.last().expect("two trades").1)
                     .map_err(|error| SnapshotError::Contract(error.to_string()))?,
@@ -526,20 +973,23 @@ impl MechanicsProcessor {
             -1 => Direction::Down,
             _ => Direction::Unknown,
         };
-        let buy = trade_1s
-            .iter()
-            .filter(|(_, _, _, side)| *side == AggressorSide::Buy)
-            .map(|(_, _, quantity, _)| *quantity)
-            .sum::<i128>();
-        let sell = trade_1s
-            .iter()
-            .filter(|(_, _, _, side)| *side == AggressorSide::Sell)
-            .map(|(_, _, quantity, _)| *quantity)
-            .sum::<i128>();
+        let buy = checked_sum(
+            trade_1s
+                .iter()
+                .filter(|(_, _, _, side)| *side == AggressorSide::Buy)
+                .map(|(_, _, quantity, _)| *quantity),
+        )?;
+        let sell = checked_sum(
+            trade_1s
+                .iter()
+                .filter(|(_, _, _, side)| *side == AggressorSide::Sell)
+                .map(|(_, _, quantity, _)| *quantity),
+        )?;
         let flow_known = trade_1s
             .iter()
             .all(|(_, _, _, side)| *side != AggressorSide::Unknown);
-        let imbalance = if flow_known && buy + sell > 0 {
+        let flow_total = buy.checked_add(sell).ok_or_else(arithmetic_overflow)?;
+        let imbalance = if trade_1s_covered && flow_known && flow_total > 0 {
             Some(
                 taker_imbalance(buy, sell)
                     .map_err(|error| SnapshotError::Contract(error.to_string()))?,
@@ -547,7 +997,7 @@ impl MechanicsProcessor {
         } else {
             None
         };
-        let cvd = if flow_known && trade_1s.len() >= 2 {
+        let cvd = if trade_1s_covered && flow_known && trade_1s.len() >= 2 {
             let signed = |quantity: i128, side: AggressorSide| {
                 if side == AggressorSide::Sell {
                     -quantity
@@ -556,41 +1006,83 @@ impl MechanicsProcessor {
                 }
             };
             let first = signed(trade_1s[0].2, trade_1s[0].3);
-            let last = trade_1s
-                .iter()
-                .map(|(_, _, quantity, side)| signed(*quantity, *side))
-                .sum();
+            let last = checked_sum(
+                trade_1s
+                    .iter()
+                    .map(|(_, _, quantity, side)| signed(*quantity, *side)),
+            )?;
+            let elapsed_ns = trade_1s
+                .last()
+                .expect("two")
+                .0
+                .checked_sub(trade_1s[0].0)
+                .ok_or_else(arithmetic_overflow)?;
             Some(
-                cvd_slope(
-                    first,
-                    last,
-                    i128::from(trade_1s.last().expect("two").0 - trade_1s[0].0) / 1_000,
-                )
-                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                cvd_slope(first, last, i128::from(elapsed_ns) / 1_000)
+                    .map_err(|error| SnapshotError::Contract(error.to_string()))?,
             )
         } else {
             None
         };
-        let quote = quotes
+        let quote_boundary = decision_ns.saturating_sub(250_000_000);
+        let quote_covered = runtime.covered(
+            &self.config,
+            primary_key,
+            FamilyV1::Quote,
+            decision_ns,
+            250_000_000,
+        )?;
+        let quote = runtime
+            .records(primary_key, 250_000_000, WindowKind::Quote)?
             .iter()
-            .filter(|(at, ..)| *at >= decision_ns.saturating_sub(250_000_000))
+            .filter(|record| record.available_at_ns >= quote_boundary)
+            .filter_map(|record| match record.value {
+                FeatureSample::Quote { bid, ask } => Some((record.available_at_ns, bid, ask)),
+                _ => None,
+            })
             .next_back();
         let spread = quote
-            .map(|(_, bid, ask)| spread_bps(*bid, *ask))
+            .filter(|_| quote_covered)
+            .map(|(_, bid, ask)| spread_bps(bid, ask))
             .transpose()
             .map_err(|error| SnapshotError::Contract(error.to_string()))?;
-        let depth = if let Some((at, snapshot)) = latest_book {
-            let mut projection = BookProjection::new(8, 8, None);
-            projection
-                .snapshot_derived(&snapshot, at)
-                .map_err(|error| SnapshotError::Contract(error.to_string()))?;
-            projection.depth_10bps(decision_ns).ok()
-        } else {
-            None
-        };
-        let mut oi_5s: Vec<&(i64, i128)> = Vec::with_capacity(oi.len());
-        oi_5s.extend(oi.iter().filter(|(at, _)| *at >= five_seconds));
-        let oi_change = if oi_5s.len() >= 2 {
+        let book_covered = runtime.covered(
+            &self.config,
+            primary_key,
+            FamilyV1::Book,
+            decision_ns,
+            250_000_000,
+        )?;
+        let depth = runtime
+            .books
+            .get(primary_key)
+            .filter(|_| book_covered)
+            .and_then(|projection| projection.depth_10bps(decision_ns).ok());
+        let owns_oi = primary.allowed_families().contains(&FamilyV1::OpenInterest);
+        let mut oi_5s = Vec::new();
+        if owns_oi {
+            let oi_window =
+                runtime.records(primary_key, 5_000_000_000, WindowKind::OpenInterest)?;
+            oi_5s.reserve(oi_window.len());
+            oi_5s.extend(oi_window.iter().filter_map(|record| {
+                if record.available_at_ns < five_seconds {
+                    return None;
+                }
+                match record.value {
+                    FeatureSample::OpenInterest(value) => Some((record.available_at_ns, value)),
+                    _ => None,
+                }
+            }));
+        }
+        let oi_covered = owns_oi
+            && runtime.covered(
+                &self.config,
+                primary_key,
+                FamilyV1::OpenInterest,
+                decision_ns,
+                5_000_000_000,
+            )?;
+        let oi_change = if oi_covered && oi_5s.len() >= 2 {
             Some(
                 open_interest_change(oi_5s[0].1, oi_5s.last().expect("two").1)
                     .map_err(|error| SnapshotError::Contract(error.to_string()))?,
@@ -598,10 +1090,37 @@ impl MechanicsProcessor {
         } else {
             None
         };
-        let mut liq_5s: Vec<&(i64, i128, i128, AggressorSide)> =
-            Vec::with_capacity(liquidations.len());
-        liq_5s.extend(liquidations.iter().filter(|(at, ..)| *at >= five_seconds));
-        let liquidation = if liq_5s.is_empty() {
+        let owns_liquidation = primary.allowed_families().contains(&FamilyV1::Liquidation);
+        let mut liq_5s = Vec::new();
+        if owns_liquidation {
+            let liquidation_window =
+                runtime.records(primary_key, 5_000_000_000, WindowKind::Liquidation)?;
+            liq_5s.reserve(liquidation_window.len());
+            liq_5s.extend(liquidation_window.iter().filter_map(|record| {
+                if record.available_at_ns < five_seconds {
+                    return None;
+                }
+                match record.value {
+                    FeatureSample::Liquidation {
+                        price,
+                        quantity,
+                        side,
+                    } => Some((record.available_at_ns, price, quantity, side)),
+                    _ => None,
+                }
+            }));
+        }
+        let liquidation_covered = owns_liquidation
+            && runtime.covered(
+                &self.config,
+                primary_key,
+                FamilyV1::Liquidation,
+                decision_ns,
+                5_000_000_000,
+            )?;
+        let liquidation = if liq_5s.is_empty() && liquidation_covered {
+            Some(0)
+        } else if liq_5s.is_empty() {
             None
         } else {
             let mut notional_inputs = Vec::with_capacity(liq_5s.len());
@@ -615,6 +1134,45 @@ impl MechanicsProcessor {
                     .map_err(|error| SnapshotError::Contract(error.to_string()))?,
             )
         };
+        let mut venue_returns = Vec::with_capacity(self.config.contributors().len());
+        for contributor in self.config.contributors() {
+            let (family, kind) = if contributor.role() == ContributorRoleV1::Primary {
+                (FamilyV1::Trade, WindowKind::Trade)
+            } else {
+                (FamilyV1::ConfirmationPrice, WindowKind::ConfirmationPrice)
+            };
+            if !runtime.covered(
+                &self.config,
+                contributor.key(),
+                family,
+                decision_ns,
+                1_000_000_000,
+            )? {
+                continue;
+            }
+            let window = runtime.records(contributor.key(), 1_000_000_000, kind)?;
+            let mut prices = Vec::with_capacity(window.len());
+            prices.extend(
+                window
+                    .iter()
+                    .filter(|record| record.available_at_ns >= one_second)
+                    .filter_map(|record| match record.value {
+                        FeatureSample::Trade { price, .. }
+                        | FeatureSample::ConfirmationPrice(price) => Some(price),
+                        _ => None,
+                    }),
+            );
+            if prices.len() >= 2 {
+                venue_returns.push(VenueReturn {
+                    contributor: contributor.key().clone(),
+                    log_return: log_return(prices[0], *prices.last().expect("two"))
+                        .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+                    complete: true,
+                });
+            }
+        }
+        let breadth =
+            configured_cross_venue_breadth(&self.config, &sources, direction, &venue_returns).ok();
         let reversal_policy = if matches!(self.phase.phase(), Phase::Normal | Phase::Invalid) {
             ReversalPolicy::PreEventZero
         } else if direction == Direction::Up {
@@ -629,17 +1187,15 @@ impl MechanicsProcessor {
             ReversalPolicy::UnknownNormalZero
         };
         let degraded_clock = clocks.values().any(|clock| clock.degraded);
-        let critical_invalid = self.sources.contributor_state(primary_key) != Some(SlotState::Live)
-            || self
-                .active_causes
+        let critical_invalid = sources.contributor_state(primary_key) != Some(SlotState::Live)
+            || active_causes
                 .get(primary_key)
                 .copied()
                 .unwrap_or(Cause::None)
                 != Cause::None;
         let stale = quote.is_none();
         let mut flag_conditions = FlagConditions::default();
-        match self
-            .active_causes
+        match active_causes
             .get(primary_key)
             .copied()
             .unwrap_or(Cause::None)
@@ -651,19 +1207,19 @@ impl MechanicsProcessor {
             Cause::None => {}
         }
         flag_conditions.reconnect_warmup |=
-            self.sources.contributor_state(primary_key) != Some(SlotState::Live);
+            sources.contributor_state(primary_key) != Some(SlotState::Live);
         flag_conditions.source_stale = stale;
         flag_conditions.clock_degraded = degraded_clock;
         flag_conditions.incomplete_critical = [log, imbalance, cvd, spread, depth]
             .iter()
             .any(Option::is_none);
         flag_conditions.oi_stale_or_unavailable = oi_change.is_none();
-        flag_conditions.breadth_unavailable_or_divergent = true;
+        flag_conditions.breadth_unavailable_or_divergent = breadth.is_none();
 
         let mut rows = Vec::with_capacity(9);
         for (name, value) in [
             (FeatureName::BookDepth10bps, depth),
-            (FeatureName::CrossVenueBreadth, None),
+            (FeatureName::CrossVenueBreadth, breadth),
             (FeatureName::CvdSlope, cvd),
             (FeatureName::LiquidationNotional, liquidation),
             (FeatureName::LogReturn, log),
@@ -693,7 +1249,7 @@ impl MechanicsProcessor {
             degraded_clock,
             false,
         );
-        let reversal = if trade_5s.len() >= 2 {
+        let reversal = if trade_5s_covered && trade_5s.len() >= 2 {
             let anchor_price = trade_5s[0].1;
             let extreme = if direction == Direction::Down {
                 trade_5s
@@ -725,13 +1281,13 @@ impl MechanicsProcessor {
         let features = FeatureSet::new(rows, reversal_policy)
             .map_err(|error| SnapshotError::Contract(error.to_string()))?;
 
-        let cursors = self.current_cursors()?;
+        let cursors = self.current_cursors(&sources)?;
         let mut required_clock_sources = Vec::with_capacity(self.config.clock_sources().len());
         required_clock_sources.extend(
             self.config
                 .clock_sources()
                 .iter()
-                .filter(|key| self.sources.contributor_cursor(key.subject()).is_some())
+                .filter(|key| sources.contributor_cursor(key.subject()).is_some())
                 .map(|key| key.source_id().to_owned()),
         );
         available_micros = available_micros.max(
@@ -765,7 +1321,64 @@ impl MechanicsProcessor {
         })
     }
 
-    fn input_is_current(&self, input: &MechanicsInputV1) -> bool {
+    fn replay_state(
+        &self,
+        decision_ns: i64,
+    ) -> Result<
+        (
+            SourceStateMachine,
+            FeatureRuntime,
+            BTreeMap<ContributorKeyV1, Cause>,
+        ),
+        SnapshotError,
+    > {
+        let mut sources = SourceStateMachine::new(self.config.clone());
+        let mut runtime = FeatureRuntime::new(&self.config)?;
+        let mut causes = self
+            .config
+            .contributors()
+            .iter()
+            .map(|spec| (spec.key().clone(), Cause::None))
+            .collect::<BTreeMap<_, _>>();
+        for record in self
+            .records
+            .records()
+            .iter()
+            .filter(|record| record.available_at_ns <= decision_ns)
+        {
+            match sources.ingest(&record.value) {
+                Ok(IngestOutcome::IgnoredDuplicate) => {}
+                Ok(_) => {
+                    runtime.ingest(&record.value)?;
+                    if let Some(cause) = input_cause(&record.value) {
+                        for subject in input_subjects(&record.value, &self.config) {
+                            if let Some(current) = causes.get_mut(&subject) {
+                                *current = cause;
+                            }
+                        }
+                    }
+                }
+                Err(error) if error.invalidates_state() => {
+                    for subject in input_subjects(&record.value, &self.config) {
+                        if let Some(cause) = causes.get_mut(&subject) {
+                            *cause = Cause::Sequence;
+                        }
+                    }
+                }
+                Err(_) => {}
+            }
+            for spec in self.config.contributors() {
+                if sources.contributor_state(spec.key()) == Some(SlotState::Live) {
+                    if let Some(cause) = causes.get_mut(spec.key()) {
+                        *cause = Cause::None;
+                    }
+                }
+            }
+        }
+        Ok((sources, runtime, causes))
+    }
+
+    fn input_is_current(&self, sources: &SourceStateMachine, input: &MechanicsInputV1) -> bool {
         match input.view() {
             MechanicsInputRefV1::Market {
                 envelope, catalog, ..
@@ -786,15 +1399,12 @@ impl MechanicsProcessor {
                 }) else {
                     return false;
                 };
-                self.sources
-                    .contributor_cursor(&key)
-                    .is_some_and(|current| {
-                        current.epoch == epoch.connection_epoch()
-                            && current.epoch_generation == epoch.epoch_generation()
-                    })
+                sources.contributor_cursor(&key).is_some_and(|current| {
+                    current.epoch == epoch.connection_epoch()
+                        && current.epoch_generation == epoch.epoch_generation()
+                })
             }
-            MechanicsInputRefV1::Clock { clock_source, .. } => self
-                .sources
+            MechanicsInputRefV1::Clock { clock_source, .. } => sources
                 .clock_cursor(clock_source.key())
                 .is_some_and(|current| {
                     current.epoch == clock_source.epoch()
@@ -802,15 +1412,13 @@ impl MechanicsProcessor {
                 }),
             MechanicsInputRefV1::Coverage {
                 coverage_source, ..
-            } => self
-                .sources
+            } => sources
                 .coverage_cursor(coverage_source.key())
                 .is_some_and(|current| {
                     current.epoch == coverage_source.epoch()
                         && current.epoch_generation == coverage_source.epoch_generation()
                 }),
-            MechanicsInputRefV1::System { system_source, .. } => self
-                .sources
+            MechanicsInputRefV1::System { system_source, .. } => sources
                 .system_cursor(system_source.key())
                 .is_some_and(|current| {
                     current.epoch == system_source.epoch()
@@ -819,7 +1427,10 @@ impl MechanicsProcessor {
         }
     }
 
-    fn current_cursors(&self) -> Result<Vec<SnapshotCursor>, SnapshotError> {
+    fn current_cursors(
+        &self,
+        sources: &SourceStateMachine,
+    ) -> Result<Vec<SnapshotCursor>, SnapshotError> {
         let mut cursors = Vec::with_capacity(
             self.config.contributors().len()
                 + self.config.clock_sources().len()
@@ -827,22 +1438,22 @@ impl MechanicsProcessor {
                 + self.config.system_sources().len(),
         );
         for spec in self.config.contributors() {
-            if let Some(view) = self.sources.contributor_cursor(spec.key()) {
+            if let Some(view) = sources.contributor_cursor(spec.key()) {
                 cursors.push(snapshot_cursor(spec.key().source_id(), view)?);
             }
         }
         for key in self.config.clock_sources() {
-            if let Some(view) = self.sources.clock_cursor(key) {
+            if let Some(view) = sources.clock_cursor(key) {
                 cursors.push(snapshot_cursor(key.source_id(), view)?);
             }
         }
         for key in self.config.coverage_sources() {
-            if let Some(view) = self.sources.coverage_cursor(key) {
+            if let Some(view) = sources.coverage_cursor(key) {
                 cursors.push(snapshot_cursor(key.source_id(), view)?);
             }
         }
         for key in self.config.system_sources() {
-            if let Some(view) = self.sources.system_cursor(key) {
+            if let Some(view) = sources.system_cursor(key) {
                 cursors.push(snapshot_cursor(key.source_id(), view)?);
             }
         }
@@ -961,6 +1572,32 @@ impl MechanicsProcessor {
     }
 }
 
+fn market_anchor(input: &MechanicsInputV1) -> Result<Option<MarketAnchor>, SnapshotError> {
+    let MechanicsInputRefV1::Market {
+        envelope,
+        payload_hash,
+        ..
+    } = input.view()
+    else {
+        return Ok(None);
+    };
+    let source_event = envelope
+        .exchange_ts
+        .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?
+        .0;
+    Ok(Some(MarketAnchor {
+        source_event_time: Rfc3339Time::from_unix_nanos(source_event)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+        received_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+        normalized_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+        available_at: Rfc3339Time::from_unix_nanos(envelope.receive_ts.0)
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+        payload_hash: payload_hash.to_owned(),
+    }))
+}
+
 fn ensure_record_capacity(current: usize) -> Result<(), SnapshotError> {
     if current == crate::window::PER_WINDOW_CAPACITY || current == PROCESSOR_RECORD_CAPACITY {
         Err(SnapshotError::Capacity)
@@ -971,6 +1608,38 @@ fn ensure_record_capacity(current: usize) -> Result<(), SnapshotError> {
 
 fn phase_error(error: PhaseError) -> SnapshotError {
     SnapshotError::Phase(error.to_string())
+}
+
+fn arithmetic_overflow() -> SnapshotError {
+    SnapshotError::Contract("checked arithmetic overflowed".into())
+}
+
+fn checked_sum(values: impl IntoIterator<Item = i128>) -> Result<i128, SnapshotError> {
+    values
+        .into_iter()
+        .try_fold(0i128, i128::checked_add)
+        .ok_or_else(arithmetic_overflow)
+}
+
+fn input_cause(input: &MechanicsInputV1) -> Option<Cause> {
+    let MechanicsInputRefV1::System { fault, .. } = input.view() else {
+        return None;
+    };
+    Some(match fault.view() {
+        crate::wire::SystemFaultRefV1::ChecksumMismatch
+        | crate::wire::SystemFaultRefV1::BookInvalidated
+        | crate::wire::SystemFaultRefV1::BookResynchronized => Cause::Book,
+        crate::wire::SystemFaultRefV1::EventsDropped { .. } => Cause::QueueDrop,
+        crate::wire::SystemFaultRefV1::Disconnected => Cause::Warmup,
+        crate::wire::SystemFaultRefV1::SequenceGap { .. }
+        | crate::wire::SystemFaultRefV1::ClockJump { .. } => Cause::Sequence,
+    })
+}
+
+fn time_to_ns(time: &Rfc3339Time) -> Result<i64, SnapshotError> {
+    time.utc_micros()
+        .checked_mul(1_000)
+        .ok_or(SnapshotError::Capacity)
 }
 
 fn input_order(input: &MechanicsInputV1) -> Result<InputOrderKey, SnapshotError> {
@@ -1422,7 +2091,7 @@ fn flag_string(flag: MechanicsFlag) -> &'static str {
 
 #[cfg(test)]
 mod bounded_processor_tests {
-    use super::{SnapshotError, ensure_record_capacity};
+    use super::{SnapshotError, checked_sum, ensure_record_capacity};
     use crate::window::PER_WINDOW_CAPACITY;
 
     #[test]
@@ -1431,5 +2100,13 @@ mod bounded_processor_tests {
             ensure_record_capacity(PER_WINDOW_CAPACITY),
             Err(SnapshotError::Capacity)
         );
+    }
+
+    #[test]
+    fn feature_folds_fail_closed_on_checked_overflow() {
+        assert!(matches!(
+            checked_sum([i128::MAX, 1]),
+            Err(SnapshotError::Contract(_))
+        ));
     }
 }

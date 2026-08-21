@@ -54,6 +54,18 @@ fn rfc3339_preserves_instant_but_emits_canonical_zero_or_six_fraction() {
 }
 
 #[test]
+fn rfc3339_unix_nanos_floors_negative_submicrosecond_instants() {
+    assert_eq!(
+        Rfc3339Time::from_unix_nanos(-1).unwrap().canonical(),
+        "1969-12-31T23:59:59.999999Z"
+    );
+    assert_eq!(
+        Rfc3339Time::from_unix_nanos(-1_001).unwrap().canonical(),
+        "1969-12-31T23:59:59.999998Z"
+    );
+}
+
+#[test]
 fn cursor_display_sequence_is_shared_by_ordinary_and_reserved_coordinates() {
     assert_eq!(
         CursorV1::derived(0, 0, 0)
