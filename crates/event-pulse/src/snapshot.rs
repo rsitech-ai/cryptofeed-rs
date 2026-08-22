@@ -259,7 +259,6 @@ impl FeatureRuntime {
             return Err(SnapshotError::FeatureQueueDrop);
         }
         causal.records.push_back(record);
-        self.retained_anchor = None;
         Ok(())
     }
 
@@ -444,10 +443,11 @@ impl FeatureRuntime {
                     MarketEvent::MarkPrice(_) | MarketEvent::IndexPrice(_) => Some(1_000_000_000),
                     _ => None,
                 };
+                let exact_anchor = market_anchor(input)?.ok_or_else(|| {
+                    SnapshotError::InvalidInput("market input has no causal anchor".into())
+                })?;
+                self.retained_anchor = Some(exact_anchor.clone());
                 if let Some(horizon_ns) = causal_horizon_ns {
-                    let exact_anchor = market_anchor(input)?.ok_or_else(|| {
-                        SnapshotError::InvalidInput("market input has no causal anchor".into())
-                    })?;
                     let source_event_ns = envelope
                         .exchange_ts
                         .ok_or_else(|| SnapshotError::InvalidInput("source event time".into()))?

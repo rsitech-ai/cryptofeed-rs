@@ -3111,7 +3111,52 @@ fn market_key_reserves_two_native_recovery_records_at_the_ordinary_cap() {
 }
 
 #[test]
-fn virgin_primary_market_reaches_live_using_two_reserved_records_without_an_anchor() {
+fn first_accepted_warming_market_remains_the_exact_causal_anchor_after_feature_expiry() {
+    let fixture = fixture();
+    let first = market(
+        1,
+        0,
+        MarketEvent::Quote(Quote {
+            bid_price: Price(Fixed::new(100 * SCALE, 8)),
+            bid_quantity: Some(Quantity(Fixed::new(SCALE, 8))),
+            ask_price: Price(Fixed::new(101 * SCALE, 8)),
+            ask_quantity: Some(Quantity(Fixed::new(SCALE, 8))),
+        }),
+    );
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    assert_eq!(processor.ingest(&first), Ok(IngestOutcome::AcceptedWarming));
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            300_000_000,
+            "epoch_clock_a",
+            0,
+            1,
+            "0.25",
+        ))
+        .unwrap();
+
+    let snapshot = processor.snapshot(time_ns(300_000_000)).unwrap();
+    assert_eq!(snapshot.value()["quality_state"], "INVALID");
+    assert!(
+        snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "RECONNECT_WARMUP")
+    );
+    assert_eq!(
+        snapshot.value()["causal_time"]["source_event_time"],
+        "1970-01-01T00:00:00Z"
+    );
+    assert_eq!(
+        snapshot.value()["causal_time"]["received_at"],
+        "1970-01-01T00:00:00Z"
+    );
+}
+
+#[test]
+fn virgin_primary_market_uses_two_reserves_then_seals_and_retries_live() {
     let mut fixture = fixture();
     let system_key = SystemSourceKeyV1::new(
         "z_capacity_processor_system",
@@ -3161,16 +3206,14 @@ fn virgin_primary_market_reaches_live_using_two_reserved_records_without_an_anch
         ordinary_capacity
     );
 
-    assert_bounded_drop(processor.ingest(&market(1, 1_000_000_000, trade(100 * SCALE))));
-    let recovery_one = market_in_epoch(1, 1_000_000_000, trade(101 * SCALE), "epoch_b", 1);
+    assert_bounded_drop(processor.ingest(&market(1, 61_000_000_000, trade(100 * SCALE))));
+    let recovery_one = market_in_epoch(1, 61_000_000_000, trade(101 * SCALE), "epoch_b", 1);
     processor.ingest(&recovery_one).unwrap();
-    assert_eq!(
-        processor.buffered_record_count().unwrap(),
-        ordinary_capacity + 1
-    );
+    let recovery_two = market_in_epoch(2, 61_000_000_001, trade(102 * SCALE), "epoch_b", 1);
+    processor.ingest(&recovery_two).unwrap();
     assert_bounded_drop(processor.ingest(&clock_input(
         &fixture,
-        60_999_999_000,
+        61_000_001_000,
         "epoch_clock_a",
         0,
         1,
@@ -3179,27 +3222,57 @@ fn virgin_primary_market_reaches_live_using_two_reserved_records_without_an_anch
     processor
         .ingest(&clock_input(
             &fixture,
-            60_999_999_000,
+            61_000_001_000,
             "epoch_clock_b",
             1,
             1,
             "0.25",
         ))
         .unwrap();
-    assert!(processor.buffered_record_count().unwrap() <= PROCESSOR_RECORD_CAPACITY);
-    assert_eq!(
-        processor.snapshot(time_ns(60_999_999_000)),
-        Err(SnapshotError::MissingCausalAnchor)
-    );
-
-    let recovery_two = market_in_epoch(2, 61_000_000_000, trade(102 * SCALE), "epoch_b", 1);
-    processor.ingest(&recovery_two).unwrap();
     assert_eq!(
         processor.buffered_record_count().unwrap(),
         ordinary_capacity + 3
     );
     assert!(processor.buffered_record_count().unwrap() <= PROCESSOR_RECORD_CAPACITY);
-    let snapshot = processor.snapshot(time_ns(61_000_500_000)).unwrap();
+    let recovery_three = market_in_epoch(3, 121_000_000_000, trade(103 * SCALE), "epoch_b", 1);
+    let mut without_failed_attempt = processor.clone();
+    assert_bounded_drop(processor.ingest(&recovery_three));
+
+    let warming = processor.snapshot(time_ns(61_000_001_000)).unwrap();
+    let peer_warming = without_failed_attempt
+        .snapshot(time_ns(61_000_001_000))
+        .unwrap();
+    assert_eq!(warming.canonical_json(), peer_warming.canonical_json());
+    assert_eq!(warming.content_hash(), peer_warming.content_hash());
+    assert_eq!(warming.value()["quality_state"], "INVALID");
+    assert!(
+        warming.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "RECONNECT_WARMUP")
+    );
+
+    for candidate in [&mut processor, &mut without_failed_attempt] {
+        candidate
+            .ingest(&clock_input(
+                &fixture,
+                120_999_999_000,
+                "epoch_clock_b",
+                1,
+                2,
+                "0.25",
+            ))
+            .unwrap();
+        candidate.ingest(&recovery_three).unwrap();
+    }
+    let snapshot = processor.snapshot(time_ns(121_000_500_000)).unwrap();
+    let peer = without_failed_attempt
+        .snapshot(time_ns(121_000_500_000))
+        .unwrap();
+    assert_eq!(snapshot.canonical_json(), peer.canonical_json());
+    assert_eq!(snapshot.content_hash(), peer.content_hash());
+    assert!(processor.buffered_record_count().unwrap() <= PROCESSOR_RECORD_CAPACITY);
     let cursor = snapshot.value()["source_cursors"]
         .as_array()
         .unwrap()
@@ -3207,7 +3280,7 @@ fn virgin_primary_market_reaches_live_using_two_reserved_records_without_an_anch
         .find(|cursor| cursor["source_id"] == "market_source")
         .unwrap();
     assert_eq!(cursor["connection_epoch"], "epoch_b");
-    assert_eq!(cursor["sequence_end"], 2);
+    assert_eq!(cursor["sequence_end"], 3);
 }
 
 #[test]
