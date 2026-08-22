@@ -35,6 +35,6 @@ pub use prospective::{
 pub use provenance::{
     ArtifactProvenance, EXPECTED_ROOT_COMMIT, ProvenanceError, ProvenanceManifest,
     VerifiedArtifact, embedded_provenance, verify_artifact_bytes, verify_embedded_contracts,
-    verify_manifest,
+    verify_embedded_risk_decision_contracts, verify_manifest, verify_risk_decision_artifact_bytes,
 };
 pub use replay::{EpinJson1Reader, EpinJson1Writer, ReplayInputError};

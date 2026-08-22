@@ -1,0 +1,272 @@
+{
+  "$defs": {
+    "CausalTime": {
+      "additionalProperties": false,
+      "properties": {
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "clock_quality": {
+          "$ref": "#/$defs/ClockQualityState"
+        },
+        "decision_time": {
+          "format": "date-time",
+          "title": "Decision Time",
+          "type": "string"
+        },
+        "normalized_at": {
+          "format": "date-time",
+          "title": "Normalized At",
+          "type": "string"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "source_event_time": {
+          "format": "date-time",
+          "title": "Source Event Time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_event_time",
+        "received_at",
+        "normalized_at",
+        "available_at",
+        "decision_time",
+        "clock_quality"
+      ],
+      "title": "CausalTime",
+      "type": "object"
+    },
+    "ClockQualityState": {
+      "additionalProperties": false,
+      "properties": {
+        "clock_state": {
+          "$ref": "#/$defs/ClockState",
+          "enum": [
+            "synchronized",
+            "degraded"
+          ]
+        },
+        "freshness_limit_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Freshness Limit Ms",
+          "type": "integer"
+        },
+        "observed_skew_ms": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "title": "Observed Skew Ms",
+          "type": "string"
+        },
+        "quality_state": {
+          "$ref": "#/$defs/QualityState",
+          "enum": [
+            "validated",
+            "degraded"
+          ]
+        },
+        "reason_code": {
+          "minLength": 1,
+          "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "source_id": {
+          "minLength": 1,
+          "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "clock_state",
+        "observed_skew_ms",
+        "freshness_limit_ms",
+        "quality_state",
+        "reason_code"
+      ],
+      "title": "ClockQualityState",
+      "type": "object"
+    },
+    "ClockState": {
+      "enum": [
+        "synchronized",
+        "degraded",
+        "unsynchronized",
+        "unknown"
+      ],
+      "title": "ClockState",
+      "type": "string"
+    },
+    "QualityState": {
+      "enum": [
+        "validated",
+        "degraded",
+        "invalid",
+        "unavailable"
+      ],
+      "title": "QualityState",
+      "type": "string"
+    },
+    "RiskOutcome": {
+      "enum": [
+        "allow",
+        "deny",
+        "hold"
+      ],
+      "title": "RiskOutcome",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "revision": {
+            "const": 1
+          }
+        },
+        "required": [
+          "revision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "predecessor_content_hash": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "revision": {
+            "minimum": 2
+          }
+        },
+        "required": [
+          "revision"
+        ]
+      },
+      "then": {
+        "properties": {
+          "predecessor_content_hash": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "predecessor_content_hash"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "causal_time": {
+      "$ref": "#/$defs/CausalTime"
+    },
+    "content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "contract_id": {
+      "pattern": "^risk_decision_[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_type": {
+      "const": "risk_decision",
+      "title": "Contract Type",
+      "type": "string"
+    },
+    "evidence_content_hashes": {
+      "items": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Evidence Content Hashes",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "issuer": {
+      "const": "research_os_risk_governor",
+      "title": "Issuer",
+      "type": "string"
+    },
+    "lineage_id": {
+      "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+      "title": "Lineage Id",
+      "type": "string"
+    },
+    "outcome": {
+      "$ref": "#/$defs/RiskOutcome"
+    },
+    "predecessor_content_hash": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Predecessor Content Hash"
+    },
+    "proposal_request_content_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Proposal Request Content Hash",
+      "type": "string"
+    },
+    "reason_codes": {
+      "items": {
+        "minLength": 1,
+        "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Reason Codes",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "quant-harness/1.0",
+      "default": "quant-harness/1.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_id",
+    "lineage_id",
+    "revision",
+    "predecessor_content_hash",
+    "content_hash",
+    "causal_time",
+    "contract_type",
+    "proposal_request_content_hash",
+    "issuer",
+    "outcome",
+    "reason_codes",
+    "evidence_content_hashes"
+  ],
+  "title": "RiskDecision",
+  "type": "object"
+}

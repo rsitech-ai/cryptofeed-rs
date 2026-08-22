@@ -1,0 +1,46 @@
+{
+  "non_python_consumer_proof": "unverified",
+  "readiness": "canonical-schema-ready",
+  "schema_version": "quant-harness/1.0",
+  "vectors": [
+    {
+      "canonical_json": "{\"causal_time\":{\"available_at\":\"2026-08-20T12:00:00.030000Z\",\"clock_quality\":{\"clock_state\":\"synchronized\",\"freshness_limit_ms\":2000,\"observed_skew_ms\":\"3.25\",\"quality_state\":\"validated\",\"reason_code\":\"SOURCE_CLOCK_WITHIN_TOLERANCE\",\"source_id\":\"hyperliquid_public_market_data\"},\"decision_time\":\"2026-08-20T12:00:01Z\",\"normalized_at\":\"2026-08-20T12:00:00.020000Z\",\"received_at\":\"2026-08-20T12:00:00.010000Z\",\"source_event_time\":\"2026-08-20T12:00:00Z\"},\"content_hash\":\"7a56c2b1c8883e107d254db4b9560267e64dcd0a19167db28a5125732cfd2dc5\",\"contract_id\":\"risk_decision_rsi_v5_review\",\"contract_type\":\"risk_decision\",\"evidence_content_hashes\":[\"35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83\"],\"issuer\":\"research_os_risk_governor\",\"lineage_id\":\"lineage_rsi_v5_review\",\"outcome\":\"hold\",\"predecessor_content_hash\":null,\"proposal_request_content_hash\":\"ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567\",\"reason_codes\":[\"SCHEMA_ONLY_NO_ADMISSION\"],\"revision\":1,\"schema_version\":\"quant-harness/1.0\"}",
+      "content_hash": "7a56c2b1c8883e107d254db4b9560267e64dcd0a19167db28a5125732cfd2dc5",
+      "contract_type": "risk_decision",
+      "name": "risk_decision_hold",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "7a56c2b1c8883e107d254db4b9560267e64dcd0a19167db28a5125732cfd2dc5",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    }
+  ]
+}

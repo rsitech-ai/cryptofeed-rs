@@ -1,0 +1,338 @@
+{
+  "schema_version": "quant-harness/1.0",
+  "vectors": [
+    {
+      "error_match": "research_os_risk_governor",
+      "name": "invalid_issuer",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "9f26136e9a3f9b2c9df59769f4dc2569051aa34741ec1df1ce2a1d0f2d8a7768",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "another_issuer",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "at least 1",
+      "name": "empty_reason_codes",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "fac92046c1e61ec2a58ba29d1826ead182cbf144aa5f3eb4c44db066ed934a8f",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "SHA-256",
+      "name": "invalid_proposal_hash",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "c9a1217623ce9d40d27464932c829ea73bbb743b359cc9e61a62dc14e74ef27f",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "abc",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "contract identity",
+      "name": "invalid_contract_id",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "34fa6d6b9266800cdc67637ef9c4454f5aa79f7ad75b19c1b74a3fd070ece1ff",
+        "contract_id": "invalid",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "lineage",
+      "name": "invalid_lineage_id",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "e020b43d7198aa5363109206be3946feeff490248c83c1d76ac1b113c6383c7e",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "invalid",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "String should match pattern",
+      "name": "invalid_evidence_hash",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "ea2c6ccb87cf75b6b4126198bdc94a9b2bba566f7fe350403d1f484062ceceb7",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "abc"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "unique",
+      "name": "duplicate_evidence_hashes",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "b61e02250239f2a977f2b8a6ae3211bcb5292e83cd11f066a51fd89a5edfb673",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83",
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "unique",
+      "name": "duplicate_reason_codes",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "81563ff8afd084b66795ce01674b6f746999c49bcf99c14a1266cc20099f6163",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION",
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    },
+    {
+      "error_match": "TIMEZONE_NAIVE",
+      "name": "timezone_naive",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00"
+        },
+        "content_hash": "3ee9aa2438dc03bca8fc6f9167435052cef2731f328dc00e0348f5fdc73d0262",
+        "contract_id": "risk_decision_rsi_v5_review",
+        "contract_type": "risk_decision",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "issuer": "research_os_risk_governor",
+        "lineage_id": "lineage_rsi_v5_review",
+        "outcome": "hold",
+        "predecessor_content_hash": null,
+        "proposal_request_content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "reason_codes": [
+          "SCHEMA_ONLY_NO_ADMISSION"
+        ],
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    }
+  ]
+}
