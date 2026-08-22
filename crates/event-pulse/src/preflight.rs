@@ -10,9 +10,9 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{
-    CursorError, EpinJson1Reader, EpinJson1Writer, ProspectiveCaptureAdmissionV1, ReplayInputError,
-    SourceStateMachine,
-    wire::{MechanicsInputRefV1, MechanicsInputV1, Rfc3339Time},
+    CursorError, EpinJson1Reader, EpinJson1Writer, ProspectiveCaptureAdmissionV1,
+    ProspectiveSystemArtifactPolicyV1, ReplayInputError, SourceStateMachine,
+    wire::{MAX_INPUT_BYTES, MechanicsInputRefV1, MechanicsInputV1, Rfc3339Time},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -106,6 +106,133 @@ pub struct OfflineArtifactPreflightV1 {
     artifacts: Vec<InMemoryArtifactV1>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InMemoryArtifactV3 {
+    role: ArtifactRoleV1,
+    bytes: Vec<u8>,
+    record_count: u64,
+    byte_len: u64,
+    sha256: String,
+    first_available_at: Option<Rfc3339Time>,
+    last_available_at: Option<Rfc3339Time>,
+    record_identities: Vec<String>,
+}
+
+impl InMemoryArtifactV3 {
+    pub const fn role(&self) -> ArtifactRoleV1 {
+        self.role
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn record_count(&self) -> u64 {
+        self.record_count
+    }
+
+    pub const fn byte_len(&self) -> u64 {
+        self.byte_len
+    }
+
+    pub fn sha256(&self) -> &str {
+        &self.sha256
+    }
+
+    pub fn first_available_at(&self) -> Option<&Rfc3339Time> {
+        self.first_available_at.as_ref()
+    }
+
+    pub fn last_available_at(&self) -> Option<&Rfc3339Time> {
+        self.last_available_at.as_ref()
+    }
+
+    pub fn record_identities(&self) -> &[String] {
+        &self.record_identities
+    }
+}
+
+/// Append-only preflight for the v3 truthful-empty SYSTEM policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OfflineArtifactPreflightV3 {
+    artifacts: Vec<InMemoryArtifactV3>,
+}
+
+impl OfflineArtifactPreflightV3 {
+    pub fn build(
+        admission: &ProspectiveCaptureAdmissionV1,
+        system_policy: &ProspectiveSystemArtifactPolicyV1,
+        decision_time: Rfc3339Time,
+        complete_epin_json1: &[u8],
+    ) -> Result<Self, OfflineArtifactError> {
+        if complete_epin_json1.len() > MAX_INPUT_BYTES {
+            return Err(OfflineArtifactError::AggregateTooLarge);
+        }
+        if !system_policy.matches(admission) {
+            return Err(OfflineArtifactError::SystemPolicyMismatch);
+        }
+        if decision_time < *admission.capture_starts_at() {
+            return Err(OfflineArtifactError::DecisionBeforeCaptureStart);
+        }
+        let inputs = EpinJson1Reader::new(complete_epin_json1, decision_time).read_all()?;
+        let mut classified = Vec::with_capacity(inputs.len());
+        for input in &inputs {
+            let (role, source_id) = classify(admission, input)?;
+            if role == ArtifactRoleV1::System {
+                return Err(OfflineArtifactError::NonEmptyTruthfulEmptySystem);
+            }
+            if available_at(input)? < *admission.capture_starts_at() {
+                return Err(OfflineArtifactError::InputBeforeCaptureStart(role));
+            }
+            classified.push((role, source_id));
+        }
+
+        let expected_sources = admitted_sources(admission)
+            .into_iter()
+            .filter(|source| source != system_policy.source_id())
+            .collect::<BTreeSet<_>>();
+        let mut seen_sources = BTreeSet::new();
+        let mut state = SourceStateMachine::new(admission.mechanics_config().clone());
+        let mut partitions: [Vec<MechanicsInputV1>; 9] = std::array::from_fn(|_| Vec::new());
+        for (input, (role, source_id)) in inputs.into_iter().zip(classified) {
+            state
+                .ingest(&input)
+                .map_err(OfflineArtifactError::Topology)?;
+            seen_sources.insert(source_id);
+            partitions[role.index()].push(input);
+        }
+        if seen_sources != expected_sources {
+            return Err(OfflineArtifactError::IncompleteTopology);
+        }
+
+        let mut artifacts = Vec::with_capacity(ArtifactRoleV1::ALL.len());
+        for role in ArtifactRoleV1::ALL {
+            let records = std::mem::take(&mut partitions[role.index()]);
+            if role == ArtifactRoleV1::System {
+                artifacts.push(empty_system_artifact());
+            } else {
+                if records.is_empty() {
+                    return Err(OfflineArtifactError::MissingRole(role));
+                }
+                artifacts.push(build_artifact_v3(role, &records)?);
+            }
+        }
+        Ok(Self { artifacts })
+    }
+
+    pub fn artifacts(&self) -> &[InMemoryArtifactV3] {
+        &self.artifacts
+    }
+
+    pub const fn evidence_authoring_allowed(&self) -> bool {
+        false
+    }
+
+    pub const fn blocker(&self) -> &'static str {
+        "blocked:fixture-provenance"
+    }
+}
+
 impl OfflineArtifactPreflightV1 {
     pub fn build(
         admission: &ProspectiveCaptureAdmissionV1,
@@ -183,6 +310,12 @@ pub enum OfflineArtifactError {
     MissingRole(ArtifactRoleV1),
     #[error("artifact report arithmetic overflowed")]
     ReportOverflow,
+    #[error("aggregate EPIN-JSON1 input exceeds 16 MiB")]
+    AggregateTooLarge,
+    #[error("truthful-empty SYSTEM policy is not bound to this admission")]
+    SystemPolicyMismatch,
+    #[error("truthful-empty SYSTEM policy rejects all SYSTEM input")]
+    NonEmptyTruthfulEmptySystem,
 }
 
 fn classify(
@@ -300,4 +433,46 @@ fn build_artifact(
         first_available_at,
         last_available_at,
     })
+}
+
+fn build_artifact_v3(
+    role: ArtifactRoleV1,
+    records: &[MechanicsInputV1],
+) -> Result<InMemoryArtifactV3, OfflineArtifactError> {
+    let artifact = build_artifact(role, records)?;
+    let decoded =
+        EpinJson1Reader::new(artifact.bytes(), artifact.last_available_at().clone()).read_all()?;
+    if decoded != records {
+        return Err(OfflineArtifactError::Replay(
+            ReplayInputError::InvalidInput(
+                "artifact strict readback differs from staged records".to_owned(),
+            ),
+        ));
+    }
+    Ok(InMemoryArtifactV3 {
+        role,
+        bytes: artifact.bytes,
+        record_count: artifact.record_count,
+        byte_len: artifact.byte_len,
+        sha256: artifact.sha256,
+        first_available_at: Some(artifact.first_available_at),
+        last_available_at: Some(artifact.last_available_at),
+        record_identities: records
+            .iter()
+            .map(|record| record.payload_hash().to_owned())
+            .collect(),
+    })
+}
+
+fn empty_system_artifact() -> InMemoryArtifactV3 {
+    InMemoryArtifactV3 {
+        role: ArtifactRoleV1::System,
+        bytes: Vec::new(),
+        record_count: 0,
+        byte_len: 0,
+        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_owned(),
+        first_available_at: None,
+        last_available_at: None,
+        record_identities: Vec::new(),
+    }
 }

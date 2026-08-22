@@ -1,4 +1,6 @@
-use marketfeed_event_pulse::{ProspectiveAdmissionError, ProspectiveCaptureAdmissionV1};
+use marketfeed_event_pulse::{
+    ProspectiveAdmissionError, ProspectiveCaptureAdmissionV1, ProspectiveSystemArtifactPolicyV1,
+};
 use serde_json::{Value, json};
 
 fn sha(byte: char, len: usize) -> String {
@@ -391,4 +393,48 @@ fn rejects_schema_role_root_and_unknown_field_drift() {
         parse(&uppercase_hash),
         Err(ProspectiveAdmissionError::SourceBinding)
     );
+}
+
+#[test]
+fn truthful_empty_system_policy_is_bound_to_the_exact_frozen_contract_and_admission() {
+    let admission = parse(&valid_request()).unwrap();
+    let freeze =
+        include_bytes!("../contracts/prospective/event-pulse-e2-producer-evidence-freeze.json");
+    let policy =
+        ProspectiveSystemArtifactPolicyV1::from_frozen_evidence(&admission, freeze).unwrap();
+    assert_eq!(policy.source_id(), "capture_system");
+    assert_eq!(policy.mode(), "TRUTHFUL_EMPTY");
+    assert_eq!(
+        policy.freeze_sha256(),
+        "665490e794f72333ba684cdfdcec65494f89cb72d76bd1237a69993e8ea37c29"
+    );
+    assert!(!policy.evidence_authoring_allowed());
+
+    let mut mutated = freeze.to_vec();
+    let index = mutated.iter().position(|byte| *byte == b'B').unwrap();
+    mutated[index] = b'b';
+    assert_eq!(
+        ProspectiveSystemArtifactPolicyV1::from_frozen_evidence(&admission, &mutated),
+        Err(ProspectiveAdmissionError::SystemFreeze)
+    );
+
+    let mut wrong_source = valid_request();
+    wrong_source["system"]["source_id"] = json!("other_system");
+    let wrong_admission = parse(&wrong_source).unwrap();
+    assert_eq!(
+        ProspectiveSystemArtifactPolicyV1::from_frozen_evidence(&wrong_admission, freeze),
+        Err(ProspectiveAdmissionError::SystemFreeze)
+    );
+
+    for invalid in [
+        [freeze.as_slice(), b"\n"].concat(),
+        freeze[..freeze.len() - 1].to_vec(),
+        b"{}".to_vec(),
+        vec![b' '; marketfeed_event_pulse::wire::MAX_INPUT_BYTES + 1],
+    ] {
+        assert_eq!(
+            ProspectiveSystemArtifactPolicyV1::from_frozen_evidence(&admission, &invalid),
+            Err(ProspectiveAdmissionError::SystemFreeze)
+        );
+    }
 }

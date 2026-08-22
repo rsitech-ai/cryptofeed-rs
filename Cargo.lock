@@ -954,6 +954,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "marketfeed-event-pulse-capture"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "marketfeed-event-pulse",
+ "marketfeed-model",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "marketfeed-event-pulse-mfr1"
 version = "0.1.0-alpha.1"
 dependencies = [

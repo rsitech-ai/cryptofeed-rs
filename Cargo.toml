@@ -4,6 +4,7 @@ members = [
     "crates/model",
     "crates/analytics",
     "crates/event-pulse",
+    "crates/event-pulse-capture",
     "crates/event-pulse-mfr1",
     "crates/adapter-api",
     "crates/adapter-testkit",
@@ -33,6 +34,7 @@ default-members = [
     "crates/model",
     "crates/analytics",
     "crates/event-pulse",
+    "crates/event-pulse-capture",
     "crates/event-pulse-mfr1",
     "crates/adapter-api",
     "crates/adapter-testkit",
@@ -96,6 +98,7 @@ tokio = { version = "1", default-features = false, features = [
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 marketfeed-model = { path = "crates/model" }
 marketfeed-analytics = { path = "crates/analytics" }
+marketfeed-event-pulse = { path = "crates/event-pulse" }
 marketfeed-adapter-api = { path = "crates/adapter-api" }
 marketfeed-adapter-testkit = { path = "crates/adapter-testkit" }
 marketfeed-book = { path = "crates/book" }
