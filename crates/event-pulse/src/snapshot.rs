@@ -77,14 +77,20 @@ struct CausalRecord {
 }
 
 #[derive(Debug, Clone)]
+struct RetainedMarketAnchor {
+    owner: ContributorKeyV1,
+    anchor: MarketAnchor,
+    fallback_eligible: bool,
+}
+
+#[derive(Debug, Clone)]
 struct FeatureRuntime {
     windows: WindowBank<FeatureSample>,
     coverage: BTreeMap<CoverageSourceKeyV1, CoverageState>,
     books: BTreeMap<ContributorKeyV1, BookProjection>,
     generations: BTreeMap<ContributorKeyV1, u8>,
     causal: BTreeMap<ContributorKeyV1, ContributorCausal>,
-    retained_anchor: Option<MarketAnchor>,
-    retained_anchor_fallback_eligible: bool,
+    retained_anchor: Option<RetainedMarketAnchor>,
 }
 
 impl FeatureRuntime {
@@ -154,7 +160,6 @@ impl FeatureRuntime {
             generations: BTreeMap::new(),
             causal,
             retained_anchor: None,
-            retained_anchor_fallback_eligible: false,
         })
     }
 
@@ -218,24 +223,18 @@ impl FeatureRuntime {
     }
 
     fn retain_before_clear(&mut self, contributor: &ContributorKeyV1) -> Result<(), SnapshotError> {
-        let candidate = self
-            .causal
-            .get(contributor)
-            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured causal source".into()))?
-            .records
-            .iter()
-            .max_by_key(|record| record.available_at_ns)
-            .map(|record| record.exact_anchor.clone());
-        if let Some(candidate) = candidate {
-            if self
-                .retained_anchor
-                .as_ref()
-                .is_none_or(|retained| candidate.available_at >= retained.available_at)
-            {
-                self.retained_anchor = Some(candidate);
-            }
+        if !self.causal.contains_key(contributor) {
+            return Err(SnapshotError::InvalidInput(
+                "unconfigured causal source".into(),
+            ));
         }
-        self.retained_anchor_fallback_eligible = self.retained_anchor.is_some();
+        if let Some(retained) = self
+            .retained_anchor
+            .as_mut()
+            .filter(|retained| &retained.owner == contributor)
+        {
+            retained.fallback_eligible = true;
+        }
         Ok(())
     }
 
@@ -467,9 +466,12 @@ impl FeatureRuntime {
                         },
                     )?;
                 }
-                self.retained_anchor = Some(exact_anchor);
-                self.retained_anchor_fallback_eligible =
-                    sources.contributor_state(&contributor) != Some(SlotState::Live);
+                self.retained_anchor = Some(RetainedMarketAnchor {
+                    owner: contributor.clone(),
+                    anchor: exact_anchor,
+                    fallback_eligible: sources.contributor_state(&contributor)
+                        != Some(SlotState::Live),
+                });
             }
             MechanicsInputRefV1::Coverage {
                 coverage_source,
@@ -1842,9 +1844,10 @@ impl MechanicsProcessor {
         }
         let anchor = if current_causal.is_empty() {
             runtime
-                .retained_anchor_fallback_eligible
-                .then(|| runtime.retained_anchor.clone())
-                .flatten()
+                .retained_anchor
+                .as_ref()
+                .filter(|retained| retained.fallback_eligible)
+                .map(|retained| retained.anchor.clone())
         } else {
             let mut exact = current_causal
                 .iter()
@@ -3154,15 +3157,20 @@ fn apply_replay_fault(
         *latch = Some(interval.generation);
     }
     invalidate_queue_drop_slot(sources, runtime, config, key, interval.drop_at_ns)?;
-    if let Some(anchor) = &interval.exact_market_anchor {
-        if runtime
-            .retained_anchor
-            .as_ref()
-            .is_none_or(|current| anchor.available_at >= current.available_at)
-        {
-            runtime.retained_anchor = Some(anchor.clone());
+    if let CauseKey::Contributor(owner) = key {
+        match (&mut runtime.retained_anchor, &interval.exact_market_anchor) {
+            (Some(retained), _) if retained.owner == *owner => {
+                retained.fallback_eligible = true;
+            }
+            (None, Some(anchor)) => {
+                runtime.retained_anchor = Some(RetainedMarketAnchor {
+                    owner: owner.clone(),
+                    anchor: anchor.clone(),
+                    fallback_eligible: true,
+                });
+            }
+            _ => {}
         }
-        runtime.retained_anchor_fallback_eligible = true;
     }
     Ok(())
 }

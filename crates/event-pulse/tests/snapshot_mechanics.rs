@@ -3243,6 +3243,76 @@ fn healthy_live_natural_horizon_expiry_does_not_reenable_anchor_fallback() {
 }
 
 #[test]
+fn nonmatching_contributor_fault_cannot_enable_the_newer_retained_anchor() {
+    let base = split_fixture();
+    let older_owner = base.contributors[2].clone();
+    let key = SystemSourceKeyV1::new(
+        "z_nonmatching_book_fault",
+        FaultScopeKindV1::Contributor,
+        ConfiguredTargetKeyV1::contributor(older_owner.clone()),
+        CursorModeV1::Native,
+    )
+    .unwrap();
+    let fixture = with_system_sources(&base, vec![key.clone()]);
+    let (mut processor, _) = warmed_split_processor_for(fixture.clone());
+    for (clock, contributor) in fixture.clocks.iter().zip(&fixture.contributors) {
+        processor
+            .ingest(
+                &MechanicsInputV1::clock(
+                    ContributorV1::new(contributor.clone(), "epoch_a", 0).unwrap(),
+                    ClockSourceV1::new(clock.clone(), "epoch_clock_a", 0).unwrap(),
+                    time_ns(66_990_000_000),
+                    time_ns(66_990_000_000),
+                    ClockCursorV1::native(3, 3).unwrap(),
+                    ClockStateV1::Synchronized,
+                    CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+                    2_000,
+                    ClockQualityV1::Validated,
+                    "SOURCE_CLOCK_WITHIN_TOLERANCE",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    processor
+        .ingest(&market_from_source(
+            "b_quote",
+            9,
+            67_000_000_000,
+            MarketEvent::Quote(Quote {
+                bid_price: Price(Fixed::new(100 * SCALE, 8)),
+                bid_quantity: None,
+                ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
+                ask_quantity: None,
+            }),
+        ))
+        .unwrap();
+    refresh_split_coverage(&mut processor, &fixture, 67_005_000_000, 8);
+    processor
+        .ingest(&system_input_in_epoch(
+            &key,
+            FaultScopeV1::contributor(ContributorV1::new(older_owner, "epoch_a", 0).unwrap()),
+            1,
+            67_010_000_000,
+            SystemFaultV1::book_invalidated(),
+            "epoch_system_b",
+            1,
+        ))
+        .unwrap();
+    let mut without_intermediate_snapshot = processor.clone();
+    processor.snapshot(time_ns(67_020_000_000)).unwrap();
+
+    assert_eq!(
+        processor.snapshot(time_ns(67_300_000_000)),
+        Err(SnapshotError::MissingCausalAnchor)
+    );
+    assert_eq!(
+        without_intermediate_snapshot.snapshot(time_ns(67_300_000_000)),
+        Err(SnapshotError::MissingCausalAnchor)
+    );
+}
+
+#[test]
 fn virgin_primary_market_uses_two_reserves_then_seals_and_retries_live() {
     let mut fixture = fixture();
     let system_key = SystemSourceKeyV1::new(
