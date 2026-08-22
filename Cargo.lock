@@ -954,6 +954,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "marketfeed-event-pulse-mfr1"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "marketfeed-adapter-api",
+ "marketfeed-dispatch",
+ "marketfeed-event-pulse",
+ "marketfeed-model",
+ "marketfeed-recording",
+ "marketfeed-replay",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "marketfeed-ffi"
 version = "0.1.0-alpha.1"
 dependencies = [
