@@ -957,7 +957,9 @@ fn frame_has_mechanics(frame: &CapturedFrame) -> bool {
         || frame.ordinary.iter().any(|record| {
             matches!(
                 record.action,
-                SessionAction::EmitBatch(_) | SessionAction::EmitSystem(_)
+                SessionAction::EmitBatch(_)
+                    | SessionAction::EmitSystem(_)
+                    | SessionAction::Reconnect(_)
             )
         })
 }
@@ -2344,6 +2346,58 @@ fn action_producing_frame_sequence_reserves_zero_and_rejects_reuse_or_regression
             Err(expected)
         );
     }
+}
+
+#[test]
+fn disconnect_actions_reserve_a_collision_free_mechanics_coordinate() {
+    let mut zero_machine = synthetic_machine();
+    assert_eq!(
+        OrderedReplayCapture::new(8, OverflowPolicy::FailEngine).replay(
+            &mut *zero_machine,
+            mfr1_records(&[(0, 100, FrameOpcode::Text, b"DISCONNECT".to_vec())]),
+            TimestampNs(99),
+        ),
+        Err(CaptureError::MechanicsFrameZero)
+    );
+
+    let book = b"BOOK_SNAP 10 BID 100.00:1.000 ASK 101.00:1.000".to_vec();
+    let command = SessionCommand::Subscribe(vec!["BTC-USD".into()]);
+    let wire = SubscriptionWireAction::Text(b"SUB BTC-USD\n".as_slice().to_vec().into());
+    let subscribe = encode_subscription_command(&command, &wire).unwrap();
+    let mut collision_machine = synthetic_machine();
+    assert_eq!(
+        OrderedReplayCapture::new(8, OverflowPolicy::FailEngine).replay(
+            &mut *collision_machine,
+            mfr1_records(&[
+                (4, 99, FrameOpcode::SubscriptionCommand, subscribe.clone()),
+                (5, 100, FrameOpcode::Text, book.clone()),
+                (5, 101, FrameOpcode::Text, b"DISCONNECT".to_vec()),
+            ]),
+            TimestampNs(98),
+        ),
+        Err(CaptureError::MechanicsFrameRegression {
+            previous: 5,
+            current: 5,
+        })
+    );
+
+    let mut ordered_machine = synthetic_machine();
+    let ordered = OrderedReplayCapture::new(8, OverflowPolicy::FailEngine)
+        .replay(
+            &mut *ordered_machine,
+            mfr1_records(&[
+                (4, 99, FrameOpcode::SubscriptionCommand, subscribe),
+                (5, 100, FrameOpcode::Text, book),
+                (6, 101, FrameOpcode::Text, b"DISCONNECT".to_vec()),
+            ]),
+            TimestampNs(98),
+        )
+        .unwrap();
+    let mapped = map_stable_synthetic_lifecycle(&ordered, &capture_mechanics_fixture()).unwrap();
+    assert!(mapped.iter().flatten().any(|input| matches!(input.view(),
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::System { fault, .. }
+            if matches!(fault.view(), marketfeed_event_pulse::wire::SystemFaultRefV1::Disconnected)
+    )));
 }
 
 impl SessionMachine for TwoFrameOverflowMachine {
