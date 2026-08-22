@@ -62,6 +62,8 @@ pub struct ProspectiveCaptureAdmissionV1 {
     primary: SourceBinding,
     confirmation: SourceBinding,
     required_roles: Vec<String>,
+    capture_starts_at: Rfc3339Time,
+    mechanics_config: MechanicsConfigV1,
 }
 
 impl ProspectiveCaptureAdmissionV1 {
@@ -81,6 +83,22 @@ impl ProspectiveCaptureAdmissionV1 {
 
     pub fn required_role_count(&self) -> usize {
         self.required_roles.len()
+    }
+
+    pub fn primary_source_id(&self) -> &str {
+        &self.primary.source_id
+    }
+
+    pub fn confirmation_source_id(&self) -> &str {
+        &self.confirmation.source_id
+    }
+
+    pub fn mechanics_config(&self) -> &MechanicsConfigV1 {
+        &self.mechanics_config
+    }
+
+    pub fn capture_starts_at(&self) -> &Rfc3339Time {
+        &self.capture_starts_at
     }
 
     /// A checked topology is only a prerequisite. Evidence authorship remains
@@ -272,17 +290,19 @@ impl RawAdmission {
         {
             return Err(ProspectiveAdmissionError::SourceBinding);
         }
-        self.validate_mechanics_config()?;
+        let mechanics_config = self.mechanics_config()?;
         self.authority.validate()?;
 
         Ok(ProspectiveCaptureAdmissionV1 {
             primary: self.primary,
             confirmation: self.confirmation,
             required_roles: self.required_roles,
+            capture_starts_at: starts_at,
+            mechanics_config,
         })
     }
 
-    fn validate_mechanics_config(&self) -> Result<(), ProspectiveAdmissionError> {
+    fn mechanics_config(&self) -> Result<MechanicsConfigV1, ProspectiveAdmissionError> {
         let primary_key =
             ContributorKeyV1::new(&self.primary.source_id, self.primary.instrument.clone())
                 .map_err(|_| ProspectiveAdmissionError::SourceBinding)?;
@@ -360,8 +380,7 @@ impl RawAdmission {
             coverage,
             vec![system],
         )
-        .map_err(|_| ProspectiveAdmissionError::SourceBinding)?;
-        Ok(())
+        .map_err(|_| ProspectiveAdmissionError::SourceBinding)
     }
 }
 
