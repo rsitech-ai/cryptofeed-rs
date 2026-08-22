@@ -812,9 +812,53 @@ struct FaultInterval {
     drop_at_ns: i64,
     cause: Cause,
     generation: u8,
-    pre_recovery: Option<crate::window::Timed<RecoveryDelta>>,
-    recovery: Option<crate::window::Timed<RecoveryDelta>>,
+    recovery_at_ns: Option<i64>,
     exact_market_anchor: Option<MarketAnchor>,
+}
+
+const FAULT_GENERATION_CAPACITY: usize = 256;
+
+#[derive(Debug, Clone)]
+struct FaultSlot {
+    // Interval boundaries are fixed-size configured state, not processor records.
+    intervals: VecDeque<FaultInterval>,
+    // Every accepted recovery observation remains a counted replay record.
+    recoveries: VecDeque<crate::window::Timed<RecoveryDelta>>,
+}
+
+impl FaultSlot {
+    fn new() -> Self {
+        Self {
+            intervals: VecDeque::with_capacity(FAULT_GENERATION_CAPACITY),
+            recoveries: VecDeque::with_capacity(FAULT_GENERATION_CAPACITY),
+        }
+    }
+
+    fn active(&self) -> Option<&FaultInterval> {
+        self.intervals
+            .back()
+            .filter(|interval| interval.recovery_at_ns.is_none())
+    }
+
+    fn active_mut(&mut self) -> Option<&mut FaultInterval> {
+        self.intervals
+            .back_mut()
+            .filter(|interval| interval.recovery_at_ns.is_none())
+    }
+
+    fn push_drop(&mut self, interval: FaultInterval) -> Result<bool, SnapshotError> {
+        if self
+            .active()
+            .is_some_and(|active| active.generation == interval.generation)
+        {
+            return Ok(false);
+        }
+        if self.active().is_some() || self.intervals.len() >= FAULT_GENERATION_CAPACITY {
+            return Err(SnapshotError::Capacity);
+        }
+        self.intervals.push_back(interval);
+        Ok(true)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1003,7 +1047,7 @@ impl RecoveryDelta {
 
 #[derive(Debug, Clone)]
 struct FaultIntervals {
-    slots: BTreeMap<CauseKey, Option<FaultInterval>>,
+    slots: BTreeMap<CauseKey, FaultSlot>,
 }
 
 impl FaultIntervals {
@@ -1011,21 +1055,36 @@ impl FaultIntervals {
         Self {
             slots: configured_cause_keys(config)
                 .into_iter()
-                .map(|key| (key, None))
+                .map(|key| (key, FaultSlot::new()))
                 .collect(),
         }
     }
 
     fn fold_sealed_recoveries(&mut self, decision_ns: i64) {
-        for interval in self.slots.values_mut() {
-            if interval
-                .as_ref()
-                .and_then(|value| value.recovery.as_ref())
+        for slot in self.slots.values_mut() {
+            while slot
+                .recoveries
+                .front()
                 .is_some_and(|recovery| recovery.available_at_ns <= decision_ns)
             {
-                *interval = None;
+                slot.recoveries.pop_front();
+            }
+            while slot.intervals.front().is_some_and(|interval| {
+                interval
+                    .recovery_at_ns
+                    .is_some_and(|recovery_at| recovery_at <= decision_ns)
+            }) {
+                slot.intervals.pop_front();
             }
         }
+    }
+
+    fn recovery_record_count(&self) -> Result<usize, SnapshotError> {
+        self.slots.values().try_fold(0usize, |count, slot| {
+            count
+                .checked_add(slot.recoveries.len())
+                .ok_or(SnapshotError::Capacity)
+        })
     }
 }
 
@@ -1165,6 +1224,31 @@ impl MechanicsProcessor {
         self.next_revision
     }
 
+    /// Number of replayable evidence and recovery records retained by the
+    /// processor. Fault interval boundaries are preallocated slot metadata and
+    /// deliberately do not contribute to this count.
+    pub fn buffered_record_count(&self) -> Result<usize, SnapshotError> {
+        self.combined_record_count()
+    }
+
+    fn combined_record_count(&self) -> Result<usize, SnapshotError> {
+        self.records
+            .len()
+            .checked_add(self.fault_intervals.recovery_record_count()?)
+            .ok_or(SnapshotError::Capacity)
+    }
+
+    fn ensure_combined_capacity(&self, additional: usize) -> Result<(), SnapshotError> {
+        if self
+            .combined_record_count()?
+            .checked_add(additional)
+            .is_none_or(|count| count > PROCESSOR_RECORD_CAPACITY)
+        {
+            return Err(SnapshotError::Capacity);
+        }
+        Ok(())
+    }
+
     pub fn ingest(&mut self, input: &MechanicsInputV1) -> Result<IngestOutcome, SnapshotError> {
         input
             .validate_static()
@@ -1196,13 +1280,12 @@ impl MechanicsProcessor {
                     Some(Cause::QueueDrop(generation)) if input_generation(input) > *generation
                 )
         });
-        if self.last_order.as_ref() != Some(&order)
-            && ensure_record_capacity(self.records.len()).is_err()
-            && !queue_recovery
-        {
-            self.record_queue_drop(input, at)?;
-            self.last_input_micros = Some(at);
-            self.last_order = Some(order);
+        if self.last_order.as_ref() != Some(&order) && self.ensure_combined_capacity(1).is_err() {
+            if !queue_recovery {
+                self.record_queue_drop(input, at)?;
+                self.last_input_micros = Some(at);
+                self.last_order = Some(order);
+            }
             return Err(SnapshotError::InvalidInput(
                 "bounded processor queue dropped the unaccepted input".into(),
             ));
@@ -1220,7 +1303,7 @@ impl MechanicsProcessor {
                     .iter()
                     .any(|key| matches!(self.active_causes.get(key), Some(Cause::QueueDrop(_))));
                 if error.invalidates_state() && !master_drop_latched {
-                    ensure_record_capacity(self.records.len())?;
+                    self.ensure_combined_capacity(1)?;
                     self.records
                         .push(
                             at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
@@ -1253,32 +1336,40 @@ impl MechanicsProcessor {
             if queue_recovery {
                 let at_ns = at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?;
                 let mut candidate_intervals = self.fault_intervals.clone();
+                let recovery_slots = input_keys
+                    .iter()
+                    .filter(|key| {
+                        candidate_intervals
+                            .slots
+                            .get(*key)
+                            .and_then(FaultSlot::active)
+                            .is_some_and(|interval| input_generation(input) > interval.generation)
+                    })
+                    .count();
+                self.ensure_combined_capacity(recovery_slots)?;
                 for key in &input_keys {
-                    let Some(interval) = candidate_intervals
-                        .slots
-                        .get_mut(key)
-                        .ok_or_else(|| {
-                            SnapshotError::InvalidInput("unconfigured fault slot".into())
-                        })?
-                        .as_mut()
-                    else {
-                        continue;
-                    };
-                    if input_generation(input) > interval.generation {
+                    let slot = candidate_intervals.slots.get_mut(key).ok_or_else(|| {
+                        SnapshotError::InvalidInput("unconfigured fault slot".into())
+                    })?;
+                    let accepts_recovery = slot
+                        .active()
+                        .is_some_and(|interval| input_generation(input) > interval.generation);
+                    if accepts_recovery {
                         let evidence = crate::window::Timed {
                             available_at_ns: at_ns,
                             value: RecoveryDelta::from_input(input),
                         };
+                        slot.recoveries.push_back(evidence);
                         if input_slot_recovered(&candidate_sources, input, &self.config) {
-                            interval.recovery = Some(evidence);
-                        } else if interval.pre_recovery.is_none() {
-                            interval.pre_recovery = Some(evidence);
+                            slot.active_mut()
+                                .expect("recovery slot was checked active")
+                                .recovery_at_ns = Some(at_ns);
                         }
                     }
                 }
                 self.fault_intervals = candidate_intervals;
             } else {
-                ensure_record_capacity(self.records.len())?;
+                self.ensure_combined_capacity(1)?;
                 self.records
                     .push(
                         at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
@@ -1411,16 +1502,15 @@ impl MechanicsProcessor {
             .records()
             .iter()
             .map(|record| record.available_at_ns.div_euclid(1_000))
-            .chain(self.fault_intervals.slots.values().flat_map(|interval| {
-                interval.iter().flat_map(|interval| {
-                    std::iter::once(interval.drop_at_ns.div_euclid(1_000)).chain(
-                        interval
-                            .pre_recovery
+            .chain(self.fault_intervals.slots.values().flat_map(|slot| {
+                slot.intervals
+                    .iter()
+                    .map(|interval| interval.drop_at_ns.div_euclid(1_000))
+                    .chain(
+                        slot.recoveries
                             .iter()
-                            .chain(interval.recovery.iter())
                             .map(|record| record.available_at_ns.div_euclid(1_000)),
                     )
-                })
             }))
             .filter(|at| checkpoint_ns.is_none_or(|checkpoint| *at > checkpoint.div_euclid(1_000)))
             .filter(|at| *at < decision_micros)
@@ -1465,7 +1555,7 @@ impl MechanicsProcessor {
         let at_ns = at_micros
             .checked_mul(1_000)
             .ok_or(SnapshotError::Capacity)?;
-        self.record_drop_interval(input, at_ns, true)?;
+        self.record_drop_interval(input, at_ns)?;
         for key in &keys {
             if let Some(latch) = self.master_queue_drops.get_mut(key) {
                 *latch = Some(input_generation(input));
@@ -1490,7 +1580,7 @@ impl MechanicsProcessor {
         input: &MechanicsInputV1,
         at_ns: i64,
     ) -> Result<(), SnapshotError> {
-        self.record_drop_interval(input, at_ns, false)?;
+        self.record_drop_interval(input, at_ns)?;
         for key in input_cause_keys(input, &self.config) {
             if let Some(cause) = self.active_causes.get_mut(&key) {
                 *cause = Cause::QueueDrop(input_generation(input));
@@ -1511,23 +1601,14 @@ impl MechanicsProcessor {
         &mut self,
         input: &MechanicsInputV1,
         at_ns: i64,
-        master: bool,
     ) -> Result<(), SnapshotError> {
         let generation = input_generation(input);
+        let mut candidate_intervals = self.fault_intervals.clone();
         for key in input_cause_keys(input, &self.config) {
-            let slot = self
-                .fault_intervals
+            let slot = candidate_intervals
                 .slots
                 .get_mut(&key)
                 .ok_or_else(|| SnapshotError::InvalidInput("unconfigured fault slot".into()))?;
-            if slot.as_ref().is_some_and(|interval| {
-                interval.generation == generation && interval.recovery.is_none()
-            }) {
-                continue;
-            }
-            if slot.is_some() {
-                return Err(SnapshotError::Capacity);
-            }
             let exact_market_anchor = match &key {
                 CauseKey::Contributor(contributor) => self
                     .feature_runtime
@@ -1542,20 +1623,18 @@ impl MechanicsProcessor {
                     }),
                 _ => None,
             };
-            *slot = Some(FaultInterval {
+            let inserted = slot.push_drop(FaultInterval {
                 drop_at_ns: at_ns,
                 cause: Cause::QueueDrop(generation),
                 generation,
-                pre_recovery: None,
-                recovery: None,
+                recovery_at_ns: None,
                 exact_market_anchor,
-            });
-            if master {
-                if let Some(latch) = self.master_queue_drops.get_mut(&key) {
-                    *latch = Some(generation);
-                }
+            })?;
+            if !inserted {
+                continue;
             }
         }
+        self.fault_intervals = candidate_intervals;
         Ok(())
     }
 
@@ -1738,11 +1817,7 @@ impl MechanicsProcessor {
             .fault_intervals
             .slots
             .values()
-            .flat_map(|interval| {
-                interval.iter().flat_map(|interval| {
-                    interval.pre_recovery.iter().chain(interval.recovery.iter())
-                })
-            })
+            .flat_map(|slot| slot.recoveries.iter())
             .filter(|recovery| {
                 recovery.available_at_ns <= decision_ns
                     && checkpoint_ns.is_none_or(|at| recovery.available_at_ns > at)
@@ -1788,7 +1863,7 @@ impl MechanicsProcessor {
             self.fault_intervals
                 .slots
                 .values()
-                .filter_map(|interval| interval.as_ref())
+                .flat_map(|slot| slot.intervals.iter())
                 .filter(|interval| interval.drop_at_ns <= decision_ns)
                 .map(|interval| interval.drop_at_ns.div_euclid(1_000))
                 .max()
@@ -2403,7 +2478,7 @@ impl MechanicsProcessor {
         let replay_capacity = self
             .records
             .len()
-            .checked_add(self.fault_intervals.slots.len())
+            .checked_add(self.fault_intervals.recovery_record_count()?)
             .ok_or(SnapshotError::Capacity)?;
         let mut replay = Vec::with_capacity(replay_capacity);
         for record in self.records.records().iter().filter(|record| {
@@ -2421,11 +2496,7 @@ impl MechanicsProcessor {
             .fault_intervals
             .slots
             .values()
-            .flat_map(|interval| {
-                interval.iter().flat_map(|interval| {
-                    interval.pre_recovery.iter().chain(interval.recovery.iter())
-                })
-            })
+            .flat_map(|slot| slot.recoveries.iter())
             .filter(|record| {
                 record.available_at_ns <= decision_ns
                     && checkpoint.is_none_or(|checkpoint| record.available_at_ns > checkpoint.at_ns)
@@ -2500,15 +2571,16 @@ impl MechanicsProcessor {
                 }
             }
         }
-        for (key, interval) in &self.fault_intervals.slots {
-            let Some(interval) = interval.as_ref() else {
+        for (key, slot) in &self.fault_intervals.slots {
+            let Some(interval) = slot.intervals.iter().rev().find(|interval| {
+                interval.drop_at_ns <= decision_ns
+                    && interval
+                        .recovery_at_ns
+                        .is_none_or(|recovery_at| recovery_at > decision_ns)
+            }) else {
                 continue;
             };
-            let active_at_decision = interval.drop_at_ns <= decision_ns
-                && interval
-                    .recovery
-                    .as_ref()
-                    .is_none_or(|recovery| recovery.available_at_ns > decision_ns);
+            let active_at_decision = interval.drop_at_ns <= decision_ns;
             if !active_at_decision {
                 continue;
             }
@@ -2765,6 +2837,7 @@ fn market_anchor(input: &MechanicsInputV1) -> Result<Option<MarketAnchor>, Snaps
     }))
 }
 
+#[cfg(test)]
 fn ensure_record_capacity(current: usize) -> Result<(), SnapshotError> {
     if current >= PROCESSOR_RECORD_CAPACITY {
         Err(SnapshotError::Capacity)
@@ -3518,7 +3591,10 @@ fn flag_string(flag: MechanicsFlag) -> &'static str {
 
 #[cfg(test)]
 mod bounded_processor_tests {
-    use super::{ProcessorLog, SnapshotError, checked_sum, ensure_record_capacity};
+    use super::{
+        Cause, FaultInterval, FaultSlot, ProcessorLog, SnapshotError, checked_sum,
+        ensure_record_capacity,
+    };
     use crate::window::{PER_WINDOW_CAPACITY, PROCESSOR_RECORD_CAPACITY};
 
     #[test]
@@ -3540,6 +3616,45 @@ mod bounded_processor_tests {
         assert_eq!(
             log.push(PROCESSOR_RECORD_CAPACITY as i64, ()),
             Err(SnapshotError::Capacity)
+        );
+    }
+
+    #[test]
+    fn fault_slot_retains_all_256_generation_intervals_and_reuses_only_after_fold() {
+        let mut slot = FaultSlot::new();
+        for generation in 0..=u8::MAX {
+            assert_eq!(
+                slot.push_drop(FaultInterval {
+                    drop_at_ns: i64::from(generation),
+                    cause: Cause::QueueDrop(generation),
+                    generation,
+                    recovery_at_ns: Some(i64::from(generation) + 1),
+                    exact_market_anchor: None,
+                }),
+                Ok(true)
+            );
+        }
+        assert_eq!(slot.intervals.len(), 256);
+        assert_eq!(
+            slot.push_drop(FaultInterval {
+                drop_at_ns: 257,
+                cause: Cause::QueueDrop(u8::MAX),
+                generation: u8::MAX,
+                recovery_at_ns: None,
+                exact_market_anchor: None,
+            }),
+            Err(SnapshotError::Capacity)
+        );
+        slot.intervals.pop_front();
+        assert_eq!(
+            slot.push_drop(FaultInterval {
+                drop_at_ns: 258,
+                cause: Cause::QueueDrop(u8::MAX),
+                generation: u8::MAX,
+                recovery_at_ns: None,
+                exact_market_anchor: None,
+            }),
+            Ok(true)
         );
     }
 

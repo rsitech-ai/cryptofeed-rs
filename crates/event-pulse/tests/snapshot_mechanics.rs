@@ -5,7 +5,7 @@ use marketfeed_event_pulse::{
     features::{Direction, SCALE},
     mechanics::{FamilyFlags, MechanicsEvidence, Phase, PhaseMachine},
     snapshot::{MechanicsProcessor, SnapshotError},
-    window::PROCESSOR_RECORD_CAPACITY,
+    window::{PER_WINDOW_CAPACITY, PROCESSOR_RECORD_CAPACITY},
     wire::{
         CanonicalDecimal, ClockCursorV1, ClockQualityV1, ClockSourceKeyV1, ClockSourceV1,
         ClockStateV1, ConfiguredTargetKeyV1, ConnectionKeyV1, ContributorKeyV1, ContributorRoleV1,
@@ -654,6 +654,14 @@ fn trade_with_side(price: i128, aggressor: AggressorSide) -> MarketEvent {
 
 fn time_ns(ns: i64) -> Rfc3339Time {
     Rfc3339Time::from_unix_nanos(ns).unwrap()
+}
+
+fn assert_bounded_drop(result: Result<IngestOutcome, SnapshotError>) {
+    assert!(matches!(
+        result,
+        Err(SnapshotError::InvalidInput(message))
+            if message == "bounded processor queue dropped the unaccepted input"
+    ));
 }
 
 fn authoring() -> SnapshotAuthoringV1 {
@@ -2927,7 +2935,185 @@ fn future_feature_queue_drop_and_recovery_do_not_change_an_earlier_snapshot_pref
 }
 
 #[test]
-fn future_master_queue_drop_and_recovery_do_not_change_an_earlier_snapshot_prefix() {
+fn native_recovery_retains_every_warmup_record_and_matches_a_fresh_prefix() {
+    let fixture = fixture();
+    let mut recovered = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    for sequence in 1..=u64::try_from(PER_WINDOW_CAPACITY).unwrap() {
+        recovered
+            .ingest(&market(
+                sequence,
+                i64::try_from(sequence).unwrap(),
+                trade(100 * SCALE),
+            ))
+            .unwrap();
+    }
+    assert_eq!(
+        recovered.ingest(&market(
+            u64::try_from(PER_WINDOW_CAPACITY + 1).unwrap(),
+            i64::try_from(PER_WINDOW_CAPACITY + 1).unwrap(),
+            trade(100 * SCALE),
+        )),
+        Err(SnapshotError::FeatureQueueDrop)
+    );
+
+    let mut fresh = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    let recovery_at = 1_000_000_000;
+    let recovery = [
+        market_in_epoch(1, recovery_at, trade(101 * SCALE), "epoch_b", 1),
+        market_in_epoch(2, recovery_at + 1, trade(102 * SCALE), "epoch_b", 1),
+        market_in_epoch(
+            3,
+            recovery_at + 60_000_000_000,
+            trade(103 * SCALE),
+            "epoch_b",
+            1,
+        ),
+    ];
+    for input in &recovery {
+        recovered.ingest(input).unwrap();
+        fresh.ingest(input).unwrap();
+    }
+    assert_eq!(
+        recovered.buffered_record_count().unwrap(),
+        PER_WINDOW_CAPACITY + recovery.len()
+    );
+
+    let clock_at = recovery_at + 60_001_000_000;
+    let clock = MechanicsInputV1::clock(
+        ContributorV1::new(fixture.contributor.clone(), "epoch_b", 1).unwrap(),
+        ClockSourceV1::new(fixture.clock.clone(), "epoch_clock_b", 1).unwrap(),
+        time_ns(clock_at),
+        time_ns(clock_at),
+        ClockCursorV1::native(1, 1).unwrap(),
+        ClockStateV1::Synchronized,
+        CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+        2_000,
+        ClockQualityV1::Validated,
+        "SOURCE_CLOCK_WITHIN_TOLERANCE",
+    )
+    .unwrap();
+    for processor in [&mut recovered, &mut fresh] {
+        processor.ingest(&clock).unwrap();
+        ingest_coverage_round(processor, &fixture, clock_at + 1_000_000, 1, "epoch_b", 1);
+    }
+
+    let mut second_drop_without_intermediate_snapshot = recovered.clone();
+
+    let recovered_snapshot = recovered.snapshot(time_ns(clock_at + 2_000_000)).unwrap();
+    let fresh_snapshot = fresh.snapshot(time_ns(clock_at + 2_000_000)).unwrap();
+    assert_eq!(
+        recovered_snapshot.canonical_json(),
+        fresh_snapshot.canonical_json()
+    );
+    assert_eq!(
+        recovered_snapshot.content_hash(),
+        fresh_snapshot.content_hash()
+    );
+    let cursor = recovered_snapshot.value()["source_cursors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|cursor| cursor["source_id"] == "market_source")
+        .unwrap();
+    assert_eq!(cursor["sequence_end"], 3);
+
+    let second_drop_at = clock_at + 3_000_000;
+    let mut sequence = 4_u64;
+    loop {
+        let result = second_drop_without_intermediate_snapshot.ingest(&market_in_epoch(
+            sequence,
+            second_drop_at,
+            trade(104 * SCALE),
+            "epoch_b",
+            1,
+        ));
+        sequence += 1;
+        if result == Err(SnapshotError::FeatureQueueDrop) {
+            break;
+        }
+        result.unwrap();
+        assert!(sequence < 5_000, "second generation queue never filled");
+    }
+    let second_drop = second_drop_without_intermediate_snapshot
+        .snapshot(time_ns(second_drop_at + 1_000_000))
+        .unwrap();
+    assert!(
+        second_drop.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "QUEUE_DROP")
+    );
+}
+
+#[test]
+fn combined_capacity_rejects_recovery_until_a_seal_evicts_evidence() {
+    let fixture = fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    for sequence in 1..=u64::try_from(PER_WINDOW_CAPACITY).unwrap() {
+        processor
+            .ingest(&market(
+                sequence,
+                i64::try_from(sequence).unwrap(),
+                trade(100 * SCALE),
+            ))
+            .unwrap();
+    }
+    assert_eq!(
+        processor.ingest(&market(
+            u64::try_from(PER_WINDOW_CAPACITY + 1).unwrap(),
+            i64::try_from(PER_WINDOW_CAPACITY + 1).unwrap(),
+            trade(100 * SCALE),
+        )),
+        Err(SnapshotError::FeatureQueueDrop)
+    );
+
+    let remaining = PROCESSOR_RECORD_CAPACITY - processor.buffered_record_count().unwrap();
+    for sequence in 1..=u64::try_from(remaining).unwrap() {
+        processor
+            .ingest(
+                &MechanicsInputV1::clock(
+                    ContributorV1::new(fixture.contributor.clone(), "epoch_a", 0).unwrap(),
+                    ClockSourceV1::new(fixture.clock.clone(), "epoch_clock_a", 0).unwrap(),
+                    time_ns(59_900_000_000),
+                    time_ns(59_900_000_000),
+                    ClockCursorV1::native(sequence, sequence).unwrap(),
+                    ClockStateV1::Synchronized,
+                    CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+                    120_000,
+                    ClockQualityV1::Validated,
+                    "SOURCE_CLOCK_WITHIN_TOLERANCE",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        processor.buffered_record_count().unwrap(),
+        PROCESSOR_RECORD_CAPACITY
+    );
+
+    let recovery = market_in_epoch(1, 60_100_000_000, trade(101 * SCALE), "epoch_b", 1);
+    assert_bounded_drop(processor.ingest(&recovery));
+    assert_eq!(
+        processor.buffered_record_count().unwrap(),
+        PROCESSOR_RECORD_CAPACITY
+    );
+
+    processor.snapshot(time_ns(60_000_005_000)).unwrap();
+    assert_eq!(
+        processor.buffered_record_count().unwrap(),
+        PROCESSOR_RECORD_CAPACITY - PER_WINDOW_CAPACITY
+    );
+    processor.ingest(&recovery).unwrap();
+    assert_eq!(
+        processor.buffered_record_count().unwrap(),
+        PROCESSOR_RECORD_CAPACITY - PER_WINDOW_CAPACITY + 1
+    );
+}
+
+#[test]
+fn future_master_queue_drop_and_rejected_recovery_do_not_change_an_earlier_snapshot_prefix() {
     let fixture = fixture();
     let mut affected = warmed_processor(60_080_000_000);
     let mut prefix_only = affected.clone();
@@ -2955,8 +3141,8 @@ fn future_master_queue_drop_and_recovery_do_not_change_an_earlier_snapshot_prefi
         );
     }
     let mut drop_only = affected.clone();
-    affected
-        .ingest(
+    assert_bounded_drop(
+        affected.ingest(
             &MechanicsInputV1::clock(
                 ContributorV1::new(fixture.contributor.clone(), "epoch_a", 0).unwrap(),
                 ClockSourceV1::new(fixture.clock.clone(), "epoch_clock_b", 1).unwrap(),
@@ -2970,8 +3156,8 @@ fn future_master_queue_drop_and_recovery_do_not_change_an_earlier_snapshot_prefi
                 "SOURCE_CLOCK_WITHIN_TOLERANCE",
             )
             .unwrap(),
-        )
-        .unwrap();
+        ),
+    );
 
     let affected_prefix = affected.snapshot(time_ns(60_500_000_000)).unwrap();
     let drop_only_prefix = drop_only.snapshot(time_ns(60_500_000_000)).unwrap();
@@ -3175,7 +3361,7 @@ fn master_drop_interval_preserves_latest_anchor_and_failed_recovery_is_atomic() 
 }
 
 #[test]
-fn virgin_slots_record_master_drop_and_accept_only_greater_generation_recovery() {
+fn virgin_slots_record_master_drop_but_full_buffer_rejects_greater_recovery() {
     let mut fixture = capacity_fixture();
     let system_key = SystemSourceKeyV1::new(
         "z_virgin_system",
@@ -3233,9 +3419,7 @@ fn virgin_slots_record_master_drop_and_accept_only_greater_generation_recovery()
         Err(SnapshotError::InvalidInput(message))
             if message == "bounded processor queue dropped the unaccepted input"
     ));
-    processor
-        .ingest(&coverage_input(71_000_000, "epoch_coverage_b", 1))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&coverage_input(71_000_000, "epoch_coverage_b", 1)));
 
     let scope = FaultScopeV1::contributor(
         ContributorV1::new(fixture.contributors[0].clone(), "epoch_a", 0).unwrap(),
@@ -3251,17 +3435,15 @@ fn virgin_slots_record_master_drop_and_accept_only_greater_generation_recovery()
         Err(SnapshotError::InvalidInput(message))
             if message == "bounded processor queue dropped the unaccepted input"
     ));
-    processor
-        .ingest(&system_input_in_epoch(
-            &system_key,
-            scope,
-            1,
-            73_000_000,
-            SystemFaultV1::book_resynchronized(),
-            "epoch_system_b",
-            1,
-        ))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&system_input_in_epoch(
+        &system_key,
+        scope,
+        1,
+        73_000_000,
+        SystemFaultV1::book_resynchronized(),
+        "epoch_system_b",
+        1,
+    )));
 
     let cold_drop = capacity_market(
         &fixture,
@@ -3279,19 +3461,17 @@ fn virgin_slots_record_master_drop_and_accept_only_greater_generation_recovery()
         Err(SnapshotError::InvalidInput(message))
             if message == "bounded processor queue dropped the unaccepted input"
     ));
-    processor
-        .ingest(&capacity_market(
-            &fixture,
-            1,
-            1,
-            75_000_000,
-            "epoch_b",
-            1,
-            MarketEvent::MarkPrice(PricePoint {
-                price: Price(Fixed::new(101 * SCALE, 8)),
-            }),
-        ))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&capacity_market(
+        &fixture,
+        1,
+        1,
+        75_000_000,
+        "epoch_b",
+        1,
+        MarketEvent::MarkPrice(PricePoint {
+            price: Price(Fixed::new(101 * SCALE, 8)),
+        }),
+    )));
 
     let clock_input = |at, epoch: &str, generation| {
         MechanicsInputV1::clock(
@@ -3313,9 +3493,7 @@ fn virgin_slots_record_master_drop_and_accept_only_greater_generation_recovery()
         Err(SnapshotError::InvalidInput(message))
             if message == "bounded processor queue dropped the unaccepted input"
     ));
-    processor
-        .ingest(&clock_input(77_000_000, "epoch_clock_b", 1))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&clock_input(77_000_000, "epoch_clock_b", 1)));
 }
 
 #[test]
@@ -3351,16 +3529,14 @@ fn repeated_drop_dedup_cannot_exhaust_a_different_preallocated_fault_slot() {
                 if message == "bounded processor queue dropped the unaccepted input"
         ));
     }
-    processor
-        .ingest(&capacity_clock(
-            &fixture,
-            1,
-            1,
-            76_000_000,
-            "epoch_clock_b",
-            1,
-        ))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&capacity_clock(
+        &fixture,
+        1,
+        1,
+        76_000_000,
+        "epoch_clock_b",
+        1,
+    )));
     let coverage = fixture
         .config
         .coverage_sources()
@@ -3385,21 +3561,15 @@ fn repeated_drop_dedup_cannot_exhaust_a_different_preallocated_fault_slot() {
         Err(SnapshotError::InvalidInput(message))
             if message == "bounded processor queue dropped the unaccepted input"
     ));
-    let dropped = processor.snapshot(time_ns(80_500_000)).unwrap();
-    assert!(
-        dropped.value()["quality_flags"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|flag| flag == "QUEUE_DROP")
+    assert_eq!(
+        processor.snapshot(time_ns(80_500_000)),
+        Err(SnapshotError::MissingClockEvidence)
     );
-    processor
-        .ingest(&coverage_input(81_000_000, "epoch_coverage_b", 1))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&coverage_input(81_000_000, "epoch_coverage_b", 1)));
 }
 
 #[test]
-fn rejected_clock_drop_is_not_evidence_and_recovery_supplies_the_cursor() {
+fn rejected_clock_drop_is_not_evidence_and_full_buffer_rejects_recovery() {
     let fixture = capacity_fixture();
     let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
     initialize_capacity_markets(&mut processor, &fixture);
@@ -3425,29 +3595,22 @@ fn rejected_clock_drop_is_not_evidence_and_recovery_supplies_the_cursor() {
         processor.snapshot(time_ns(70_500_000)),
         Err(SnapshotError::MissingClockEvidence)
     );
-    processor
-        .ingest(&capacity_clock(
-            &fixture,
-            1,
-            1,
-            71_000_000,
-            "epoch_clock_b",
-            1,
-        ))
-        .unwrap();
-    let snapshot = processor.snapshot(time_ns(71_500_000)).unwrap();
-    let recovered = snapshot.value()["source_cursors"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|cursor| cursor["source_id"] == "x_clock_01")
-        .unwrap();
-    assert_eq!(recovered["connection_epoch"], "epoch_clock_b");
-    assert_eq!(recovered["sequence_end"], 1);
+    assert_bounded_drop(processor.ingest(&capacity_clock(
+        &fixture,
+        1,
+        1,
+        71_000_000,
+        "epoch_clock_b",
+        1,
+    )));
+    assert_eq!(
+        processor.buffered_record_count().unwrap(),
+        PROCESSOR_RECORD_CAPACITY
+    );
 }
 
 #[test]
-fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation() {
+fn public_master_capacity_drop_is_source_scoped_and_full_buffer_blocks_recovery() {
     let fixture = capacity_fixture();
     let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
     processor
@@ -3535,32 +3698,28 @@ fn public_master_capacity_drop_is_source_scoped_and_requires_greater_generation(
             if message == "bounded processor queue dropped the unaccepted input"
     ));
     assert!(processor.ingest(&overflow).is_err());
-    processor
-        .ingest(&capacity_market(
-            &fixture,
-            1,
-            1,
-            3_000_000,
-            "epoch_b",
-            1,
-            MarketEvent::MarkPrice(PricePoint {
-                price: Price(Fixed::new(101 * SCALE, 8)),
-            }),
-        ))
-        .unwrap();
-    processor
-        .ingest(&capacity_market(
-            &fixture,
-            1,
-            2,
-            60_003_000_000,
-            "epoch_b",
-            1,
-            MarketEvent::MarkPrice(PricePoint {
-                price: Price(Fixed::new(101 * SCALE + 1, 8)),
-            }),
-        ))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&capacity_market(
+        &fixture,
+        1,
+        1,
+        3_000_000,
+        "epoch_b",
+        1,
+        MarketEvent::MarkPrice(PricePoint {
+            price: Price(Fixed::new(101 * SCALE, 8)),
+        }),
+    )));
+    assert_bounded_drop(processor.ingest(&capacity_market(
+        &fixture,
+        1,
+        2,
+        60_003_000_000,
+        "epoch_b",
+        1,
+        MarketEvent::MarkPrice(PricePoint {
+            price: Price(Fixed::new(101 * SCALE + 1, 8)),
+        }),
+    )));
     assert!(processor.ingest(&overflow).is_err());
 }
 
@@ -3604,16 +3763,14 @@ fn public_master_capacity_clock_drop_is_exact_slot_scoped() {
         Err(SnapshotError::InvalidInput(message))
             if message == "bounded processor queue dropped the unaccepted input"
     ));
-    processor
-        .ingest(&capacity_clock(
-            &fixture,
-            1,
-            1,
-            70_002_000,
-            "epoch_clock_b",
-            1,
-        ))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&capacity_clock(
+        &fixture,
+        1,
+        1,
+        70_002_000,
+        "epoch_clock_b",
+        1,
+    )));
 }
 
 #[test]
@@ -3664,9 +3821,7 @@ fn public_master_capacity_coverage_drop_is_exact_slot_scoped() {
         Err(SnapshotError::InvalidInput(message))
             if message == "bounded processor queue dropped the unaccepted input"
     ));
-    processor
-        .ingest(&coverage_input(1, 70_002_000, "epoch_coverage_b", 1))
-        .unwrap();
+    assert_bounded_drop(processor.ingest(&coverage_input(1, 70_002_000, "epoch_coverage_b", 1)));
 }
 
 #[test]
@@ -3757,5 +3912,5 @@ fn public_master_capacity_system_drop_is_exact_slot_scoped() {
         Some(head_two),
     )
     .unwrap();
-    processor.ingest(&recovered).unwrap();
+    assert_bounded_drop(processor.ingest(&recovered));
 }
