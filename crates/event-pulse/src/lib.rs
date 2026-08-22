@@ -9,6 +9,7 @@ mod contract;
 mod cursor;
 pub mod features;
 pub mod mechanics;
+mod prospective;
 mod provenance;
 mod replay;
 pub mod snapshot;
@@ -23,6 +24,7 @@ pub use contract::{
 pub use cursor::{
     CursorError, CursorView, IngestOutcome, Invalidity, SlotState, SourceStateMachine,
 };
+pub use prospective::{ProspectiveAdmissionError, ProspectiveCaptureAdmissionV1};
 pub use provenance::{
     ArtifactProvenance, EXPECTED_ROOT_COMMIT, ProvenanceError, ProvenanceManifest,
     VerifiedArtifact, embedded_provenance, verify_artifact_bytes, verify_embedded_contracts,
