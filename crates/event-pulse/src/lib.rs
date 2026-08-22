@@ -26,9 +26,12 @@ pub use cursor::{
     CursorError, CursorView, IngestOutcome, Invalidity, SlotState, SourceStateMachine,
 };
 pub use preflight::{
-    ArtifactRoleV1, InMemoryArtifactV1, OfflineArtifactError, OfflineArtifactPreflightV1,
+    ArtifactRoleV1, InMemoryArtifactV1, InMemoryArtifactV3, OfflineArtifactError,
+    OfflineArtifactPreflightV1, OfflineArtifactPreflightV3,
 };
-pub use prospective::{ProspectiveAdmissionError, ProspectiveCaptureAdmissionV1};
+pub use prospective::{
+    ProspectiveAdmissionError, ProspectiveCaptureAdmissionV1, ProspectiveSystemArtifactPolicyV1,
+};
 pub use provenance::{
     ArtifactProvenance, EXPECTED_ROOT_COMMIT, ProvenanceError, ProvenanceManifest,
     VerifiedArtifact, embedded_provenance, verify_artifact_bytes, verify_embedded_contracts,

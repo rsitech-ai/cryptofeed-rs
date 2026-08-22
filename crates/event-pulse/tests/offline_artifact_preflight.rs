@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use marketfeed_event_pulse::{
     ArtifactRoleV1, EpinJson1Reader, EpinJson1Writer, OfflineArtifactError,
-    OfflineArtifactPreflightV1, ProspectiveCaptureAdmissionV1, ReplayInputError,
+    OfflineArtifactPreflightV1, OfflineArtifactPreflightV3, ProspectiveCaptureAdmissionV1,
+    ProspectiveSystemArtifactPolicyV1, ReplayInputError,
     wire::{
         CanonicalDecimal, ClockCursorV1, ClockQualityV1, ClockSourceV1, ClockStateV1,
         ContributorRoleV1, ContributorV1, CoverageCursorV1, CoverageSourceV1, CursorV1,
@@ -630,5 +631,188 @@ fn exact_capture_start_and_post_start_records_are_admitted_for_every_input_class
     assert_eq!(
         OfflineArtifactPreflightV1::build(&admission, time(start_ns), &epin(&[exact_system]),),
         Err(OfflineArtifactError::IncompleteTopology)
+    );
+}
+
+fn truthful_empty_policy(
+    admission: &ProspectiveCaptureAdmissionV1,
+) -> ProspectiveSystemArtifactPolicyV1 {
+    ProspectiveSystemArtifactPolicyV1::from_frozen_evidence(
+        admission,
+        include_bytes!("../contracts/prospective/event-pulse-e2-producer-evidence-freeze.json"),
+    )
+    .unwrap()
+}
+
+#[test]
+fn v3_partitions_eight_complete_roles_and_authors_exact_truthful_empty_system() {
+    let admission = admission();
+    let policy = truthful_empty_policy(&admission);
+    let mut inputs = complete_inputs(&admission);
+    inputs.pop();
+    let preflight = OfflineArtifactPreflightV3::build(
+        &admission,
+        &policy,
+        time(capture_start_ns() + 20_000),
+        &epin(&inputs),
+    )
+    .unwrap();
+    let repeated = OfflineArtifactPreflightV3::build(
+        &admission,
+        &policy,
+        time(capture_start_ns() + 20_000),
+        &epin(&inputs),
+    )
+    .unwrap();
+    assert_eq!(preflight, repeated);
+    let v1 = OfflineArtifactPreflightV1::build(
+        &admission,
+        time(capture_start_ns() + 20_000),
+        &epin(&complete_inputs(&admission)),
+    )
+    .unwrap();
+    for (v3_artifact, v1_artifact) in preflight.artifacts()[..8].iter().zip(&v1.artifacts()[..8]) {
+        assert_eq!(v3_artifact.role(), v1_artifact.role());
+        assert_eq!(v3_artifact.bytes(), v1_artifact.bytes());
+        assert_eq!(v3_artifact.record_count(), v1_artifact.record_count());
+        assert_eq!(v3_artifact.byte_len(), v1_artifact.byte_len());
+        assert_eq!(v3_artifact.sha256(), v1_artifact.sha256());
+        assert_eq!(
+            v3_artifact.first_available_at(),
+            Some(v1_artifact.first_available_at())
+        );
+        assert_eq!(
+            v3_artifact.last_available_at(),
+            Some(v1_artifact.last_available_at())
+        );
+    }
+
+    assert_eq!(preflight.artifacts().len(), 9);
+    assert_eq!(
+        preflight
+            .artifacts()
+            .iter()
+            .map(|artifact| artifact.record_count())
+            .collect::<Vec<_>>(),
+        [1, 1, 1, 1, 1, 1, 2, 6, 0]
+    );
+    let system = &preflight.artifacts()[ArtifactRoleV1::System as usize];
+    assert_eq!(system.role(), ArtifactRoleV1::System);
+    assert_eq!(system.bytes(), b"");
+    assert_eq!(system.byte_len(), 0);
+    assert_eq!(
+        system.sha256(),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    assert_eq!(system.first_available_at(), None);
+    assert_eq!(system.last_available_at(), None);
+    assert!(system.record_identities().is_empty());
+    assert!(
+        EpinJson1Reader::new(system.bytes(), time(capture_start_ns() + 20_000))
+            .read_all()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(!preflight.evidence_authoring_allowed());
+    assert_eq!(preflight.blocker(), "blocked:fixture-provenance");
+}
+
+#[test]
+fn v3_rejects_any_system_input_and_still_requires_every_non_system_source() {
+    let admission = admission();
+    let policy = truthful_empty_policy(&admission);
+    let complete = complete_inputs(&admission);
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission,
+            &policy,
+            time(capture_start_ns() + 20_000),
+            &epin(&complete),
+        ),
+        Err(OfflineArtifactError::NonEmptyTruthfulEmptySystem)
+    );
+
+    let mut missing_clock = complete;
+    missing_clock.pop();
+    missing_clock.remove(6);
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission,
+            &policy,
+            time(capture_start_ns() + 20_000),
+            &epin(&missing_clock),
+        ),
+        Err(OfflineArtifactError::IncompleteTopology)
+    );
+}
+
+#[test]
+fn v3_rejects_aggregate_one_over_before_parsing() {
+    let admission = admission();
+    let policy = truthful_empty_policy(&admission);
+    let exact = vec![b' '; marketfeed_event_pulse::wire::MAX_INPUT_BYTES];
+    assert!(matches!(
+        OfflineArtifactPreflightV3::build(
+            &admission,
+            &policy,
+            time(capture_start_ns() + 20_000),
+            &exact,
+        ),
+        Err(OfflineArtifactError::Replay(_))
+    ));
+    let one_over = vec![b' '; marketfeed_event_pulse::wire::MAX_INPUT_BYTES + 1];
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission,
+            &policy,
+            time(capture_start_ns() + 20_000),
+            &one_over,
+        ),
+        Err(OfflineArtifactError::AggregateTooLarge)
+    );
+}
+
+#[test]
+fn v3_retains_start_future_and_order_guards() {
+    let admission = admission();
+    let policy = truthful_empty_policy(&admission);
+    let mut inputs = complete_inputs(&admission);
+    inputs.pop();
+    let before = move_input_to_front_at(inputs.clone(), 0, capture_start_ns() - 1_000);
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission,
+            &policy,
+            time(capture_start_ns() + 20_000),
+            &epin(&before),
+        ),
+        Err(OfflineArtifactError::InputBeforeCaptureStart(
+            ArtifactRoleV1::Trade
+        ))
+    );
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission,
+            &policy,
+            time(capture_start_ns() + 10_000),
+            &epin(&inputs),
+        ),
+        Err(OfflineArtifactError::Replay(ReplayInputError::FutureInput))
+    );
+
+    let mut reordered = epin(&inputs);
+    let split = reordered.iter().position(|byte| *byte == b'\n').unwrap() + 1;
+    let first = reordered.drain(..split).collect::<Vec<_>>();
+    reordered.extend(first);
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission,
+            &policy,
+            time(capture_start_ns() + 20_000),
+            &reordered,
+        ),
+        Err(OfflineArtifactError::Replay(
+            ReplayInputError::OrderViolation
+        ))
     );
 }

@@ -7,12 +7,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::wire::{
     ClockSourceKeyV1, ConfiguredTargetKeyV1, ConnectionKeyV1, ContributorKeyV1, ContributorRoleV1,
     ContributorSpecV1, CoverageSourceKeyV1, CursorModeV1, FamilyV1, FaultScopeKindV1,
-    InstrumentIdentityV1, MechanicsConfigV1, Rfc3339Time, SystemSourceKeyV1,
+    InstrumentIdentityV1, MAX_INPUT_BYTES, MechanicsConfigV1, Rfc3339Time, SystemSourceKeyV1,
 };
 
 const SCHEMA: &str = "event-pulse-e2-prospective-admission/1.0";
@@ -30,6 +31,11 @@ const REQUIRED_ROLES: [&str; 9] = [
     "COVERAGE",
     "SYSTEM",
 ];
+const SYSTEM_FREEZE_BYTES: &[u8] =
+    include_bytes!("../contracts/prospective/event-pulse-e2-producer-evidence-freeze.json");
+const SYSTEM_FREEZE_SHA256: &str =
+    "665490e794f72333ba684cdfdcec65494f89cb72d76bd1237a69993e8ea37c29";
+const EMPTY_SHA256: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
 pub enum ProspectiveAdmissionError {
@@ -51,10 +57,146 @@ pub enum ProspectiveAdmissionError {
     CoverageEvidence,
     #[error("stable system evidence mapping is missing")]
     SystemEvidence,
+    #[error("truthful-empty system evidence freeze is invalid or unbound")]
+    SystemFreeze,
     #[error("immutable source binding is invalid")]
     SourceBinding,
     #[error("capture authority exceeds research-only public observation")]
     Authority,
+}
+
+/// Non-forgeable capability for the frozen truthful-empty SYSTEM artifact.
+///
+/// Construction binds the exact accepted LF bytes and the exact admitted
+/// processor source. Callers cannot select a mode, fault, scope, or report.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProspectiveSystemArtifactPolicyV1 {
+    source_id: String,
+}
+
+impl ProspectiveSystemArtifactPolicyV1 {
+    pub fn from_frozen_evidence(
+        admission: &ProspectiveCaptureAdmissionV1,
+        frozen_evidence: &[u8],
+    ) -> Result<Self, ProspectiveAdmissionError> {
+        if frozen_evidence.len() > MAX_INPUT_BYTES
+            || frozen_evidence != SYSTEM_FREEZE_BYTES
+            || format!("{:x}", Sha256::digest(frozen_evidence)) != SYSTEM_FREEZE_SHA256
+        {
+            return Err(ProspectiveAdmissionError::SystemFreeze);
+        }
+        let freeze: FrozenProducerEvidence = serde_json::from_slice(frozen_evidence)
+            .map_err(|_| ProspectiveAdmissionError::SystemFreeze)?;
+        freeze.validate_system()?;
+        let system_sources = admission.mechanics_config().system_sources();
+        let key = system_sources
+            .first()
+            .filter(|_| system_sources.len() == 1)
+            .ok_or(ProspectiveAdmissionError::SystemFreeze)?;
+        if admission.mechanics_config().processor_id() != "event_pulse_e2_prospective"
+            || key.source_id() != freeze.system_scenario.source_id
+            || key.scope_kind() != FaultScopeKindV1::Processor
+            || key.cursor_mode() != CursorModeV1::Derived
+            || key.configured_target_key().processor_id()
+                != Some(admission.mechanics_config().processor_id())
+        {
+            return Err(ProspectiveAdmissionError::SystemFreeze);
+        }
+        Ok(Self {
+            source_id: freeze.system_scenario.source_id,
+        })
+    }
+
+    pub fn source_id(&self) -> &str {
+        &self.source_id
+    }
+
+    pub const fn mode(&self) -> &'static str {
+        "TRUTHFUL_EMPTY"
+    }
+
+    pub const fn freeze_sha256(&self) -> &'static str {
+        SYSTEM_FREEZE_SHA256
+    }
+
+    pub const fn evidence_authoring_allowed(&self) -> bool {
+        false
+    }
+
+    pub(crate) fn matches(&self, admission: &ProspectiveCaptureAdmissionV1) -> bool {
+        let sources = admission.mechanics_config().system_sources();
+        sources.len() == 1 && sources[0].source_id() == self.source_id
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FrozenProducerEvidence {
+    authority: serde_json::Value,
+    binance_primary: serde_json::Value,
+    clock_discipline: serde_json::Value,
+    coverage_bindings: Vec<serde_json::Value>,
+    hyperliquid_confirmation: serde_json::Value,
+    schema: String,
+    system_scenario: FrozenSystemScenario,
+}
+
+impl FrozenProducerEvidence {
+    fn validate_system(&self) -> Result<(), ProspectiveAdmissionError> {
+        let _retained_exact_fields = (
+            &self.authority,
+            &self.binance_primary,
+            &self.clock_discipline,
+            &self.coverage_bindings,
+            &self.hyperliquid_confirmation,
+        );
+        let system = &self.system_scenario;
+        if self.schema != "event-pulse-e2-producer-evidence-freeze/1.0"
+            || system.status != "FROZEN_CONTRACT"
+            || system.mode != "TRUTHFUL_EMPTY"
+            || system.source_id != "capture_system"
+            || system.scope != "PROCESSOR"
+            || system.source_qualification != "UNVERIFIED"
+            || system.forbidden_inputs
+                != [
+                    "FABRICATED_DROP",
+                    "INJECTED_FAULT",
+                    "RECONNECT_AS_DISCONNECTED",
+                ]
+            || system.empty_artifact.byte_length != 0
+            || system.empty_artifact.record_count != 0
+            || system.empty_artifact.sha256 != EMPTY_SHA256
+            || system.empty_artifact.first_available_at.is_some()
+            || system.empty_artifact.last_available_at.is_some()
+            || !system.empty_artifact.record_identities.is_empty()
+        {
+            return Err(ProspectiveAdmissionError::SystemFreeze);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FrozenSystemScenario {
+    empty_artifact: FrozenEmptyArtifact,
+    forbidden_inputs: Vec<String>,
+    mode: String,
+    scope: String,
+    source_id: String,
+    source_qualification: String,
+    status: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FrozenEmptyArtifact {
+    byte_length: u64,
+    first_available_at: Option<String>,
+    last_available_at: Option<String>,
+    record_count: u64,
+    record_identities: Vec<serde_json::Value>,
+    sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
