@@ -264,6 +264,8 @@ pub enum Mfr1TransformError {
     Mfr1Capacity,
     #[error("MFR1 must use format version 3")]
     FormatVersion,
+    #[error("MFR1 v3 reserved session-count header word must be zero")]
+    ReservedHeader,
     #[error("MFR1 header start does not equal the admitted connect coordinate")]
     HeaderStartMismatch,
     #[error("selected session monotonic clock regressed")]
@@ -521,6 +523,13 @@ impl Mfr1TransformerV1 {
         let mut reader = RawSegmentReader::open(Cursor::new(mfr1_bytes))?;
         if reader.format_version != FORMAT_VERSION {
             return Err(Mfr1TransformError::FormatVersion);
+        }
+        let reserved_session_count = mfr1_bytes
+            .get(14..22)
+            .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
+            .ok_or_else(|| Mfr1TransformError::Recording("truncated MFR1 header".into()))?;
+        if u64::from_le_bytes(reserved_session_count) != 0 {
+            return Err(Mfr1TransformError::ReservedHeader);
         }
         if reader.start_ts_ns != connect_at.0 {
             return Err(Mfr1TransformError::HeaderStartMismatch);

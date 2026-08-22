@@ -135,3 +135,7 @@ Final successor gates:
 - `cargo +1.85.0 test -p marketfeed-event-pulse-mfr1 --locked --no-fail-fast`: GREEN (3 unit, 28 integration).
 - Current and Rust 1.85 `cargo clippy` with `--all-targets --locked -- -D warnings`: GREEN.
 - `cargo deny --offline --locked check`, `cargo fmt --all -- --check`, and `git diff --check`: GREEN.
+
+### Reserved MFR1 v3 header successor
+
+The leaf prevalidator now reads bytes 14..22 directly from the original MFR1 v3 header and requires the reserved/session-count word to equal zero. This closes a canonical-header gap where the recording reader discarded a nonzero value although the writer always authors zero. A raw-byte mutation regression proves the typed `ReservedHeader` rejection occurs before replay-start or any other session-machine call. The focused suite is now 3 unit and 29 integration tests. The full prior gate set remains green, and `cargo +1.85.0 check -p marketfeed-event-pulse-mfr1 --all-targets --all-features --locked` is additionally green.

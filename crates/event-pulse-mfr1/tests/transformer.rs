@@ -1593,6 +1593,24 @@ fn format_header_start_and_selected_monotonic_progression_are_bound() {
 }
 
 #[test]
+fn reserved_v3_session_count_header_word_must_be_zero_before_machine_start() {
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
+    let mut bytes = empty_mfr1(start_ns);
+    bytes[14..22].copy_from_slice(&1u64.to_le_bytes());
+    let calls = Arc::new(AtomicUsize::new(0));
+    assert_eq!(
+        transformer.transform(
+            CountingMachine(Arc::clone(&calls)),
+            &bytes,
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::ReservedHeader)
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
 fn replay_runner_counts_and_fresh_strict_processor_results_match() {
     let (admission, catalog, connection, system) = topology();
     let config = admission.mechanics_config().clone();
