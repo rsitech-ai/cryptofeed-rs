@@ -17,7 +17,8 @@ use marketfeed_event_pulse::{
     },
 };
 use marketfeed_event_pulse_mfr1::{
-    Mfr1SessionBindingV1, Mfr1TransformContextV1, Mfr1TransformError, Mfr1TransformerV1,
+    Mfr1MetadataBindingV1, Mfr1SessionBindingV1, Mfr1TransformContextV1, Mfr1TransformError,
+    Mfr1TransformerV1,
 };
 use marketfeed_model::{
     AggressorSide, ConnectionId, EventEnvelope, EventFlags, Fixed, InstrumentId, MarketEvent,
@@ -140,9 +141,16 @@ fn admission() -> ProspectiveCaptureAdmissionV1 {
 }
 
 fn mfr1(records: &[(u64, i64, FrameOpcode, &[u8])]) -> Vec<u8> {
-    let mut writer = RawSegmentWriter::create(Vec::new(), records[0].1).unwrap();
+    mfr1_with_start(records[0].1, records)
+}
+
+fn mfr1_with_start(start_ns: i64, records: &[(u64, i64, FrameOpcode, &[u8])]) -> Vec<u8> {
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
     writer
-        .write_metadata(&session_metadata(), records[0].1)
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns)
         .unwrap();
     for (frame_seq, receive_ns, opcode, payload) in records {
         writer
@@ -164,13 +172,27 @@ fn mfr1(records: &[(u64, i64, FrameOpcode, &[u8])]) -> Vec<u8> {
 fn empty_mfr1(start_ns: i64) -> Vec<u8> {
     let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
     writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
+    writer
         .write_metadata(&session_metadata(), start_ns)
         .unwrap();
     writer.into_inner()
 }
 
 fn session_metadata() -> MetadataRecord {
-    MetadataRecord::Session(SessionRecordingMetadata {
+    MetadataRecord::Session(session_recording_metadata())
+}
+
+fn build_metadata() -> marketfeed_recording::BuildMetadata {
+    let MetadataRecord::Build(build) = MetadataRecord::current_build() else {
+        unreachable!();
+    };
+    build
+}
+
+fn session_recording_metadata() -> SessionRecordingMetadata {
+    SessionRecordingMetadata {
         schema_version: 1,
         session_id: 1,
         venue_id: 1,
@@ -204,14 +226,10 @@ fn session_metadata() -> MetadataRecord {
             inverse: false,
         }],
         initial_subscriptions: vec![],
-    })
+    }
 }
 
-fn context(
-    action_capacity: usize,
-    dispatch_capacity: usize,
-    overflow: OverflowPolicy,
-) -> (Mfr1TransformerV1, i64) {
+fn context(dispatch_capacity: usize, overflow: OverflowPolicy) -> (Mfr1TransformerV1, i64) {
     let (admission, catalog, connection, system) = topology();
     let start_ns = admission.capture_starts_at().utc_micros() * 1_000;
     let context = Mfr1TransformContextV1::new(
@@ -219,7 +237,7 @@ fn context(
         catalog,
         Mfr1SessionBindingV1::new(connection, 1, 1),
         system,
-        action_capacity,
+        Mfr1MetadataBindingV1::new(build_metadata(), session_recording_metadata()).unwrap(),
         dispatch_capacity,
         overflow,
     )
@@ -439,6 +457,43 @@ impl SessionMachine for CountingMachine {
     }
 }
 
+struct PostStartFailureMachine {
+    calls: Arc<AtomicUsize>,
+    drops: Arc<AtomicUsize>,
+    fail: bool,
+}
+
+impl Drop for PostStartFailureMachine {
+    fn drop(&mut self) {
+        self.drops.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+impl SessionMachine for PostStartFailureMachine {
+    fn on_replay_start(
+        &mut self,
+        _now: TimestampNs,
+        _output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn on_input(
+        &mut self,
+        input: SessionInput<'_>,
+        _output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        if matches!(input, SessionInput::TextFrame { .. }) {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if self.fail {
+                return Err(AdapterError::Parse("intentional post-start failure".into()));
+            }
+        }
+        Ok(())
+    }
+}
+
 struct HttpMarketMachine;
 
 impl SessionMachine for HttpMarketMachine {
@@ -483,7 +538,7 @@ fn authentic_mfr1_market_is_strictly_normalized_to_raw_coordinates_and_epin() {
         catalog,
         Mfr1SessionBindingV1::new(connection, 1, 1),
         system,
-        1_024,
+        Mfr1MetadataBindingV1::new(build_metadata(), session_recording_metadata()).unwrap(),
         8,
         OverflowPolicy::FailEngine,
     )
@@ -510,7 +565,7 @@ fn authentic_mfr1_market_is_strictly_normalized_to_raw_coordinates_and_epin() {
 
     let output = transformer
         .transform(
-            &mut MarketMachine::default(),
+            MarketMachine::default(),
             &bytes,
             TimestampNs(start_ns),
             decision,
@@ -545,8 +600,7 @@ fn authentic_mfr1_market_is_strictly_normalized_to_raw_coordinates_and_epin() {
 
 #[test]
 fn metadata_is_validated_and_http_response_uses_the_authoritative_raw_group() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
-    let metadata = encode_metadata(&MetadataRecord::current_build()).unwrap();
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let response = encode_http_response(
         77,
         &HttpResponse {
@@ -556,13 +610,13 @@ fn metadata_is_validated_and_http_response_uses_the_authoritative_raw_group() {
         },
     )
     .unwrap();
-    let bytes = mfr1(&[
-        (0, start_ns, FrameOpcode::Metadata, &metadata),
-        (19, start_ns + 1_000, FrameOpcode::HttpResponse, &response),
-    ]);
+    let bytes = mfr1_with_start(
+        start_ns,
+        &[(19, start_ns + 1_000, FrameOpcode::HttpResponse, &response)],
+    );
     let output = transformer
         .transform(
-            &mut HttpMarketMachine,
+            HttpMarketMachine,
             &bytes,
             TimestampNs(start_ns),
             decision(start_ns + 1_000),
@@ -580,11 +634,11 @@ fn metadata_is_validated_and_http_response_uses_the_authoritative_raw_group() {
 
 #[test]
 fn multi_item_batches_use_raw_frame_and_checked_item_coordinates() {
-    let (transformer, start_ns) = context(1_024, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let bytes = mfr1(&[(5, start_ns, FrameOpcode::Text, b"batch")]);
     let output = transformer
         .transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 2,
                 replay_start: false,
@@ -619,12 +673,12 @@ fn multi_item_batches_use_raw_frame_and_checked_item_coordinates() {
 
 #[test]
 fn real_action_and_market_dispatch_losses_are_reserved_and_chained_after_market() {
-    let (transformer, start_ns) = context(2, 1, OverflowPolicy::DropNewest);
+    let (transformer, start_ns) = context(1, OverflowPolicy::DropNewest);
     let bytes = mfr1(&[(8, start_ns, FrameOpcode::Text, b"burst")]);
     let output = transformer
         .transform(
-            &mut BurstMachine {
-                actions: 3,
+            BurstMachine {
+                actions: 1_025,
                 items: 1,
                 replay_start: false,
             },
@@ -634,8 +688,8 @@ fn real_action_and_market_dispatch_losses_are_reserved_and_chained_after_market(
         )
         .unwrap();
     assert_eq!(output.dropped_action_buffer(), 1);
-    assert_eq!(output.dropped_market_dispatch(), 1);
-    assert_eq!(output.inputs().len(), 4);
+    assert_eq!(output.dropped_market_dispatch(), 1_023);
+    assert_eq!(output.inputs().len(), 1_026);
     for (offset, (item, category)) in [
         (0, DropCategoryV1::ActionBuffer),
         (1, DropCategoryV1::MarketDispatch),
@@ -648,14 +702,21 @@ fn real_action_and_market_dispatch_losses_are_reserved_and_chained_after_market(
             fault,
             predecessor_system_chain_hash,
             ..
-        } = output.inputs()[2 + offset].view()
+        } = output.inputs()[1_024 + offset].view()
         else {
             panic!("expected reserved drop");
         };
         assert_eq!(system_cursor, &CursorV1::derived_drop(8, item).unwrap());
         assert_eq!(
             fault.view(),
-            SystemFaultRefV1::EventsDropped { count: 1, category }
+            SystemFaultRefV1::EventsDropped {
+                count: if category == DropCategoryV1::ActionBuffer {
+                    1
+                } else {
+                    1_023
+                },
+                category,
+            }
         );
         assert_eq!(predecessor_system_chain_hash.is_some(), offset == 1);
     }
@@ -667,10 +728,10 @@ fn real_action_and_market_dispatch_losses_are_reserved_and_chained_after_market(
 
 #[test]
 fn replay_start_owns_coordinate_zero_and_inbound_zero_fails_closed() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let startup = transformer
         .transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: true,
@@ -686,11 +747,11 @@ fn replay_start_owns_coordinate_zero_and_inbound_zero_fails_closed() {
     };
     assert_eq!(envelope.frame_seq, 0);
 
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let inbound_zero = mfr1(&[(0, start_ns, FrameOpcode::Text, b"market")]);
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false,
@@ -705,7 +766,7 @@ fn replay_start_owns_coordinate_zero_and_inbound_zero_fails_closed() {
 
 #[test]
 fn empty_subscription_controls_may_use_zero_and_reuse_market_frame() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let command = SessionCommand::Subscribe(vec!["BTC-USD".into()]);
     let wire = SubscriptionWireAction::Text(b"SUB BTC-USD\n".as_slice().to_vec().into());
     let control = encode_subscription_command(&command, &wire).unwrap();
@@ -722,7 +783,7 @@ fn empty_subscription_controls_may_use_zero_and_reuse_market_frame() {
     ]);
     let output = transformer
         .transform(
-            &mut MarketMachine::default(),
+            MarketMachine::default(),
             &bytes,
             TimestampNs(start_ns),
             decision(start_ns + 4_000),
@@ -751,11 +812,11 @@ fn ordinary_system_and_reconnect_actions_fail_without_partial_output() {
             Mfr1TransformError::UnsupportedReconnect,
         ),
     ] {
-        let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+        let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
         let bytes = mfr1(&[(7, start_ns, FrameOpcode::Text, b"fault")]);
         assert_eq!(
             transformer.transform(
-                &mut UnsupportedMachine(kind),
+                UnsupportedMachine(kind),
                 &bytes,
                 TimestampNs(start_ns),
                 decision(start_ns),
@@ -777,11 +838,11 @@ fn action_overflow_cannot_hide_unsupported_system_or_reconnect_actions() {
             Mfr1TransformError::UnsupportedReconnect,
         ),
     ] {
-        let (transformer, start_ns) = context(1, 8, OverflowPolicy::DropNewest);
+        let (transformer, start_ns) = context(8, OverflowPolicy::DropNewest);
         let bytes = mfr1(&[(7, start_ns, FrameOpcode::Text, b"fault")]);
         assert_eq!(
             transformer.transform(
-                &mut OverflowHiddenUnsupportedMachine(kind),
+                OverflowHiddenUnsupportedMachine(kind),
                 &bytes,
                 TimestampNs(start_ns),
                 decision(start_ns),
@@ -793,13 +854,15 @@ fn action_overflow_cannot_hide_unsupported_system_or_reconnect_actions() {
 
 #[test]
 fn complete_selected_session_metadata_is_required_before_machine_mutation() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
-    let bytes = RawSegmentWriter::create(Vec::new(), start_ns)
-        .unwrap()
-        .into_inner();
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
+    let bytes = writer.into_inner();
     let calls = Arc::new(AtomicUsize::new(0));
     let result = transformer.transform(
-        &mut CountingMachine(Arc::clone(&calls)),
+        CountingMachine(Arc::clone(&calls)),
         &bytes,
         TimestampNs(start_ns),
         decision(start_ns),
@@ -810,7 +873,7 @@ fn complete_selected_session_metadata_is_required_before_machine_mutation() {
 
 #[test]
 fn selected_session_metadata_must_match_session_venue_catalog_and_topology() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let MetadataRecord::Session(mut wrong) = session_metadata() else {
         unreachable!();
     };
@@ -818,38 +881,8 @@ fn selected_session_metadata_must_match_session_venue_catalog_and_topology() {
     let payload = encode_metadata(&MetadataRecord::Session(wrong)).unwrap();
     let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
     writer
-        .write_record(
-            SessionId(1),
-            0,
-            start_ns,
-            0,
-            Direction::Inbound,
-            FrameOpcode::Metadata,
-            0,
-            &payload,
-        )
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
         .unwrap();
-    assert_eq!(
-        transformer.transform(
-            &mut BurstMachine {
-                actions: 0,
-                items: 0,
-                replay_start: false,
-            },
-            &writer.into_inner(),
-            TimestampNs(start_ns),
-            decision(start_ns),
-        ),
-        Err(Mfr1TransformError::SessionMetadataMismatch)
-    );
-
-    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
-    let MetadataRecord::Session(mut wrong) = session_metadata() else {
-        unreachable!();
-    };
-    wrong.session_id = 2;
-    let payload = encode_metadata(&MetadataRecord::Session(wrong)).unwrap();
-    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
     writer
         .write_record(
             SessionId(1),
@@ -864,7 +897,7 @@ fn selected_session_metadata_must_match_session_venue_catalog_and_topology() {
         .unwrap();
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 0,
                 items: 0,
                 replay_start: false,
@@ -876,8 +909,47 @@ fn selected_session_metadata_must_match_session_venue_catalog_and_topology() {
         Err(Mfr1TransformError::SessionMetadataMismatch)
     );
 
-    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+    let MetadataRecord::Session(mut wrong) = session_metadata() else {
+        unreachable!();
+    };
+    wrong.session_id = 2;
+    let payload = encode_metadata(&MetadataRecord::Session(wrong)).unwrap();
     let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
+    writer
+        .write_record(
+            SessionId(1),
+            0,
+            start_ns,
+            0,
+            Direction::Inbound,
+            FrameOpcode::Metadata,
+            0,
+            &payload,
+        )
+        .unwrap();
+    assert_eq!(
+        transformer.transform(
+            BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::SessionMetadataMismatch)
+    );
+
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
     writer
         .write_metadata(&session_metadata(), start_ns)
         .unwrap();
@@ -886,7 +958,7 @@ fn selected_session_metadata_must_match_session_venue_catalog_and_topology() {
         .unwrap();
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 0,
                 items: 0,
                 replay_start: false,
@@ -900,14 +972,132 @@ fn selected_session_metadata_must_match_session_venue_catalog_and_topology() {
 }
 
 #[test]
+fn build_and_every_selected_decoding_metadata_field_are_exactly_bound() {
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
+    let mut wrong_build = build_metadata();
+    wrong_build.package_version.push_str("-tampered");
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(wrong_build), start_ns)
+        .unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns)
+        .unwrap();
+    assert_eq!(
+        transformer.transform(
+            CountingMachine(Arc::new(AtomicUsize::new(0))),
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::BuildMetadataMismatch)
+    );
+
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+    let mut wrong_session = session_recording_metadata();
+    wrong_session.catalog[0].price_scale += 1;
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Session(wrong_session), start_ns)
+        .unwrap();
+    assert_eq!(
+        transformer.transform(
+            CountingMachine(Arc::new(AtomicUsize::new(0))),
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::SessionMetadataMismatch)
+    );
+}
+
+#[test]
+fn exact_unrelated_catalog_rows_are_retained_but_not_required_in_topology() {
+    let (admission, _, connection, system) = topology();
+    let start_ns = admission.capture_starts_at().utc_micros() * 1_000;
+    let catalog = ReplayCatalogV1::new(
+        BTreeMap::from([(
+            1,
+            VenueCatalogEntryV1::new("BINANCE", "binance_primary").unwrap(),
+        )]),
+        BTreeMap::from([
+            (
+                1,
+                InstrumentIdentityV1::new("BTC", "USDT", "PERPETUAL", "BINANCE", "BTCUSDT")
+                    .unwrap(),
+            ),
+            (
+                2,
+                InstrumentIdentityV1::new("ETH", "USDT", "PERPETUAL", "BINANCE", "ETHUSDT")
+                    .unwrap(),
+            ),
+        ]),
+        vec![ReplayEpochEntryV1::new(1, 1, "epoch_capture_0", 0).unwrap()],
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let mut expected_session = session_recording_metadata();
+    let mut unrelated = expected_session.catalog[0].clone();
+    unrelated.instrument_id = 2;
+    unrelated.native_symbol = "ETHUSDT".into();
+    unrelated.base = "ETH".into();
+    expected_session.catalog.push(unrelated);
+    let context = Mfr1TransformContextV1::new(
+        admission,
+        catalog,
+        Mfr1SessionBindingV1::new(connection, 1, 1),
+        system,
+        Mfr1MetadataBindingV1::new(build_metadata(), expected_session.clone()).unwrap(),
+        8,
+        OverflowPolicy::FailEngine,
+    )
+    .unwrap();
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Session(expected_session), start_ns)
+        .unwrap();
+    writer
+        .write_record(
+            SessionId(1),
+            1,
+            start_ns,
+            1,
+            Direction::Inbound,
+            FrameOpcode::Text,
+            0,
+            b"market",
+        )
+        .unwrap();
+    let output = Mfr1TransformerV1::new(context)
+        .transform(
+            BurstMachine {
+                actions: 1,
+                items: 1,
+                replay_start: false,
+            },
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        )
+        .unwrap();
+    assert_eq!(output.inputs().len(), 1);
+}
+
+#[test]
 fn full_mfr_validation_finishes_before_replay_start() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let mut bytes = empty_mfr1(start_ns);
     bytes.push(0xa5);
     let calls = Arc::new(AtomicUsize::new(0));
     assert!(matches!(
         transformer.transform(
-            &mut CountingMachine(Arc::clone(&calls)),
+            CountingMachine(Arc::clone(&calls)),
             &bytes,
             TimestampNs(start_ns),
             decision(start_ns),
@@ -915,6 +1105,84 @@ fn full_mfr_validation_finishes_before_replay_start() {
         Err(Mfr1TransformError::Recording(_))
     ));
     assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn post_start_error_consumes_failed_machine_and_retry_requires_a_fresh_machine() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let drops = Arc::new(AtomicUsize::new(0));
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
+    let bytes = mfr1(&[(7, start_ns, FrameOpcode::Text, b"fail-after-start")]);
+    let failed = transformer.transform(
+        PostStartFailureMachine {
+            calls: Arc::clone(&calls),
+            drops: Arc::clone(&drops),
+            fail: true,
+        },
+        &bytes,
+        TimestampNs(start_ns),
+        decision(start_ns),
+    );
+    assert!(matches!(failed, Err(Mfr1TransformError::Adapter(_))));
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+    transformer
+        .transform(
+            PostStartFailureMachine {
+                calls: Arc::clone(&calls),
+                drops: Arc::clone(&drops),
+                fail: false,
+            },
+            &bytes,
+            TimestampNs(start_ns),
+            decision(start_ns),
+        )
+        .unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 4);
+    assert_eq!(drops.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn selected_segment_requires_build_metadata_before_machine_start() {
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns)
+        .unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let result = transformer.transform(
+        CountingMachine(Arc::clone(&calls)),
+        &writer.into_inner(),
+        TimestampNs(start_ns),
+        decision(start_ns),
+    );
+    assert!(result.is_err(), "missing build metadata must fail");
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn dispatcher_capacity_is_scoped_to_each_transport_frame() {
+    let (transformer, start_ns) = context(1, OverflowPolicy::DropNewest);
+    let bytes = mfr1(&[
+        (7, start_ns, FrameOpcode::Text, b"first"),
+        (8, start_ns + 1_000, FrameOpcode::Text, b"second"),
+    ]);
+    let output = transformer
+        .transform(
+            BurstMachine {
+                actions: 1,
+                items: 1,
+                replay_start: false,
+            },
+            &bytes,
+            TimestampNs(start_ns),
+            decision(start_ns + 1_000),
+        )
+        .unwrap();
+    assert_eq!(output.dropped_market_dispatch(), 0);
+    assert_eq!(output.inputs().len(), 2);
 }
 
 #[test]
@@ -933,7 +1201,7 @@ fn unsupported_overflow_policies_are_rejected_at_context_construction() {
                 catalog,
                 Mfr1SessionBindingV1::new(connection, 1, 1),
                 system,
-                8,
+                Mfr1MetadataBindingV1::new(build_metadata(), session_recording_metadata()).unwrap(),
                 8,
                 overflow,
             )
@@ -946,6 +1214,9 @@ fn unsupported_overflow_policies_are_rejected_at_context_construction() {
 fn raw_record_count_accepts_exact_bound_and_rejects_one_over() {
     fn recording(start_ns: i64, ping_count: usize) -> Vec<u8> {
         let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+        writer
+            .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+            .unwrap();
         writer
             .write_metadata(&session_metadata(), start_ns)
             .unwrap();
@@ -966,30 +1237,30 @@ fn raw_record_count_accepts_exact_bound_and_rejects_one_over() {
         writer.into_inner()
     }
 
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let exact = transformer
         .transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 0,
                 items: 0,
                 replay_start: false,
             },
-            &recording(start_ns, 65_535),
+            &recording(start_ns, 65_534),
             TimestampNs(start_ns),
             decision(start_ns),
         )
         .unwrap();
     assert!(exact.inputs().is_empty());
 
-    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 0,
                 items: 0,
                 replay_start: false,
             },
-            &recording(start_ns, 65_536),
+            &recording(start_ns, 65_535),
             TimestampNs(start_ns),
             decision(start_ns),
         ),
@@ -999,11 +1270,11 @@ fn raw_record_count_accepts_exact_bound_and_rejects_one_over() {
 
 #[test]
 fn authored_input_count_fails_at_the_public_one_over_boundary() {
-    let (transformer, start_ns) = context(2, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let bytes = mfr1(&[(7, start_ns, FrameOpcode::Text, b"large-batch")]);
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 2,
                 items: 32_769,
                 replay_start: false,
@@ -1018,8 +1289,11 @@ fn authored_input_count_fails_at_the_public_one_over_boundary() {
 
 #[test]
 fn selected_session_and_admitted_time_window_are_enforced() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
     writer
         .write_metadata(&session_metadata(), start_ns)
         .unwrap();
@@ -1049,7 +1323,7 @@ fn selected_session_and_admitted_time_window_are_enforced() {
         .unwrap();
     let output = transformer
         .transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false,
@@ -1062,8 +1336,11 @@ fn selected_session_and_admitted_time_window_are_enforced() {
     assert_eq!(output.frames_applied(), 1);
     assert_eq!(output.frames()[0].frame_seq(), 2);
 
-    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
     let mut selected_outbound = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    selected_outbound
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
     selected_outbound
         .write_metadata(&session_metadata(), start_ns)
         .unwrap();
@@ -1081,7 +1358,7 @@ fn selected_session_and_admitted_time_window_are_enforced() {
         .unwrap();
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false,
@@ -1097,11 +1374,11 @@ fn selected_session_and_admitted_time_window_are_enforced() {
         (start_ns - 1_000, decision(start_ns)),
         (start_ns + 2_000, decision(start_ns + 1_000)),
     ] {
-        let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
-        let bytes = mfr1(&[(1, record_ns, FrameOpcode::Text, b"market")]);
+        let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+        let bytes = mfr1_with_start(start_ns, &[(1, record_ns, FrameOpcode::Text, b"market")]);
         assert_eq!(
             transformer.transform(
-                &mut BurstMachine {
+                BurstMachine {
                     actions: 1,
                     items: 1,
                     replay_start: false,
@@ -1117,13 +1394,13 @@ fn selected_session_and_admitted_time_window_are_enforced() {
 
 #[test]
 fn crc_tamper_full_truncation_and_one_to_three_byte_tails_fail_closed() {
-    let (base_transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (base_transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let valid = mfr1(&[(1, start_ns, FrameOpcode::Text, b"market")]);
     let mut tampered = valid.clone();
     *tampered.last_mut().unwrap() ^= 1;
     assert!(matches!(
         base_transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false
@@ -1136,12 +1413,12 @@ fn crc_tamper_full_truncation_and_one_to_three_byte_tails_fail_closed() {
     ));
 
     for tail_len in 1..=3 {
-        let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+        let (transformer, _) = context(8, OverflowPolicy::FailEngine);
         let mut with_tail = valid.clone();
         with_tail.extend(std::iter::repeat_n(0xa5, tail_len));
         assert!(matches!(
             transformer.transform(
-                &mut BurstMachine {
+                BurstMachine {
                     actions: 1,
                     items: 1,
                     replay_start: false
@@ -1153,10 +1430,10 @@ fn crc_tamper_full_truncation_and_one_to_three_byte_tails_fail_closed() {
             Err(Mfr1TransformError::Recording(_))
         ));
     }
-    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
     assert!(matches!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false
@@ -1170,6 +1447,78 @@ fn crc_tamper_full_truncation_and_one_to_three_byte_tails_fail_closed() {
 }
 
 #[test]
+fn format_header_start_and_selected_monotonic_progression_are_bound() {
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
+    let mut old_format = empty_mfr1(start_ns);
+    old_format[4..6].copy_from_slice(&2u16.to_le_bytes());
+    assert_eq!(
+        transformer.transform(
+            BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &old_format,
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::FormatVersion)
+    );
+
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+    let wrong_start = empty_mfr1(start_ns + 1_000);
+    assert_eq!(
+        transformer.transform(
+            BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &wrong_start,
+            TimestampNs(start_ns),
+            decision(start_ns + 1_000),
+        ),
+        Err(Mfr1TransformError::HeaderStartMismatch)
+    );
+
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+        .unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns)
+        .unwrap();
+    for (frame_seq, monotonic_ns) in [(1, 2), (2, 1)] {
+        writer
+            .write_record(
+                SessionId(1),
+                frame_seq,
+                start_ns,
+                monotonic_ns,
+                Direction::Inbound,
+                FrameOpcode::Ping,
+                0,
+                b"",
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        transformer.transform(
+            BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::MonotonicRegression)
+    );
+}
+
+#[test]
 fn replay_runner_counts_and_fresh_strict_processor_results_match() {
     let (admission, catalog, connection, system) = topology();
     let config = admission.mechanics_config().clone();
@@ -1179,7 +1528,7 @@ fn replay_runner_counts_and_fresh_strict_processor_results_match() {
         catalog,
         Mfr1SessionBindingV1::new(connection, 1, 1),
         system,
-        1_024,
+        Mfr1MetadataBindingV1::new(build_metadata(), session_recording_metadata()).unwrap(),
         8,
         OverflowPolicy::FailEngine,
     )
@@ -1193,7 +1542,7 @@ fn replay_runner_counts_and_fresh_strict_processor_results_match() {
     ]);
     let output = Mfr1TransformerV1::new(context)
         .transform(
-            &mut MarketMachine::default(),
+            MarketMachine::default(),
             &bytes,
             TimestampNs(start_ns),
             decision(start_ns + 1_000),
@@ -1224,14 +1573,14 @@ fn replay_runner_counts_and_fresh_strict_processor_results_match() {
 
 #[test]
 fn action_coordinates_and_selected_availability_must_strictly_increase() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let reused = mfr1(&[
         (5, start_ns, FrameOpcode::Text, b"market"),
         (5, start_ns + 1_000, FrameOpcode::Text, b"market"),
     ]);
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false
@@ -1246,14 +1595,17 @@ fn action_coordinates_and_selected_availability_must_strictly_increase() {
         })
     );
 
-    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
-    let regressing_time = mfr1(&[
-        (5, start_ns + 2_000, FrameOpcode::Text, b"market"),
-        (6, start_ns + 1_000, FrameOpcode::Text, b"market"),
-    ]);
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
+    let regressing_time = mfr1_with_start(
+        start_ns,
+        &[
+            (5, start_ns + 2_000, FrameOpcode::Text, b"market"),
+            (6, start_ns + 1_000, FrameOpcode::Text, b"market"),
+        ],
+    );
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false
@@ -1268,7 +1620,7 @@ fn action_coordinates_and_selected_availability_must_strictly_increase() {
 
 #[test]
 fn constructor_and_market_mapping_reject_unbound_metadata() {
-    for (action_capacity, dispatch_capacity) in [(0, 1), (65_536, 1), (1, 0), (1, 65_536)] {
+    for dispatch_capacity in [0, 16_384, 65_536] {
         let (admission, catalog, connection, system) = topology();
         assert_eq!(
             Mfr1TransformContextV1::new(
@@ -1276,7 +1628,7 @@ fn constructor_and_market_mapping_reject_unbound_metadata() {
                 catalog,
                 Mfr1SessionBindingV1::new(connection, 1, 1),
                 system,
-                action_capacity,
+                Mfr1MetadataBindingV1::new(build_metadata(), session_recording_metadata()).unwrap(),
                 dispatch_capacity,
                 OverflowPolicy::DropNewest,
             )
@@ -1305,7 +1657,7 @@ fn constructor_and_market_mapping_reject_unbound_metadata() {
         wrong_catalog,
         Mfr1SessionBindingV1::new(connection, 1, 1),
         system,
-        8,
+        Mfr1MetadataBindingV1::new(build_metadata(), session_recording_metadata()).unwrap(),
         8,
         OverflowPolicy::FailEngine,
     )
@@ -1313,7 +1665,7 @@ fn constructor_and_market_mapping_reject_unbound_metadata() {
     let bytes = mfr1(&[(1, start_ns, FrameOpcode::Text, b"market")]);
     assert_eq!(
         Mfr1TransformerV1::new(context).transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: false
@@ -1328,10 +1680,10 @@ fn constructor_and_market_mapping_reject_unbound_metadata() {
 
 #[test]
 fn connect_and_decision_bounds_are_checked_before_machine_mutation() {
-    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: true
@@ -1342,10 +1694,10 @@ fn connect_and_decision_bounds_are_checked_before_machine_mutation() {
         ),
         Err(Mfr1TransformError::OutsideAdmissionWindow)
     );
-    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    let (transformer, _) = context(8, OverflowPolicy::FailEngine);
     assert_eq!(
         transformer.transform(
-            &mut BurstMachine {
+            BurstMachine {
                 actions: 1,
                 items: 1,
                 replay_start: true

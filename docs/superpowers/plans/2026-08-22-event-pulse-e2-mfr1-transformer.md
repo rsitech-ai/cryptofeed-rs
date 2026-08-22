@@ -19,23 +19,24 @@ This is research-only, repo-ready transformation work. It grants no adapter, fee
 ## Hard constraints
 
 - Preserve authoritative raw `frame_seq` and `FrameStamp.receive_ts`; normalize derived MARKET `event_index` from the checked captured item index.
-- Preserve zero-based action/item order. After each action-producing frame, append real queue losses at reserved action index `65_535` and items `0/1/2` in ActionBuffer/MarketDispatch/SystemDispatch order.
+- Preserve zero-based action/item order. After each action-producing frame, append real queue losses at reserved action index `65_535` and items `0/1` in ActionBuffer/MarketDispatch order. SystemDispatch item `2` is unsupported because ordinary system actions are outside this leaf contract.
 - Replay-start exclusively owns action-producing mechanics coordinate zero. Mechanics-empty SubscriptionCommand or Metadata may use zero or reuse a previous coordinate, matching `ReplayRunner` accounting.
 - Reject availability regression, action-producing zero/reused/decreasing inbound frames, unsupported control/system actions, catalog/topology/session mismatch, bounds, tampering, and truncated MFR1.
 - Do not call `RawSegmentReader::read_all`, because it intentionally tolerates a crash-truncated tail; iterate `read_record` and propagate truncation.
 - Do not invent Clock/Coverage/System lifecycle inputs or claim MFR1-only snapshot parity.
 - Use an observation `ActionBuffer` capped at the total authored-input ceiling so unsupported actions cannot hide behind the configured drop boundary. Reject observation overflow, inspect all actions, then deterministically emulate the admitted configured ActionBuffer capacity. Use the existing bounded `EventDispatcher`; dependencies are existing workspace crates only.
-- Require exactly one selected-session `SessionRecordingMetadata` record and bind its session, venue, catalog instruments, stable source, configured contributor, and configured connection to the immutable replay catalog and checked prospective admission before replay starts.
-- Prevalidate the complete MFR1 framing, CRC, exact tail, selected times, metadata, and control payloads before the first `SessionMachine` call. Consume the transformer per attempt.
-- Bound complete raw records and authored mechanics inputs at 65,536 each and canonical EPIN output at 16 MiB. Only `DropNewest` and `FailEngine` execution policies are admitted.
+- Require exactly one exact `BuildMetadata` record and one selected-session `SessionRecordingMetadata` record. Bind every typed metadata field, including adapter/environment/endpoint/catalog version and complete decoding catalog rows, to immutable expected metadata plus the replay catalog/admission topology before replay starts. Exact unrelated catalog rows may remain present without becoming configured contributors.
+- Prevalidate the complete MFR1 framing, CRC, exact tail, selected times, metadata, and control payloads before the first `SessionMachine` call. Consume both transformer and machine ownership per attempt; neither is returned on success or failure.
+- Bound one complete MFR1 segment at 256 MiB before reader construction, raw records and authored mechanics inputs at 65,536 each, and canonical EPIN output at 16 MiB. Require MFR1 v3, exact header-start/connect binding, and selected-session receive/monotonic progression. Only `DropNewest` and `FailEngine` execution policies are admitted.
 
 ## Architecture and public interface
 
 The new `marketfeed-event-pulse-mfr1` leaf crate preserves dependency direction. It uses public session/recording/dispatch contracts but contains no adapter or runtime implementation.
 
-- `Mfr1TransformContextV1::new(mechanics_config, replay_catalog, session_binding, processor_system_source, action_capacity, dispatch_capacity, overflow)` validates the exact catalog epoch, topology connection, unique configured processor/DERIVED system source, and bounded execution metadata.
-- `Mfr1TransformerV1::transform(machine, bytes, connect_at)` drives the public `SessionMachine` replay-start and opcode/control semantics, captures actions before lane separation, uses real bounded queues, and stages all results in memory.
+- `Mfr1TransformContextV1::new(admission, replay_catalog, session_binding, processor_system_source, expected_metadata, dispatch_capacity, overflow)` validates the exact catalog epoch, topology connection, unique configured processor/DERIVED system source, immutable Build/Session metadata, and bounded execution metadata. Action capacity is derived as `max(dispatch_capacity * 4, DEFAULT_ACTION_BUFFER_CAPACITY)`; callers cannot choose it independently.
+- `Mfr1TransformerV1::transform(machine, bytes, connect_at)` takes the concrete `SessionMachine` by value, drives replay-start and opcode/control semantics, captures actions before lane separation, uses real bounded queues, and stages all results in memory. A post-start error drops the consumed machine, so retry requires constructing a fresh machine.
 - `Mfr1TransformOutputV1` exposes frame groups, flat strict inputs, canonical EPIN bytes, frame counts, and exact loss counts. It exposes `evidence_authoring_allowed() == false` and `blocker() == "blocked:fixture-provenance"`.
+- Accepted dispatcher contents are drained after each transport frame, so capacity is a within-frame lane bound rather than accidental cross-frame retention. Canonical EPIN is strict-read back with the immutable `not_after` bound and must decode exactly to staged inputs before return.
 - MARKET actions are strict-authored through `MechanicsInputV1::market` after replacing only raw-authoritative frame/receive/item fields. Exchange time and native source sequence remain semantic adapter evidence.
 - Reserved real queue losses map through the one processor SYSTEM source with a causal predecessor chain. Ordinary `EmitSystem` and `Reconnect` fail typed before any output is returned.
 
@@ -70,7 +71,7 @@ The new `marketfeed-event-pulse-mfr1` leaf crate preserves dependency direction.
 
 ## Risks and rollback
 
-- Stateful caller machines cannot be rolled back after a typed failure. The API returns no partial output and requires a fresh machine per attempt.
+- A stateful machine can mutate before a post-start typed failure, so the API consumes and drops it without returning it. Retry requires a separately constructed fresh machine; no poisoned machine can be reused through this API.
 - Raw action order may conflict with EPIN's strict total order. Preserve raw groups and let the existing writer fail typed; never reorder evidence silently.
 - Full SYSTEM lifecycle, independent Clock/Coverage, Hyperliquid confirmation, real capture, and fixture provenance remain explicit future dependencies.
 - Rollback is removal of the leaf crate/workspace member and task-local docs/tests. No persisted or external state is created.

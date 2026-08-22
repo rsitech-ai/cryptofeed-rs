@@ -6,11 +6,12 @@
 #![forbid(unsafe_code)]
 
 use marketfeed_adapter_api::{
-    ActionBuffer, AdapterError, SessionAction, SessionInput, SessionMachine,
+    ActionBuffer, AdapterError, DEFAULT_ACTION_BUFFER_CAPACITY, SessionAction, SessionInput,
+    SessionMachine,
 };
 use marketfeed_dispatch::{DispatchError, EventDispatcher, PushOutcome};
 use marketfeed_event_pulse::{
-    EpinJson1Writer, ProspectiveCaptureAdmissionV1, ReplayInputError,
+    EpinJson1Reader, EpinJson1Writer, ProspectiveCaptureAdmissionV1, ReplayInputError,
     wire::{
         ConfiguredTargetKeyV1, ConnectionKeyV1, CursorModeV1, CursorV1, DropCategoryV1,
         FaultScopeKindV1, FaultScopeV1, MechanicsInputV1, ReplayCatalogV1, Rfc3339Time,
@@ -19,11 +20,11 @@ use marketfeed_event_pulse::{
 };
 use marketfeed_model::{EventEnvelope, FrameStamp, OverflowPolicy, TimestampNs};
 use marketfeed_recording::{
-    Direction, FrameOpcode, HEADER_SIZE, MetadataRecord, RawRecord, RawSegmentReader,
-    RecordingError, SessionRecordingMetadata, decode_http_response, decode_metadata,
-    decode_subscription_command,
+    BuildMetadata, Direction, FORMAT_VERSION, FrameOpcode, HEADER_SIZE, MetadataRecord, RawRecord,
+    RawSegmentReader, RecordingError, SessionRecordingMetadata, decode_http_response,
+    decode_metadata, decode_subscription_command,
 };
-use std::io::{self, Write};
+use std::io::{self, Cursor, Write};
 use thiserror::Error;
 
 const MAX_ORDINARY_ACTIONS: usize = u16::MAX as usize;
@@ -31,6 +32,7 @@ const MAX_ITEMS: usize = u16::MAX as usize + 1;
 const MAX_RAW_RECORDS: usize = 65_536;
 const MAX_AUTHORED_INPUTS: usize = 65_536;
 const MAX_EPIN_BYTES: usize = marketfeed_event_pulse::wire::MAX_INPUT_BYTES;
+const MAX_MFR1_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mfr1SessionBindingV1 {
@@ -49,11 +51,41 @@ impl Mfr1SessionBindingV1 {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Mfr1MetadataBindingV1 {
+    build: BuildMetadata,
+    session: SessionRecordingMetadata,
+}
+
+impl Mfr1MetadataBindingV1 {
+    pub fn new(
+        build: BuildMetadata,
+        session: SessionRecordingMetadata,
+    ) -> Result<Self, Mfr1TransformError> {
+        if build.schema_version != 1
+            || build.package_name.trim().is_empty()
+            || build.package_version.trim().is_empty()
+            || build.target_os.trim().is_empty()
+            || build.target_arch.trim().is_empty()
+            || session.schema_version != 1
+            || session.adapter.trim().is_empty()
+            || session.environment.trim().is_empty()
+            || session.endpoint.trim().is_empty()
+            || session.catalog_version == 0
+            || session.catalog.is_empty()
+        {
+            return Err(Mfr1TransformError::InvalidExecutionMetadata);
+        }
+        Ok(Self { build, session })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Mfr1TransformContextV1 {
     admission: ProspectiveCaptureAdmissionV1,
     catalog: ReplayCatalogV1,
     session: Mfr1SessionBindingV1,
+    metadata: Mfr1MetadataBindingV1,
     system_source: SystemSourceV1,
     action_capacity: usize,
     dispatch_capacity: usize,
@@ -67,15 +99,16 @@ impl Mfr1TransformContextV1 {
         catalog: ReplayCatalogV1,
         session: Mfr1SessionBindingV1,
         system_source: SystemSourceV1,
-        action_capacity: usize,
+        metadata: Mfr1MetadataBindingV1,
         dispatch_capacity: usize,
         overflow: OverflowPolicy,
     ) -> Result<Self, Mfr1TransformError> {
-        if action_capacity == 0
-            || action_capacity > MAX_ORDINARY_ACTIONS
-            || dispatch_capacity == 0
-            || dispatch_capacity > MAX_ORDINARY_ACTIONS
-        {
+        let action_capacity = dispatch_capacity
+            .checked_mul(4)
+            .map(|capacity| capacity.max(DEFAULT_ACTION_BUFFER_CAPACITY))
+            .filter(|capacity| *capacity <= MAX_ORDINARY_ACTIONS)
+            .ok_or(Mfr1TransformError::InvalidExecutionMetadata)?;
+        if dispatch_capacity == 0 || dispatch_capacity > MAX_ORDINARY_ACTIONS {
             return Err(Mfr1TransformError::InvalidExecutionMetadata);
         }
         if !matches!(
@@ -99,6 +132,9 @@ impl Mfr1TransformContextV1 {
             .count();
         if epoch_count != 1 {
             return Err(Mfr1TransformError::CatalogMismatch);
+        }
+        if metadata.session.session_id != session.session_id {
+            return Err(Mfr1TransformError::InvalidExecutionMetadata);
         }
         let target = ConfiguredTargetKeyV1::processor(config.processor_id())?;
         if system_source.key().scope_kind() != FaultScopeKindV1::Processor
@@ -124,6 +160,7 @@ impl Mfr1TransformContextV1 {
             admission,
             catalog,
             session,
+            metadata,
             system_source,
             action_capacity,
             dispatch_capacity,
@@ -215,14 +252,28 @@ pub enum Mfr1TransformError {
     UnsupportedOverflowPolicy,
     #[error("selected session metadata is missing")]
     MissingSessionMetadata,
+    #[error("exact build metadata is missing")]
+    MissingBuildMetadata,
+    #[error("build metadata conflicts with the immutable replay binding")]
+    BuildMetadataMismatch,
     #[error("selected session metadata conflicts with the immutable replay binding")]
     SessionMetadataMismatch,
     #[error("MFR1 record count exceeds 65536")]
     RawRecordCapacity,
+    #[error("MFR1 segment exceeds 256 MiB")]
+    Mfr1Capacity,
+    #[error("MFR1 must use format version 3")]
+    FormatVersion,
+    #[error("MFR1 header start does not equal the admitted connect coordinate")]
+    HeaderStartMismatch,
+    #[error("selected session monotonic clock regressed")]
+    MonotonicRegression,
     #[error("authored mechanics input count exceeds 65536")]
     InputCapacity,
     #[error("canonical EPIN output exceeds 16 MiB")]
     EpinCapacity,
+    #[error("canonical EPIN strict readback differs from staged inputs")]
+    EpinReadbackMismatch,
     #[error("MFR1 availability regressed")]
     AvailabilityRegression,
     #[error("connect, selected record, or decision time is outside the admitted capture window")]
@@ -284,13 +335,17 @@ impl Mfr1TransformerV1 {
         Self { context }
     }
 
-    pub fn transform(
+    pub fn transform<M>(
         self,
-        machine: &mut dyn SessionMachine,
+        mut machine: M,
         mfr1_bytes: &[u8],
         connect_at: TimestampNs,
         not_after: Rfc3339Time,
-    ) -> Result<Mfr1TransformOutputV1, Mfr1TransformError> {
+    ) -> Result<Mfr1TransformOutputV1, Mfr1TransformError>
+    where
+        M: SessionMachine,
+    {
+        ensure_mfr1_capacity(mfr1_bytes.len())?;
         let capture_start = self.context.admission.capture_starts_at().utc_micros();
         let connect_micros = connect_at.0.div_euclid(1_000);
         if not_after < *self.context.admission.capture_starts_at()
@@ -319,7 +374,7 @@ impl Mfr1TransformerV1 {
 
         state.apply_frame(
             &self.context,
-            machine,
+            &mut machine,
             0,
             connect_at,
             true,
@@ -345,7 +400,7 @@ impl Mfr1TransformerV1 {
                 FrameOpcode::Text | FrameOpcode::Binary | FrameOpcode::Pong => {
                     state.apply_frame(
                         &self.context,
-                        machine,
+                        &mut machine,
                         frame_seq,
                         available_at,
                         false,
@@ -380,7 +435,7 @@ impl Mfr1TransformerV1 {
                     let (request_id, response) = decode_http_response(&payload)?;
                     state.apply_frame(
                         &self.context,
-                        machine,
+                        &mut machine,
                         frame_seq,
                         available_at,
                         false,
@@ -404,7 +459,7 @@ impl Mfr1TransformerV1 {
                     let (command, recorded_wire) = decode_subscription_command(&payload)?;
                     state.apply_frame(
                         &self.context,
-                        machine,
+                        &mut machine,
                         frame_seq,
                         available_at,
                         false,
@@ -424,7 +479,7 @@ impl Mfr1TransformerV1 {
                 FrameOpcode::Ping | FrameOpcode::Close => {}
             }
         }
-        let epin_json1 = canonical_epin(&state.inputs)?;
+        let epin_json1 = canonical_epin(&state.inputs, not_after)?;
         Ok(Mfr1TransformOutputV1 {
             frames: state.frames,
             inputs: state.inputs,
@@ -443,9 +498,17 @@ impl Mfr1TransformerV1 {
     ) -> Result<Vec<RawRecord>, Mfr1TransformError> {
         let capture_start = self.context.admission.capture_starts_at().utc_micros();
         let mut consumed = HEADER_SIZE;
-        let mut reader = RawSegmentReader::from_bytes(mfr1_bytes.to_vec())?;
+        let mut reader = RawSegmentReader::open(Cursor::new(mfr1_bytes))?;
+        if reader.format_version != FORMAT_VERSION {
+            return Err(Mfr1TransformError::FormatVersion);
+        }
+        if reader.start_ts_ns != connect_at.0 {
+            return Err(Mfr1TransformError::HeaderStartMismatch);
+        }
         let mut records = Vec::new();
         let mut last_available = connect_at;
+        let mut last_monotonic = None;
+        let mut build_metadata = None;
         let mut selected_metadata = None;
         while let Some(record) = reader.read_record()? {
             if records.len() == MAX_RAW_RECORDS {
@@ -467,6 +530,10 @@ impl Mfr1TransformerV1 {
                     return Err(Mfr1TransformError::AvailabilityRegression);
                 }
                 last_available = available_at;
+                if last_monotonic.is_some_and(|previous| record.header.monotonic_ns < previous) {
+                    return Err(Mfr1TransformError::MonotonicRegression);
+                }
+                last_monotonic = Some(record.header.monotonic_ns);
                 match record.header.opcode {
                     FrameOpcode::Metadata => match decode_metadata(&record.payload)? {
                         MetadataRecord::Session(metadata) => {
@@ -477,7 +544,9 @@ impl Mfr1TransformerV1 {
                                 return Err(Mfr1TransformError::SessionMetadataMismatch);
                             }
                         }
-                        MetadataRecord::Build(_) => {}
+                        MetadataRecord::Build(_) => {
+                            return Err(Mfr1TransformError::BuildMetadataMismatch);
+                        }
                     },
                     FrameOpcode::HttpResponse => {
                         decode_http_response(&record.payload)?;
@@ -488,9 +557,20 @@ impl Mfr1TransformerV1 {
                     _ => {}
                 }
             } else if record.header.opcode == FrameOpcode::Metadata {
-                if let MetadataRecord::Session(metadata) = decode_metadata(&record.payload)? {
-                    if metadata.session_id == self.context.session.session_id {
-                        return Err(Mfr1TransformError::SessionMetadataMismatch);
+                match decode_metadata(&record.payload)? {
+                    MetadataRecord::Build(build) => {
+                        if record.header.session.0 != 0
+                            || record.header.direction != Direction::Inbound
+                            || record.header.receive_ts_ns != reader.start_ts_ns
+                            || build_metadata.replace(build).is_some()
+                        {
+                            return Err(Mfr1TransformError::BuildMetadataMismatch);
+                        }
+                    }
+                    MetadataRecord::Session(metadata) => {
+                        if metadata.session_id == self.context.session.session_id {
+                            return Err(Mfr1TransformError::SessionMetadataMismatch);
+                        }
                     }
                 }
             }
@@ -501,7 +581,14 @@ impl Mfr1TransformerV1 {
                 "trailing or truncated MFR1 bytes".into(),
             ));
         }
+        let build = build_metadata.ok_or(Mfr1TransformError::MissingBuildMetadata)?;
+        if build != self.context.metadata.build {
+            return Err(Mfr1TransformError::BuildMetadataMismatch);
+        }
         let metadata = selected_metadata.ok_or(Mfr1TransformError::MissingSessionMetadata)?;
+        if metadata != self.context.metadata.session {
+            return Err(Mfr1TransformError::SessionMetadataMismatch);
+        }
         self.validate_session_metadata(&metadata)?;
         Ok(records)
     }
@@ -538,12 +625,6 @@ impl Mfr1TransformerV1 {
                 || row.quote != instrument.quote_asset()
                 || row.kind.to_ascii_uppercase() != instrument.market_type()
                 || instrument.venue() != venue.venue()
-                || !topology_contains(
-                    &self.context,
-                    venue.source_id(),
-                    instrument,
-                    &self.context.session.connection,
-                )
             {
                 return Err(Mfr1TransformError::SessionMetadataMismatch);
             }
@@ -553,6 +634,21 @@ impl Mfr1TransformerV1 {
             .iter()
             .any(|subscription| !ids.contains(&subscription.instrument_id))
         {
+            return Err(Mfr1TransformError::SessionMetadataMismatch);
+        }
+        if !metadata.catalog.iter().any(|row| {
+            self.context
+                .catalog
+                .instrument(row.instrument_id)
+                .is_some_and(|instrument| {
+                    topology_contains(
+                        &self.context,
+                        venue.source_id(),
+                        instrument,
+                        &self.context.session.connection,
+                    )
+                })
+        }) {
             return Err(Mfr1TransformError::SessionMetadataMismatch);
         }
         Ok(())
@@ -633,6 +729,8 @@ impl TransformState {
                     .ok_or(Mfr1TransformError::CoordinateOverflow)?;
             }
         }
+        let _accepted_batches = self.dispatch.drain_batches();
+        let _accepted_systems = self.dispatch.drain_systems();
         let has_mechanics = has_market || action_drops > 0 || market_drops > 0;
         if !has_mechanics {
             return Ok(());
@@ -817,7 +915,17 @@ fn ensure_input_capacity(current: usize, additional: usize) -> Result<(), Mfr1Tr
     Ok(())
 }
 
-fn canonical_epin(inputs: &[MechanicsInputV1]) -> Result<Vec<u8>, Mfr1TransformError> {
+fn ensure_mfr1_capacity(size: usize) -> Result<(), Mfr1TransformError> {
+    if size > MAX_MFR1_BYTES {
+        return Err(Mfr1TransformError::Mfr1Capacity);
+    }
+    Ok(())
+}
+
+fn canonical_epin(
+    inputs: &[MechanicsInputV1],
+    not_after: Rfc3339Time,
+) -> Result<Vec<u8>, Mfr1TransformError> {
     let mut writer = EpinJson1Writer::new(BoundedEpin::default());
     for input in inputs {
         if let Err(error) = writer.write_input(input) {
@@ -827,7 +935,12 @@ fn canonical_epin(inputs: &[MechanicsInputV1]) -> Result<Vec<u8>, Mfr1TransformE
             });
         }
     }
-    Ok(writer.finish().bytes)
+    let bytes = writer.finish().bytes;
+    let decoded = EpinJson1Reader::new(bytes.as_slice(), not_after).read_all()?;
+    if decoded != inputs {
+        return Err(Mfr1TransformError::EpinReadbackMismatch);
+    }
+    Ok(bytes)
 }
 
 #[derive(Default)]
@@ -874,6 +987,15 @@ mod capacity_tests {
         assert_eq!(
             ensure_input_capacity(65_536, 1),
             Err(Mfr1TransformError::InputCapacity)
+        );
+    }
+
+    #[test]
+    fn mfr1_capacity_accepts_exact_bound_and_rejects_one_over_without_allocation() {
+        assert_eq!(ensure_mfr1_capacity(MAX_MFR1_BYTES), Ok(()));
+        assert_eq!(
+            ensure_mfr1_capacity(MAX_MFR1_BYTES + 1),
+            Err(Mfr1TransformError::Mfr1Capacity)
         );
     }
 
