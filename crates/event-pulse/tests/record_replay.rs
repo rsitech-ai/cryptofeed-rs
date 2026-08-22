@@ -648,16 +648,10 @@ enum CaptureError {
     Adapter(String),
     Dispatch(String),
     AvailabilityRegression,
+    RawFrameZero,
+    RawFrameRegression { previous: u64, current: u64 },
     ActionIndexOverflow,
     ItemIndexOverflow,
-    MarketFrameMismatch {
-        raw: u64,
-        emitted: u64,
-    },
-    MarketReceiveMismatch {
-        raw: TimestampNs,
-        emitted: TimestampNs,
-    },
 }
 
 /// Test-only MFR1 oracle. It intentionally captures actions before ReplayRunner lane separation.
@@ -684,6 +678,7 @@ impl OrderedReplayCapture {
     ) -> Result<OrderedCaptureOutcome, CaptureError> {
         let mut outcome = OrderedCaptureOutcome::default();
         self.last_available_at = Some(connect_at);
+        let mut last_raw_frame_seq = None;
         outcome.replay_start = Some(self.begin_frame(
             machine,
             0,
@@ -701,6 +696,18 @@ impl OrderedReplayCapture {
             if record.header.direction != Direction::Inbound {
                 continue;
             }
+            if record.header.frame_seq == 0 {
+                return Err(CaptureError::RawFrameZero);
+            }
+            if let Some(previous) = last_raw_frame_seq {
+                if record.header.frame_seq <= previous {
+                    return Err(CaptureError::RawFrameRegression {
+                        previous,
+                        current: record.header.frame_seq,
+                    });
+                }
+            }
+            last_raw_frame_seq = Some(record.header.frame_seq);
             let available_at = TimestampNs(record.header.receive_ts_ns);
             if self
                 .last_available_at
@@ -831,24 +838,12 @@ impl OrderedReplayCapture {
                 u32::try_from(action_index).map_err(|_| CaptureError::ActionIndexOverflow)?;
             match &action {
                 SessionAction::EmitBatch(batch) => {
-                    for (item_index, event) in batch.events.iter().enumerate() {
-                        if event.frame_seq != frame_seq {
-                            return Err(CaptureError::MarketFrameMismatch {
-                                raw: frame_seq,
-                                emitted: event.frame_seq,
-                            });
-                        }
-                        if event.receive_ts != available_at {
-                            return Err(CaptureError::MarketReceiveMismatch {
-                                raw: available_at,
-                                emitted: event.receive_ts,
-                            });
-                        }
+                    for (item_index, _event) in batch.events.iter().enumerate() {
                         ordinary.push(CapturedAction {
                             action_index,
                             item_index: u32::try_from(item_index)
                                 .map_err(|_| CaptureError::ItemIndexOverflow)?,
-                            available_at: event.receive_ts,
+                            available_at,
                             action: action.clone(),
                         });
                     }
@@ -1104,45 +1099,45 @@ fn subscription_command_counts_as_an_applied_authoritative_frame() {
 #[test]
 fn mfr1_capture_preserves_pre_lane_coordinates_and_matches_ordinary_replay() {
     let recording = mfr1_records(&[
-        (0, 1_000_000_000, FrameOpcode::Text, b"SUB BTC-USD".to_vec()),
+        (1, 1_000_000_000, FrameOpcode::Text, b"SUB BTC-USD".to_vec()),
         (
-            1,
+            2,
             1_000_000_001,
             FrameOpcode::Text,
             b"BOOK_SNAP 10 BID 100.00:1.000 ASK 101.00:1.500".to_vec(),
         ),
         (
-            2,
+            3,
             1_000_000_002,
             FrameOpcode::Text,
             b"BOOK_DELTA 11 BID UPSERT 100.50 0.500".to_vec(),
         ),
         (
-            3,
+            4,
             1_000_000_003,
             FrameOpcode::Text,
             b"BOOK_DELTA 11 BID UPSERT 100.50 0.750".to_vec(),
         ),
         (
-            4,
+            5,
             1_000_000_004,
             FrameOpcode::Text,
             b"BOOK_DELTA 13 ASK DELETE 101.00".to_vec(),
         ),
         (
-            4,
+            6,
             1_000_000_005,
             FrameOpcode::Text,
             b"BOOK_SNAP 20 BID 99.00:1.000 ASK 102.00:1.000".to_vec(),
         ),
         (
-            5,
+            7,
             1_250_000_006,
             FrameOpcode::Text,
             b"QUOTE 99.50 101.50 1.000 1.000".to_vec(),
         ),
-        (6, 1_500_000_007, FrameOpcode::Text, b"DISCONNECT".to_vec()),
-        (7, 1_750_000_008, FrameOpcode::Text, b"SUB BTC-USD".to_vec()),
+        (8, 1_500_000_007, FrameOpcode::Text, b"DISCONNECT".to_vec()),
+        (9, 1_750_000_008, FrameOpcode::Text, b"SUB BTC-USD".to_vec()),
     ]);
     let mut capture_machine = synthetic_machine();
     let captured = OrderedReplayCapture::new(1_024, OverflowPolicy::FailEngine)
@@ -1510,12 +1505,18 @@ fn map_captured_frames(
             let mut ordinary = Vec::with_capacity(frame.ordinary.len());
             for record in &frame.ordinary {
                 let input = match &record.action {
-                    SessionAction::EmitBatch(batch) => MechanicsInputV1::market(
-                        batch.events[usize::try_from(record.item_index).unwrap()].clone(),
-                        record.action_index,
-                        snapshot_catalog("epoch_a", 0),
-                    )
-                    .unwrap(),
+                    SessionAction::EmitBatch(batch) => {
+                        let mut normalized =
+                            batch.events[usize::try_from(record.item_index).unwrap()].clone();
+                        normalized.frame_seq = frame.frame_seq;
+                        normalized.receive_ts = frame.available_at;
+                        MechanicsInputV1::market(
+                            normalized,
+                            record.action_index,
+                            snapshot_catalog("epoch_a", 0),
+                        )
+                        .unwrap()
+                    }
                     SessionAction::EmitSystem(SystemEvent::EventsDropped { count, .. }) => {
                         contributor_drop_input(
                             &fixture.frame_system,
@@ -1597,7 +1598,9 @@ fn map_stable_synthetic_lifecycle(
                     // receive time as its explicit normalized market timestamp. The market's
                     // native cursor remains intact; derived system/action coordinates come only
                     // from the authoritative captured raw group.
-                    normalized.exchange_ts = Some(normalized.receive_ts);
+                    normalized.frame_seq = frame.frame_seq;
+                    normalized.receive_ts = frame.available_at;
+                    normalized.exchange_ts = Some(frame.available_at);
                     Some(
                         MechanicsInputV1::market(
                             normalized,
@@ -1893,6 +1896,7 @@ struct TwoFrameOverflowMachine {
 struct MarketAuthorityMachine {
     frame_seq: u64,
     receive_ts: TimestampNs,
+    exchange_ts: TimestampNs,
 }
 
 struct ReplayStartOverflowMachine;
@@ -1991,10 +1995,12 @@ impl SessionMachine for MarketAuthorityMachine {
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
         if matches!(input, SessionInput::TextFrame { .. }) {
+            let mut event = mechanics_frame_event(self.frame_seq, self.receive_ts.0);
+            event.exchange_ts = Some(self.exchange_ts);
             output.push(SessionAction::EmitBatch(EventBatch {
                 session: SessionId(9),
                 frame_seq: self.frame_seq,
-                events: vec![mechanics_frame_event(self.frame_seq, self.receive_ts.0)],
+                events: vec![event],
             }));
         }
         Ok(())
@@ -2002,52 +2008,113 @@ impl SessionMachine for MarketAuthorityMachine {
 }
 
 #[test]
-fn raw_market_authority_rejects_adapter_frame_or_receive_drift() {
+fn raw_market_authority_normalizes_independent_adapter_coordinates() {
     let recording = mfr1_records(&[(77, 100, FrameOpcode::Text, b"MARKET".to_vec())]);
-    let mut wrong_frame = MarketAuthorityMachine {
+    let mut independent = MarketAuthorityMachine {
         frame_seq: 78,
-        receive_ts: TimestampNs(100),
-    };
-    assert_eq!(
-        OrderedReplayCapture::new(8, OverflowPolicy::FailEngine).replay(
-            &mut wrong_frame,
-            recording.clone(),
-            TimestampNs(99),
-        ),
-        Err(CaptureError::MarketFrameMismatch {
-            raw: 77,
-            emitted: 78,
-        })
-    );
-
-    let mut wrong_receive = MarketAuthorityMachine {
-        frame_seq: 77,
         receive_ts: TimestampNs(101),
-    };
-    assert_eq!(
-        OrderedReplayCapture::new(8, OverflowPolicy::FailEngine).replay(
-            &mut wrong_receive,
-            recording.clone(),
-            TimestampNs(99),
-        ),
-        Err(CaptureError::MarketReceiveMismatch {
-            raw: TimestampNs(100),
-            emitted: TimestampNs(101),
-        })
-    );
-
-    let mut exact = MarketAuthorityMachine {
-        frame_seq: 77,
-        receive_ts: TimestampNs(100),
+        exchange_ts: TimestampNs(100),
     };
     let captured = OrderedReplayCapture::new(8, OverflowPolicy::FailEngine)
-        .replay(&mut exact, recording, TimestampNs(99))
+        .replay(&mut independent, recording, TimestampNs(99))
         .unwrap();
     assert_eq!(captured.frames[0].frame_seq, 77);
     assert_eq!(
         captured.frames[0].ordinary[0].available_at,
         TimestampNs(100)
     );
+    let fixture = capture_mechanics_fixture();
+    let mapped = map_captured_frames(&captured, &fixture);
+    assert!(matches!(mapped[0].0[0].view(),
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Market { envelope, .. }
+        if envelope.frame_seq == 77 && envelope.receive_ts == TimestampNs(100)));
+    assert_eq!(
+        mapped[0].0[0].payload_hash(),
+        derived_market(77, 0, 100, "epoch_a", 0).payload_hash()
+    );
+
+    let command = SessionCommand::Subscribe(vec!["BTC-USD".into()]);
+    let wire = SubscriptionWireAction::Text(b"SUB BTC-USD\n".as_slice().to_vec().into());
+    let engine_shaped = mfr1_records(&[
+        (
+            1,
+            200,
+            FrameOpcode::SubscriptionCommand,
+            encode_subscription_command(&command, &wire).unwrap(),
+        ),
+        (
+            2,
+            201,
+            FrameOpcode::Text,
+            b"BOOK_SNAP 10 BID 100.00:1.000 ASK 101.00:1.000".to_vec(),
+        ),
+    ]);
+    let mut synthetic = synthetic_machine();
+    let captured = OrderedReplayCapture::new(8, OverflowPolicy::FailEngine)
+        .replay(&mut *synthetic, engine_shaped, TimestampNs(199))
+        .unwrap();
+    assert!(matches!(captured.frames[1].ordinary[0].action,
+        SessionAction::EmitBatch(ref batch) if batch.events[0].frame_seq == 1));
+    let mapped = map_stable_synthetic_lifecycle(&captured, &fixture).unwrap();
+    assert!(matches!(mapped[1][0].view(),
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Market { envelope, .. }
+        if envelope.frame_seq == 2 && envelope.receive_ts == TimestampNs(201)));
+    assert_eq!(
+        mapped[1][0].expected_payload_hash().unwrap(),
+        mapped[1][0].payload_hash()
+    );
+}
+
+#[test]
+fn inbound_raw_frame_sequence_reserves_zero_and_rejects_reuse_or_regression() {
+    let mut machine = MarketAuthorityMachine {
+        frame_seq: 1,
+        receive_ts: TimestampNs(100),
+        exchange_ts: TimestampNs(100),
+    };
+    assert_eq!(
+        OrderedReplayCapture::new(8, OverflowPolicy::FailEngine).replay(
+            &mut machine,
+            mfr1_records(&[(0, 100, FrameOpcode::Text, b"ZERO".to_vec())]),
+            TimestampNs(99),
+        ),
+        Err(CaptureError::RawFrameZero)
+    );
+    for (first, second, expected) in [
+        (
+            1,
+            1,
+            CaptureError::RawFrameRegression {
+                previous: 1,
+                current: 1,
+            },
+        ),
+        (
+            2,
+            1,
+            CaptureError::RawFrameRegression {
+                previous: 2,
+                current: 1,
+            },
+        ),
+    ] {
+        let mut machine = MarketAuthorityMachine {
+            frame_seq: first,
+            receive_ts: TimestampNs(100),
+            exchange_ts: TimestampNs(100),
+        };
+        assert_eq!(
+            OrderedReplayCapture::new(8, OverflowPolicy::FailEngine).replay(
+                &mut machine,
+                mfr1_records(&[
+                    (first, 100, FrameOpcode::Text, b"FIRST".to_vec()),
+                    (second, 101, FrameOpcode::Text, b"SECOND".to_vec()),
+                ]),
+                TimestampNs(99),
+            ),
+            Err(expected)
+        );
+    }
 }
 
 impl SessionMachine for TwoFrameOverflowMachine {
@@ -2152,45 +2219,45 @@ fn synthetic_faults_map_to_typed_mechanics_and_recover_warming_to_live() {
     let control = encode_subscription_command(&command, &wire).unwrap();
     let live_at = 60_000_000_000;
     let recording = mfr1_records(&[
-        (0, 1, FrameOpcode::SubscriptionCommand, control),
+        (1, 1, FrameOpcode::SubscriptionCommand, control),
         (
-            1,
+            2,
             1_000,
             FrameOpcode::Text,
             b"BOOK_SNAP 1 BID 100.00:1.000 ASK 101.00:1.000".to_vec(),
         ),
         (
-            2,
+            3,
             live_at,
             FrameOpcode::Text,
             b"TRADE 2 100.00 1.000 BUY warm-live".to_vec(),
         ),
         (
-            3,
+            4,
             live_at + 500_000,
             FrameOpcode::Text,
             b"TRADE 3 100.50 0.500 BUY duplicate".to_vec(),
         ),
         (
-            4,
+            5,
             live_at + 1_000_000,
             FrameOpcode::Text,
             b"TRADE 3 100.75 0.750 BUY duplicate-mutated".to_vec(),
         ),
         (
-            5,
+            6,
             live_at + 1_500_000,
             FrameOpcode::Text,
             b"BOOK_DELTA 13 ASK DELETE 101.00".to_vec(),
         ),
         (
-            5,
+            7,
             live_at + 2_000_000,
             FrameOpcode::Text,
             b"BOOK_SNAP 20 BID 98.00:1.000 ASK 103.00:1.000".to_vec(),
         ),
         (
-            6,
+            8,
             live_at + 60_002_000_000,
             FrameOpcode::Text,
             b"BOOK_SNAP 21 BID 97.00:1.000 ASK 104.00:1.000".to_vec(),
