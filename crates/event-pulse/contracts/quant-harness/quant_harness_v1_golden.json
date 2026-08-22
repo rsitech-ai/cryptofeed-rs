@@ -1,0 +1,83 @@
+{
+  "non_python_consumer_proof": "unverified",
+  "readiness": "canonical-schema-ready",
+  "schema_version": "quant-harness/1.0",
+  "vectors": [
+    {
+      "canonical_json": "{\"causal_time\":{\"available_at\":\"2026-08-20T12:00:00.030000Z\",\"clock_quality\":{\"clock_state\":\"synchronized\",\"freshness_limit_ms\":2000,\"observed_skew_ms\":\"3.25\",\"quality_state\":\"validated\",\"reason_code\":\"SOURCE_CLOCK_WITHIN_TOLERANCE\",\"source_id\":\"hyperliquid_public_market_data\"},\"decision_time\":\"2026-08-20T12:00:01Z\",\"normalized_at\":\"2026-08-20T12:00:00.020000Z\",\"received_at\":\"2026-08-20T12:00:00.010000Z\",\"source_event_time\":\"2026-08-20T12:00:00Z\"},\"content_hash\":\"35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83\",\"contract_id\":\"evidence_btc_mark\",\"contract_type\":\"evidence\",\"evidence_kind\":\"market_measurement\",\"lineage_id\":\"lineage_hyperliquid_btc\",\"measurements\":[{\"name\":\"mark_price\",\"price_reference\":\"mark\",\"unit\":\"USDC_PER_BTC\",\"value\":\"65000.1200\"}],\"predecessor_content_hash\":null,\"revision\":1,\"schema_version\":\"quant-harness/1.0\",\"source_payload_hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+      "content_hash": "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83",
+      "contract_type": "evidence",
+      "name": "evidence_market_measurement",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83",
+        "contract_id": "evidence_btc_mark",
+        "contract_type": "evidence",
+        "evidence_kind": "market_measurement",
+        "lineage_id": "lineage_hyperliquid_btc",
+        "measurements": [
+          {
+            "name": "mark_price",
+            "price_reference": "mark",
+            "unit": "USDC_PER_BTC",
+            "value": "65000.1200"
+          }
+        ],
+        "predecessor_content_hash": null,
+        "revision": 1,
+        "schema_version": "quant-harness/1.0",
+        "source_payload_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "canonical_json": "{\"causal_time\":{\"available_at\":\"2026-08-20T12:00:00.030000Z\",\"clock_quality\":{\"clock_state\":\"synchronized\",\"freshness_limit_ms\":2000,\"observed_skew_ms\":\"3.25\",\"quality_state\":\"validated\",\"reason_code\":\"SOURCE_CLOCK_WITHIN_TOLERANCE\",\"source_id\":\"hyperliquid_public_market_data\"},\"decision_time\":\"2026-08-20T12:00:01Z\",\"normalized_at\":\"2026-08-20T12:00:00.020000Z\",\"received_at\":\"2026-08-20T12:00:00.010000Z\",\"source_event_time\":\"2026-08-20T12:00:00Z\"},\"content_hash\":\"ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567\",\"contract_id\":\"proposal_request_rsi_v5_review\",\"contract_type\":\"proposal_request\",\"evidence_content_hashes\":[\"35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83\"],\"lineage_id\":\"lineage_rsi_v5_review\",\"predecessor_content_hash\":null,\"proposal_kind\":\"strategy_evaluation\",\"requested_capability\":\"evaluate_only\",\"requester_id\":\"condor_quant_harness\",\"revision\":1,\"schema_version\":\"quant-harness/1.0\"}",
+      "content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+      "contract_type": "proposal_request",
+      "name": "proposal_request_evaluate_only",
+      "payload": {
+        "causal_time": {
+          "available_at": "2026-08-20T12:00:00.030000Z",
+          "clock_quality": {
+            "clock_state": "synchronized",
+            "freshness_limit_ms": 2000,
+            "observed_skew_ms": "3.25",
+            "quality_state": "validated",
+            "reason_code": "SOURCE_CLOCK_WITHIN_TOLERANCE",
+            "source_id": "hyperliquid_public_market_data"
+          },
+          "decision_time": "2026-08-20T12:00:01Z",
+          "normalized_at": "2026-08-20T12:00:00.020000Z",
+          "received_at": "2026-08-20T12:00:00.010000Z",
+          "source_event_time": "2026-08-20T12:00:00Z"
+        },
+        "content_hash": "ebcadd9b1d75e480388d6d61aa6b61993dbe10433d9ee5af4376b5ad18e13567",
+        "contract_id": "proposal_request_rsi_v5_review",
+        "contract_type": "proposal_request",
+        "evidence_content_hashes": [
+          "35d61673927af2a5b04bc28793c3912fb2a55ea7a74b9694d2402db16e337e83"
+        ],
+        "lineage_id": "lineage_rsi_v5_review",
+        "predecessor_content_hash": null,
+        "proposal_kind": "strategy_evaluation",
+        "requested_capability": "evaluate_only",
+        "requester_id": "condor_quant_harness",
+        "revision": 1,
+        "schema_version": "quant-harness/1.0"
+      }
+    }
+  ]
+}

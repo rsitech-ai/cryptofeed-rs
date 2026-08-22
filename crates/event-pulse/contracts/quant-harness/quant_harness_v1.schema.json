@@ -1,0 +1,445 @@
+{
+  "$defs": {
+    "CausalTime": {
+      "additionalProperties": false,
+      "properties": {
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "clock_quality": {
+          "$ref": "#/$defs/ClockQualityState"
+        },
+        "decision_time": {
+          "format": "date-time",
+          "title": "Decision Time",
+          "type": "string"
+        },
+        "normalized_at": {
+          "format": "date-time",
+          "title": "Normalized At",
+          "type": "string"
+        },
+        "received_at": {
+          "format": "date-time",
+          "title": "Received At",
+          "type": "string"
+        },
+        "source_event_time": {
+          "format": "date-time",
+          "title": "Source Event Time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_event_time",
+        "received_at",
+        "normalized_at",
+        "available_at",
+        "decision_time",
+        "clock_quality"
+      ],
+      "title": "CausalTime",
+      "type": "object"
+    },
+    "ClockQualityState": {
+      "additionalProperties": false,
+      "properties": {
+        "clock_state": {
+          "$ref": "#/$defs/ClockState",
+          "enum": [
+            "synchronized",
+            "degraded"
+          ]
+        },
+        "freshness_limit_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Freshness Limit Ms",
+          "type": "integer"
+        },
+        "observed_skew_ms": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "title": "Observed Skew Ms",
+          "type": "string"
+        },
+        "quality_state": {
+          "$ref": "#/$defs/QualityState",
+          "enum": [
+            "validated",
+            "degraded"
+          ]
+        },
+        "reason_code": {
+          "minLength": 1,
+          "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "source_id": {
+          "minLength": 1,
+          "pattern": "^[\\s\\S]*\\S[\\s\\S]*$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "clock_state",
+        "observed_skew_ms",
+        "freshness_limit_ms",
+        "quality_state",
+        "reason_code"
+      ],
+      "title": "ClockQualityState",
+      "type": "object"
+    },
+    "ClockState": {
+      "enum": [
+        "synchronized",
+        "degraded",
+        "unsynchronized",
+        "unknown"
+      ],
+      "title": "ClockState",
+      "type": "string"
+    },
+    "EvidenceEnvelope": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "const": 1
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "predecessor_content_hash"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "causal_time": {
+          "$ref": "#/$defs/CausalTime"
+        },
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "contract_id": {
+          "pattern": "^evidence_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_type": {
+          "const": "evidence",
+          "title": "Contract Type",
+          "type": "string"
+        },
+        "evidence_kind": {
+          "minLength": 1,
+          "title": "Evidence Kind",
+          "type": "string"
+        },
+        "lineage_id": {
+          "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Lineage Id",
+          "type": "string"
+        },
+        "measurements": {
+          "items": {
+            "$ref": "#/$defs/Measurement"
+          },
+          "minItems": 1,
+          "title": "Measurements",
+          "type": "array"
+        },
+        "predecessor_content_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predecessor Content Hash"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "quant-harness/1.0",
+          "default": "quant-harness/1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_payload_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Payload Hash",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "contract_id",
+        "lineage_id",
+        "revision",
+        "predecessor_content_hash",
+        "content_hash",
+        "causal_time",
+        "contract_type",
+        "evidence_kind",
+        "source_payload_hash",
+        "measurements"
+      ],
+      "title": "EvidenceEnvelope",
+      "type": "object"
+    },
+    "Measurement": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "price_reference": {
+          "$ref": "#/$defs/PriceReference"
+        },
+        "unit": {
+          "minLength": 1,
+          "pattern": "^[A-Z][A-Z0-9_/-]*$",
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "unit",
+        "price_reference"
+      ],
+      "title": "Measurement",
+      "type": "object"
+    },
+    "PriceReference": {
+      "enum": [
+        "trade",
+        "mid",
+        "bid",
+        "ask",
+        "mark",
+        "index",
+        "not_applicable"
+      ],
+      "title": "PriceReference",
+      "type": "string"
+    },
+    "ProposalRequest": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "const": 1
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "revision": {
+                "minimum": 2
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "then": {
+            "properties": {
+              "predecessor_content_hash": {
+                "pattern": "^[a-f0-9]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "predecessor_content_hash"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "causal_time": {
+          "$ref": "#/$defs/CausalTime"
+        },
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "contract_id": {
+          "pattern": "^proposal_request_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_type": {
+          "const": "proposal_request",
+          "title": "Contract Type",
+          "type": "string"
+        },
+        "evidence_content_hashes": {
+          "items": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Content Hashes",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "lineage_id": {
+          "pattern": "^lineage_[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "title": "Lineage Id",
+          "type": "string"
+        },
+        "predecessor_content_hash": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Predecessor Content Hash"
+        },
+        "proposal_kind": {
+          "minLength": 1,
+          "title": "Proposal Kind",
+          "type": "string"
+        },
+        "requested_capability": {
+          "const": "evaluate_only",
+          "title": "Requested Capability",
+          "type": "string"
+        },
+        "requester_id": {
+          "minLength": 1,
+          "title": "Requester Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "quant-harness/1.0",
+          "default": "quant-harness/1.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "contract_id",
+        "lineage_id",
+        "revision",
+        "predecessor_content_hash",
+        "content_hash",
+        "causal_time",
+        "contract_type",
+        "proposal_kind",
+        "requested_capability",
+        "requester_id",
+        "evidence_content_hashes"
+      ],
+      "title": "ProposalRequest",
+      "type": "object"
+    },
+    "QualityState": {
+      "enum": [
+        "validated",
+        "degraded",
+        "invalid",
+        "unavailable"
+      ],
+      "title": "QualityState",
+      "type": "string"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "evidence": "#/$defs/EvidenceEnvelope",
+      "proposal_request": "#/$defs/ProposalRequest"
+    },
+    "propertyName": "contract_type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/EvidenceEnvelope"
+    },
+    {
+      "$ref": "#/$defs/ProposalRequest"
+    }
+  ]
+}

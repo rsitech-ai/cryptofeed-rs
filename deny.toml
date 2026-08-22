@@ -16,6 +16,14 @@ all-features = true
 
 [advisories]
 yanked = "deny"
+# RUSTSEC-2026-0009 is confined to time's well_known::Rfc2822 parser.
+# EventPulse imports only OffsetDateTime + well_known::Rfc3339, rejects RFC2822
+# at its boundary, and guards its Rust source against adding Rfc2822. Patched
+# time >=0.3.47 requires Rust >=1.88, above the frozen workspace Rust 1.85 MSRV.
+# Remove this exact exception and update time when the MSRV advances to 1.88.
+ignore = [
+    { id = "RUSTSEC-2026-0009", reason = "RFC2822 parser is unreachable; time >=0.3.47 requires Rust 1.88, so remove when workspace MSRV reaches 1.88" },
+]
 
 [licenses]
 confidence-threshold = 0.93

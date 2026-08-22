@@ -1,0 +1,34 @@
+{
+  "contract_lock_version": "event-pulse-contract-lock/1.0",
+  "generated_artifacts": [
+    {
+      "name": "event_pulse_v1",
+      "rejection_vector_path": "research_os/fixtures/event-pulse/event_pulse_v1_rejections.json",
+      "rejection_vector_sha256": "74d69764d6db3436f608a28bb90a7fe8888ea1d5b81d527b120d40a53a84bd39",
+      "schema_path": "research_os/schemas/event-pulse/event_pulse_v1.schema.json",
+      "schema_sha256": "a56e39cbc6c27d851aeec20b6923f6320d8740073b637bcfe87cfae463856b30",
+      "success_vector_path": "research_os/fixtures/event-pulse/event_pulse_v1_golden.json",
+      "success_vector_sha256": "0170e425247348c16391b2d3575c22664c0e274f08c0f4dbaa79722c2c0572e8"
+    }
+  ],
+  "q1_contract_lock": {
+    "path": "docs/superpowers/specs/quant-harness-contract-lock.json",
+    "sha256": "0b9dbc6aab8085951da6d189d191f22ad26a86b55f13f353c889d375de519557"
+  },
+  "readiness": {
+    "e1": "canonical-schema-ready",
+    "runtime_producer_proof": "unverified",
+    "rust_consumer_proof": "unverified"
+  },
+  "schema_version": "event-pulse/1.0",
+  "sources": [
+    {
+      "path": "docs/event-pulse/e1-contracts.md",
+      "sha256": "05ca4b2da03b7acd5c9995ca967d6f7272849c753e796a1303b4f76ff7634f96"
+    },
+    {
+      "path": "research_os/src/research_os/domain/event_pulse.py",
+      "sha256": "f5f938836628a36900217b3233e122b23d376f831dbb400d3fa8b5f9f14fba81"
+    }
+  ]
+}
