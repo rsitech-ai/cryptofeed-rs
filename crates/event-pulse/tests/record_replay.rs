@@ -1,22 +1,22 @@
 use std::collections::BTreeMap;
 
 use marketfeed_adapter_api::{
-    ActionBuffer, AdapterError, ConcreteSubscriptionSet, EventBatch, SessionAction, SessionInput,
-    SessionMachine, SessionSpec, VenueFactory,
+    ActionBuffer, AdapterError, ConcreteSubscriptionSet, EventBatch, HttpResponse, SessionAction,
+    SessionInput, SessionMachine, SessionSpec, VenueFactory,
 };
 use marketfeed_adapter_synthetic::SyntheticFactory;
 use marketfeed_dispatch::{EventDispatcher, PushOutcome};
 use marketfeed_event_pulse::{
-    EpinJson1Reader, EpinJson1Writer, ReplayInputError,
-    snapshot::MechanicsProcessor,
+    EpinJson1Reader, EpinJson1Writer, IngestOutcome, ReplayInputError,
+    snapshot::{AuthoredSnapshot, MechanicsProcessor, SnapshotError},
     wire::{
         CanonicalDecimal, ClockCursorV1, ClockQualityV1, ClockSourceKeyV1, ClockSourceV1,
         ClockStateV1, ConfiguredTargetKeyV1, ConnectionKeyV1, ContributorKeyV1, ContributorRoleV1,
         ContributorSpecV1, ContributorV1, CoverageCursorV1, CoverageSourceKeyV1, CoverageSourceV1,
         CursorModeV1, CursorV1, DropCategoryV1, FamilyV1, FaultScopeKindV1, FaultScopeV1,
         InstrumentIdentityV1, MechanicsConfigV1, MechanicsInputV1, ReplayCatalogV1,
-        ReplayEpochEntryV1, Rfc3339Time, SnapshotAuthoringV1, SystemFaultV1, SystemSourceKeyV1,
-        SystemSourceV1, VenueCatalogEntryV1,
+        ReplayEpochEntryV1, Rfc3339Time, SnapshotAuthoringV1, SystemChainPreimage, SystemFaultV1,
+        SystemSourceKeyV1, SystemSourceV1, VenueCatalogEntryV1,
     },
 };
 use marketfeed_model::{
@@ -25,7 +25,10 @@ use marketfeed_model::{
     InstrumentId, MarketEvent, OverflowPolicy, Price, Quantity, Quote, SequenceRange, SessionId,
     SystemEvent, TimestampNs, Trade, VenueId,
 };
-use marketfeed_recording::{Direction, FrameOpcode, RawSegmentReader, RawSegmentWriter};
+use marketfeed_recording::{
+    Direction, FrameOpcode, MetadataRecord, RawSegmentReader, RawSegmentWriter,
+    decode_http_response, decode_metadata, decode_subscription_command, encode_http_response,
+};
 use marketfeed_replay::ReplayRunner;
 
 fn time_ns(ns: i64) -> Rfc3339Time {
@@ -484,6 +487,94 @@ fn epin_json1_replay_authors_byte_identical_complete_snapshot_sequences() {
     );
 }
 
+#[test]
+fn epin_book_snapshot_survives_a_250ms_advance_and_contiguous_delta() {
+    let fixture = snapshot_fixture();
+    let mut inputs = vec![
+        snapshot_market(1, 0, "epoch_a", 0, scaled_trade(10_000_000_000)),
+        snapshot_market(
+            2,
+            60_000_000_000,
+            "epoch_a",
+            0,
+            scaled_trade(10_000_000_000),
+        ),
+        snapshot_market(
+            3,
+            60_010_000_000,
+            "epoch_a",
+            0,
+            MarketEvent::BookSnapshot(BookSnapshot {
+                bids: vec![BookLevel {
+                    price: Price(Fixed::new(10_000_000_000, 8)),
+                    quantity: Quantity(Fixed::new(100_000_000, 8)),
+                }],
+                asks: vec![BookLevel {
+                    price: Price(Fixed::new(10_010_000_000, 8)),
+                    quantity: Quantity(Fixed::new(100_000_000, 8)),
+                }],
+                depth: None,
+                checksum: None,
+            }),
+        ),
+        snapshot_market(
+            4,
+            60_310_000_001,
+            "epoch_a",
+            0,
+            MarketEvent::BookDelta(BookDelta {
+                changes: vec![BookChange {
+                    side: BookSide::Bid,
+                    operation: BookOperation::Upsert,
+                    price: Price(Fixed::new(10_000_000_000, 8)),
+                    quantity: Some(Quantity(Fixed::new(300_000_000, 8))),
+                }],
+                checksum: None,
+            }),
+        ),
+        snapshot_market(
+            5,
+            60_320_000_000,
+            "epoch_a",
+            0,
+            MarketEvent::Quote(Quote {
+                bid_price: Price(Fixed::new(10_000_000_000, 8)),
+                bid_quantity: None,
+                ask_price: Price(Fixed::new(10_010_000_000, 8)),
+                ask_quantity: None,
+            }),
+        ),
+    ];
+    inputs.extend(snapshot_controls(&fixture, 60_330_000_000, 1));
+
+    let mut writer = EpinJson1Writer::new(Vec::new());
+    for input in &inputs {
+        writer.write_input(input).unwrap();
+    }
+    let decision = 60_330_003_000;
+    let decoded = EpinJson1Reader::new(writer.finish().as_slice(), time_ns(decision))
+        .read_all()
+        .unwrap();
+    let mut direct = MechanicsProcessor::new(fixture.config.clone(), snapshot_authoring()).unwrap();
+    let mut replayed = MechanicsProcessor::new(fixture.config, snapshot_authoring()).unwrap();
+    for (left, right) in inputs.iter().zip(&decoded) {
+        direct.ingest(left).unwrap();
+        replayed.ingest(right).unwrap();
+    }
+    let left = direct.snapshot(time_ns(decision)).unwrap();
+    let right = replayed.snapshot(time_ns(decision)).unwrap();
+    assert_eq!(left.canonical_json(), right.canonical_json());
+    assert_eq!(left.content_hash(), right.content_hash());
+    let depth = left.value()["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|feature| feature["name"] == "book_depth_10bps")
+        .unwrap();
+    assert!(depth["value"].is_string());
+    assert_eq!(depth["quality_state"], "VALIDATED");
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CapturedAction {
     frame_ordinal: u64,
@@ -505,6 +596,7 @@ struct CapturedDrop {
     frame_ordinal: u64,
     action_index: u32,
     item_index: u32,
+    available_at: TimestampNs,
     category: CapturedDropCategory,
     count: u64,
     event: SystemEvent,
@@ -516,8 +608,8 @@ struct OrderedCaptureOutcome {
     drops: Vec<CapturedDrop>,
     market_batches: Vec<EventBatch>,
     system_events: Vec<SystemEvent>,
+    metadata: Vec<MetadataRecord>,
     frames_applied: u64,
-    pre_clear_snapshot_rejections: u64,
     max_actions: usize,
     max_market_dispatch: usize,
     max_system_dispatch: usize,
@@ -528,7 +620,6 @@ struct OrderedReplayCapture {
     actions: ActionBuffer,
     dispatch: EventDispatcher,
     last_available_at: Option<TimestampNs>,
-    frame_open: bool,
 }
 
 impl OrderedReplayCapture {
@@ -537,15 +628,6 @@ impl OrderedReplayCapture {
             actions: ActionBuffer::new(),
             dispatch: EventDispatcher::new(dispatch_capacity, dispatch_capacity, overflow),
             last_available_at: None,
-            frame_open: false,
-        }
-    }
-
-    fn snapshot_boundary(&self) -> Result<(), &'static str> {
-        if self.frame_open {
-            Err("frame is not sealed")
-        } else {
-            Ok(())
         }
     }
 
@@ -554,27 +636,20 @@ impl OrderedReplayCapture {
         machine: &mut dyn SessionMachine,
         bytes: Vec<u8>,
         connect_at: TimestampNs,
-        exercise_pre_clear_rejection: bool,
     ) -> Result<OrderedCaptureOutcome, String> {
         let mut outcome = OrderedCaptureOutcome::default();
+        self.last_available_at = Some(connect_at);
         self.begin_frame(
             machine,
             0,
             connect_at,
             |machine, actions| machine.on_replay_start(connect_at, actions),
             &mut outcome,
-            false,
         )?;
 
         let mut reader = RawSegmentReader::from_bytes(bytes).map_err(|error| error.to_string())?;
         for record in reader.read_all().map_err(|error| error.to_string())? {
             if record.header.direction != Direction::Inbound {
-                continue;
-            }
-            if !matches!(
-                record.header.opcode,
-                FrameOpcode::Text | FrameOpcode::Binary | FrameOpcode::Pong
-            ) {
                 continue;
             }
             let available_at = TimestampNs(record.header.receive_ts_ns);
@@ -592,37 +667,77 @@ impl OrderedReplayCapture {
             };
             let opcode = record.header.opcode;
             let mut payload = record.payload;
-            self.begin_frame(
-                machine,
-                frame_ordinal,
-                available_at,
-                |machine, actions| match opcode {
-                    FrameOpcode::Text => machine.on_input(
-                        SessionInput::TextFrame {
-                            bytes: &mut payload,
-                            received: stamp,
+            match opcode {
+                FrameOpcode::Text | FrameOpcode::Binary | FrameOpcode::Pong => self.begin_frame(
+                    machine,
+                    frame_ordinal,
+                    available_at,
+                    |machine, actions| match opcode {
+                        FrameOpcode::Text => machine.on_input(
+                            SessionInput::TextFrame {
+                                bytes: &mut payload,
+                                received: stamp,
+                            },
+                            actions,
+                        ),
+                        FrameOpcode::Binary => machine.on_input(
+                            SessionInput::BinaryFrame {
+                                bytes: &mut payload,
+                                received: stamp,
+                            },
+                            actions,
+                        ),
+                        FrameOpcode::Pong => machine.on_input(
+                            SessionInput::Pong {
+                                payload: &payload,
+                                received: stamp,
+                            },
+                            actions,
+                        ),
+                        _ => unreachable!(),
+                    },
+                    &mut outcome,
+                )?,
+                FrameOpcode::HttpResponse => {
+                    let (request_id, response) =
+                        decode_http_response(&payload).map_err(|error| error.to_string())?;
+                    self.begin_frame(
+                        machine,
+                        frame_ordinal,
+                        available_at,
+                        |machine, actions| {
+                            machine.on_input(
+                                SessionInput::HttpResponse {
+                                    request_id,
+                                    response: &response,
+                                    received: stamp,
+                                },
+                                actions,
+                            )
                         },
-                        actions,
-                    ),
-                    FrameOpcode::Binary => machine.on_input(
-                        SessionInput::BinaryFrame {
-                            bytes: &mut payload,
-                            received: stamp,
-                        },
-                        actions,
-                    ),
-                    FrameOpcode::Pong => machine.on_input(
-                        SessionInput::Pong {
-                            payload: &payload,
-                            received: stamp,
-                        },
-                        actions,
-                    ),
-                    _ => unreachable!(),
-                },
-                &mut outcome,
-                exercise_pre_clear_rejection,
-            )?;
+                        &mut outcome,
+                    )?;
+                }
+                FrameOpcode::Metadata => {
+                    outcome
+                        .metadata
+                        .push(decode_metadata(&payload).map_err(|error| error.to_string())?);
+                    continue;
+                }
+                FrameOpcode::SubscriptionCommand => {
+                    let (command, recorded_wire) =
+                        decode_subscription_command(&payload).map_err(|error| error.to_string())?;
+                    let prepared_wire = machine
+                        .prepare_dynamic_subscription(&command)
+                        .map_err(|error| error.to_string())?;
+                    if prepared_wire != recorded_wire {
+                        return Err("recorded subscription wire action mismatch".into());
+                    }
+                    machine.commit_dynamic_subscription(&command);
+                    continue;
+                }
+                FrameOpcode::Ping | FrameOpcode::Close => continue,
+            }
             outcome.frames_applied += 1;
         }
         outcome.market_batches = self.dispatch.drain_batches();
@@ -637,7 +752,6 @@ impl OrderedReplayCapture {
         available_at: TimestampNs,
         apply: F,
         outcome: &mut OrderedCaptureOutcome,
-        exercise_pre_clear_rejection: bool,
     ) -> Result<(), String>
     where
         F: FnOnce(&mut dyn SessionMachine, &mut ActionBuffer) -> Result<(), AdapterError>,
@@ -645,12 +759,7 @@ impl OrderedReplayCapture {
         self.actions.clear();
         let _ = self.actions.take_dropped();
         apply(machine, &mut self.actions).map_err(|error| error.to_string())?;
-        self.frame_open = true;
         outcome.max_actions = outcome.max_actions.max(self.actions.len());
-
-        if exercise_pre_clear_rejection && self.snapshot_boundary().is_err() {
-            outcome.pre_clear_snapshot_rejections += 1;
-        }
 
         for (action_index, action) in self.actions.as_slice().iter().cloned().enumerate() {
             let action_index = u32::try_from(action_index).map_err(|_| "action index overflow")?;
@@ -732,6 +841,7 @@ impl OrderedReplayCapture {
                         CapturedDropCategory::MarketDispatch => 1,
                         CapturedDropCategory::SystemDispatch => 2,
                     },
+                    available_at,
                     category,
                     count,
                     event: SystemEvent::EventsDropped {
@@ -748,8 +858,6 @@ impl OrderedReplayCapture {
                 });
             }
         }
-        self.frame_open = false;
-        self.snapshot_boundary()?;
         Ok(())
     }
 }
@@ -824,7 +932,6 @@ fn mfr1_capture_preserves_pre_lane_coordinates_and_matches_ordinary_replay() {
             &mut *capture_machine,
             recording.clone(),
             TimestampNs(999_999_999),
-            true,
         )
         .unwrap();
     let mut replay_machine = synthetic_machine();
@@ -838,10 +945,6 @@ fn mfr1_capture_preserves_pre_lane_coordinates_and_matches_ordinary_replay() {
     assert_eq!(
         captured.drops.iter().map(|drop| drop.count).sum::<u64>(),
         ordinary.dropped_events
-    );
-    assert_eq!(
-        captured.pre_clear_snapshot_rejections,
-        captured.frames_applied
     );
     assert!(captured.ordinary.windows(2).all(|pair| {
         (
@@ -944,12 +1047,7 @@ fn fixed_burst_reports_every_real_action_and_dispatch_loss_with_bounded_queues()
     let recording = mfr1(&[(10, "BURST")]);
     let mut capture_machine = BurstMachine;
     let captured = OrderedReplayCapture::new(4, OverflowPolicy::DropNewest)
-        .replay(
-            &mut capture_machine,
-            recording.clone(),
-            TimestampNs(9),
-            true,
-        )
+        .replay(&mut capture_machine, recording.clone(), TimestampNs(9))
         .unwrap();
     let mut replay_machine = BurstMachine;
     let ordinary = ReplayRunner::with_overflow(4, OverflowPolicy::DropNewest)
@@ -986,6 +1084,12 @@ fn fixed_burst_reports_every_real_action_and_dispatch_loss_with_bounded_queues()
             .drops
             .iter()
             .all(|drop| drop.action_index == u32::from(u16::MAX))
+    );
+    assert!(
+        captured
+            .drops
+            .iter()
+            .all(|drop| drop.available_at == TimestampNs(10))
     );
     assert_eq!(
         captured
@@ -1033,7 +1137,566 @@ fn mfr1_capture_rejects_nonmonotonic_availability_before_replay() {
     let mut machine = synthetic_machine();
     assert_eq!(
         OrderedReplayCapture::new(8, OverflowPolicy::FailEngine)
-            .replay(&mut *machine, recording, TimestampNs(18), false)
+            .replay(&mut *machine, recording, TimestampNs(18))
+            .unwrap_err(),
+        "MFR1 availability regressed"
+    );
+}
+
+#[derive(Clone)]
+struct CaptureMechanicsFixture {
+    base: SnapshotReplayFixture,
+    frame_system: SystemSourceKeyV1,
+}
+
+fn capture_mechanics_fixture() -> CaptureMechanicsFixture {
+    let base = snapshot_fixture();
+    let target = ConfiguredTargetKeyV1::processor(base.config.processor_id()).unwrap();
+    let frame_system = SystemSourceKeyV1::new(
+        "z_frame_fault",
+        FaultScopeKindV1::Processor,
+        target,
+        CursorModeV1::Derived,
+    )
+    .unwrap();
+    let config = MechanicsConfigV1::new(
+        base.config.processor_id(),
+        base.config.connections().to_vec(),
+        base.config.contributors().to_vec(),
+        base.config.contributor_connections().clone(),
+        base.config.clock_sources().to_vec(),
+        base.config.coverage_sources().to_vec(),
+        vec![frame_system.clone()],
+    )
+    .unwrap();
+    CaptureMechanicsFixture {
+        base: SnapshotReplayFixture {
+            config,
+            contributor: base.contributor,
+            clock: base.clock,
+        },
+        frame_system,
+    }
+}
+
+fn derived_market(
+    frame_ordinal: u64,
+    action_index: u32,
+    ns: i64,
+    epoch: &str,
+    generation: u8,
+) -> MechanicsInputV1 {
+    MechanicsInputV1::market(
+        mechanics_frame_event(frame_ordinal, ns),
+        action_index,
+        snapshot_catalog(epoch, generation),
+    )
+    .unwrap()
+}
+
+fn mechanics_frame_event(frame_ordinal: u64, ns: i64) -> EventEnvelope {
+    EventEnvelope {
+        schema_version: 1,
+        venue: VenueId(1),
+        instrument: Some(InstrumentId(1)),
+        connection: ConnectionId(7),
+        session: SessionId(9),
+        frame_seq: frame_ordinal,
+        event_index: 0,
+        exchange_ts: Some(TimestampNs(ns)),
+        receive_ts: TimestampNs(ns),
+        source_sequence: None,
+        flags: EventFlags::empty(),
+        payload: scaled_trade(10_000_000_000),
+    }
+}
+
+fn contributor_drop_input(
+    key: &SystemSourceKeyV1,
+    fixture: &CaptureMechanicsFixture,
+    cursor: CursorV1,
+    ns: i64,
+    count: u64,
+    category: DropCategoryV1,
+    predecessor: Option<&str>,
+) -> MechanicsInputV1 {
+    MechanicsInputV1::system(
+        SystemSourceV1::new(key.clone(), "epoch_system_a", 0).unwrap(),
+        FaultScopeV1::processor(fixture.base.config.processor_id()).unwrap(),
+        time_ns(ns),
+        time_ns(ns),
+        cursor,
+        SystemFaultV1::events_dropped(count, category).unwrap(),
+        predecessor.map(str::to_owned),
+    )
+    .unwrap()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_chained_fault(
+    output: &mut Vec<MechanicsInputV1>,
+    head: &mut Option<String>,
+    fixture: &CaptureMechanicsFixture,
+    cursor: CursorV1,
+    ns: i64,
+    count: u64,
+    category: DropCategoryV1,
+) {
+    let input = contributor_drop_input(
+        &fixture.frame_system,
+        fixture,
+        cursor,
+        ns,
+        count,
+        category,
+        head.as_deref(),
+    );
+    *head = Some(match head.as_deref() {
+        Some(previous) => SystemChainPreimage::hash_next(previous, input.payload_hash()).unwrap(),
+        None => SystemChainPreimage::hash_first(input.payload_hash()).unwrap(),
+    });
+    output.push(input);
+}
+
+fn map_captured_frame(
+    captured: &OrderedCaptureOutcome,
+    fixture: &CaptureMechanicsFixture,
+) -> (Vec<MechanicsInputV1>, Vec<MechanicsInputV1>) {
+    let mut system_head = None;
+    let mut ordinary = Vec::with_capacity(captured.ordinary.len());
+    for record in &captured.ordinary {
+        let input = match &record.action {
+            SessionAction::EmitBatch(batch) => MechanicsInputV1::market(
+                batch.events[usize::try_from(record.item_index).unwrap()].clone(),
+                record.action_index,
+                snapshot_catalog("epoch_a", 0),
+            )
+            .unwrap(),
+            SessionAction::EmitSystem(SystemEvent::EventsDropped { count, .. }) => {
+                contributor_drop_input(
+                    &fixture.frame_system,
+                    fixture,
+                    CursorV1::derived(record.frame_ordinal, record.action_index, record.item_index)
+                        .unwrap(),
+                    record.available_at.0,
+                    *count,
+                    DropCategoryV1::ActionBuffer,
+                    system_head.as_deref(),
+                )
+            }
+            action => panic!("unmappable captured action: {action:?}"),
+        };
+        if matches!(record.action, SessionAction::EmitSystem(_)) {
+            system_head = Some(match system_head.as_deref() {
+                Some(head) => SystemChainPreimage::hash_next(head, input.payload_hash()).unwrap(),
+                None => SystemChainPreimage::hash_first(input.payload_hash()).unwrap(),
+            });
+        }
+        ordinary.push(input);
+    }
+    let mut drops = Vec::with_capacity(captured.drops.len());
+    for drop in &captured.drops {
+        let category = match drop.category {
+            CapturedDropCategory::ActionBuffer => DropCategoryV1::ActionBuffer,
+            CapturedDropCategory::MarketDispatch => DropCategoryV1::MarketDispatch,
+            CapturedDropCategory::SystemDispatch => DropCategoryV1::SystemDispatch,
+        };
+        let input = contributor_drop_input(
+            &fixture.frame_system,
+            fixture,
+            CursorV1::derived_drop(drop.frame_ordinal, drop.item_index).unwrap(),
+            drop.available_at.0,
+            drop.count,
+            category,
+            system_head.as_deref(),
+        );
+        system_head = Some(match system_head.as_deref() {
+            Some(head) => SystemChainPreimage::hash_next(head, input.payload_hash()).unwrap(),
+            None => SystemChainPreimage::hash_first(input.payload_hash()).unwrap(),
+        });
+        drops.push(input);
+    }
+    (ordinary, drops)
+}
+
+#[derive(Debug, PartialEq)]
+enum FrameSnapshotError {
+    Unsealed,
+    Snapshot(SnapshotError),
+}
+
+enum FrameInputState {
+    Pending {
+        ordinary: Vec<MechanicsInputV1>,
+        drops: Vec<MechanicsInputV1>,
+    },
+    Sealed,
+}
+
+struct MechanicsFrameTransaction<'a> {
+    processor: &'a mut MechanicsProcessor,
+    state: FrameInputState,
+}
+
+impl<'a> MechanicsFrameTransaction<'a> {
+    fn new(
+        processor: &'a mut MechanicsProcessor,
+        ordinary: Vec<MechanicsInputV1>,
+        drops: Vec<MechanicsInputV1>,
+    ) -> Self {
+        Self {
+            processor,
+            state: FrameInputState::Pending { ordinary, drops },
+        }
+    }
+
+    fn snapshot(&mut self, decision: Rfc3339Time) -> Result<AuthoredSnapshot, FrameSnapshotError> {
+        match self.state {
+            FrameInputState::Pending { .. } => Err(FrameSnapshotError::Unsealed),
+            FrameInputState::Sealed => self
+                .processor
+                .snapshot(decision)
+                .map_err(FrameSnapshotError::Snapshot),
+        }
+    }
+
+    fn seal(&mut self) -> Result<Vec<IngestOutcome>, SnapshotError> {
+        let FrameInputState::Pending { ordinary, drops } =
+            std::mem::replace(&mut self.state, FrameInputState::Sealed)
+        else {
+            return Err(SnapshotError::InvalidInput(
+                "MFR1 frame was already sealed".into(),
+            ));
+        };
+        let mut outcomes = Vec::with_capacity(ordinary.len() + drops.len());
+        for input in ordinary.iter().chain(&drops) {
+            outcomes.push(self.processor.ingest(input)?);
+        }
+        Ok(outcomes)
+    }
+}
+
+fn recovery_controls(
+    fixture: &CaptureMechanicsFixture,
+    first_available_ns: i64,
+) -> Vec<MechanicsInputV1> {
+    let contributor = ContributorV1::new(fixture.base.contributor.clone(), "epoch_b", 1).unwrap();
+    let mut inputs = vec![
+        MechanicsInputV1::clock(
+            contributor.clone(),
+            ClockSourceV1::new(fixture.base.clock.clone(), "epoch_clock_b", 1).unwrap(),
+            time_ns(first_available_ns),
+            time_ns(first_available_ns),
+            ClockCursorV1::native(1, 1).unwrap(),
+            ClockStateV1::Synchronized,
+            CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+            2_000,
+            ClockQualityV1::Validated,
+            "SOURCE_CLOCK_WITHIN_TOLERANCE",
+        )
+        .unwrap(),
+    ];
+    for (offset, key) in fixture.base.config.coverage_sources().iter().enumerate() {
+        let available_at = first_available_ns + i64::try_from(offset + 1).unwrap() * 1_000;
+        inputs.push(
+            MechanicsInputV1::coverage(
+                contributor.clone(),
+                CoverageSourceV1::new(key.clone(), "epoch_coverage_b", 1).unwrap(),
+                key.family(),
+                time_ns(available_at - 60_000_000_000),
+                time_ns(available_at),
+                time_ns(available_at),
+                CoverageCursorV1::native(1, 1).unwrap(),
+            )
+            .unwrap(),
+        );
+    }
+    inputs
+}
+
+fn initialize_capture_processor(
+    processor: &mut MechanicsProcessor,
+    fixture: &CaptureMechanicsFixture,
+) -> String {
+    assert_eq!(
+        processor.ingest(&derived_market(1, 0, 0, "epoch_a", 0)),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+    assert_eq!(
+        processor.ingest(&derived_market(2, 0, 60_000_000_000, "epoch_a", 0,)),
+        Ok(IngestOutcome::AcceptedLive)
+    );
+    let controls = snapshot_controls(&fixture.base, 60_080_000_000, 1);
+    for input in &controls {
+        processor.ingest(input).unwrap();
+    }
+    processor
+        .snapshot(time_ns(60_080_003_000))
+        .unwrap()
+        .canonical_json()
+}
+
+struct MechanicsOverflowMachine;
+
+impl SessionMachine for MechanicsOverflowMachine {
+    fn on_replay_start(
+        &mut self,
+        _now: TimestampNs,
+        _output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        Ok(())
+    }
+
+    fn on_input(
+        &mut self,
+        input: SessionInput<'_>,
+        output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        let SessionInput::TextFrame { received, .. } = input else {
+            return Ok(());
+        };
+        for action_index in 0..1_022u64 {
+            output.push(SessionAction::EmitBatch(EventBatch {
+                session: SessionId(9),
+                frame_seq: 3,
+                events: vec![mechanics_frame_event(3, received.receive_ts.0)],
+            }));
+            assert_eq!(action_index + 1, output.len() as u64);
+        }
+        output.push(SessionAction::EmitSystem(SystemEvent::EventsDropped {
+            count: 1,
+            detail: "ordinary zero".into(),
+        }));
+        output.push(SessionAction::EmitSystem(SystemEvent::EventsDropped {
+            count: 1,
+            detail: "ordinary one".into(),
+        }));
+        output.push(SessionAction::EmitBatch(EventBatch {
+            session: SessionId(9),
+            frame_seq: 3,
+            events: vec![mechanics_frame_event(3, received.receive_ts.0)],
+        }));
+        Ok(())
+    }
+}
+
+#[test]
+fn captured_frame_maps_to_atomic_mechanics_faults_and_greater_generation_recovery() {
+    let frame_ns = 60_100_000_000;
+    let recording = mfr1(&[(frame_ns, "MECHANICS_OVERFLOW")]);
+    let mut machine = MechanicsOverflowMachine;
+    let captured = OrderedReplayCapture::new(1, OverflowPolicy::DropNewest)
+        .replay(&mut machine, recording, TimestampNs(frame_ns - 1))
+        .unwrap();
+    let fixture = capture_mechanics_fixture();
+    let (ordinary, drops) = map_captured_frame(&captured, &fixture);
+    assert_eq!(drops.len(), 3);
+    assert!(drops.iter().zip(&captured.drops).all(|(input, drop)| {
+        match input.view() {
+            marketfeed_event_pulse::wire::MechanicsInputRefV1::System { available_at, .. } => {
+                available_at.utc_micros() == drop.available_at.0.div_euclid(1_000)
+            }
+            _ => false,
+        }
+    }));
+
+    let mut processor =
+        MechanicsProcessor::new(fixture.base.config.clone(), snapshot_authoring()).unwrap();
+    let baseline = initialize_capture_processor(&mut processor, &fixture);
+    let mut frame = MechanicsFrameTransaction::new(&mut processor, ordinary.clone(), drops.clone());
+    assert_eq!(
+        frame.snapshot(time_ns(frame_ns)),
+        Err(FrameSnapshotError::Unsealed),
+        "the real replay authoring boundary must reject the incomplete frame"
+    );
+    let outcomes = frame.seal().unwrap();
+    assert!(
+        outcomes[outcomes.len() - drops.len()..]
+            .iter()
+            .all(|outcome| *outcome == IngestOutcome::Invalidated)
+    );
+    let invalidated = frame.snapshot(time_ns(frame_ns)).unwrap();
+    assert_eq!(invalidated.value()["quality_state"], "INVALID");
+    assert!(
+        invalidated.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "QUEUE_DROP")
+    );
+    drop(frame);
+
+    let recovery = [
+        derived_market(4, 0, frame_ns + 1_000_000, "epoch_b", 1),
+        derived_market(5, 0, frame_ns + 60_001_000_000, "epoch_b", 1),
+    ];
+    assert_eq!(
+        processor.ingest(&recovery[0]),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+    assert_eq!(
+        processor.ingest(&recovery[1]),
+        Ok(IngestOutcome::AcceptedLive)
+    );
+    let controls_at = frame_ns + 60_010_000_000;
+    let controls = recovery_controls(&fixture, controls_at);
+    for input in &controls {
+        processor.ingest(input).unwrap();
+    }
+    let decision = controls_at + 3_000;
+    let recovered = processor.snapshot(time_ns(decision)).unwrap();
+    assert_eq!(recovered.value()["quality_state"], "INVALID");
+    assert!(
+        recovered.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "QUEUE_DROP")
+    );
+
+    let mut independently_reconstructed = Vec::new();
+    independently_reconstructed
+        .extend((0..1_022u32).map(|action| derived_market(3, action, frame_ns, "epoch_a", 0)));
+    let mut independent_head = None;
+    push_chained_fault(
+        &mut independently_reconstructed,
+        &mut independent_head,
+        &fixture,
+        CursorV1::derived(1, 1_022, 0).unwrap(),
+        frame_ns,
+        1,
+        DropCategoryV1::ActionBuffer,
+    );
+    push_chained_fault(
+        &mut independently_reconstructed,
+        &mut independent_head,
+        &fixture,
+        CursorV1::derived(1, 1_023, 0).unwrap(),
+        frame_ns,
+        1,
+        DropCategoryV1::ActionBuffer,
+    );
+    for (index, (count, category)) in [
+        (1, DropCategoryV1::ActionBuffer),
+        (1_021, DropCategoryV1::MarketDispatch),
+        (1, DropCategoryV1::SystemDispatch),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        push_chained_fault(
+            &mut independently_reconstructed,
+            &mut independent_head,
+            &fixture,
+            CursorV1::derived_drop(1, u32::try_from(index).unwrap()).unwrap(),
+            frame_ns,
+            count,
+            category,
+        );
+    }
+    assert_eq!(
+        independently_reconstructed,
+        ordinary.iter().chain(&drops).cloned().collect::<Vec<_>>()
+    );
+    let mut independent =
+        MechanicsProcessor::new(fixture.base.config.clone(), snapshot_authoring()).unwrap();
+    assert_eq!(
+        initialize_capture_processor(&mut independent, &fixture),
+        baseline
+    );
+    for input in &independently_reconstructed {
+        independent.ingest(input).unwrap();
+    }
+    let independent_invalidated = independent.snapshot(time_ns(frame_ns)).unwrap();
+    assert_eq!(
+        invalidated.canonical_json(),
+        independent_invalidated.canonical_json()
+    );
+    assert_eq!(
+        invalidated.content_hash(),
+        independent_invalidated.content_hash()
+    );
+    for input in recovery.iter().chain(&controls) {
+        independent.ingest(input).unwrap();
+    }
+    let comparison = independent.snapshot(time_ns(decision)).unwrap();
+    assert_eq!(recovered.canonical_json(), comparison.canonical_json());
+    assert_eq!(recovered.content_hash(), comparison.content_hash());
+}
+
+#[derive(Default)]
+struct HttpResponseMachine {
+    seen: Option<(u64, u16, Vec<u8>)>,
+}
+
+impl SessionMachine for HttpResponseMachine {
+    fn on_replay_start(
+        &mut self,
+        _now: TimestampNs,
+        _output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        Ok(())
+    }
+
+    fn on_input(
+        &mut self,
+        input: SessionInput<'_>,
+        output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        if let SessionInput::HttpResponse {
+            request_id,
+            response,
+            ..
+        } = input
+        {
+            self.seen = Some((request_id, response.status, response.body.to_vec()));
+            output.push(SessionAction::MarkLive);
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn mfr1_capture_applies_http_response_and_rejects_frames_before_connect_at() {
+    let response = HttpResponse {
+        status: 206,
+        headers: vec![("content-type".into(), "application/json".into())],
+        body: Vec::from(&b"partial"[..]).into(),
+    };
+    let payload = encode_http_response(77, &response).unwrap();
+    let mut writer = RawSegmentWriter::create(Vec::new(), 100).unwrap();
+    writer
+        .write_record(
+            SessionId(1),
+            1,
+            101,
+            101,
+            Direction::Inbound,
+            FrameOpcode::HttpResponse,
+            0,
+            &payload,
+        )
+        .unwrap();
+    let recording = writer.into_inner();
+
+    let mut machine = HttpResponseMachine::default();
+    let outcome = OrderedReplayCapture::new(8, OverflowPolicy::FailEngine)
+        .replay(&mut machine, recording, TimestampNs(100))
+        .unwrap();
+    assert_eq!(machine.seen, Some((77, 206, b"partial".to_vec())));
+    assert_eq!(outcome.frames_applied, 1);
+    assert!(
+        outcome
+            .ordinary
+            .iter()
+            .any(|record| matches!(record.action, SessionAction::MarkLive))
+    );
+
+    let early = mfr1(&[(99, "SUB BTC-USD")]);
+    let mut synthetic = synthetic_machine();
+    assert_eq!(
+        OrderedReplayCapture::new(8, OverflowPolicy::FailEngine)
+            .replay(&mut *synthetic, early, TimestampNs(100))
             .unwrap_err(),
         "MFR1 availability regressed"
     );
