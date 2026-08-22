@@ -6,6 +6,9 @@ use thiserror::Error;
 
 pub const PER_WINDOW_CAPACITY: usize = 4_096;
 pub const PROCESSOR_RECORD_CAPACITY: usize = 65_536;
+/// Queue faults and their accepted recoveries are replayed independently from
+/// the evidence log so a full evidence queue can still describe its failure.
+pub const PROCESSOR_FAULT_TIMELINE_CAPACITY: usize = 4_096;
 pub const MAX_WINDOW_SOURCES: usize = 32;
 pub const MAX_WINDOW_TOPOLOGY: usize = MAX_WINDOW_SOURCES * SUPPORTED_HORIZONS_NS.len() * 6;
 pub const SUPPORTED_HORIZONS_NS: [i64; 7] = [

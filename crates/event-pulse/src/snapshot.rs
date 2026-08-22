@@ -19,8 +19,9 @@ use crate::{
     },
     mechanics::{FamilyFlags, MechanicsEvidence, Phase, PhaseError, PhaseMachine},
     window::{
-        CoverageInterval, FixedWindow, PER_WINDOW_CAPACITY, PROCESSOR_RECORD_CAPACITY, WindowBank,
-        WindowError, WindowKey, WindowKind, WindowSource, WindowSpec, has_exact_coverage,
+        CoverageInterval, FixedWindow, PER_WINDOW_CAPACITY, PROCESSOR_FAULT_TIMELINE_CAPACITY,
+        PROCESSOR_RECORD_CAPACITY, WindowBank, WindowError, WindowKey, WindowKind, WindowSource,
+        WindowSpec, has_exact_coverage,
     },
     wire::{
         ClockQualityV1, ClockSourceKeyV1, ClockStateV1, ConfiguredTargetKeyV1, ContributorKeyV1,
@@ -791,13 +792,79 @@ struct ProcessorRecord {
 enum ProcessorRecordKind {
     Evidence,
     RejectedState,
+}
+
+#[derive(Debug, Clone)]
+struct FaultTimelineRecord {
+    input: MechanicsInputV1,
+    kind: FaultTimelineKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FaultTimelineKind {
     FeatureQueueDrop,
     MasterQueueDrop,
+    Recovery,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReplayRecordKind {
+    Processor(ProcessorRecordKind),
+    Fault(FaultTimelineKind),
+}
+
+struct ReplayRecordRef<'a> {
+    available_at_ns: i64,
+    order: InputOrderKey,
+    input: &'a MechanicsInputV1,
+    kind: ReplayRecordKind,
 }
 
 #[derive(Debug, Clone)]
 struct ProcessorLog<T> {
     records: VecDeque<crate::window::Timed<T>>,
+}
+
+#[derive(Debug, Clone)]
+struct FaultTimeline {
+    records: VecDeque<crate::window::Timed<FaultTimelineRecord>>,
+}
+
+impl FaultTimeline {
+    fn new() -> Self {
+        Self {
+            records: VecDeque::with_capacity(PROCESSOR_FAULT_TIMELINE_CAPACITY),
+        }
+    }
+
+    fn push(
+        &mut self,
+        available_at_ns: i64,
+        value: FaultTimelineRecord,
+    ) -> Result<(), SnapshotError> {
+        if self.records.len() >= PROCESSOR_FAULT_TIMELINE_CAPACITY {
+            return Err(SnapshotError::Capacity);
+        }
+        self.records.push_back(crate::window::Timed {
+            available_at_ns,
+            value,
+        });
+        Ok(())
+    }
+
+    fn evict_through(&mut self, decision_ns: i64) {
+        while self
+            .records
+            .front()
+            .is_some_and(|record| record.available_at_ns <= decision_ns)
+        {
+            self.records.pop_front();
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.records.len()
+    }
 }
 
 impl<T> ProcessorLog<T> {
@@ -860,6 +927,7 @@ pub struct MechanicsProcessor {
     sources: SourceStateMachine,
     feature_runtime: FeatureRuntime,
     records: ProcessorLog<ProcessorRecord>,
+    fault_timeline: FaultTimeline,
     checkpoint: Option<ReplayCheckpoint>,
     active_causes: BTreeMap<CauseKey, Cause>,
     master_queue_drops: BTreeMap<CauseKey, Option<u8>>,
@@ -914,6 +982,7 @@ impl MechanicsProcessor {
             config,
             authoring,
             records: ProcessorLog::new(),
+            fault_timeline: FaultTimeline::new(),
             checkpoint: None,
             active_causes,
             master_queue_drops,
@@ -952,52 +1021,34 @@ impl MechanicsProcessor {
         {
             return Err(SnapshotError::InputOrderRegression);
         }
-        let mut records_before_recovery_admission = None;
+        let input_keys = input_cause_keys(input, &self.config);
+        let queue_recovery = input_keys.iter().any(|key| {
+            self.master_queue_drops
+                .get(key)
+                .copied()
+                .flatten()
+                .is_some_and(|generation| input_generation(input) > generation)
+                || matches!(
+                    self.active_causes.get(key),
+                    Some(Cause::QueueDrop(generation)) if input_generation(input) > *generation
+                )
+        });
         if self.last_order.as_ref() != Some(&order)
             && ensure_record_capacity(self.records.len()).is_err()
+            && !queue_recovery
         {
-            let keys = input_cause_keys(input, &self.config);
-            let greater_latched_recovery = keys.iter().any(|key| {
-                self.master_queue_drops
-                    .get(key)
-                    .copied()
-                    .flatten()
-                    .is_some_and(|generation| input_generation(input) > generation)
-            });
-            if greater_latched_recovery {
-                let saved = self.records.clone();
-                let removable = self.records.records().iter().rposition(|record| {
-                    record.value.kind == ProcessorRecordKind::MasterQueueDrop
-                        && input_cause_keys(&record.value.input, &self.config)
-                            .iter()
-                            .any(|key| keys.contains(key))
-                });
-                if let Some(index) = removable {
-                    self.records.records.remove(index);
-                    records_before_recovery_admission = Some(saved);
-                } else {
-                    self.record_queue_drop(input, at)?;
-                    self.last_input_micros = Some(at);
-                    self.last_order = Some(order);
-                    return Err(SnapshotError::InvalidInput(
-                        "bounded processor queue dropped the unaccepted input".into(),
-                    ));
-                }
-            } else {
-                self.record_queue_drop(input, at)?;
-                self.last_input_micros = Some(at);
-                self.last_order = Some(order);
-                return Err(SnapshotError::InvalidInput(
-                    "bounded processor queue dropped the unaccepted input".into(),
-                ));
-            }
+            self.record_queue_drop(input, at)?;
+            self.last_input_micros = Some(at);
+            self.last_order = Some(order);
+            return Err(SnapshotError::InvalidInput(
+                "bounded processor queue dropped the unaccepted input".into(),
+            ));
         }
         let mut candidate_sources = self.sources.clone();
         let outcome = match candidate_sources.ingest(input) {
             Ok(outcome) => outcome,
             Err(error) => {
-                if let Some(saved) = records_before_recovery_admission {
-                    self.records = saved;
+                if queue_recovery {
                     return Err(SnapshotError::InvalidInput(error.to_string()));
                 }
                 self.sources = candidate_sources;
@@ -1023,22 +1074,25 @@ impl MechanicsProcessor {
             }
         };
         if outcome != IngestOutcome::IgnoredDuplicate {
-            ensure_record_capacity(self.records.len())?;
             let mut candidate_runtime = self.feature_runtime.clone();
             if let Err(error) = candidate_runtime.ingest(input, &self.config) {
+                if queue_recovery {
+                    return Err(error);
+                }
                 if error == SnapshotError::FeatureQueueDrop {
+                    let at_ns = at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?;
+                    self.fault_timeline.push(
+                        at_ns,
+                        FaultTimelineRecord {
+                            input: input.clone(),
+                            kind: FaultTimelineKind::FeatureQueueDrop,
+                        },
+                    )?;
                     for cause_key in input_cause_keys(input, &self.config) {
                         if let Some(cause) = self.active_causes.get_mut(&cause_key) {
                             *cause = Cause::QueueDrop(input_generation(input));
                         }
                     }
-                    self.records.push(
-                        at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
-                        ProcessorRecord {
-                            input: input.clone(),
-                            kind: ProcessorRecordKind::FeatureQueueDrop,
-                        },
-                    )?;
                     self.sources = candidate_sources;
                     self.feature_runtime = candidate_runtime;
                     self.last_input_micros = Some(at);
@@ -1046,15 +1100,26 @@ impl MechanicsProcessor {
                 }
                 return Err(error);
             }
-            self.records
-                .push(
+            if queue_recovery {
+                self.fault_timeline.push(
                     at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
-                    ProcessorRecord {
+                    FaultTimelineRecord {
                         input: input.clone(),
-                        kind: ProcessorRecordKind::Evidence,
+                        kind: FaultTimelineKind::Recovery,
                     },
-                )
-                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+                )?;
+            } else {
+                ensure_record_capacity(self.records.len())?;
+                self.records
+                    .push(
+                        at.checked_mul(1_000).ok_or(SnapshotError::Capacity)?,
+                        ProcessorRecord {
+                            input: input.clone(),
+                            kind: ProcessorRecordKind::Evidence,
+                        },
+                    )
+                    .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+            }
             self.feature_runtime = candidate_runtime;
         }
         self.sources = candidate_sources;
@@ -1139,6 +1204,7 @@ impl MechanicsProcessor {
             .records
             .evict(decision_ns)
             .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        candidate.fault_timeline.evict_through(decision_ns);
         let live_ns = candidate
             .last_input_micros
             .unwrap_or(decision_micros)
@@ -1169,23 +1235,27 @@ impl MechanicsProcessor {
             .as_ref()
             .filter(|checkpoint| checkpoint.at_ns <= decision_ns)
             .map_or_else(PhaseMachine::new, |checkpoint| checkpoint.phase.clone());
-        let mut previous = None;
-        for at in self
+        let mut replay_times = self
             .records
             .records()
             .iter()
             .map(|record| record.available_at_ns.div_euclid(1_000))
+            .chain(
+                self.fault_timeline
+                    .records
+                    .iter()
+                    .map(|record| record.available_at_ns.div_euclid(1_000)),
+            )
             .filter(|at| checkpoint_ns.is_none_or(|checkpoint| *at > checkpoint.div_euclid(1_000)))
             .filter(|at| *at < decision_micros)
-        {
-            if previous == Some(at) {
-                continue;
-            }
+            .collect::<Vec<_>>();
+        replay_times.sort_unstable();
+        replay_times.dedup();
+        for at in replay_times {
             let observation = self.derive_owned_observation(at, phase.phase())?;
             phase
                 .observe(&derive_evidence(&observation)?)
                 .map_err(phase_error)?;
-            previous = Some(at);
         }
         phase
             .advance_to(
@@ -1219,27 +1289,13 @@ impl MechanicsProcessor {
         let at_ns = at_micros
             .checked_mul(1_000)
             .ok_or(SnapshotError::Capacity)?;
-        let config = self.config.clone();
-        let preserve_market_initializer =
-            matches!(input.view(), MechanicsInputRefV1::Market { .. });
-        let mut initializer_preserved = false;
-        self.records.records.retain(|record| {
-            let matches_slot = input_cause_keys(&record.value.input, &config)
-                .iter()
-                .any(|key| keys.contains(key));
-            if !matches_slot {
-                return true;
-            }
-            if preserve_market_initializer
-                && !initializer_preserved
-                && record.value.kind == ProcessorRecordKind::Evidence
-            {
-                initializer_preserved = true;
-                return true;
-            }
-            false
-        });
-        ensure_record_capacity(self.records.len())?;
+        self.fault_timeline.push(
+            at_ns,
+            FaultTimelineRecord {
+                input: input.clone(),
+                kind: FaultTimelineKind::MasterQueueDrop,
+            },
+        )?;
         for key in &keys {
             if let Some(latch) = self.master_queue_drops.get_mut(key) {
                 *latch = Some(input_generation(input));
@@ -1255,13 +1311,6 @@ impl MechanicsProcessor {
                 at_ns,
             )?;
         }
-        self.records.push(
-            at_ns,
-            ProcessorRecord {
-                input: input.clone(),
-                kind: ProcessorRecordKind::MasterQueueDrop,
-            },
-        )?;
         self.cache = None;
         Ok(())
     }
@@ -1434,16 +1483,22 @@ impl MechanicsProcessor {
         let mut available_micros = checkpoint.map_or(i64::MIN, |value| {
             value.observation.available_at.utc_micros()
         });
-        for record in records.iter().filter(|record| {
-            record.available_at_ns <= decision_ns
+        let accepted_inputs = records.iter().filter_map(|record| {
+            (record.available_at_ns <= decision_ns
                 && checkpoint_ns.is_none_or(|at| record.available_at_ns > at)
-                && record.value.kind != ProcessorRecordKind::RejectedState
-                && (matches!(
-                    record.value.kind,
-                    ProcessorRecordKind::FeatureQueueDrop | ProcessorRecordKind::MasterQueueDrop
-                ) || self.input_is_current(&sources, &record.value.input))
-        }) {
-            match record.value.input.view() {
+                && record.value.kind == ProcessorRecordKind::Evidence
+                && self.input_is_current(&sources, &record.value.input))
+            .then_some(&record.value.input)
+        });
+        let fault_inputs = self.fault_timeline.records.iter().filter_map(|record| {
+            (record.available_at_ns <= decision_ns
+                && checkpoint_ns.is_none_or(|at| record.available_at_ns > at)
+                && (record.value.kind != FaultTimelineKind::Recovery
+                    || self.input_is_current(&sources, &record.value.input)))
+            .then_some(&record.value.input)
+        });
+        for input in accepted_inputs.chain(fault_inputs) {
+            match input.view() {
                 MechanicsInputRefV1::Market { envelope, .. } => {
                     available_micros =
                         available_micros.max(envelope.receive_ts.0.div_euclid(1_000));
@@ -1994,7 +2049,12 @@ impl MechanicsProcessor {
             self.config
                 .clock_sources()
                 .iter()
-                .filter(|key| sources.contributor_cursor(key.subject()).is_some())
+                .filter(|key| {
+                    sources.contributor_cursor(key.subject()).is_some()
+                        || (current_causal.is_empty()
+                            && anchor.is_some()
+                            && sources.clock_cursor(key).is_some())
+                })
                 .map(|key| key.source_id().to_owned()),
         );
         available_micros = available_micros.max(
@@ -2075,12 +2135,42 @@ impl MechanicsProcessor {
             },
             |checkpoint| checkpoint.master_queue_drops.clone(),
         );
+        let replay_capacity = self
+            .records
+            .len()
+            .checked_add(self.fault_timeline.len())
+            .ok_or(SnapshotError::Capacity)?;
+        let mut replay = Vec::with_capacity(replay_capacity);
         for record in self.records.records().iter().filter(|record| {
             record.available_at_ns <= decision_ns
                 && checkpoint.is_none_or(|checkpoint| record.available_at_ns > checkpoint.at_ns)
         }) {
-            let input = &record.value.input;
-            if record.value.kind == ProcessorRecordKind::MasterQueueDrop {
+            replay.push(ReplayRecordRef {
+                available_at_ns: record.available_at_ns,
+                order: input_order(&record.value.input)?,
+                input: &record.value.input,
+                kind: ReplayRecordKind::Processor(record.value.kind),
+            });
+        }
+        for record in self.fault_timeline.records.iter().filter(|record| {
+            record.available_at_ns <= decision_ns
+                && checkpoint.is_none_or(|checkpoint| record.available_at_ns > checkpoint.at_ns)
+        }) {
+            replay.push(ReplayRecordRef {
+                available_at_ns: record.available_at_ns,
+                order: input_order(&record.value.input)?,
+                input: &record.value.input,
+                kind: ReplayRecordKind::Fault(record.value.kind),
+            });
+        }
+        replay.sort_by(|left, right| {
+            left.available_at_ns
+                .cmp(&right.available_at_ns)
+                .then_with(|| left.order.cmp(&right.order))
+        });
+        for record in replay {
+            let input = record.input;
+            if record.kind == ReplayRecordKind::Fault(FaultTimelineKind::MasterQueueDrop) {
                 for key in input_cause_keys(input, &self.config) {
                     if let Some(cause) = causes.get_mut(&key) {
                         *cause = Cause::QueueDrop(input_generation(input));
@@ -2101,11 +2191,12 @@ impl MechanicsProcessor {
             match sources.ingest(input) {
                 Ok(IngestOutcome::IgnoredDuplicate) => {}
                 Ok(_) => {
-                    match record.value.kind {
-                        ProcessorRecordKind::Evidence => {
+                    match record.kind {
+                        ReplayRecordKind::Processor(ProcessorRecordKind::Evidence)
+                        | ReplayRecordKind::Fault(FaultTimelineKind::Recovery) => {
                             runtime.ingest(input, &self.config)?;
                         }
-                        ProcessorRecordKind::FeatureQueueDrop => {
+                        ReplayRecordKind::Fault(FaultTimelineKind::FeatureQueueDrop) => {
                             match runtime.ingest(input, &self.config) {
                                 Err(SnapshotError::FeatureQueueDrop) => {}
                                 Err(error) => return Err(error),
@@ -2121,8 +2212,8 @@ impl MechanicsProcessor {
                                 }
                             }
                         }
-                        ProcessorRecordKind::RejectedState
-                        | ProcessorRecordKind::MasterQueueDrop => {
+                        ReplayRecordKind::Processor(ProcessorRecordKind::RejectedState)
+                        | ReplayRecordKind::Fault(FaultTimelineKind::MasterQueueDrop) => {
                             return Err(SnapshotError::Contract(
                                 "fault record replayed as accepted evidence".into(),
                             ));
@@ -2135,7 +2226,11 @@ impl MechanicsProcessor {
                             }
                         }
                     }
-                    if record.value.kind == ProcessorRecordKind::Evidence {
+                    if matches!(
+                        record.kind,
+                        ReplayRecordKind::Processor(ProcessorRecordKind::Evidence)
+                            | ReplayRecordKind::Fault(FaultTimelineKind::Recovery)
+                    ) {
                         clear_recovered_input_cause(
                             &sources,
                             input,
@@ -2147,7 +2242,8 @@ impl MechanicsProcessor {
                 }
                 Err(error)
                     if error.invalidates_state()
-                        && record.value.kind == ProcessorRecordKind::RejectedState =>
+                        && record.kind
+                            == ReplayRecordKind::Processor(ProcessorRecordKind::RejectedState) =>
                 {
                     for key in input_cause_keys(input, &self.config) {
                         if let Some(cause) = causes.get_mut(&key) {
@@ -2160,7 +2256,9 @@ impl MechanicsProcessor {
                         }
                     }
                 }
-                Err(_) if record.value.kind == ProcessorRecordKind::RejectedState => {}
+                Err(_)
+                    if record.kind
+                        == ReplayRecordKind::Processor(ProcessorRecordKind::RejectedState) => {}
                 Err(error) => {
                     return Err(SnapshotError::Contract(format!(
                         "accepted replay record failed cursor validation: {error}"
