@@ -1,0 +1,25 @@
+[package]
+name = "marketfeed-event-pulse-mfr1"
+description = "Pure offline MFR1-to-EventPulse input transformation"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+marketfeed-adapter-api = { workspace = true }
+marketfeed-dispatch = { workspace = true }
+marketfeed-event-pulse = { path = "../event-pulse" }
+marketfeed-model = { workspace = true }
+marketfeed-recording = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+marketfeed-replay = { workspace = true }
+serde_json = { workspace = true }
+
+[lints]
+workspace = true
