@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
@@ -72,6 +72,7 @@ pub enum ProspectiveAdmissionError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProspectiveSystemArtifactPolicyV1 {
     source_id: String,
+    admission_fingerprint: String,
 }
 
 impl ProspectiveSystemArtifactPolicyV1 {
@@ -104,6 +105,7 @@ impl ProspectiveSystemArtifactPolicyV1 {
         }
         Ok(Self {
             source_id: freeze.system_scenario.source_id,
+            admission_fingerprint: admission.binding_fingerprint.clone(),
         })
     }
 
@@ -124,8 +126,7 @@ impl ProspectiveSystemArtifactPolicyV1 {
     }
 
     pub(crate) fn matches(&self, admission: &ProspectiveCaptureAdmissionV1) -> bool {
-        let sources = admission.mechanics_config().system_sources();
-        sources.len() == 1 && sources[0].source_id() == self.source_id
+        self.admission_fingerprint == admission.binding_fingerprint
     }
 }
 
@@ -206,13 +207,16 @@ pub struct ProspectiveCaptureAdmissionV1 {
     required_roles: Vec<String>,
     capture_starts_at: Rfc3339Time,
     mechanics_config: MechanicsConfigV1,
+    binding_fingerprint: String,
 }
 
 impl ProspectiveCaptureAdmissionV1 {
     pub fn from_json(bytes: &[u8]) -> Result<Self, ProspectiveAdmissionError> {
         let raw: RawAdmission =
             serde_json::from_slice(bytes).map_err(|_| ProspectiveAdmissionError::Shape)?;
-        raw.validate()
+        let canonical = serde_json::to_vec(&raw).map_err(|_| ProspectiveAdmissionError::Shape)?;
+        let binding_fingerprint = format!("{:x}", Sha256::digest(canonical));
+        raw.validate(binding_fingerprint)
     }
 
     pub fn primary_venue(&self) -> &str {
@@ -255,7 +259,7 @@ impl ProspectiveCaptureAdmissionV1 {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RawAdmission {
     schema: String,
@@ -274,7 +278,10 @@ struct RawAdmission {
 }
 
 impl RawAdmission {
-    fn validate(self) -> Result<ProspectiveCaptureAdmissionV1, ProspectiveAdmissionError> {
+    fn validate(
+        self,
+        binding_fingerprint: String,
+    ) -> Result<ProspectiveCaptureAdmissionV1, ProspectiveAdmissionError> {
         if self.schema != SCHEMA
             || self.evidence_claim != "PROSPECTIVE_CAUSAL_CAPTURE"
             || self.source_qualification != "UNVERIFIED"
@@ -441,6 +448,7 @@ impl RawAdmission {
             required_roles: self.required_roles,
             capture_starts_at: starts_at,
             mechanics_config,
+            binding_fingerprint,
         })
     }
 
@@ -526,7 +534,7 @@ impl RawAdmission {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SourceBinding {
     source_id: String,
@@ -558,7 +566,7 @@ impl SourceBinding {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ClockBinding {
     source_id: String,
@@ -581,7 +589,7 @@ impl ClockBinding {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CoverageBinding {
     source_id: String,
@@ -605,7 +613,7 @@ impl CoverageBinding {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SystemBinding {
     source_id: String,
@@ -676,7 +684,7 @@ fn is_lower_hex(value: &str, len: usize) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct AuthorityBoundary {
     credentials_allowed: bool,

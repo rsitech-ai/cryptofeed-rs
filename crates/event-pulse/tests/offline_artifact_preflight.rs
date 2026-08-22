@@ -46,7 +46,7 @@ fn binding(source: &str, venue: &str, blob: char, roles: &[&str]) -> Value {
     })
 }
 
-fn admission() -> ProspectiveCaptureAdmissionV1 {
+fn admission_value() -> Value {
     let clock = |source: &str, subject: &str, blob: char| {
         json!({
             "source_id": source, "subject_source_id": subject,
@@ -65,7 +65,7 @@ fn admission() -> ProspectiveCaptureAdmissionV1 {
             "producer_blob_sha256": sha(blob, 64)
         })
     };
-    let value = json!({
+    json!({
         "schema": "event-pulse-e2-prospective-admission/1.0",
         "root_amendment_commit": "24b51a58c670ab722538bec4a3e1def0278b1107",
         "root_default_reachable_at": "2026-08-22T07:35:52Z",
@@ -96,8 +96,15 @@ fn admission() -> ProspectiveCaptureAdmissionV1 {
         "authority": {"credentials_allowed": false, "private_endpoints_allowed": false,
             "orders_allowed": false, "execution_authority": false, "paper_authority": false,
             "promotion_authority": false}
-    });
-    ProspectiveCaptureAdmissionV1::from_json(&serde_json::to_vec(&value).unwrap()).unwrap()
+    })
+}
+
+fn parse_admission(value: &Value) -> ProspectiveCaptureAdmissionV1 {
+    ProspectiveCaptureAdmissionV1::from_json(&serde_json::to_vec(value).unwrap()).unwrap()
+}
+
+fn admission() -> ProspectiveCaptureAdmissionV1 {
+    parse_admission(&admission_value())
 }
 
 fn time(ns: i64) -> Rfc3339Time {
@@ -814,5 +821,53 @@ fn v3_retains_start_future_and_order_guards() {
         Err(OfflineArtifactError::Replay(
             ReplayInputError::OrderViolation
         ))
+    );
+}
+
+#[test]
+fn v3_policy_is_bound_to_the_complete_checked_admission_before_epin_parsing() {
+    let admission_a = admission();
+    let policy_a = truthful_empty_policy(&admission_a);
+
+    let pretty_admission = ProspectiveCaptureAdmissionV1::from_json(
+        &serde_json::to_vec_pretty(&admission_value()).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &pretty_admission,
+            &policy_a,
+            time(capture_start_ns() + 20_000),
+            b"not canonical EPIN",
+        ),
+        Err(OfflineArtifactError::Replay(
+            ReplayInputError::MissingNewline
+        ))
+    );
+
+    let mut later_start = admission_value();
+    later_start["capture_starts_at"] = json!("2026-08-22T07:35:52.000002Z");
+    let admission_b = parse_admission(&later_start);
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission_b,
+            &policy_a,
+            time(capture_start_ns() + 20_000),
+            b"not canonical EPIN",
+        ),
+        Err(OfflineArtifactError::SystemPolicyMismatch)
+    );
+
+    let mut different_binding = admission_value();
+    different_binding["primary"]["producer_commit"] = json!(sha('b', 40));
+    let admission_b = parse_admission(&different_binding);
+    assert_eq!(
+        OfflineArtifactPreflightV3::build(
+            &admission_b,
+            &policy_a,
+            time(capture_start_ns() + 20_000),
+            b"not canonical EPIN",
+        ),
+        Err(OfflineArtifactError::SystemPolicyMismatch)
     );
 }
