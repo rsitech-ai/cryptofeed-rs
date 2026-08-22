@@ -16,6 +16,11 @@ fn binding(source_id: &str, venue: &str, format: &str, blob: char, roles: &[&str
             "market_type": "PERPETUAL"
         },
         "roles": roles,
+        "families": if venue == "HYPERLIQUID" {
+            json!(["TRADE"])
+        } else {
+            json!(["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"])
+        },
         "public_read_only": true,
         "repository_url": "https://github.com/rsitech-ai/cryptofeed-rs",
         "producer_commit": sha('a', 40),
@@ -44,31 +49,28 @@ fn valid_request() -> Value {
             "hyperliquid_confirmation", "HYPERLIQUID", "MFR1", 'c',
             &["CONFIRMATION"]
         ),
-        "clock": {
-            "source_id": "host_clock",
-            "subject_source_id": "binance_primary",
-            "evidence_kind": "UTC_MONOTONIC_OBSERVATION",
-            "derivation": "INDEPENDENT_SIDECAR",
-            "producer_commit": sha('d', 40),
-            "producer_path": "crates/event-pulse-capture/src/clock.rs",
-            "producer_blob_sha256": sha('e', 64)
-        },
-        "coverage": {
-            "source_id": "primary_coverage",
-            "subject_source_id": "binance_primary",
-            "evidence_kind": "EXPLICIT_HEARTBEAT_RANGE",
-            "derivation": "INDEPENDENT_SIDECAR",
-            "producer_commit": sha('f', 40),
-            "producer_path": "crates/event-pulse-capture/src/coverage.rs",
-            "producer_blob_sha256": sha('1', 64)
-        },
+        "clocks": [
+            clock("primary_clock", "binance_primary", 'e'),
+            clock("confirmation_clock", "hyperliquid_confirmation", 'f')
+        ],
+        "coverage": [
+            coverage("primary_trade_coverage", "binance_primary", "TRADE", '1'),
+            coverage("primary_quote_coverage", "binance_primary", "QUOTE", '2'),
+            coverage("primary_book_coverage", "binance_primary", "BOOK", '3'),
+            coverage("primary_oi_coverage", "binance_primary", "OPEN_INTEREST", '4'),
+            coverage("primary_liq_coverage", "binance_primary", "LIQUIDATION", '5'),
+            coverage("confirmation_trade_coverage", "hyperliquid_confirmation", "TRADE", '6')
+        ],
         "system": {
             "source_id": "capture_system",
+            "processor_id": "event_pulse_e2_prospective",
             "target": "PROCESSOR",
+            "fault_scope": "PROCESSOR",
+            "cursor_mode": "DERIVED",
             "evidence_kind": "STABLE_SYSTEM_FAULT_MAPPING",
-            "producer_commit": sha('2', 40),
+            "producer_commit": sha('7', 40),
             "producer_path": "crates/event-pulse-capture/src/system.rs",
-            "producer_blob_sha256": sha('3', 64)
+            "producer_blob_sha256": sha('a', 64)
         },
         "authority": {
             "credentials_allowed": false,
@@ -78,6 +80,31 @@ fn valid_request() -> Value {
             "paper_authority": false,
             "promotion_authority": false
         }
+    })
+}
+
+fn clock(source_id: &str, subject_source_id: &str, blob: char) -> Value {
+    json!({
+        "source_id": source_id,
+        "subject_source_id": subject_source_id,
+        "evidence_kind": "UTC_MONOTONIC_OBSERVATION",
+        "derivation": "INDEPENDENT_SIDECAR",
+        "producer_commit": sha('d', 40),
+        "producer_path": format!("crates/event-pulse-capture/src/{source_id}.rs"),
+        "producer_blob_sha256": sha(blob, 64)
+    })
+}
+
+fn coverage(source_id: &str, subject_source_id: &str, family: &str, blob: char) -> Value {
+    json!({
+        "source_id": source_id,
+        "subject_source_id": subject_source_id,
+        "family": family,
+        "evidence_kind": "EXPLICIT_HEARTBEAT_RANGE",
+        "derivation": "INDEPENDENT_SIDECAR",
+        "producer_commit": sha('8', 40),
+        "producer_path": format!("crates/event-pulse-capture/src/{source_id}.rs"),
+        "producer_blob_sha256": sha(blob, 64)
     })
 }
 
@@ -148,12 +175,12 @@ fn rejects_false_market_and_confirmation_shortcuts() {
 fn rejects_inferred_clock_coverage_or_missing_system_mapping() {
     for (pointer, replacement, expected) in [
         (
-            "/clock/derivation",
+            "/clocks/0/derivation",
             json!("MARKET_TIMESTAMPS"),
             ProspectiveAdmissionError::ClockEvidence,
         ),
         (
-            "/coverage/derivation",
+            "/coverage/0/derivation",
             json!("NO_GAP_OBSERVED"),
             ProspectiveAdmissionError::CoverageEvidence,
         ),
@@ -179,7 +206,7 @@ fn rejects_mutable_or_unbound_sources_and_authority_escalation() {
     );
 
     let mut blank_hash = valid_request();
-    blank_hash["coverage"]["producer_blob_sha256"] = json!("");
+    blank_hash["coverage"][0]["producer_blob_sha256"] = json!("");
     assert_eq!(
         parse(&blank_hash),
         Err(ProspectiveAdmissionError::SourceBinding)
@@ -212,19 +239,31 @@ fn rejects_instrument_role_and_source_independence_drift() {
     roles["primary"]["roles"] = json!(["TRADE", "QUOTE", "BOOK"]);
     assert_eq!(parse(&roles), Err(ProspectiveAdmissionError::PrimarySource));
 
-    for pointer in [
-        "/confirmation/source_id",
-        "/clock/source_id",
-        "/coverage/source_id",
-        "/system/source_id",
+    for (pointer, expected) in [
+        (
+            "/confirmation/source_id",
+            ProspectiveAdmissionError::ClockEvidence,
+        ),
+        (
+            "/clocks/0/source_id",
+            ProspectiveAdmissionError::SourceBinding,
+        ),
+        (
+            "/coverage/0/source_id",
+            ProspectiveAdmissionError::SourceBinding,
+        ),
+        (
+            "/system/source_id",
+            ProspectiveAdmissionError::SourceBinding,
+        ),
     ] {
         let mut value = valid_request();
         *value.pointer_mut(pointer).unwrap() = json!("binance_primary");
-        assert_eq!(parse(&value), Err(ProspectiveAdmissionError::SourceBinding));
+        assert_eq!(parse(&value), Err(expected));
     }
 
     let mut shared_blob = valid_request();
-    shared_blob["clock"]["producer_blob_sha256"] =
+    shared_blob["clocks"][0]["producer_blob_sha256"] =
         shared_blob["primary"]["producer_blob_sha256"].clone();
     assert_eq!(
         parse(&shared_blob),
@@ -237,6 +276,43 @@ fn rejects_instrument_role_and_source_independence_drift() {
         parse(&escaped_path),
         Err(ProspectiveAdmissionError::SourceBinding)
     );
+}
+
+#[test]
+fn requires_replayable_clock_coverage_and_system_topology() {
+    let mut missing_clock = valid_request();
+    missing_clock["clocks"].as_array_mut().unwrap().pop();
+    assert_eq!(
+        parse(&missing_clock),
+        Err(ProspectiveAdmissionError::ClockEvidence)
+    );
+
+    let mut missing_coverage = valid_request();
+    missing_coverage["coverage"].as_array_mut().unwrap().pop();
+    assert_eq!(
+        parse(&missing_coverage),
+        Err(ProspectiveAdmissionError::CoverageEvidence)
+    );
+
+    let mut wrong_family = valid_request();
+    wrong_family["coverage"][5]["family"] = json!("QUOTE");
+    assert_eq!(
+        parse(&wrong_family),
+        Err(ProspectiveAdmissionError::CoverageEvidence)
+    );
+
+    for (field, value) in [
+        ("processor_id", json!("another_processor")),
+        ("fault_scope", json!("CONTRIBUTOR")),
+        ("cursor_mode", json!("NATIVE")),
+    ] {
+        let mut system = valid_request();
+        system["system"][field] = value;
+        assert_eq!(
+            parse(&system),
+            Err(ProspectiveAdmissionError::SystemEvidence)
+        );
+    }
 }
 
 #[test]
@@ -254,7 +330,7 @@ fn rejects_schema_role_root_and_unknown_field_drift() {
     assert_eq!(parse(&unknown), Err(ProspectiveAdmissionError::Shape));
 
     let mut nested_unknown = valid_request();
-    nested_unknown["clock"]["market_timestamp_fallback"] = json!(false);
+    nested_unknown["clocks"][0]["market_timestamp_fallback"] = json!(false);
     assert_eq!(
         parse(&nested_unknown),
         Err(ProspectiveAdmissionError::Shape)

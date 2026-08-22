@@ -103,8 +103,8 @@ struct RawAdmission {
     required_roles: Vec<String>,
     primary: SourceBinding,
     confirmation: SourceBinding,
-    clock: ClockBinding,
-    coverage: CoverageBinding,
+    clocks: Vec<ClockBinding>,
+    coverage: Vec<CoverageBinding>,
     system: SystemBinding,
     authority: AuthorityBoundary,
 }
@@ -144,6 +144,7 @@ impl RawAdmission {
             || self.primary.format != "MFR1"
             || !self.primary.public_read_only
             || self.primary.roles != ["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"]
+            || self.primary.families != ["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"]
         {
             return Err(ProspectiveAdmissionError::PrimarySource);
         }
@@ -152,56 +153,113 @@ impl RawAdmission {
             || self.confirmation.format != "MFR1"
             || !self.confirmation.public_read_only
             || self.confirmation.roles != ["CONFIRMATION"]
+            || self.confirmation.families != ["TRADE"]
             || self.confirmation.instrument != self.primary.instrument
         {
             return Err(ProspectiveAdmissionError::ConfirmationSource);
         }
-        if self.clock.evidence_kind != "UTC_MONOTONIC_OBSERVATION"
-            || self.clock.derivation != "INDEPENDENT_SIDECAR"
-            || self.clock.subject_source_id != self.primary.source_id
+        let expected_clock_subjects = BTreeSet::from([
+            self.primary.source_id.as_str(),
+            self.confirmation.source_id.as_str(),
+        ]);
+        let actual_clock_subjects = self
+            .clocks
+            .iter()
+            .map(|clock| clock.subject_source_id.as_str())
+            .collect::<BTreeSet<_>>();
+        if self.clocks.len() != expected_clock_subjects.len()
+            || actual_clock_subjects != expected_clock_subjects
+            || self.clocks.iter().any(|clock| {
+                clock.evidence_kind != "UTC_MONOTONIC_OBSERVATION"
+                    || clock.derivation != "INDEPENDENT_SIDECAR"
+            })
         {
             return Err(ProspectiveAdmissionError::ClockEvidence);
         }
-        if self.coverage.evidence_kind != "EXPLICIT_HEARTBEAT_RANGE"
-            || self.coverage.derivation != "INDEPENDENT_SIDECAR"
-            || self.coverage.subject_source_id != self.primary.source_id
+        let expected_coverage = self
+            .primary
+            .families
+            .iter()
+            .map(|family| (self.primary.source_id.as_str(), family.as_str()))
+            .chain(
+                self.confirmation
+                    .families
+                    .iter()
+                    .map(|family| (self.confirmation.source_id.as_str(), family.as_str())),
+            )
+            .collect::<BTreeSet<_>>();
+        let actual_coverage = self
+            .coverage
+            .iter()
+            .map(|coverage| {
+                (
+                    coverage.subject_source_id.as_str(),
+                    coverage.family.as_str(),
+                )
+            })
+            .collect::<BTreeSet<_>>();
+        if self.coverage.len() != expected_coverage.len()
+            || actual_coverage != expected_coverage
+            || self.coverage.iter().any(|coverage| {
+                coverage.evidence_kind != "EXPLICIT_HEARTBEAT_RANGE"
+                    || coverage.derivation != "INDEPENDENT_SIDECAR"
+            })
         {
             return Err(ProspectiveAdmissionError::CoverageEvidence);
         }
         if self.system.evidence_kind != "STABLE_SYSTEM_FAULT_MAPPING"
+            || self.system.processor_id != "event_pulse_e2_prospective"
             || self.system.target != "PROCESSOR"
+            || self.system.fault_scope != "PROCESSOR"
+            || self.system.cursor_mode != "DERIVED"
         {
             return Err(ProspectiveAdmissionError::SystemEvidence);
         }
         self.primary.validate()?;
         self.confirmation.validate()?;
-        self.clock.validate()?;
-        self.coverage.validate()?;
+        for clock in &self.clocks {
+            clock.validate()?;
+        }
+        for coverage in &self.coverage {
+            coverage.validate()?;
+        }
         self.system.validate()?;
-        let source_ids = [
+        let mut source_ids = vec![
             self.primary.source_id.as_str(),
             self.confirmation.source_id.as_str(),
-            self.clock.source_id.as_str(),
-            self.coverage.source_id.as_str(),
             self.system.source_id.as_str(),
         ];
-        let paths = [
+        source_ids.extend(self.clocks.iter().map(|value| value.source_id.as_str()));
+        source_ids.extend(self.coverage.iter().map(|value| value.source_id.as_str()));
+        let mut paths = vec![
             self.primary.producer_path.as_str(),
             self.confirmation.producer_path.as_str(),
-            self.clock.producer_path.as_str(),
-            self.coverage.producer_path.as_str(),
             self.system.producer_path.as_str(),
         ];
-        let blobs = [
+        paths.extend(self.clocks.iter().map(|value| value.producer_path.as_str()));
+        paths.extend(
+            self.coverage
+                .iter()
+                .map(|value| value.producer_path.as_str()),
+        );
+        let mut blobs = vec![
             self.primary.producer_blob_sha256.as_str(),
             self.confirmation.producer_blob_sha256.as_str(),
-            self.clock.producer_blob_sha256.as_str(),
-            self.coverage.producer_blob_sha256.as_str(),
             self.system.producer_blob_sha256.as_str(),
         ];
-        if BTreeSet::from(source_ids).len() != source_ids.len()
-            || BTreeSet::from(paths).len() != paths.len()
-            || BTreeSet::from(blobs).len() != blobs.len()
+        blobs.extend(
+            self.clocks
+                .iter()
+                .map(|value| value.producer_blob_sha256.as_str()),
+        );
+        blobs.extend(
+            self.coverage
+                .iter()
+                .map(|value| value.producer_blob_sha256.as_str()),
+        );
+        if source_ids.iter().copied().collect::<BTreeSet<_>>().len() != source_ids.len()
+            || paths.iter().copied().collect::<BTreeSet<_>>().len() != paths.len()
+            || blobs.iter().copied().collect::<BTreeSet<_>>().len() != blobs.len()
         {
             return Err(ProspectiveAdmissionError::SourceBinding);
         }
@@ -223,6 +281,7 @@ struct SourceBinding {
     format: String,
     instrument: CaptureInstrument,
     roles: Vec<String>,
+    families: Vec<String>,
     public_read_only: bool,
     repository_url: String,
     producer_commit: String,
@@ -296,6 +355,7 @@ impl ClockBinding {
 struct CoverageBinding {
     source_id: String,
     subject_source_id: String,
+    family: String,
     evidence_kind: String,
     derivation: String,
     producer_commit: String,
@@ -318,7 +378,10 @@ impl CoverageBinding {
 #[serde(deny_unknown_fields)]
 struct SystemBinding {
     source_id: String,
+    processor_id: String,
     target: String,
+    fault_scope: String,
+    cursor_mode: String,
     evidence_kind: String,
     producer_commit: String,
     producer_path: String,

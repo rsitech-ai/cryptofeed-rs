@@ -186,10 +186,10 @@ record transient market bytes or endpoint logs in durable memory.
   `blocked:fixture-provenance`. No fixture writer, network client, adapter,
   daemon, capture, package, or execution path was added.
 - Validation: focused RED failed on the missing API; reviewer counterexamples
-  then failed on unbound topology and noncanonical timestamps; GREEN passed 7
-  prospective tests. Full current and Rust 1.85 EventPulse suites each passed
-  151 tests
-  (6 library + 12 contract + 19 cursor + 6 feature + 6 window + 7 prospective
+  then failed on unbound topology, noncanonical timestamps, and a non-replayable
+  clock/coverage/system layout; GREEN passed 8 prospective tests. Full current
+  and Rust 1.85 EventPulse successor suites each passed 152 tests
+  (6 library + 12 contract + 19 cursor + 6 feature + 6 window + 8 prospective
   + 18 replay + 54 snapshot + 23 wire). Clippy and formatting passed.
 - Tradeoff: this slice deliberately stops before the dedicated capture crate,
   Hyperliquid adapter, clock/coverage producers, and MFR1 transformer. Those
