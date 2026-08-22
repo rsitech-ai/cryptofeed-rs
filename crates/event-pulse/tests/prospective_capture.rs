@@ -136,6 +136,10 @@ fn admits_only_the_exact_truthful_nine_role_source_topology() {
         admission.confirmation_source_id(),
         "hyperliquid_confirmation"
     );
+    assert_eq!(
+        admission.capture_starts_at().canonical(),
+        "2026-08-22T07:35:52.000001Z"
+    );
 }
 
 #[test]

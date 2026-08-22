@@ -103,7 +103,16 @@ fn time(ns: i64) -> Rfc3339Time {
     Rfc3339Time::from_unix_nanos(ns).unwrap()
 }
 
+fn capture_start() -> Rfc3339Time {
+    Rfc3339Time::parse("2026-08-22T07:35:52.000001Z").unwrap()
+}
+
+fn capture_start_ns() -> i64 {
+    capture_start().utc_micros().checked_mul(1_000).unwrap()
+}
+
 fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsInputV1> {
+    let start_ns = capture_start_ns();
     let config = admission.mechanics_config();
     let primary = config
         .contributors()
@@ -174,7 +183,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             1,
             1,
-            1_000,
+            start_ns,
             MarketEvent::Trade(Trade {
                 price: price(100),
                 quantity: quantity(2),
@@ -188,7 +197,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             1,
             2,
-            2_000,
+            start_ns + 1_000,
             MarketEvent::Quote(Quote {
                 bid_price: price(99),
                 bid_quantity: Some(quantity(1)),
@@ -202,7 +211,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             1,
             3,
-            3_000,
+            start_ns + 2_000,
             MarketEvent::BookSnapshot(BookSnapshot {
                 bids: vec![BookLevel {
                     price: price(99),
@@ -222,7 +231,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             1,
             4,
-            4_000,
+            start_ns + 3_000,
             MarketEvent::OpenInterest(OpenInterest {
                 quantity: quantity(10),
             }),
@@ -233,7 +242,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             1,
             5,
-            5_000,
+            start_ns + 4_000,
             MarketEvent::Liquidation(Liquidation {
                 price: price(98),
                 quantity: quantity(1),
@@ -246,7 +255,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             2,
             2,
             1,
-            6_000,
+            start_ns + 5_000,
             MarketEvent::Trade(Trade {
                 price: price(100),
                 quantity: quantity(1),
@@ -266,7 +275,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             0,
         )
         .unwrap();
-        let ns = 7_000 + i64::try_from(index).unwrap() * 1_000;
+        let ns = start_ns + 6_000 + i64::try_from(index).unwrap() * 1_000;
         inputs.push(
             MechanicsInputV1::clock(
                 contributor,
@@ -294,7 +303,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             0,
         )
         .unwrap();
-        let ns = 10_000 + i64::try_from(index).unwrap() * 1_000;
+        let ns = start_ns + 9_000 + i64::try_from(index).unwrap() * 1_000;
         inputs.push(
             MechanicsInputV1::coverage(
                 contributor,
@@ -313,8 +322,8 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
         MechanicsInputV1::system(
             SystemSourceV1::new(system_key, "epoch_system", 0).unwrap(),
             FaultScopeV1::processor(config.processor_id()).unwrap(),
-            time(20_000),
-            time(20_000),
+            time(start_ns + 20_000),
+            time(start_ns + 20_000),
             CursorV1::derived_drop(1, 0).unwrap(),
             SystemFaultV1::events_dropped(1, DropCategoryV1::ActionBuffer).unwrap(),
             None,
@@ -332,11 +341,104 @@ fn epin(inputs: &[MechanicsInputV1]) -> Vec<u8> {
     writer.finish()
 }
 
+fn at_available_time(input: MechanicsInputV1, ns: i64) -> MechanicsInputV1 {
+    match input.view() {
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Market {
+            envelope,
+            action_index,
+            catalog,
+            ..
+        } => {
+            let mut envelope = envelope.clone();
+            envelope.exchange_ts = Some(TimestampNs(ns));
+            envelope.receive_ts = TimestampNs(ns);
+            MechanicsInputV1::market(envelope, action_index, catalog.clone()).unwrap()
+        }
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock {
+            contributor,
+            clock_source,
+            clock_cursor,
+            clock_state,
+            observed_skew_ms,
+            freshness_limit_ms,
+            quality_state,
+            reason_code,
+            ..
+        } => MechanicsInputV1::clock(
+            contributor.clone(),
+            clock_source.clone(),
+            time(ns),
+            time(ns),
+            clock_cursor.clone(),
+            clock_state,
+            observed_skew_ms.clone(),
+            freshness_limit_ms,
+            quality_state,
+            reason_code,
+        )
+        .unwrap(),
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage {
+            contributor,
+            coverage_source,
+            family,
+            covered_from,
+            coverage_cursor,
+            ..
+        } => MechanicsInputV1::coverage(
+            contributor.clone(),
+            coverage_source.clone(),
+            family,
+            covered_from.clone(),
+            time(ns),
+            time(ns),
+            coverage_cursor.clone(),
+        )
+        .unwrap(),
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::System {
+            system_source,
+            scope,
+            system_cursor,
+            fault,
+            predecessor_system_chain_hash,
+            ..
+        } => MechanicsInputV1::system(
+            system_source.clone(),
+            scope.clone(),
+            time(ns),
+            time(ns),
+            system_cursor.clone(),
+            fault.clone(),
+            predecessor_system_chain_hash.map(str::to_owned),
+        )
+        .unwrap(),
+    }
+}
+
+fn move_input_to_front_at(
+    mut inputs: Vec<MechanicsInputV1>,
+    index: usize,
+    ns: i64,
+) -> Vec<MechanicsInputV1> {
+    let input = at_available_time(inputs.remove(index), ns);
+    inputs.insert(0, input);
+    inputs
+}
+
+fn move_input_after_first_at(
+    mut inputs: Vec<MechanicsInputV1>,
+    index: usize,
+    ns: i64,
+) -> Vec<MechanicsInputV1> {
+    let input = at_available_time(inputs.remove(index), ns);
+    inputs.insert(1, input);
+    inputs
+}
+
 #[test]
 fn complete_canonical_epin_partitions_into_exactly_nine_deterministic_artifacts() {
     let admission = admission();
     let bytes = epin(&complete_inputs(&admission));
-    let decision_time = time(20_000);
+    let decision_time = time(capture_start_ns() + 20_000);
     let first =
         OfflineArtifactPreflightV1::build(&admission, decision_time.clone(), &bytes).unwrap();
     let second = OfflineArtifactPreflightV1::build(&admission, decision_time, &bytes).unwrap();
@@ -402,7 +504,11 @@ fn missing_role_future_and_noncanonical_inputs_fail_closed() {
     let mut inputs = complete_inputs(&admission);
     inputs.remove(4);
     assert_eq!(
-        OfflineArtifactPreflightV1::build(&admission, time(20_000), &epin(&inputs)),
+        OfflineArtifactPreflightV1::build(
+            &admission,
+            time(capture_start_ns() + 20_000),
+            &epin(&inputs),
+        ),
         Err(OfflineArtifactError::MissingRole(
             ArtifactRoleV1::Liquidation
         ))
@@ -410,14 +516,14 @@ fn missing_role_future_and_noncanonical_inputs_fail_closed() {
 
     let complete = epin(&complete_inputs(&admission));
     assert_eq!(
-        OfflineArtifactPreflightV1::build(&admission, time(19_000), &complete),
+        OfflineArtifactPreflightV1::build(&admission, time(capture_start_ns() + 19_000), &complete,),
         Err(OfflineArtifactError::Replay(ReplayInputError::FutureInput))
     );
     let first_line = complete.split(|byte| *byte == b'\n').next().unwrap();
     let pretty =
         serde_json::to_vec_pretty(&serde_json::from_slice::<Value>(first_line).unwrap()).unwrap();
     assert!(matches!(
-        OfflineArtifactPreflightV1::build(&admission, time(20_000), &pretty),
+        OfflineArtifactPreflightV1::build(&admission, time(capture_start_ns() + 20_000), &pretty,),
         Err(OfflineArtifactError::Replay(
             ReplayInputError::MissingNewline
         )) | Err(OfflineArtifactError::Replay(
@@ -446,8 +552,8 @@ fn topology_mismatch_is_rejected_before_any_result_is_returned() {
             0,
         )
         .unwrap(),
-        time(19_000),
-        time(19_000),
+        time(capture_start_ns() + 19_000),
+        time(capture_start_ns() + 19_000),
         ClockCursorV1::native(1, 1).unwrap(),
         ClockStateV1::Synchronized,
         CanonicalDecimal::parse("0", 18, 8).unwrap(),
@@ -458,7 +564,11 @@ fn topology_mismatch_is_rejected_before_any_result_is_returned() {
     .unwrap();
     inputs.insert(inputs.len() - 1, bad_clock);
     assert!(matches!(
-        OfflineArtifactPreflightV1::build(&admission, time(20_000), &epin(&inputs)),
+        OfflineArtifactPreflightV1::build(
+            &admission,
+            time(capture_start_ns() + 20_000),
+            &epin(&inputs),
+        ),
         Err(OfflineArtifactError::Topology(_))
     ));
 }
@@ -469,7 +579,56 @@ fn every_configured_source_must_be_represented_even_when_its_role_is_nonempty() 
     let mut inputs = complete_inputs(&admission);
     inputs.remove(6);
     assert_eq!(
-        OfflineArtifactPreflightV1::build(&admission, time(20_000), &epin(&inputs)),
+        OfflineArtifactPreflightV1::build(
+            &admission,
+            time(capture_start_ns() + 20_000),
+            &epin(&inputs),
+        ),
+        Err(OfflineArtifactError::IncompleteTopology)
+    );
+}
+
+#[test]
+fn decision_and_every_input_class_are_bounded_by_the_admitted_capture_start() {
+    let admission = admission();
+    let start_ns = capture_start_ns();
+    let complete = complete_inputs(&admission);
+    assert_eq!(
+        OfflineArtifactPreflightV1::build(&admission, time(start_ns - 1_000), &epin(&complete),),
+        Err(OfflineArtifactError::DecisionBeforeCaptureStart)
+    );
+
+    for (index, role) in [
+        (0, ArtifactRoleV1::Trade),
+        (6, ArtifactRoleV1::Clock),
+        (8, ArtifactRoleV1::Coverage),
+        (14, ArtifactRoleV1::System),
+    ] {
+        let before = move_input_to_front_at(complete.clone(), index, start_ns - 1_000);
+        assert_eq!(
+            OfflineArtifactPreflightV1::build(&admission, time(start_ns + 20_000), &epin(&before)),
+            Err(OfflineArtifactError::InputBeforeCaptureStart(role))
+        );
+    }
+}
+
+#[test]
+fn exact_capture_start_and_post_start_records_are_admitted_for_every_input_class() {
+    let admission = admission();
+    let start_ns = capture_start_ns();
+    let complete = complete_inputs(&admission);
+
+    OfflineArtifactPreflightV1::build(&admission, time(start_ns + 20_000), &epin(&complete))
+        .unwrap();
+    for index in [6, 8] {
+        let exact = move_input_after_first_at(complete.clone(), index, start_ns);
+        OfflineArtifactPreflightV1::build(&admission, time(start_ns + 20_000), &epin(&exact))
+            .unwrap_or_else(|error| panic!("exact-start input index {index}: {error:?}"));
+    }
+
+    let exact_system = at_available_time(complete[14].clone(), start_ns);
+    assert_eq!(
+        OfflineArtifactPreflightV1::build(&admission, time(start_ns), &epin(&[exact_system]),),
         Err(OfflineArtifactError::IncompleteTopology)
     );
 }

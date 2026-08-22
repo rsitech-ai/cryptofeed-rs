@@ -115,6 +115,11 @@ stable command or contract limitation.
 - Successful output requires every configured contributor, clock, coverage,
   and system source and every role to be represented. Reports use checked
   count/length conversion and SHA-256 over the exact returned bytes.
+- Review repair: the checked admission now retains its canonical
+  `capture_starts_at`. The decision bound and every market, clock, coverage,
+  and system availability must be at or after that instant. The complete input
+  is temporally preflighted before the local state machine is created, so a
+  late pre-start record cannot mutate even transactional candidate state.
 - RED: the focused integration test failed to compile because the preflight
   types and immutable admission topology accessors did not exist.
 - GREEN: focused tests, the full EventPulse crate, the full crate under Rust

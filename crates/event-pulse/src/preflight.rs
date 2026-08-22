@@ -112,14 +112,25 @@ impl OfflineArtifactPreflightV1 {
         decision_time: Rfc3339Time,
         complete_epin_json1: &[u8],
     ) -> Result<Self, OfflineArtifactError> {
+        if decision_time < *admission.capture_starts_at() {
+            return Err(OfflineArtifactError::DecisionBeforeCaptureStart);
+        }
         let inputs = EpinJson1Reader::new(complete_epin_json1, decision_time).read_all()?;
-        let mut state = SourceStateMachine::new(admission.mechanics_config().clone());
-        let mut partitions: [Vec<MechanicsInputV1>; 9] = std::array::from_fn(|_| Vec::new());
+        let mut classified = Vec::with_capacity(inputs.len());
+        for input in &inputs {
+            let (role, source_id) = classify(admission, input)?;
+            if available_at(input)? < *admission.capture_starts_at() {
+                return Err(OfflineArtifactError::InputBeforeCaptureStart(role));
+            }
+            classified.push((role, source_id));
+        }
+
         let expected_sources = admitted_sources(admission);
         let mut seen_sources = BTreeSet::new();
+        let mut state = SourceStateMachine::new(admission.mechanics_config().clone());
+        let mut partitions: [Vec<MechanicsInputV1>; 9] = std::array::from_fn(|_| Vec::new());
 
-        for input in inputs {
-            let (role, source_id) = classify(admission, &input)?;
+        for (input, (role, source_id)) in inputs.into_iter().zip(classified) {
             state
                 .ingest(&input)
                 .map_err(OfflineArtifactError::Topology)?;
@@ -164,6 +175,10 @@ pub enum OfflineArtifactError {
     UnsupportedMarketRole,
     #[error("EPIN input omits one or more configured topology sources")]
     IncompleteTopology,
+    #[error("decision time precedes the admitted prospective capture start")]
+    DecisionBeforeCaptureStart,
+    #[error("{0:?} input availability precedes the admitted prospective capture start")]
+    InputBeforeCaptureStart(ArtifactRoleV1),
     #[error("artifact role is empty: {0:?}")]
     MissingRole(ArtifactRoleV1),
     #[error("artifact report arithmetic overflowed")]

@@ -62,6 +62,7 @@ pub struct ProspectiveCaptureAdmissionV1 {
     primary: SourceBinding,
     confirmation: SourceBinding,
     required_roles: Vec<String>,
+    capture_starts_at: Rfc3339Time,
     mechanics_config: MechanicsConfigV1,
 }
 
@@ -94,6 +95,10 @@ impl ProspectiveCaptureAdmissionV1 {
 
     pub fn mechanics_config(&self) -> &MechanicsConfigV1 {
         &self.mechanics_config
+    }
+
+    pub fn capture_starts_at(&self) -> &Rfc3339Time {
+        &self.capture_starts_at
     }
 
     /// A checked topology is only a prerequisite. Evidence authorship remains
@@ -292,6 +297,7 @@ impl RawAdmission {
             primary: self.primary,
             confirmation: self.confirmation,
             required_roles: self.required_roles,
+            capture_starts_at: starts_at,
             mechanics_config,
         })
     }
