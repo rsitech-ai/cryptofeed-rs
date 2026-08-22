@@ -6,6 +6,27 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
+#[test]
+fn time_advisory_exception_stays_rfc3339_only_in_event_pulse_source() {
+    let source_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut pending = vec![source_root];
+    while let Some(path) = pending.pop() {
+        for entry in std::fs::read_dir(path).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                let source = std::fs::read_to_string(&path).unwrap();
+                assert!(
+                    !source.contains("Rfc2822"),
+                    "cargo-deny RUSTSEC-2026-0009 exception forbids Rfc2822 in {}",
+                    path.display()
+                );
+            }
+        }
+    }
+}
+
 fn golden(index: usize) -> Value {
     let suite: Value = serde_json::from_slice(include_bytes!(
         "../contracts/event-pulse/event_pulse_v1_golden.json"
