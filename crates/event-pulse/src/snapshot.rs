@@ -1087,6 +1087,21 @@ impl FaultIntervals {
                 .ok_or(SnapshotError::Capacity)
         })
     }
+
+    fn recovery_reserve_count(&self) -> Result<usize, SnapshotError> {
+        self.slots.keys().try_fold(0usize, |count, key| {
+            count
+                .checked_add(recovery_reserve_for_key(key))
+                .ok_or(SnapshotError::Capacity)
+        })
+    }
+}
+
+fn recovery_reserve_for_key(key: &CauseKey) -> usize {
+    match key {
+        CauseKey::Contributor(_) => 2,
+        CauseKey::Clock(_) | CauseKey::Coverage(_) | CauseKey::System(_) => 1,
+    }
 }
 
 impl<T> ProcessorLog<T> {
@@ -1198,7 +1213,7 @@ impl MechanicsProcessor {
         let master_queue_drops = cause_keys.into_iter().map(|key| (key, None)).collect();
         let feature_runtime = FeatureRuntime::new(&config)?;
         let fault_intervals = FaultIntervals::new(&config);
-        if fault_intervals.slots.len() > PROCESSOR_RECORD_CAPACITY {
+        if fault_intervals.recovery_reserve_count()? > PROCESSOR_RECORD_CAPACITY {
             return Err(SnapshotError::Capacity);
         }
         Ok(Self {
@@ -1235,10 +1250,17 @@ impl MechanicsProcessor {
         self.combined_record_count()
     }
 
-    /// Maximum number of ordinary evidence/fault records after reserving one
-    /// recovery record for every configured fault key.
+    /// Maximum number of ordinary evidence/fault records after reserving two
+    /// recovery records per market contributor and one per other fault key.
     pub fn ordinary_record_capacity(&self) -> usize {
-        PROCESSOR_RECORD_CAPACITY - self.fault_intervals.slots.len()
+        PROCESSOR_RECORD_CAPACITY - self.recovery_record_reserve()
+    }
+
+    /// Counted recovery capacity reserved by the immutable configured topology.
+    pub fn recovery_record_reserve(&self) -> usize {
+        self.fault_intervals
+            .recovery_reserve_count()
+            .expect("configured recovery reserve was validated at construction")
     }
 
     fn combined_record_count(&self) -> Result<usize, SnapshotError> {
@@ -1262,10 +1284,14 @@ impl MechanicsProcessor {
     fn ordinary_record_usage(&self) -> Result<usize, SnapshotError> {
         self.fault_intervals
             .slots
-            .values()
-            .try_fold(self.records.len(), |count, slot| {
+            .iter()
+            .try_fold(self.records.len(), |count, (key, slot)| {
                 count
-                    .checked_add(slot.recoveries.len().saturating_sub(1))
+                    .checked_add(
+                        slot.recoveries
+                            .len()
+                            .saturating_sub(recovery_reserve_for_key(key)),
+                    )
                     .ok_or(SnapshotError::Capacity)
             })
     }
@@ -1290,7 +1316,9 @@ impl MechanicsProcessor {
                 .get(key)
                 .ok_or_else(|| SnapshotError::InvalidInput("unconfigured fault slot".into()))?;
             count
-                .checked_add(usize::from(!slot.recoveries.is_empty()))
+                .checked_add(usize::from(
+                    slot.recoveries.len() >= recovery_reserve_for_key(key),
+                ))
                 .ok_or(SnapshotError::Capacity)
         })?;
         self.ensure_ordinary_capacity(ordinary_additional)
