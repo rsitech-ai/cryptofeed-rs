@@ -1,6 +1,7 @@
 use marketfeed_event_pulse::{
     ContractError, EXPECTED_ROOT_COMMIT, EventPulseErrorCode, ProvenanceError, embedded_provenance,
-    verify_artifact_bytes, verify_embedded_contracts, verify_manifest,
+    verify_artifact_bytes, verify_embedded_contracts, verify_embedded_risk_decision_contracts,
+    verify_manifest, verify_risk_decision_artifact_bytes,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -80,6 +81,62 @@ fn q1_and_e1_published_vectors_are_wire_compatible() {
                 vector["content_hash"].as_str().unwrap()
             );
         }
+    }
+}
+
+#[test]
+fn standalone_risk_decision_published_vector_is_wire_compatible() {
+    let bundle = marketfeed_event_pulse::ContractBundle::load_embedded().expect("pinned bundle");
+    let suite: Value = serde_json::from_slice(include_bytes!(
+        "../contracts/quant-harness/risk_decision_v1_golden.json"
+    ))
+    .expect("published RiskDecision vectors");
+    let vectors = suite["vectors"].as_array().expect("vectors");
+    assert_eq!(vectors.len(), 1);
+    for vector in vectors {
+        let payload = serde_json::to_vec(&vector["payload"]).expect("payload");
+        let accepted = bundle
+            .validate_q1_json(&payload)
+            .unwrap_or_else(|error| panic!("{}: {error}", vector["name"]));
+        assert_eq!(
+            accepted.canonical_json(),
+            vector["canonical_json"].as_str().unwrap()
+        );
+        assert_eq!(
+            accepted.content_hash(),
+            vector["content_hash"].as_str().unwrap()
+        );
+    }
+}
+
+#[test]
+fn standalone_risk_decision_published_rejections_fail_closed() {
+    let bundle = marketfeed_event_pulse::ContractBundle::load_embedded().expect("pinned bundle");
+    let suite: Value = serde_json::from_slice(include_bytes!(
+        "../contracts/quant-harness/risk_decision_v1_rejections.json"
+    ))
+    .expect("published RiskDecision rejection vectors");
+    let vectors = suite["vectors"].as_array().expect("vectors");
+    assert_eq!(vectors.len(), 9);
+    for vector in vectors {
+        let payload = serde_json::to_vec(&vector["payload"]).expect("payload");
+        let expected = match vector["name"].as_str().unwrap() {
+            "invalid_issuer" | "invalid_proposal_hash" | "invalid_contract_id" => {
+                "invalid risk identity"
+            }
+            "empty_reason_codes" | "duplicate_reason_codes" => "invalid risk reason codes",
+            "invalid_lineage_id" => "invalid Q1 identity",
+            "invalid_evidence_hash" => "invalid hash",
+            "duplicate_evidence_hashes" => "duplicate hash",
+            "timezone_naive" => "invalid RFC3339 timestamp",
+            name => panic!("unexpected published RiskDecision rejection {name}"),
+        };
+        assert_eq!(
+            bundle.validate_q1_json(&payload),
+            Err(ContractError::Semantic(expected)),
+            "{}",
+            vector["name"]
+        );
     }
 }
 
@@ -176,6 +233,44 @@ fn provenance_accepts_exact_embedded_artifacts() {
 }
 
 #[test]
+fn standalone_risk_decision_artifacts_are_lock_bound_outside_e2_provenance() {
+    let historical = verify_embedded_contracts().expect("historical contract provenance");
+    assert_eq!(historical.len(), 8);
+
+    let standalone = verify_embedded_risk_decision_contracts()
+        .expect("standalone RiskDecision artifacts must verify");
+    assert_eq!(standalone.len(), 3);
+    assert!(standalone.iter().all(|artifact| !artifact.bytes.is_empty()));
+    assert_eq!(
+        standalone
+            .iter()
+            .map(|artifact| artifact.embedded_path.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "contracts/quant-harness/risk_decision_v1.schema.json",
+            "contracts/quant-harness/risk_decision_v1_golden.json",
+            "contracts/quant-harness/risk_decision_v1_rejections.json",
+        ]
+    );
+
+    let path = "contracts/quant-harness/risk_decision_v1_golden.json";
+    let exact = include_bytes!("../contracts/quant-harness/risk_decision_v1_golden.json");
+    verify_risk_decision_artifact_bytes(path, exact).expect("exact golden bytes");
+    let mut drifted = exact.to_vec();
+    drifted[0] ^= 1;
+    assert_eq!(
+        verify_risk_decision_artifact_bytes(path, &drifted),
+        Err(ProvenanceError::ArtifactDrift { path: path.into() })
+    );
+    assert_eq!(
+        verify_risk_decision_artifact_bytes("contracts/quant-harness/not-declared.json", exact),
+        Err(ProvenanceError::MissingArtifact {
+            path: "contracts/quant-harness/not-declared.json".into()
+        })
+    );
+}
+
+#[test]
 fn pinned_contract_artifacts_have_repository_enforced_lf_checkout() {
     let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let repository_root = manifest_dir.parent().unwrap().parent().unwrap();
@@ -194,6 +289,12 @@ fn pinned_contract_artifacts_have_repository_enforced_lf_checkout() {
         .iter()
         .map(|artifact| format!("crates/event-pulse/{}", artifact.embedded_path))
         .collect::<Vec<_>>();
+    paths.extend(
+        verify_embedded_risk_decision_contracts()
+            .expect("standalone RiskDecision provenance")
+            .iter()
+            .map(|artifact| format!("crates/event-pulse/{}", artifact.embedded_path)),
+    );
     paths.push("crates/event-pulse/contracts/provenance.json".into());
 
     let mut command = Command::new("git");

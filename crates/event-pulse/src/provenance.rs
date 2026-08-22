@@ -66,6 +66,29 @@ const PINNED_ARTIFACTS: [PinnedArtifact; 8] = [
         sha256: "f0c85ebb498dd96a1cda0f918733ed7a237a4f16640b4e1d86e0268fd6cb69c2",
     },
 ];
+const RISK_DECISION_ARTIFACTS: [PinnedArtifact; 3] = [
+    PinnedArtifact {
+        family: "quant-harness/1.0",
+        source_path: "research_os/schemas/quant-harness/risk_decision_v1.schema.json",
+        embedded_path: "contracts/quant-harness/risk_decision_v1.schema.json",
+        byte_length: 6_037,
+        sha256: "06a483c06d4186bc05979bcd9f232f0ccc67aee5fbe453ac0e2e9bf74462cf48",
+    },
+    PinnedArtifact {
+        family: "quant-harness/1.0",
+        source_path: "research_os/fixtures/quant-harness/risk_decision_v1_golden.json",
+        embedded_path: "contracts/quant-harness/risk_decision_v1_golden.json",
+        byte_length: 2_859,
+        sha256: "97eb8772358470a9885797d19c24e9449245823ec42ec28cd8d62e8004bfe984",
+    },
+    PinnedArtifact {
+        family: "quant-harness/1.0",
+        source_path: "research_os/fixtures/quant-harness/risk_decision_v1_rejections.json",
+        embedded_path: "contracts/quant-harness/risk_decision_v1_rejections.json",
+        byte_length: 13_288,
+        sha256: "c706eec6777c9c4f7b6e99db555abf922d5907dc9a2767ade254a36d3c2365a0",
+    },
+];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PinnedArtifact {
@@ -74,6 +97,23 @@ struct PinnedArtifact {
     embedded_path: &'static str,
     byte_length: u64,
     sha256: &'static str,
+}
+
+#[derive(Debug, Deserialize)]
+struct ContractLockIndex {
+    generated_artifacts: Vec<LockedGeneratedArtifact>,
+}
+
+#[derive(Debug, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LockedGeneratedArtifact {
+    name: String,
+    rejection_vector_path: String,
+    rejection_vector_sha256: String,
+    schema_path: String,
+    schema_sha256: String,
+    success_vector_path: String,
+    success_vector_sha256: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -244,6 +284,101 @@ pub fn verify_embedded_contracts() -> Result<Vec<VerifiedArtifact>, ProvenanceEr
     verify_manifest(&manifest)
 }
 
+/// Verify the separately published standalone Q1 RiskDecision family.
+///
+/// These three artifacts are declared by the already pinned Q1 contract lock,
+/// but intentionally remain outside the historical eight-artifact E2
+/// provenance manifest. The historical manifest is verified first so the lock
+/// cannot be substituted together with the standalone artifacts.
+pub fn verify_embedded_risk_decision_contracts() -> Result<Vec<VerifiedArtifact>, ProvenanceError> {
+    verify_embedded_contracts()?;
+    verify_risk_decision_lock_binding()?;
+
+    RISK_DECISION_ARTIFACTS
+        .iter()
+        .map(|pinned| {
+            let bytes = embedded_risk_decision_bytes(pinned.embedded_path).ok_or_else(|| {
+                ProvenanceError::MissingArtifact {
+                    path: pinned.embedded_path.into(),
+                }
+            })?;
+            verify_pinned_bytes(pinned, bytes)?;
+            Ok(VerifiedArtifact {
+                family: pinned.family.into(),
+                source_path: pinned.source_path.into(),
+                embedded_path: pinned.embedded_path.into(),
+                bytes,
+            })
+        })
+        .collect()
+}
+
+/// Verify one standalone Q1 RiskDecision artifact against its independent pin.
+///
+/// This is public only for contract-boundary drift tests.
+#[doc(hidden)]
+pub fn verify_risk_decision_artifact_bytes(
+    embedded_path: &str,
+    bytes: &[u8],
+) -> Result<(), ProvenanceError> {
+    let pinned = RISK_DECISION_ARTIFACTS
+        .iter()
+        .find(|pinned| pinned.embedded_path == embedded_path)
+        .ok_or_else(|| ProvenanceError::MissingArtifact {
+            path: embedded_path.into(),
+        })?;
+    verify_pinned_bytes(pinned, bytes)
+}
+
+fn verify_risk_decision_lock_binding() -> Result<(), ProvenanceError> {
+    let lock: ContractLockIndex = serde_json::from_slice(include_bytes!(
+        "../contracts/quant-harness/contract-lock.json"
+    ))
+    .map_err(|error| ProvenanceError::InvalidManifest {
+        detail: format!("invalid pinned Q1 contract lock: {error}"),
+    })?;
+    let mut matching = lock
+        .generated_artifacts
+        .into_iter()
+        .filter(|artifact| artifact.name == "risk_decision_v1");
+    let actual = matching
+        .next()
+        .ok_or_else(|| ProvenanceError::MissingArtifact {
+            path: "contracts/quant-harness/contract-lock.json#risk_decision_v1".into(),
+        })?;
+    if matching.next().is_some() || actual != expected_risk_decision_lock_record() {
+        return Err(ProvenanceError::PinnedRecordMismatch {
+            path: "contracts/quant-harness/contract-lock.json#risk_decision_v1".into(),
+        });
+    }
+    Ok(())
+}
+
+fn expected_risk_decision_lock_record() -> LockedGeneratedArtifact {
+    let schema = RISK_DECISION_ARTIFACTS[0];
+    let success = RISK_DECISION_ARTIFACTS[1];
+    let rejection = RISK_DECISION_ARTIFACTS[2];
+    LockedGeneratedArtifact {
+        name: "risk_decision_v1".into(),
+        rejection_vector_path: rejection.source_path.into(),
+        rejection_vector_sha256: rejection.sha256.into(),
+        schema_path: schema.source_path.into(),
+        schema_sha256: schema.sha256.into(),
+        success_vector_path: success.source_path.into(),
+        success_vector_sha256: success.sha256.into(),
+    }
+}
+
+fn verify_pinned_bytes(pinned: &PinnedArtifact, bytes: &[u8]) -> Result<(), ProvenanceError> {
+    let actual_sha256 = format!("{:x}", Sha256::digest(bytes));
+    if bytes.len() as u64 != pinned.byte_length || actual_sha256 != pinned.sha256 {
+        return Err(ProvenanceError::ArtifactDrift {
+            path: pinned.embedded_path.into(),
+        });
+    }
+    Ok(())
+}
+
 fn validate_path(path: &str) -> Result<(), ProvenanceError> {
     if path.is_empty()
         || !Path::new(path)
@@ -282,5 +417,39 @@ fn embedded_bytes(path: &str) -> Option<&'static [u8]> {
             "../contracts/event-pulse/contract-lock.json"
         )),
         _ => None,
+    }
+}
+
+fn embedded_risk_decision_bytes(path: &str) -> Option<&'static [u8]> {
+    match path {
+        "contracts/quant-harness/risk_decision_v1.schema.json" => Some(include_bytes!(
+            "../contracts/quant-harness/risk_decision_v1.schema.json"
+        )),
+        "contracts/quant-harness/risk_decision_v1_golden.json" => Some(include_bytes!(
+            "../contracts/quant-harness/risk_decision_v1_golden.json"
+        )),
+        "contracts/quant-harness/risk_decision_v1_rejections.json" => Some(include_bytes!(
+            "../contracts/quant-harness/risk_decision_v1_rejections.json"
+        )),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ContractLockIndex, expected_risk_decision_lock_record};
+
+    #[test]
+    fn risk_decision_lock_row_matches_independent_pins() {
+        let lock: ContractLockIndex = serde_json::from_slice(include_bytes!(
+            "../contracts/quant-harness/contract-lock.json"
+        ))
+        .unwrap();
+        let actual = lock
+            .generated_artifacts
+            .into_iter()
+            .find(|artifact| artifact.name == "risk_decision_v1")
+            .unwrap();
+        assert_eq!(actual, expected_risk_decision_lock_record());
     }
 }

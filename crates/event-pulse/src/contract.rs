@@ -4,7 +4,7 @@ use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
-use crate::provenance::verify_embedded_contracts;
+use crate::provenance::verify_embedded_risk_decision_contracts;
 
 const Q1: &str = "quant-harness/1.0";
 const E1: &str = "event-pulse/1.0";
@@ -80,7 +80,7 @@ struct PrivateBundle;
 
 impl ContractBundle {
     pub fn load_embedded() -> Result<Self, ContractError> {
-        verify_embedded_contracts()
+        verify_embedded_risk_decision_contracts()
             .map_err(|error| ContractError::Provenance(error.to_string()))?;
         Ok(Self(PrivateBundle))
     }
