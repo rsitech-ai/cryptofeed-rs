@@ -938,8 +938,10 @@ dependencies = [
 name = "marketfeed-event-pulse"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "marketfeed-adapter-api",
  "marketfeed-adapter-synthetic",
  "marketfeed-book",
+ "marketfeed-dispatch",
  "marketfeed-engine",
  "marketfeed-model",
  "marketfeed-recording",

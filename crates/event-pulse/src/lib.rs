@@ -10,6 +10,7 @@ mod cursor;
 pub mod features;
 pub mod mechanics;
 mod provenance;
+mod replay;
 pub mod snapshot;
 pub mod window;
 pub mod wire;
@@ -27,3 +28,4 @@ pub use provenance::{
     VerifiedArtifact, embedded_provenance, verify_artifact_bytes, verify_embedded_contracts,
     verify_manifest,
 };
+pub use replay::{EpinJson1Reader, EpinJson1Writer, ReplayInputError};

@@ -19,7 +19,9 @@ thiserror = { workspace = true }
 time = { workspace = true }
 
 [dev-dependencies]
+marketfeed-adapter-api = { workspace = true }
 marketfeed-adapter-synthetic = { path = "../adapters/synthetic" }
+marketfeed-dispatch = { workspace = true }
 marketfeed-engine = { workspace = true }
 marketfeed-recording = { workspace = true }
 marketfeed-replay = { workspace = true }
