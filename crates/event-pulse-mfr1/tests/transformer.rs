@@ -1045,6 +1045,13 @@ fn exact_unrelated_catalog_rows_are_retained_but_not_required_in_topology() {
     unrelated.native_symbol = "ETHUSDT".into();
     unrelated.base = "ETH".into();
     expected_session.catalog.push(unrelated);
+    for offset in 0..33u32 {
+        let mut unrelated = expected_session.catalog[0].clone();
+        unrelated.instrument_id = 100 + offset;
+        unrelated.native_symbol = format!("UNRELATED{offset}");
+        unrelated.base = "ETH".into();
+        expected_session.catalog.push(unrelated);
+    }
     let context = Mfr1TransformContextV1::new(
         admission,
         catalog,
@@ -1090,6 +1097,54 @@ fn exact_unrelated_catalog_rows_are_retained_but_not_required_in_topology() {
 }
 
 #[test]
+fn selected_event_pulse_catalog_row_cannot_be_missing_or_semantically_mismatched() {
+    for mutation in ["missing", "mismatched"] {
+        let (admission, catalog, connection, system) = topology();
+        let start_ns = admission.capture_starts_at().utc_micros() * 1_000;
+        let mut expected_session = session_recording_metadata();
+        if mutation == "missing" {
+            let mut unrelated = expected_session.catalog[0].clone();
+            unrelated.instrument_id = 100;
+            unrelated.native_symbol = "UNRELATED".into();
+            expected_session.catalog = vec![unrelated];
+        } else {
+            expected_session.catalog[0].native_symbol = "ETHUSDT".into();
+        }
+        let context = Mfr1TransformContextV1::new(
+            admission,
+            catalog,
+            Mfr1SessionBindingV1::new(connection, 1, 1),
+            system,
+            Mfr1MetadataBindingV1::new(build_metadata(), expected_session.clone()).unwrap(),
+            8,
+            OverflowPolicy::FailEngine,
+        )
+        .unwrap();
+        let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+        writer
+            .write_metadata(&MetadataRecord::Build(build_metadata()), start_ns)
+            .unwrap();
+        writer
+            .write_metadata(&MetadataRecord::Session(expected_session), start_ns)
+            .unwrap();
+        assert_eq!(
+            Mfr1TransformerV1::new(context).transform(
+                BurstMachine {
+                    actions: 0,
+                    items: 0,
+                    replay_start: false,
+                },
+                &writer.into_inner(),
+                TimestampNs(start_ns),
+                decision(start_ns),
+            ),
+            Err(Mfr1TransformError::SessionMetadataMismatch),
+            "{mutation} selected row must reject"
+        );
+    }
+}
+
+#[test]
 fn full_mfr_validation_finishes_before_replay_start() {
     let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let mut bytes = empty_mfr1(start_ns);
@@ -1113,12 +1168,12 @@ fn post_start_error_consumes_failed_machine_and_retry_requires_a_fresh_machine()
     let drops = Arc::new(AtomicUsize::new(0));
     let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
     let bytes = mfr1(&[(7, start_ns, FrameOpcode::Text, b"fail-after-start")]);
-    let failed = transformer.transform(
-        PostStartFailureMachine {
+    let failed = transformer.transform_boxed(
+        Box::new(PostStartFailureMachine {
             calls: Arc::clone(&calls),
             drops: Arc::clone(&drops),
             fail: true,
-        },
+        }),
         &bytes,
         TimestampNs(start_ns),
         decision(start_ns),
@@ -1129,12 +1184,12 @@ fn post_start_error_consumes_failed_machine_and_retry_requires_a_fresh_machine()
 
     let (transformer, _) = context(8, OverflowPolicy::FailEngine);
     transformer
-        .transform(
-            PostStartFailureMachine {
+        .transform_boxed(
+            Box::new(PostStartFailureMachine {
                 calls: Arc::clone(&calls),
                 drops: Arc::clone(&drops),
                 fail: false,
-            },
+            }),
             &bytes,
             TimestampNs(start_ns),
             decision(start_ns),
@@ -1142,6 +1197,25 @@ fn post_start_error_consumes_failed_machine_and_retry_requires_a_fresh_machine()
         .unwrap();
     assert_eq!(calls.load(Ordering::SeqCst), 4);
     assert_eq!(drops.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn canonical_factory_boxed_machine_is_consumed_and_runs() {
+    let (transformer, start_ns) = context(8, OverflowPolicy::FailEngine);
+    let machine: Box<dyn SessionMachine> = Box::new(BurstMachine {
+        actions: 1,
+        items: 1,
+        replay_start: false,
+    });
+    let output = transformer
+        .transform_boxed(
+            machine,
+            &mfr1(&[(7, start_ns, FrameOpcode::Text, b"boxed")]),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        )
+        .unwrap();
+    assert_eq!(output.inputs().len(), 1);
 }
 
 #[test]

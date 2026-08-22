@@ -345,6 +345,26 @@ impl Mfr1TransformerV1 {
     where
         M: SessionMachine,
     {
+        self.transform_owned(&mut machine, mfr1_bytes, connect_at, not_after)
+    }
+
+    pub fn transform_boxed(
+        self,
+        mut machine: Box<dyn SessionMachine>,
+        mfr1_bytes: &[u8],
+        connect_at: TimestampNs,
+        not_after: Rfc3339Time,
+    ) -> Result<Mfr1TransformOutputV1, Mfr1TransformError> {
+        self.transform_owned(machine.as_mut(), mfr1_bytes, connect_at, not_after)
+    }
+
+    fn transform_owned(
+        self,
+        machine: &mut dyn SessionMachine,
+        mfr1_bytes: &[u8],
+        connect_at: TimestampNs,
+        not_after: Rfc3339Time,
+    ) -> Result<Mfr1TransformOutputV1, Mfr1TransformError> {
         ensure_mfr1_capacity(mfr1_bytes.len())?;
         let capture_start = self.context.admission.capture_starts_at().utc_micros();
         let connect_micros = connect_at.0.div_euclid(1_000);
@@ -374,7 +394,7 @@ impl Mfr1TransformerV1 {
 
         state.apply_frame(
             &self.context,
-            &mut machine,
+            machine,
             0,
             connect_at,
             true,
@@ -400,7 +420,7 @@ impl Mfr1TransformerV1 {
                 FrameOpcode::Text | FrameOpcode::Binary | FrameOpcode::Pong => {
                     state.apply_frame(
                         &self.context,
-                        &mut machine,
+                        machine,
                         frame_seq,
                         available_at,
                         false,
@@ -435,7 +455,7 @@ impl Mfr1TransformerV1 {
                     let (request_id, response) = decode_http_response(&payload)?;
                     state.apply_frame(
                         &self.context,
-                        &mut machine,
+                        machine,
                         frame_seq,
                         available_at,
                         false,
@@ -459,7 +479,7 @@ impl Mfr1TransformerV1 {
                     let (command, recorded_wire) = decode_subscription_command(&payload)?;
                     state.apply_frame(
                         &self.context,
-                        &mut machine,
+                        machine,
                         frame_seq,
                         available_at,
                         false,
@@ -613,14 +633,26 @@ impl Mfr1TransformerV1 {
             .venue_source(metadata.venue_id)
             .ok_or(Mfr1TransformError::SessionMetadataMismatch)?;
         let mut ids = std::collections::BTreeSet::new();
+        let mut relevant_rows = 0usize;
         for row in &metadata.catalog {
-            let instrument = self
-                .context
-                .catalog
-                .instrument(row.instrument_id)
+            if !ids.insert(row.instrument_id) {
+                return Err(Mfr1TransformError::SessionMetadataMismatch);
+            }
+            let Some(instrument) = self.context.catalog.instrument(row.instrument_id) else {
+                continue;
+            };
+            if !topology_contains(
+                &self.context,
+                venue.source_id(),
+                instrument,
+                &self.context.session.connection,
+            ) {
+                continue;
+            }
+            relevant_rows = relevant_rows
+                .checked_add(1)
                 .ok_or(Mfr1TransformError::SessionMetadataMismatch)?;
-            if !ids.insert(row.instrument_id)
-                || row.native_symbol != instrument.venue_symbol()
+            if row.native_symbol != instrument.venue_symbol()
                 || row.base != instrument.base_asset()
                 || row.quote != instrument.quote_asset()
                 || row.kind.to_ascii_uppercase() != instrument.market_type()
@@ -636,19 +668,7 @@ impl Mfr1TransformerV1 {
         {
             return Err(Mfr1TransformError::SessionMetadataMismatch);
         }
-        if !metadata.catalog.iter().any(|row| {
-            self.context
-                .catalog
-                .instrument(row.instrument_id)
-                .is_some_and(|instrument| {
-                    topology_contains(
-                        &self.context,
-                        venue.source_id(),
-                        instrument,
-                        &self.context.session.connection,
-                    )
-                })
-        }) {
+        if relevant_rows == 0 {
             return Err(Mfr1TransformError::SessionMetadataMismatch);
         }
         Ok(())

@@ -116,22 +116,22 @@ Successor validation:
 
 ### Consumed-machine successor
 
-The public signature is now generic over an owned `M: SessionMachine`. A direct RED failed to compile while the API still required `&mut dyn SessionMachine`. The retained regression drives a stateful machine through replay-start and an intentional post-start adapter error, proves that the failed machine is dropped, and proves the only successful retry uses a separately constructed fresh machine. The focused suite is now 2 unit plus 21 integration tests.
+The concrete-machine public signature is generic over an owned `M: SessionMachine`, and `transform_boxed` consumes canonical adapter-factory `Box<dyn SessionMachine>` output. Direct REDs failed to compile while the first API required `&mut dyn SessionMachine` and then while the generic owned API could not accept the box. The retained boxed regression drives a stateful machine through replay-start and an intentional post-start adapter error, proves that the failed box and machine are dropped, and proves the only successful retry uses a separately constructed fresh boxed machine.
 
 ### Segment, metadata, dispatcher, and strict-readback successor
 
 - Dispatcher queues drain accepted contents after every replay-start/raw transport frame. Capacity-one accepts one batch in each of two frames without loss, while multiple same-frame batches still produce a truthful MarketDispatch drop.
-- `Mfr1MetadataBindingV1` owns exact expected Build and selected Session metadata. Replay requires exactly one of each and compares all typed fields, including adapter, environment, endpoint, catalog version, and every catalog decoding field. Exact replay-catalog rows unrelated to configured EventPulse contributors are accepted explicitly and remain non-authoring.
+- `Mfr1MetadataBindingV1` owns exact expected Build and selected Session metadata. Replay requires exactly one of each and compares all typed fields, including adapter, environment, endpoint, catalog version, and every catalog decoding field. ReplayCatalog/admission cross-checking is limited to selected EventPulse-relevant rows; 33+ exact unrelated session catalog rows are accepted without ReplayCatalog membership and remain non-authoring. Missing or semantically mismatched selected rows reject.
 - One complete segment is capped at 256 MiB before reader construction and is read through a borrowed cursor without eagerly cloning the input. Only MFR1 v3 is accepted; header start equals connect time; admitted time bounds and selected receive/monotonic progression are checked.
 - Action capacity is no longer caller-selected. It is derived as `max(dispatch_capacity * 4, DEFAULT_ACTION_BUFFER_CAPACITY)` with checked arithmetic and the reserved action-index ceiling.
 - After bounded canonical EPIN authoring, the production strict `EpinJson1Reader` reads the bytes with `not_after`; decoded inputs must exactly equal staged inputs before output is returned.
-- The focused suite is now 3 unit and 26 integration tests. Input is described truthfully as one complete segment, not a complete session; MFR1 has no session-completion receipt.
+- The focused suite is now 3 unit and 28 integration tests. Input is described truthfully as one complete segment, not a complete session; MFR1 has no session-completion receipt.
 
 Final successor gates:
 
-- `cargo test -p marketfeed-event-pulse-mfr1 --no-fail-fast`: GREEN (3 unit, 26 integration, doc tests).
+- `cargo test -p marketfeed-event-pulse-mfr1 --no-fail-fast`: GREEN (3 unit, 28 integration, doc tests).
 - `cargo test -p marketfeed-event-pulse --locked --no-fail-fast`: GREEN (full crate, including 54 snapshot, 23 wire, and 18 Task 8 replay tests).
 - `cargo test -p marketfeed-engine --test record_replay --locked --no-fail-fast`: GREEN (2).
-- `cargo +1.85.0 test -p marketfeed-event-pulse-mfr1 --locked --no-fail-fast`: GREEN (3 unit, 26 integration).
+- `cargo +1.85.0 test -p marketfeed-event-pulse-mfr1 --locked --no-fail-fast`: GREEN (3 unit, 28 integration).
 - Current and Rust 1.85 `cargo clippy` with `--all-targets --locked -- -D warnings`: GREEN.
 - `cargo deny --offline --locked check`, `cargo fmt --all -- --check`, and `git diff --check`: GREEN.
