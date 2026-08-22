@@ -91,3 +91,25 @@ The 13 focused tests cover:
 - `blocked:fixture-provenance` remains exact.
 - Full prospective E2 still lacks a Hyperliquid adapter, real post-admission public capture, independently persisted Clock/Coverage sidecars, stable contributor/connection system mappings, and provenance-bearing nine-role fixture packaging.
 - This slice is repo-ready transformation only. It is not runtime-proven, package-ready, source-qualified, paper/canary/live-ready, or E2 complete.
+
+## Review repair successor
+
+The successor closes five fail-closed review findings without expanding the MARKET-plus-reserved-processor-drop scope:
+
+- exactly one selected-session metadata record is mandatory and is bound to the immutable selected session, venue, replay catalog instrument identities, stable source, configured contributors, and configured connection; missing, duplicate, wrong, or conflicting metadata rejects;
+- the entire MFR1 segment, exact byte tail, CRCs, selected-session time order/window, metadata, HTTP payloads, and subscription commands are validated before `on_replay_start`; `transform` consumes its transformer so an attempt cannot be retried through mutated transformer state;
+- raw records and authored inputs are each capped at 65,536, canonical EPIN output is capped at 16 MiB, and exact/one-over regressions cover all three bound implementations;
+- only `DropNewest` and `FailEngine` are admitted; `BlockWithDeadline`, `DropOldest`, `LatestPerKey`, `SpillToDisk`, and `DisableSink` reject at construction;
+- a 65,536-action observation buffer captures and inspects every allowed action before the smaller configured `DropNewest` capacity is emulated. Observation overflow rejects. Consequently an unsupported `EmitSystem` or `Reconnect` cannot be hidden behind a benign retained action.
+
+Review RED evidence was captured with three focused failures: missing metadata returned success after calling replay-start; capacity-one DropNewest returned a successful reserved-drop output while hiding unsupported system/reconnect; and unsupported policies constructed successfully. The added full-tail no-mutation counterexample also proves replay-start is untouched when later MFR bytes are invalid.
+
+Successor validation:
+
+- `cargo test -p marketfeed-event-pulse-mfr1 --no-fail-fast`: GREEN (2 unit bound tests, 20 integration tests).
+- `cargo test -p marketfeed-event-pulse --no-fail-fast`: GREEN (full crate: 6 lib, 12 contract, 19 cursor, 6 feature, 6 window, 6 offline preflight, 8 prospective, 18 Task 8 replay, 54 snapshot, and 23 wire tests).
+- `cargo test -p marketfeed-engine --test record_replay --no-fail-fast`: GREEN (2).
+- `cargo clippy -p marketfeed-event-pulse-mfr1 --all-targets -- -D warnings`: GREEN.
+- `cargo +1.85.0 test -p marketfeed-event-pulse-mfr1 --locked --no-fail-fast`: GREEN (2 + 20).
+- `cargo +1.85.0 clippy -p marketfeed-event-pulse-mfr1 --all-targets --locked -- -D warnings`: GREEN.
+- `cargo deny --offline --locked check`: GREEN.

@@ -24,7 +24,10 @@ This is research-only, repo-ready transformation work. It grants no adapter, fee
 - Reject availability regression, action-producing zero/reused/decreasing inbound frames, unsupported control/system actions, catalog/topology/session mismatch, bounds, tampering, and truncated MFR1.
 - Do not call `RawSegmentReader::read_all`, because it intentionally tolerates a crash-truncated tail; iterate `read_record` and propagate truncation.
 - Do not invent Clock/Coverage/System lifecycle inputs or claim MFR1-only snapshot parity.
-- Use bounded existing `ActionBuffer` and `EventDispatcher` with caller-supplied immutable capacities/policy; dependencies are existing workspace crates only.
+- Use an observation `ActionBuffer` capped at the total authored-input ceiling so unsupported actions cannot hide behind the configured drop boundary. Reject observation overflow, inspect all actions, then deterministically emulate the admitted configured ActionBuffer capacity. Use the existing bounded `EventDispatcher`; dependencies are existing workspace crates only.
+- Require exactly one selected-session `SessionRecordingMetadata` record and bind its session, venue, catalog instruments, stable source, configured contributor, and configured connection to the immutable replay catalog and checked prospective admission before replay starts.
+- Prevalidate the complete MFR1 framing, CRC, exact tail, selected times, metadata, and control payloads before the first `SessionMachine` call. Consume the transformer per attempt.
+- Bound complete raw records and authored mechanics inputs at 65,536 each and canonical EPIN output at 16 MiB. Only `DropNewest` and `FailEngine` execution policies are admitted.
 
 ## Architecture and public interface
 

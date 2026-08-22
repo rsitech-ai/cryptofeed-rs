@@ -19,13 +19,18 @@ use marketfeed_event_pulse::{
 };
 use marketfeed_model::{EventEnvelope, FrameStamp, OverflowPolicy, TimestampNs};
 use marketfeed_recording::{
-    Direction, FrameOpcode, HEADER_SIZE, RawSegmentReader, RecordingError, decode_http_response,
-    decode_metadata, decode_subscription_command,
+    Direction, FrameOpcode, HEADER_SIZE, MetadataRecord, RawRecord, RawSegmentReader,
+    RecordingError, SessionRecordingMetadata, decode_http_response, decode_metadata,
+    decode_subscription_command,
 };
+use std::io::{self, Write};
 use thiserror::Error;
 
 const MAX_ORDINARY_ACTIONS: usize = u16::MAX as usize;
 const MAX_ITEMS: usize = u16::MAX as usize + 1;
+const MAX_RAW_RECORDS: usize = 65_536;
+const MAX_AUTHORED_INPUTS: usize = 65_536;
+const MAX_EPIN_BYTES: usize = marketfeed_event_pulse::wire::MAX_INPUT_BYTES;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mfr1SessionBindingV1 {
@@ -72,6 +77,12 @@ impl Mfr1TransformContextV1 {
             || dispatch_capacity > MAX_ORDINARY_ACTIONS
         {
             return Err(Mfr1TransformError::InvalidExecutionMetadata);
+        }
+        if !matches!(
+            overflow,
+            OverflowPolicy::DropNewest | OverflowPolicy::FailEngine
+        ) {
+            return Err(Mfr1TransformError::UnsupportedOverflowPolicy);
         }
         catalog.validate()?;
         let config = admission.mechanics_config();
@@ -200,6 +211,18 @@ pub enum Mfr1TransformError {
     Epin(String),
     #[error("immutable replay execution metadata is invalid")]
     InvalidExecutionMetadata,
+    #[error("replay overflow policy is not supported by the immutable transform contract")]
+    UnsupportedOverflowPolicy,
+    #[error("selected session metadata is missing")]
+    MissingSessionMetadata,
+    #[error("selected session metadata conflicts with the immutable replay binding")]
+    SessionMetadataMismatch,
+    #[error("MFR1 record count exceeds 65536")]
+    RawRecordCapacity,
+    #[error("authored mechanics input count exceeds 65536")]
+    InputCapacity,
+    #[error("canonical EPIN output exceeds 16 MiB")]
+    EpinCapacity,
     #[error("MFR1 availability regressed")]
     AvailabilityRegression,
     #[error("connect, selected record, or decision time is outside the admitted capture window")]
@@ -262,7 +285,7 @@ impl Mfr1TransformerV1 {
     }
 
     pub fn transform(
-        &self,
+        self,
         machine: &mut dyn SessionMachine,
         mfr1_bytes: &[u8],
         connect_at: TimestampNs,
@@ -276,8 +299,9 @@ impl Mfr1TransformerV1 {
         {
             return Err(Mfr1TransformError::OutsideAdmissionWindow);
         }
+        let records = self.prevalidate(mfr1_bytes, connect_at, &not_after)?;
         let mut state = TransformState {
-            actions: ActionBuffer::with_capacity(self.context.action_capacity),
+            actions: ActionBuffer::with_capacity(MAX_AUTHORED_INPUTS),
             dispatch: EventDispatcher::new(
                 self.context.dispatch_capacity,
                 self.context.dispatch_capacity,
@@ -302,26 +326,11 @@ impl Mfr1TransformerV1 {
             |machine, actions| machine.on_replay_start(connect_at, actions),
         )?;
 
-        let mut consumed = HEADER_SIZE;
-        let mut reader = RawSegmentReader::from_bytes(mfr1_bytes.to_vec())?;
-        while let Some(record) = reader.read_record()? {
-            consumed = consumed
-                .checked_add(
-                    usize::try_from(record.header.record_len)
-                        .map_err(|_| Mfr1TransformError::CoordinateOverflow)?,
-                )
-                .ok_or(Mfr1TransformError::CoordinateOverflow)?;
+        for record in records {
             if record.header.session.0 != self.context.session.session_id {
                 continue;
             }
             let available_at = TimestampNs(record.header.receive_ts_ns);
-            let available_micros = available_at.0.div_euclid(1_000);
-            if available_micros < capture_start || available_micros > not_after.utc_micros() {
-                return Err(Mfr1TransformError::OutsideAdmissionWindow);
-            }
-            if available_at < state.last_available {
-                return Err(Mfr1TransformError::AvailabilityRegression);
-            }
             state.last_available = available_at;
             if record.header.direction != Direction::Inbound {
                 continue;
@@ -389,7 +398,7 @@ impl Mfr1TransformerV1 {
                     state.bump_frames()?;
                 }
                 FrameOpcode::Metadata => {
-                    decode_metadata(&payload)?;
+                    // Session metadata was decoded and bound before replay began.
                 }
                 FrameOpcode::SubscriptionCommand => {
                     let (command, recorded_wire) = decode_subscription_command(&payload)?;
@@ -415,24 +424,138 @@ impl Mfr1TransformerV1 {
                 FrameOpcode::Ping | FrameOpcode::Close => {}
             }
         }
+        let epin_json1 = canonical_epin(&state.inputs)?;
+        Ok(Mfr1TransformOutputV1 {
+            frames: state.frames,
+            inputs: state.inputs,
+            epin_json1,
+            frames_applied: state.frames_applied,
+            dropped_action_buffer: state.dropped_action_buffer,
+            dropped_market_dispatch: state.dropped_market_dispatch,
+        })
+    }
+
+    fn prevalidate(
+        &self,
+        mfr1_bytes: &[u8],
+        connect_at: TimestampNs,
+        not_after: &Rfc3339Time,
+    ) -> Result<Vec<RawRecord>, Mfr1TransformError> {
+        let capture_start = self.context.admission.capture_starts_at().utc_micros();
+        let mut consumed = HEADER_SIZE;
+        let mut reader = RawSegmentReader::from_bytes(mfr1_bytes.to_vec())?;
+        let mut records = Vec::new();
+        let mut last_available = connect_at;
+        let mut selected_metadata = None;
+        while let Some(record) = reader.read_record()? {
+            if records.len() == MAX_RAW_RECORDS {
+                return Err(Mfr1TransformError::RawRecordCapacity);
+            }
+            consumed = consumed
+                .checked_add(
+                    usize::try_from(record.header.record_len)
+                        .map_err(|_| Mfr1TransformError::CoordinateOverflow)?,
+                )
+                .ok_or(Mfr1TransformError::CoordinateOverflow)?;
+            if record.header.session.0 == self.context.session.session_id {
+                let available_at = TimestampNs(record.header.receive_ts_ns);
+                let available_micros = available_at.0.div_euclid(1_000);
+                if available_micros < capture_start || available_micros > not_after.utc_micros() {
+                    return Err(Mfr1TransformError::OutsideAdmissionWindow);
+                }
+                if available_at < last_available {
+                    return Err(Mfr1TransformError::AvailabilityRegression);
+                }
+                last_available = available_at;
+                match record.header.opcode {
+                    FrameOpcode::Metadata => match decode_metadata(&record.payload)? {
+                        MetadataRecord::Session(metadata) => {
+                            if record.header.direction != Direction::Inbound {
+                                return Err(Mfr1TransformError::SessionMetadataMismatch);
+                            }
+                            if selected_metadata.replace(metadata).is_some() {
+                                return Err(Mfr1TransformError::SessionMetadataMismatch);
+                            }
+                        }
+                        MetadataRecord::Build(_) => {}
+                    },
+                    FrameOpcode::HttpResponse => {
+                        decode_http_response(&record.payload)?;
+                    }
+                    FrameOpcode::SubscriptionCommand => {
+                        decode_subscription_command(&record.payload)?;
+                    }
+                    _ => {}
+                }
+            } else if record.header.opcode == FrameOpcode::Metadata {
+                if let MetadataRecord::Session(metadata) = decode_metadata(&record.payload)? {
+                    if metadata.session_id == self.context.session.session_id {
+                        return Err(Mfr1TransformError::SessionMetadataMismatch);
+                    }
+                }
+            }
+            records.push(record);
+        }
         if consumed != mfr1_bytes.len() {
             return Err(Mfr1TransformError::Recording(
                 "trailing or truncated MFR1 bytes".into(),
             ));
         }
+        let metadata = selected_metadata.ok_or(Mfr1TransformError::MissingSessionMetadata)?;
+        self.validate_session_metadata(&metadata)?;
+        Ok(records)
+    }
 
-        let mut writer = EpinJson1Writer::new(Vec::new());
-        for input in &state.inputs {
-            writer.write_input(input)?;
+    fn validate_session_metadata(
+        &self,
+        metadata: &SessionRecordingMetadata,
+    ) -> Result<(), Mfr1TransformError> {
+        if metadata.schema_version != 1
+            || metadata.session_id != self.context.session.session_id
+            || metadata.catalog.is_empty()
+            || metadata.adapter.trim().is_empty()
+            || metadata.environment.trim().is_empty()
+            || metadata.endpoint.trim().is_empty()
+            || metadata.catalog_version == 0
+        {
+            return Err(Mfr1TransformError::SessionMetadataMismatch);
         }
-        Ok(Mfr1TransformOutputV1 {
-            frames: state.frames,
-            inputs: state.inputs,
-            epin_json1: writer.finish(),
-            frames_applied: state.frames_applied,
-            dropped_action_buffer: state.dropped_action_buffer,
-            dropped_market_dispatch: state.dropped_market_dispatch,
-        })
+        let venue = self
+            .context
+            .catalog
+            .venue_source(metadata.venue_id)
+            .ok_or(Mfr1TransformError::SessionMetadataMismatch)?;
+        let mut ids = std::collections::BTreeSet::new();
+        for row in &metadata.catalog {
+            let instrument = self
+                .context
+                .catalog
+                .instrument(row.instrument_id)
+                .ok_or(Mfr1TransformError::SessionMetadataMismatch)?;
+            if !ids.insert(row.instrument_id)
+                || row.native_symbol != instrument.venue_symbol()
+                || row.base != instrument.base_asset()
+                || row.quote != instrument.quote_asset()
+                || row.kind.to_ascii_uppercase() != instrument.market_type()
+                || instrument.venue() != venue.venue()
+                || !topology_contains(
+                    &self.context,
+                    venue.source_id(),
+                    instrument,
+                    &self.context.session.connection,
+                )
+            {
+                return Err(Mfr1TransformError::SessionMetadataMismatch);
+            }
+        }
+        if metadata
+            .initial_subscriptions
+            .iter()
+            .any(|subscription| !ids.contains(&subscription.instrument_id))
+        {
+            return Err(Mfr1TransformError::SessionMetadataMismatch);
+        }
+        Ok(())
     }
 }
 
@@ -473,27 +596,32 @@ impl TransformState {
         self.actions.clear();
         let _ = self.actions.take_dropped();
         apply(machine, &mut self.actions)?;
-        let retained = self.actions.as_slice();
-        if retained
+        if self.actions.take_dropped() > 0 {
+            return Err(Mfr1TransformError::CoordinateOverflow);
+        }
+        let observed: Vec<_> = self.actions.drain().collect();
+        if observed
             .iter()
             .any(|action| matches!(action, SessionAction::EmitSystem(_)))
         {
             return Err(Mfr1TransformError::UnsupportedSystemAction);
         }
-        if retained
+        if observed
             .iter()
             .any(|action| matches!(action, SessionAction::Reconnect(_)))
         {
             return Err(Mfr1TransformError::UnsupportedReconnect);
         }
-        if retained.iter().any(
+        if observed.iter().any(
             |action| matches!(action, SessionAction::EmitBatch(batch) if batch.events.is_empty()),
         ) {
             return Err(Mfr1TransformError::EmptyBatch);
         }
 
-        let action_drops = self.actions.take_dropped();
-        let retained: Vec<_> = self.actions.drain().collect();
+        let dropped = observed.len().saturating_sub(context.action_capacity);
+        let action_drops =
+            u64::try_from(dropped).map_err(|_| Mfr1TransformError::CoordinateOverflow)?;
+        let retained: Vec<_> = observed.into_iter().take(context.action_capacity).collect();
         let has_market = retained
             .iter()
             .any(|action| matches!(action, SessionAction::EmitBatch(_)));
@@ -543,6 +671,13 @@ impl TransformState {
                     envelope.event_index = u16::try_from(item_index)
                         .map_err(|_| Mfr1TransformError::CoordinateOverflow)?;
                     validate_market(context, &envelope)?;
+                    ensure_input_capacity(
+                        self.inputs.len(),
+                        frame_inputs
+                            .len()
+                            .checked_add(1)
+                            .ok_or(Mfr1TransformError::InputCapacity)?,
+                    )?;
                     frame_inputs.push(MechanicsInputV1::market(
                         envelope,
                         action_index,
@@ -558,6 +693,13 @@ impl TransformState {
             if count == 0 {
                 continue;
             }
+            ensure_input_capacity(
+                self.inputs.len(),
+                frame_inputs
+                    .len()
+                    .checked_add(1)
+                    .ok_or(Mfr1TransformError::InputCapacity)?,
+            )?;
             frame_inputs.push(self.drop_input(
                 context,
                 frame_seq,
@@ -575,6 +717,7 @@ impl TransformState {
             .dropped_market_dispatch
             .checked_add(market_drops)
             .ok_or(Mfr1TransformError::CoordinateOverflow)?;
+        ensure_input_capacity(self.inputs.len(), frame_inputs.len())?;
         self.inputs.extend(frame_inputs.iter().cloned());
         self.frames.push(Mfr1MechanicsFrameV1 {
             frame_seq,
@@ -628,26 +771,87 @@ fn validate_market(
         .instrument
         .and_then(|id| context.catalog.instrument(id.0))
         .ok_or(Mfr1TransformError::CatalogMismatch)?;
-    let count = context
+    if !topology_contains(
+        context,
+        venue.source_id(),
+        instrument,
+        &context.session.connection,
+    ) {
+        return Err(Mfr1TransformError::TopologyMismatch);
+    }
+    Ok(())
+}
+
+fn topology_contains(
+    context: &Mfr1TransformContextV1,
+    source_id: &str,
+    instrument: &marketfeed_event_pulse::wire::InstrumentIdentityV1,
+    connection: &ConnectionKeyV1,
+) -> bool {
+    context
         .admission
         .mechanics_config()
         .contributors()
         .iter()
         .filter(|contributor| {
-            contributor.key().source_id() == venue.source_id()
+            contributor.key().source_id() == source_id
                 && contributor.key().instrument() == instrument
                 && context
                     .admission
                     .mechanics_config()
                     .contributor_connections()
                     .get(contributor.key())
-                    == Some(&context.session.connection)
+                    == Some(connection)
         })
-        .count();
-    if count != 1 {
-        return Err(Mfr1TransformError::TopologyMismatch);
+        .count()
+        == 1
+}
+
+fn ensure_input_capacity(current: usize, additional: usize) -> Result<(), Mfr1TransformError> {
+    if current
+        .checked_add(additional)
+        .is_none_or(|count| count > MAX_AUTHORED_INPUTS)
+    {
+        return Err(Mfr1TransformError::InputCapacity);
     }
     Ok(())
+}
+
+fn canonical_epin(inputs: &[MechanicsInputV1]) -> Result<Vec<u8>, Mfr1TransformError> {
+    let mut writer = EpinJson1Writer::new(BoundedEpin::default());
+    for input in inputs {
+        if let Err(error) = writer.write_input(input) {
+            return Err(match error {
+                ReplayInputError::Io(_) => Mfr1TransformError::EpinCapacity,
+                other => Mfr1TransformError::Epin(other.to_string()),
+            });
+        }
+    }
+    Ok(writer.finish().bytes)
+}
+
+#[derive(Default)]
+struct BoundedEpin {
+    bytes: Vec<u8>,
+}
+
+impl Write for BoundedEpin {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        if self
+            .bytes
+            .len()
+            .checked_add(buffer.len())
+            .is_none_or(|size| size > MAX_EPIN_BYTES)
+        {
+            return Err(io::Error::other("canonical EPIN aggregate capacity"));
+        }
+        self.bytes.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 fn push_drop(outcome: PushOutcome) -> Result<u64, Mfr1TransformError> {
@@ -657,5 +861,30 @@ fn push_drop(outcome: PushOutcome) -> Result<u64, Mfr1TransformError> {
         PushOutcome::DroppedOldest { dropped } => {
             u64::try_from(dropped).map_err(|_| Mfr1TransformError::CoordinateOverflow)
         }
+    }
+}
+
+#[cfg(test)]
+mod capacity_tests {
+    use super::*;
+
+    #[test]
+    fn authored_input_capacity_accepts_exact_bound_and_rejects_one_over() {
+        assert_eq!(ensure_input_capacity(65_535, 1), Ok(()));
+        assert_eq!(
+            ensure_input_capacity(65_536, 1),
+            Err(Mfr1TransformError::InputCapacity)
+        );
+    }
+
+    #[test]
+    fn epin_sink_accepts_exact_byte_bound_and_rejects_one_over() {
+        let mut sink = BoundedEpin::default();
+        assert_eq!(
+            sink.write(&vec![0; MAX_EPIN_BYTES]).unwrap(),
+            MAX_EPIN_BYTES
+        );
+        assert!(sink.write(b"x").is_err());
+        assert_eq!(sink.bytes.len(), MAX_EPIN_BYTES);
     }
 }

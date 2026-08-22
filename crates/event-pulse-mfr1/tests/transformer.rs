@@ -1,4 +1,8 @@
 use std::collections::BTreeMap;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use marketfeed_adapter_api::{
     ActionBuffer, AdapterError, EventBatch, HttpResponse, ReconnectReason, SessionAction,
@@ -20,8 +24,9 @@ use marketfeed_model::{
     OverflowPolicy, Price, Quantity, SessionId, SystemEvent, TimestampNs, Trade, VenueId,
 };
 use marketfeed_recording::{
-    Direction, FrameOpcode, MetadataRecord, RawSegmentWriter, encode_http_response,
-    encode_metadata, encode_subscription_command,
+    CatalogInstrumentMetadata, Direction, FixedMetadata, FrameOpcode, MetadataRecord,
+    RawSegmentWriter, SessionRecordingMetadata, encode_http_response, encode_metadata,
+    encode_subscription_command,
 };
 use marketfeed_replay::ReplayRunner;
 use serde_json::{Value, json};
@@ -136,6 +141,9 @@ fn admission() -> ProspectiveCaptureAdmissionV1 {
 
 fn mfr1(records: &[(u64, i64, FrameOpcode, &[u8])]) -> Vec<u8> {
     let mut writer = RawSegmentWriter::create(Vec::new(), records[0].1).unwrap();
+    writer
+        .write_metadata(&session_metadata(), records[0].1)
+        .unwrap();
     for (frame_seq, receive_ns, opcode, payload) in records {
         writer
             .write_record(
@@ -154,9 +162,49 @@ fn mfr1(records: &[(u64, i64, FrameOpcode, &[u8])]) -> Vec<u8> {
 }
 
 fn empty_mfr1(start_ns: i64) -> Vec<u8> {
-    RawSegmentWriter::create(Vec::new(), start_ns)
-        .unwrap()
-        .into_inner()
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns)
+        .unwrap();
+    writer.into_inner()
+}
+
+fn session_metadata() -> MetadataRecord {
+    MetadataRecord::Session(SessionRecordingMetadata {
+        schema_version: 1,
+        session_id: 1,
+        venue_id: 1,
+        adapter: "test-market".into(),
+        environment: "public".into(),
+        endpoint: "offline".into(),
+        catalog_version: 1,
+        catalog: vec![CatalogInstrumentMetadata {
+            instrument_id: 1,
+            native_symbol: "BTCUSDT".into(),
+            kind: "Perpetual".into(),
+            base: "BTC".into(),
+            quote: "USDT".into(),
+            settlement: Some("USDT".into()),
+            price_scale: 2,
+            quantity_scale: 2,
+            price_increment: FixedMetadata {
+                coefficient: "1".into(),
+                scale: 2,
+            },
+            quantity_increment: FixedMetadata {
+                coefficient: "1".into(),
+                scale: 2,
+            },
+            min_quantity: None,
+            max_quantity: None,
+            min_notional: None,
+            contract_size: None,
+            expiry_ns: None,
+            status: "Trading".into(),
+            inverse: false,
+        }],
+        initial_subscriptions: vec![],
+    })
 }
 
 fn context(
@@ -331,6 +379,62 @@ impl SessionMachine for UnsupportedMachine {
                 }
             }
         }
+        Ok(())
+    }
+}
+
+struct OverflowHiddenUnsupportedMachine(UnsupportedKind);
+
+impl SessionMachine for OverflowHiddenUnsupportedMachine {
+    fn on_replay_start(
+        &mut self,
+        _now: TimestampNs,
+        _output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        Ok(())
+    }
+
+    fn on_input(
+        &mut self,
+        input: SessionInput<'_>,
+        output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        if matches!(input, SessionInput::TextFrame { .. }) {
+            output.push(SessionAction::SendText(b"benign".to_vec().into()));
+            match self.0 {
+                UnsupportedKind::System => {
+                    output.push(SessionAction::EmitSystem(SystemEvent::SequenceGap {
+                        expected: 1,
+                        actual: 3,
+                    }));
+                }
+                UnsupportedKind::Reconnect => {
+                    output.push(SessionAction::Reconnect(ReconnectReason::SequenceGap));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+struct CountingMachine(Arc<AtomicUsize>);
+
+impl SessionMachine for CountingMachine {
+    fn on_replay_start(
+        &mut self,
+        _now: TimestampNs,
+        _output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn on_input(
+        &mut self,
+        _input: SessionInput<'_>,
+        _output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 }
@@ -662,9 +766,263 @@ fn ordinary_system_and_reconnect_actions_fail_without_partial_output() {
 }
 
 #[test]
+fn action_overflow_cannot_hide_unsupported_system_or_reconnect_actions() {
+    for (kind, expected) in [
+        (
+            UnsupportedKind::System,
+            Mfr1TransformError::UnsupportedSystemAction,
+        ),
+        (
+            UnsupportedKind::Reconnect,
+            Mfr1TransformError::UnsupportedReconnect,
+        ),
+    ] {
+        let (transformer, start_ns) = context(1, 8, OverflowPolicy::DropNewest);
+        let bytes = mfr1(&[(7, start_ns, FrameOpcode::Text, b"fault")]);
+        assert_eq!(
+            transformer.transform(
+                &mut OverflowHiddenUnsupportedMachine(kind),
+                &bytes,
+                TimestampNs(start_ns),
+                decision(start_ns),
+            ),
+            Err(expected)
+        );
+    }
+}
+
+#[test]
+fn complete_selected_session_metadata_is_required_before_machine_mutation() {
+    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let bytes = RawSegmentWriter::create(Vec::new(), start_ns)
+        .unwrap()
+        .into_inner();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let result = transformer.transform(
+        &mut CountingMachine(Arc::clone(&calls)),
+        &bytes,
+        TimestampNs(start_ns),
+        decision(start_ns),
+    );
+    assert!(result.is_err(), "missing selected metadata must fail");
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn selected_session_metadata_must_match_session_venue_catalog_and_topology() {
+    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let MetadataRecord::Session(mut wrong) = session_metadata() else {
+        unreachable!();
+    };
+    wrong.venue_id = 2;
+    let payload = encode_metadata(&MetadataRecord::Session(wrong)).unwrap();
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_record(
+            SessionId(1),
+            0,
+            start_ns,
+            0,
+            Direction::Inbound,
+            FrameOpcode::Metadata,
+            0,
+            &payload,
+        )
+        .unwrap();
+    assert_eq!(
+        transformer.transform(
+            &mut BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::SessionMetadataMismatch)
+    );
+
+    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    let MetadataRecord::Session(mut wrong) = session_metadata() else {
+        unreachable!();
+    };
+    wrong.session_id = 2;
+    let payload = encode_metadata(&MetadataRecord::Session(wrong)).unwrap();
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_record(
+            SessionId(1),
+            0,
+            start_ns,
+            0,
+            Direction::Inbound,
+            FrameOpcode::Metadata,
+            0,
+            &payload,
+        )
+        .unwrap();
+    assert_eq!(
+        transformer.transform(
+            &mut BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::SessionMetadataMismatch)
+    );
+
+    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns)
+        .unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns + 1_000)
+        .unwrap();
+    assert_eq!(
+        transformer.transform(
+            &mut BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &writer.into_inner(),
+            TimestampNs(start_ns),
+            decision(start_ns + 1_000),
+        ),
+        Err(Mfr1TransformError::SessionMetadataMismatch)
+    );
+}
+
+#[test]
+fn full_mfr_validation_finishes_before_replay_start() {
+    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let mut bytes = empty_mfr1(start_ns);
+    bytes.push(0xa5);
+    let calls = Arc::new(AtomicUsize::new(0));
+    assert!(matches!(
+        transformer.transform(
+            &mut CountingMachine(Arc::clone(&calls)),
+            &bytes,
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::Recording(_))
+    ));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn unsupported_overflow_policies_are_rejected_at_context_construction() {
+    for overflow in [
+        OverflowPolicy::BlockWithDeadline,
+        OverflowPolicy::DropOldest,
+        OverflowPolicy::LatestPerKey,
+        OverflowPolicy::SpillToDisk,
+        OverflowPolicy::DisableSink,
+    ] {
+        let (admission, catalog, connection, system) = topology();
+        assert!(
+            Mfr1TransformContextV1::new(
+                admission,
+                catalog,
+                Mfr1SessionBindingV1::new(connection, 1, 1),
+                system,
+                8,
+                8,
+                overflow,
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
+fn raw_record_count_accepts_exact_bound_and_rejects_one_over() {
+    fn recording(start_ns: i64, ping_count: usize) -> Vec<u8> {
+        let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+        writer
+            .write_metadata(&session_metadata(), start_ns)
+            .unwrap();
+        for _ in 0..ping_count {
+            writer
+                .write_record(
+                    SessionId(1),
+                    0,
+                    start_ns,
+                    0,
+                    Direction::Inbound,
+                    FrameOpcode::Ping,
+                    0,
+                    b"",
+                )
+                .unwrap();
+        }
+        writer.into_inner()
+    }
+
+    let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
+    let exact = transformer
+        .transform(
+            &mut BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &recording(start_ns, 65_535),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        )
+        .unwrap();
+    assert!(exact.inputs().is_empty());
+
+    let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
+    assert_eq!(
+        transformer.transform(
+            &mut BurstMachine {
+                actions: 0,
+                items: 0,
+                replay_start: false,
+            },
+            &recording(start_ns, 65_536),
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::RawRecordCapacity)
+    );
+}
+
+#[test]
+fn authored_input_count_fails_at_the_public_one_over_boundary() {
+    let (transformer, start_ns) = context(2, 8, OverflowPolicy::FailEngine);
+    let bytes = mfr1(&[(7, start_ns, FrameOpcode::Text, b"large-batch")]);
+    assert_eq!(
+        transformer.transform(
+            &mut BurstMachine {
+                actions: 2,
+                items: 32_769,
+                replay_start: false,
+            },
+            &bytes,
+            TimestampNs(start_ns),
+            decision(start_ns),
+        ),
+        Err(Mfr1TransformError::InputCapacity)
+    );
+}
+
+#[test]
 fn selected_session_and_admitted_time_window_are_enforced() {
     let (transformer, start_ns) = context(8, 8, OverflowPolicy::FailEngine);
     let mut writer = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    writer
+        .write_metadata(&session_metadata(), start_ns)
+        .unwrap();
     writer
         .write_record(
             SessionId(2),
@@ -706,6 +1064,9 @@ fn selected_session_and_admitted_time_window_are_enforced() {
 
     let (transformer, _) = context(8, 8, OverflowPolicy::FailEngine);
     let mut selected_outbound = RawSegmentWriter::create(Vec::new(), start_ns).unwrap();
+    selected_outbound
+        .write_metadata(&session_metadata(), start_ns)
+        .unwrap();
     selected_outbound
         .write_record(
             SessionId(1),
@@ -961,7 +1322,7 @@ fn constructor_and_market_mapping_reject_unbound_metadata() {
             TimestampNs(start_ns),
             decision(start_ns),
         ),
-        Err(Mfr1TransformError::TopologyMismatch)
+        Err(Mfr1TransformError::SessionMetadataMismatch)
     );
 }
 
