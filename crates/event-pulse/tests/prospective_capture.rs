@@ -17,7 +17,7 @@ fn binding(source_id: &str, venue: &str, format: &str, blob: char, roles: &[&str
         },
         "roles": roles,
         "families": if venue == "HYPERLIQUID" {
-            json!(["TRADE"])
+            json!(["CONFIRMATION_PRICE"])
         } else {
             json!(["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"])
         },
@@ -59,7 +59,12 @@ fn valid_request() -> Value {
             coverage("primary_book_coverage", "binance_primary", "BOOK", '3'),
             coverage("primary_oi_coverage", "binance_primary", "OPEN_INTEREST", '4'),
             coverage("primary_liq_coverage", "binance_primary", "LIQUIDATION", '5'),
-            coverage("confirmation_trade_coverage", "hyperliquid_confirmation", "TRADE", '6')
+            coverage(
+                "confirmation_price_coverage",
+                "hyperliquid_confirmation",
+                "CONFIRMATION_PRICE",
+                '6'
+            )
         ],
         "system": {
             "source_id": "capture_system",
@@ -239,6 +244,13 @@ fn rejects_instrument_role_and_source_independence_drift() {
     roles["primary"]["roles"] = json!(["TRADE", "QUOTE", "BOOK"]);
     assert_eq!(parse(&roles), Err(ProspectiveAdmissionError::PrimarySource));
 
+    let mut confirmation_family = valid_request();
+    confirmation_family["confirmation"]["families"] = json!(["TRADE"]);
+    assert_eq!(
+        parse(&confirmation_family),
+        Err(ProspectiveAdmissionError::ConfirmationSource)
+    );
+
     for (pointer, expected) in [
         (
             "/confirmation/source_id",
@@ -295,7 +307,7 @@ fn requires_replayable_clock_coverage_and_system_topology() {
     );
 
     let mut wrong_family = valid_request();
-    wrong_family["coverage"][5]["family"] = json!("QUOTE");
+    wrong_family["coverage"][5]["family"] = json!("TRADE");
     assert_eq!(
         parse(&wrong_family),
         Err(ProspectiveAdmissionError::CoverageEvidence)

@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::wire::Rfc3339Time;
+use crate::wire::{FamilyV1, Rfc3339Time};
 
 const SCHEMA: &str = "event-pulse-e2-prospective-admission/1.0";
 const ROOT_AMENDMENT_COMMIT: &str = "24b51a58c670ab722538bec4a3e1def0278b1107";
@@ -144,7 +144,14 @@ impl RawAdmission {
             || self.primary.format != "MFR1"
             || !self.primary.public_read_only
             || self.primary.roles != ["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"]
-            || self.primary.families != ["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"]
+            || self.primary.families
+                != [
+                    FamilyV1::Trade,
+                    FamilyV1::Quote,
+                    FamilyV1::Book,
+                    FamilyV1::OpenInterest,
+                    FamilyV1::Liquidation,
+                ]
         {
             return Err(ProspectiveAdmissionError::PrimarySource);
         }
@@ -153,7 +160,7 @@ impl RawAdmission {
             || self.confirmation.format != "MFR1"
             || !self.confirmation.public_read_only
             || self.confirmation.roles != ["CONFIRMATION"]
-            || self.confirmation.families != ["TRADE"]
+            || self.confirmation.families != [FamilyV1::ConfirmationPrice]
             || self.confirmation.instrument != self.primary.instrument
         {
             return Err(ProspectiveAdmissionError::ConfirmationSource);
@@ -180,23 +187,18 @@ impl RawAdmission {
             .primary
             .families
             .iter()
-            .map(|family| (self.primary.source_id.as_str(), family.as_str()))
+            .map(|family| (self.primary.source_id.as_str(), *family))
             .chain(
                 self.confirmation
                     .families
                     .iter()
-                    .map(|family| (self.confirmation.source_id.as_str(), family.as_str())),
+                    .map(|family| (self.confirmation.source_id.as_str(), *family)),
             )
             .collect::<BTreeSet<_>>();
         let actual_coverage = self
             .coverage
             .iter()
-            .map(|coverage| {
-                (
-                    coverage.subject_source_id.as_str(),
-                    coverage.family.as_str(),
-                )
-            })
+            .map(|coverage| (coverage.subject_source_id.as_str(), coverage.family))
             .collect::<BTreeSet<_>>();
         if self.coverage.len() != expected_coverage.len()
             || actual_coverage != expected_coverage
@@ -281,7 +283,7 @@ struct SourceBinding {
     format: String,
     instrument: CaptureInstrument,
     roles: Vec<String>,
-    families: Vec<String>,
+    families: Vec<FamilyV1>,
     public_read_only: bool,
     repository_url: String,
     producer_commit: String,
@@ -355,7 +357,7 @@ impl ClockBinding {
 struct CoverageBinding {
     source_id: String,
     subject_source_id: String,
-    family: String,
+    family: FamilyV1,
     evidence_kind: String,
     derivation: String,
     producer_commit: String,

@@ -187,7 +187,8 @@ record transient market bytes or endpoint logs in durable memory.
   daemon, capture, package, or execution path was added.
 - Validation: focused RED failed on the missing API; reviewer counterexamples
   then failed on unbound topology, noncanonical timestamps, and a non-replayable
-  clock/coverage/system layout; GREEN passed 8 prospective tests. Full current
+  clock/coverage/system layout, and a parallel confirmation-family vocabulary;
+  GREEN passed 8 prospective tests using canonical `FamilyV1` values. Full current
   and Rust 1.85 EventPulse successor suites each passed 152 tests
   (6 library + 12 contract + 19 cursor + 6 feature + 6 window + 8 prospective
   + 18 replay + 54 snapshot + 23 wire). Clippy and formatting passed.
