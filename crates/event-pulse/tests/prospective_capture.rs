@@ -127,6 +127,15 @@ fn admits_only_the_exact_truthful_nine_role_source_topology() {
     assert_eq!(admission.required_role_count(), 9);
     assert!(!admission.evidence_authoring_allowed());
     assert_eq!(admission.blocker(), "blocked:fixture-provenance");
+    assert_eq!(
+        admission.mechanics_config().processor_id(),
+        "event_pulse_e2_prospective"
+    );
+    assert_eq!(admission.primary_source_id(), "binance_primary");
+    assert_eq!(
+        admission.confirmation_source_id(),
+        "hyperliquid_confirmation"
+    );
 }
 
 #[test]

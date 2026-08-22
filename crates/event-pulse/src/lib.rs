@@ -9,6 +9,7 @@ mod contract;
 mod cursor;
 pub mod features;
 pub mod mechanics;
+mod preflight;
 mod prospective;
 mod provenance;
 mod replay;
@@ -23,6 +24,9 @@ pub use contract::{
 };
 pub use cursor::{
     CursorError, CursorView, IngestOutcome, Invalidity, SlotState, SourceStateMachine,
+};
+pub use preflight::{
+    ArtifactRoleV1, InMemoryArtifactV1, OfflineArtifactError, OfflineArtifactPreflightV1,
 };
 pub use prospective::{ProspectiveAdmissionError, ProspectiveCaptureAdmissionV1};
 pub use provenance::{
