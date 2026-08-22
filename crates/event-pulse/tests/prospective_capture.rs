@@ -8,12 +8,14 @@ fn sha(byte: char, len: usize) -> String {
 fn binding(source_id: &str, venue: &str, format: &str, blob: char, roles: &[&str]) -> Value {
     json!({
         "source_id": source_id,
-        "venue": venue,
+        "connection_id": format!("{source_id}_connection"),
         "format": format,
         "instrument": {
             "base_asset": "BTC",
             "quote_asset": "USDT",
-            "market_type": "PERPETUAL"
+            "market_type": "PERPETUAL",
+            "venue": venue,
+            "venue_symbol": if venue == "BINANCE" { "BTCUSDT" } else { "BTC" }
         },
         "roles": roles,
         "families": if venue == "HYPERLIQUID" {
@@ -150,19 +152,19 @@ fn rejects_false_market_and_confirmation_shortcuts() {
             ProspectiveAdmissionError::PrimarySource,
         ),
         (
-            "/confirmation/venue",
+            "/confirmation/instrument/venue",
             json!("BINANCE"),
             ProspectiveAdmissionError::ConfirmationSource,
         ),
         (
-            "/confirmation/venue",
+            "/confirmation/instrument/venue",
             json!("OKX"),
-            ProspectiveAdmissionError::ConfirmationSource,
+            ProspectiveAdmissionError::Shape,
         ),
         (
-            "/confirmation/venue",
+            "/confirmation/instrument/venue",
             json!("KRAKEN"),
-            ProspectiveAdmissionError::ConfirmationSource,
+            ProspectiveAdmissionError::Shape,
         ),
         (
             "/confirmation/format",
@@ -238,6 +240,28 @@ fn rejects_instrument_role_and_source_independence_drift() {
     assert_eq!(
         parse(&instrument),
         Err(ProspectiveAdmissionError::ConfirmationSource)
+    );
+
+    let mut missing_symbol = valid_request();
+    missing_symbol["primary"]["instrument"]
+        .as_object_mut()
+        .unwrap()
+        .remove("venue_symbol");
+    assert_eq!(
+        parse(&missing_symbol),
+        Err(ProspectiveAdmissionError::Shape)
+    );
+
+    let mut wrong_symbol = valid_request();
+    wrong_symbol["primary"]["instrument"]["venue_symbol"] = json!("btc/usdt");
+    assert_eq!(parse(&wrong_symbol), Err(ProspectiveAdmissionError::Shape));
+
+    let mut shared_connection = valid_request();
+    shared_connection["confirmation"]["connection_id"] =
+        shared_connection["primary"]["connection_id"].clone();
+    assert_eq!(
+        parse(&shared_connection),
+        Err(ProspectiveAdmissionError::SourceBinding)
     );
 
     let mut roles = valid_request();

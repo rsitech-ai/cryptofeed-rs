@@ -4,12 +4,16 @@
 //! proposed capture topology has the independent sources required by the E2
 //! contract and remains below every execution authority boundary.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::wire::{FamilyV1, Rfc3339Time};
+use crate::wire::{
+    ClockSourceKeyV1, ConfiguredTargetKeyV1, ConnectionKeyV1, ContributorKeyV1, ContributorRoleV1,
+    ContributorSpecV1, CoverageSourceKeyV1, CursorModeV1, FamilyV1, FaultScopeKindV1,
+    InstrumentIdentityV1, MechanicsConfigV1, Rfc3339Time, SystemSourceKeyV1,
+};
 
 const SCHEMA: &str = "event-pulse-e2-prospective-admission/1.0";
 const ROOT_AMENDMENT_COMMIT: &str = "24b51a58c670ab722538bec4a3e1def0278b1107";
@@ -68,11 +72,11 @@ impl ProspectiveCaptureAdmissionV1 {
     }
 
     pub fn primary_venue(&self) -> &str {
-        &self.primary.venue
+        self.primary.instrument.venue()
     }
 
     pub fn confirmation_venue(&self) -> &str {
-        &self.confirmation.venue
+        self.confirmation.instrument.venue()
     }
 
     pub fn required_role_count(&self) -> usize {
@@ -140,7 +144,7 @@ impl RawAdmission {
         {
             return Err(ProspectiveAdmissionError::Roles);
         }
-        if self.primary.venue != "BINANCE"
+        if self.primary.instrument.venue() != "BINANCE"
             || self.primary.format != "MFR1"
             || !self.primary.public_read_only
             || self.primary.roles != ["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"]
@@ -155,13 +159,15 @@ impl RawAdmission {
         {
             return Err(ProspectiveAdmissionError::PrimarySource);
         }
-        if self.confirmation.venue != "HYPERLIQUID"
-            || self.confirmation.venue == self.primary.venue
+        if self.confirmation.instrument.venue() != "HYPERLIQUID"
+            || self.confirmation.instrument.venue() == self.primary.instrument.venue()
             || self.confirmation.format != "MFR1"
             || !self.confirmation.public_read_only
             || self.confirmation.roles != ["CONFIRMATION"]
             || self.confirmation.families != [FamilyV1::ConfirmationPrice]
-            || self.confirmation.instrument != self.primary.instrument
+            || self.confirmation.instrument.base_asset() != self.primary.instrument.base_asset()
+            || self.confirmation.instrument.quote_asset() != self.primary.instrument.quote_asset()
+            || self.confirmation.instrument.market_type() != self.primary.instrument.market_type()
         {
             return Err(ProspectiveAdmissionError::ConfirmationSource);
         }
@@ -262,9 +268,11 @@ impl RawAdmission {
         if source_ids.iter().copied().collect::<BTreeSet<_>>().len() != source_ids.len()
             || paths.iter().copied().collect::<BTreeSet<_>>().len() != paths.len()
             || blobs.iter().copied().collect::<BTreeSet<_>>().len() != blobs.len()
+            || self.primary.connection_id == self.confirmation.connection_id
         {
             return Err(ProspectiveAdmissionError::SourceBinding);
         }
+        self.validate_mechanics_config()?;
         self.authority.validate()?;
 
         Ok(ProspectiveCaptureAdmissionV1 {
@@ -273,15 +281,97 @@ impl RawAdmission {
             required_roles: self.required_roles,
         })
     }
+
+    fn validate_mechanics_config(&self) -> Result<(), ProspectiveAdmissionError> {
+        let primary_key =
+            ContributorKeyV1::new(&self.primary.source_id, self.primary.instrument.clone())
+                .map_err(|_| ProspectiveAdmissionError::SourceBinding)?;
+        let confirmation_key = ContributorKeyV1::new(
+            &self.confirmation.source_id,
+            self.confirmation.instrument.clone(),
+        )
+        .map_err(|_| ProspectiveAdmissionError::SourceBinding)?;
+        let primary_connection = ConnectionKeyV1::new(&self.primary.connection_id)
+            .map_err(|_| ProspectiveAdmissionError::SourceBinding)?;
+        let confirmation_connection = ConnectionKeyV1::new(&self.confirmation.connection_id)
+            .map_err(|_| ProspectiveAdmissionError::SourceBinding)?;
+        let contributors = vec![
+            ContributorSpecV1::new(
+                primary_key.clone(),
+                ContributorRoleV1::Primary,
+                self.primary.families.iter().copied(),
+            )
+            .map_err(|_| ProspectiveAdmissionError::SourceBinding)?,
+            ContributorSpecV1::new(
+                confirmation_key.clone(),
+                ContributorRoleV1::Confirmation,
+                self.confirmation.families.iter().copied(),
+            )
+            .map_err(|_| ProspectiveAdmissionError::SourceBinding)?,
+        ];
+        let contributor_connections = BTreeMap::from([
+            (primary_key.clone(), primary_connection.clone()),
+            (confirmation_key.clone(), confirmation_connection.clone()),
+        ]);
+        let contributor_for = |source_id: &str| match source_id {
+            id if id == self.primary.source_id => Some(primary_key.clone()),
+            id if id == self.confirmation.source_id => Some(confirmation_key.clone()),
+            _ => None,
+        };
+        let clocks = self
+            .clocks
+            .iter()
+            .map(|clock| {
+                ClockSourceKeyV1::new(
+                    &clock.source_id,
+                    contributor_for(&clock.subject_source_id)
+                        .ok_or(ProspectiveAdmissionError::ClockEvidence)?,
+                )
+                .map_err(|_| ProspectiveAdmissionError::ClockEvidence)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let coverage = self
+            .coverage
+            .iter()
+            .map(|coverage| {
+                CoverageSourceKeyV1::new(
+                    &coverage.source_id,
+                    contributor_for(&coverage.subject_source_id)
+                        .ok_or(ProspectiveAdmissionError::CoverageEvidence)?,
+                    coverage.family,
+                )
+                .map_err(|_| ProspectiveAdmissionError::CoverageEvidence)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let system = SystemSourceKeyV1::new(
+            &self.system.source_id,
+            FaultScopeKindV1::Processor,
+            ConfiguredTargetKeyV1::processor(&self.system.processor_id)
+                .map_err(|_| ProspectiveAdmissionError::SystemEvidence)?,
+            CursorModeV1::Derived,
+        )
+        .map_err(|_| ProspectiveAdmissionError::SystemEvidence)?;
+        MechanicsConfigV1::new(
+            &self.system.processor_id,
+            vec![primary_connection, confirmation_connection],
+            contributors,
+            contributor_connections,
+            clocks,
+            coverage,
+            vec![system],
+        )
+        .map_err(|_| ProspectiveAdmissionError::SourceBinding)?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SourceBinding {
     source_id: String,
-    venue: String,
+    connection_id: String,
     format: String,
-    instrument: CaptureInstrument,
+    instrument: InstrumentIdentityV1,
     roles: Vec<String>,
     families: Vec<FamilyV1>,
     public_read_only: bool,
@@ -293,35 +383,13 @@ struct SourceBinding {
 
 impl SourceBinding {
     fn validate(&self) -> Result<(), ProspectiveAdmissionError> {
-        self.instrument.validate()?;
         if self.repository_url != REPOSITORY_URL
             || !valid_source_id(&self.source_id)
+            || ConnectionKeyV1::new(&self.connection_id).is_err()
+            || self.instrument.validate().is_err()
             || !is_lower_hex(&self.producer_commit, 40)
             || !valid_producer_path(&self.producer_path)
             || !is_lower_hex(&self.producer_blob_sha256, 64)
-        {
-            return Err(ProspectiveAdmissionError::SourceBinding);
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CaptureInstrument {
-    base_asset: String,
-    quote_asset: String,
-    market_type: String,
-}
-
-impl CaptureInstrument {
-    fn validate(&self) -> Result<(), ProspectiveAdmissionError> {
-        if !matches!(
-            self.base_asset.as_str(),
-            "BTC" | "ETH" | "SOL" | "BNB" | "HYPE"
-        ) || !matches!(self.quote_asset.as_str(), "USD" | "USDC" | "USDT")
-            || self.market_type != "PERPETUAL"
-            || self.base_asset == self.quote_asset
         {
             return Err(ProspectiveAdmissionError::SourceBinding);
         }
