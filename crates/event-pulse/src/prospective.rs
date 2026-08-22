@@ -4,6 +4,8 @@
 //! proposed capture topology has the independent sources required by the E2
 //! contract and remains below every execution authority boundary.
 
+use std::collections::BTreeSet;
+
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -124,7 +126,10 @@ impl RawAdmission {
             .map_err(|_| ProspectiveAdmissionError::RootBinding)?;
         let starts_at = Rfc3339Time::parse(&self.capture_starts_at)
             .map_err(|_| ProspectiveAdmissionError::CaptureTiming)?;
-        if starts_at <= boundary {
+        if starts_at <= boundary
+            || !self.capture_starts_at.ends_with('Z')
+            || starts_at.canonical() != self.capture_starts_at
+        {
             return Err(ProspectiveAdmissionError::CaptureTiming);
         }
         if self
@@ -138,6 +143,7 @@ impl RawAdmission {
         if self.primary.venue != "BINANCE"
             || self.primary.format != "MFR1"
             || !self.primary.public_read_only
+            || self.primary.roles != ["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"]
         {
             return Err(ProspectiveAdmissionError::PrimarySource);
         }
@@ -145,20 +151,26 @@ impl RawAdmission {
             || self.confirmation.venue == self.primary.venue
             || self.confirmation.format != "MFR1"
             || !self.confirmation.public_read_only
+            || self.confirmation.roles != ["CONFIRMATION"]
+            || self.confirmation.instrument != self.primary.instrument
         {
             return Err(ProspectiveAdmissionError::ConfirmationSource);
         }
         if self.clock.evidence_kind != "UTC_MONOTONIC_OBSERVATION"
             || self.clock.derivation != "INDEPENDENT_SIDECAR"
+            || self.clock.subject_source_id != self.primary.source_id
         {
             return Err(ProspectiveAdmissionError::ClockEvidence);
         }
         if self.coverage.evidence_kind != "EXPLICIT_HEARTBEAT_RANGE"
             || self.coverage.derivation != "INDEPENDENT_SIDECAR"
+            || self.coverage.subject_source_id != self.primary.source_id
         {
             return Err(ProspectiveAdmissionError::CoverageEvidence);
         }
-        if self.system.evidence_kind != "STABLE_SYSTEM_FAULT_MAPPING" {
+        if self.system.evidence_kind != "STABLE_SYSTEM_FAULT_MAPPING"
+            || self.system.target != "PROCESSOR"
+        {
             return Err(ProspectiveAdmissionError::SystemEvidence);
         }
         self.primary.validate()?;
@@ -166,6 +178,33 @@ impl RawAdmission {
         self.clock.validate()?;
         self.coverage.validate()?;
         self.system.validate()?;
+        let source_ids = [
+            self.primary.source_id.as_str(),
+            self.confirmation.source_id.as_str(),
+            self.clock.source_id.as_str(),
+            self.coverage.source_id.as_str(),
+            self.system.source_id.as_str(),
+        ];
+        let paths = [
+            self.primary.producer_path.as_str(),
+            self.confirmation.producer_path.as_str(),
+            self.clock.producer_path.as_str(),
+            self.coverage.producer_path.as_str(),
+            self.system.producer_path.as_str(),
+        ];
+        let blobs = [
+            self.primary.producer_blob_sha256.as_str(),
+            self.confirmation.producer_blob_sha256.as_str(),
+            self.clock.producer_blob_sha256.as_str(),
+            self.coverage.producer_blob_sha256.as_str(),
+            self.system.producer_blob_sha256.as_str(),
+        ];
+        if BTreeSet::from(source_ids).len() != source_ids.len()
+            || BTreeSet::from(paths).len() != paths.len()
+            || BTreeSet::from(blobs).len() != blobs.len()
+        {
+            return Err(ProspectiveAdmissionError::SourceBinding);
+        }
         self.authority.validate()?;
 
         Ok(ProspectiveCaptureAdmissionV1 {
@@ -179,18 +218,25 @@ impl RawAdmission {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SourceBinding {
+    source_id: String,
     venue: String,
     format: String,
+    instrument: CaptureInstrument,
+    roles: Vec<String>,
     public_read_only: bool,
     repository_url: String,
     producer_commit: String,
+    producer_path: String,
     producer_blob_sha256: String,
 }
 
 impl SourceBinding {
     fn validate(&self) -> Result<(), ProspectiveAdmissionError> {
+        self.instrument.validate()?;
         if self.repository_url != REPOSITORY_URL
+            || !valid_source_id(&self.source_id)
             || !is_lower_hex(&self.producer_commit, 40)
+            || !valid_producer_path(&self.producer_path)
             || !is_lower_hex(&self.producer_blob_sha256, 64)
         {
             return Err(ProspectiveAdmissionError::SourceBinding);
@@ -201,53 +247,132 @@ impl SourceBinding {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
+struct CaptureInstrument {
+    base_asset: String,
+    quote_asset: String,
+    market_type: String,
+}
+
+impl CaptureInstrument {
+    fn validate(&self) -> Result<(), ProspectiveAdmissionError> {
+        if !matches!(
+            self.base_asset.as_str(),
+            "BTC" | "ETH" | "SOL" | "BNB" | "HYPE"
+        ) || !matches!(self.quote_asset.as_str(), "USD" | "USDC" | "USDT")
+            || self.market_type != "PERPETUAL"
+            || self.base_asset == self.quote_asset
+        {
+            return Err(ProspectiveAdmissionError::SourceBinding);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ClockBinding {
+    source_id: String,
+    subject_source_id: String,
     evidence_kind: String,
     derivation: String,
     producer_commit: String,
+    producer_path: String,
     producer_blob_sha256: String,
 }
 
 impl ClockBinding {
     fn validate(&self) -> Result<(), ProspectiveAdmissionError> {
-        validate_local_binding(&self.producer_commit, &self.producer_blob_sha256)
+        validate_local_binding(
+            &self.source_id,
+            &self.producer_commit,
+            &self.producer_path,
+            &self.producer_blob_sha256,
+        )
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CoverageBinding {
+    source_id: String,
+    subject_source_id: String,
     evidence_kind: String,
     derivation: String,
     producer_commit: String,
+    producer_path: String,
     producer_blob_sha256: String,
 }
 
 impl CoverageBinding {
     fn validate(&self) -> Result<(), ProspectiveAdmissionError> {
-        validate_local_binding(&self.producer_commit, &self.producer_blob_sha256)
+        validate_local_binding(
+            &self.source_id,
+            &self.producer_commit,
+            &self.producer_path,
+            &self.producer_blob_sha256,
+        )
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SystemBinding {
+    source_id: String,
+    target: String,
     evidence_kind: String,
     producer_commit: String,
+    producer_path: String,
     producer_blob_sha256: String,
 }
 
 impl SystemBinding {
     fn validate(&self) -> Result<(), ProspectiveAdmissionError> {
-        validate_local_binding(&self.producer_commit, &self.producer_blob_sha256)
+        validate_local_binding(
+            &self.source_id,
+            &self.producer_commit,
+            &self.producer_path,
+            &self.producer_blob_sha256,
+        )
     }
 }
 
-fn validate_local_binding(commit: &str, blob: &str) -> Result<(), ProspectiveAdmissionError> {
-    if !is_lower_hex(commit, 40) || !is_lower_hex(blob, 64) {
+fn validate_local_binding(
+    source_id: &str,
+    commit: &str,
+    path: &str,
+    blob: &str,
+) -> Result<(), ProspectiveAdmissionError> {
+    if !valid_source_id(source_id)
+        || !is_lower_hex(commit, 40)
+        || !valid_producer_path(path)
+        || !is_lower_hex(blob, 64)
+    {
         return Err(ProspectiveAdmissionError::SourceBinding);
     }
     Ok(())
+}
+
+fn valid_source_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value.as_bytes()[0].is_ascii_lowercase()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+}
+
+fn valid_producer_path(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && !value.starts_with('/')
+        && !value.contains('\\')
+        && value.split('/').all(|component| {
+            !component.is_empty()
+                && !matches!(component, "." | "..")
+                && component
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-' | b'.'))
+        })
 }
 
 fn is_lower_hex(value: &str, len: usize) -> bool {

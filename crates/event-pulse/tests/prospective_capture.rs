@@ -5,13 +5,21 @@ fn sha(byte: char, len: usize) -> String {
     std::iter::repeat_n(byte, len).collect()
 }
 
-fn binding(venue: &str, format: &str, blob: char) -> Value {
+fn binding(source_id: &str, venue: &str, format: &str, blob: char, roles: &[&str]) -> Value {
     json!({
+        "source_id": source_id,
         "venue": venue,
         "format": format,
+        "instrument": {
+            "base_asset": "BTC",
+            "quote_asset": "USDT",
+            "market_type": "PERPETUAL"
+        },
+        "roles": roles,
         "public_read_only": true,
         "repository_url": "https://github.com/rsitech-ai/cryptofeed-rs",
         "producer_commit": sha('a', 40),
+        "producer_path": format!("crates/event-pulse-capture/src/{source_id}.rs"),
         "producer_blob_sha256": sha(blob, 64)
     })
 }
@@ -28,23 +36,38 @@ fn valid_request() -> Value {
             "TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION",
             "CONFIRMATION", "CLOCK", "COVERAGE", "SYSTEM"
         ],
-        "primary": binding("BINANCE", "MFR1", 'b'),
-        "confirmation": binding("HYPERLIQUID", "MFR1", 'c'),
+        "primary": binding(
+            "binance_primary", "BINANCE", "MFR1", 'b',
+            &["TRADE", "QUOTE", "BOOK", "OPEN_INTEREST", "LIQUIDATION"]
+        ),
+        "confirmation": binding(
+            "hyperliquid_confirmation", "HYPERLIQUID", "MFR1", 'c',
+            &["CONFIRMATION"]
+        ),
         "clock": {
+            "source_id": "host_clock",
+            "subject_source_id": "binance_primary",
             "evidence_kind": "UTC_MONOTONIC_OBSERVATION",
             "derivation": "INDEPENDENT_SIDECAR",
             "producer_commit": sha('d', 40),
+            "producer_path": "crates/event-pulse-capture/src/clock.rs",
             "producer_blob_sha256": sha('e', 64)
         },
         "coverage": {
+            "source_id": "primary_coverage",
+            "subject_source_id": "binance_primary",
             "evidence_kind": "EXPLICIT_HEARTBEAT_RANGE",
             "derivation": "INDEPENDENT_SIDECAR",
             "producer_commit": sha('f', 40),
+            "producer_path": "crates/event-pulse-capture/src/coverage.rs",
             "producer_blob_sha256": sha('1', 64)
         },
         "system": {
+            "source_id": "capture_system",
+            "target": "PROCESSOR",
             "evidence_kind": "STABLE_SYSTEM_FAULT_MAPPING",
             "producer_commit": sha('2', 40),
+            "producer_path": "crates/event-pulse-capture/src/system.rs",
             "producer_blob_sha256": sha('3', 64)
         },
         "authority": {
@@ -74,7 +97,12 @@ fn admits_only_the_exact_truthful_nine_role_source_topology() {
 
 #[test]
 fn capture_must_begin_strictly_after_default_reachability() {
-    for start in ["2026-08-22T07:35:51.999999Z", "2026-08-22T07:35:52Z"] {
+    for start in [
+        "2026-08-22T07:35:51.999999Z",
+        "2026-08-22T07:35:52Z",
+        "2026-08-22T08:35:52.000001+01:00",
+        "2026-08-22T07:35:52.0000001Z",
+    ] {
         let mut value = valid_request();
         value["capture_starts_at"] = json!(start);
         assert_eq!(parse(&value), Err(ProspectiveAdmissionError::CaptureTiming));
@@ -169,6 +197,46 @@ fn rejects_mutable_or_unbound_sources_and_authority_escalation() {
         value["authority"][key] = json!(true);
         assert_eq!(parse(&value), Err(ProspectiveAdmissionError::Authority));
     }
+}
+
+#[test]
+fn rejects_instrument_role_and_source_independence_drift() {
+    let mut instrument = valid_request();
+    instrument["confirmation"]["instrument"]["quote_asset"] = json!("USD");
+    assert_eq!(
+        parse(&instrument),
+        Err(ProspectiveAdmissionError::ConfirmationSource)
+    );
+
+    let mut roles = valid_request();
+    roles["primary"]["roles"] = json!(["TRADE", "QUOTE", "BOOK"]);
+    assert_eq!(parse(&roles), Err(ProspectiveAdmissionError::PrimarySource));
+
+    for pointer in [
+        "/confirmation/source_id",
+        "/clock/source_id",
+        "/coverage/source_id",
+        "/system/source_id",
+    ] {
+        let mut value = valid_request();
+        *value.pointer_mut(pointer).unwrap() = json!("binance_primary");
+        assert_eq!(parse(&value), Err(ProspectiveAdmissionError::SourceBinding));
+    }
+
+    let mut shared_blob = valid_request();
+    shared_blob["clock"]["producer_blob_sha256"] =
+        shared_blob["primary"]["producer_blob_sha256"].clone();
+    assert_eq!(
+        parse(&shared_blob),
+        Err(ProspectiveAdmissionError::SourceBinding)
+    );
+
+    let mut escaped_path = valid_request();
+    escaped_path["system"]["producer_path"] = json!("../system.rs");
+    assert_eq!(
+        parse(&escaped_path),
+        Err(ProspectiveAdmissionError::SourceBinding)
+    );
 }
 
 #[test]
