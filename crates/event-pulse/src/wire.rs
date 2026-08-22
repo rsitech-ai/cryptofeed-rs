@@ -1819,16 +1819,47 @@ impl ReplayCatalogV1 {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CatalogWire {
-    venue_sources: BTreeMap<u16, VenueCatalogEntryV1>,
-    instruments: BTreeMap<u32, InstrumentIdentityV1>,
+    venue_sources: BTreeMap<String, VenueCatalogEntryV1>,
+    instruments: BTreeMap<String, InstrumentIdentityV1>,
     connection_epochs: Vec<ReplayEpochEntryV1>,
-    open_interest: BTreeMap<u32, serde_json::Value>,
+    open_interest: BTreeMap<String, serde_json::Value>,
 }
+
+fn parse_catalog_key<T>(key: &str) -> Result<T, WireError>
+where
+    T: std::str::FromStr + ToString,
+{
+    let parsed = key.parse::<T>().map_err(|_| WireError::Identity)?;
+    if parsed.to_string() != key {
+        return Err(WireError::Identity);
+    }
+    Ok(parsed)
+}
+
 impl<'de> Deserialize<'de> for ReplayCatalogV1 {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let w = CatalogWire::deserialize(d)?;
+        let venue_sources = w
+            .venue_sources
+            .into_iter()
+            .map(|(id, value)| {
+                parse_catalog_key::<u16>(&id)
+                    .map(|id| (id, value))
+                    .map_err(serde::de::Error::custom)
+            })
+            .collect::<Result<BTreeMap<_, _>, D::Error>>()?;
+        let instruments = w
+            .instruments
+            .into_iter()
+            .map(|(id, value)| {
+                parse_catalog_key::<u32>(&id)
+                    .map(|id| (id, value))
+                    .map_err(serde::de::Error::custom)
+            })
+            .collect::<Result<BTreeMap<_, _>, D::Error>>()?;
         let mut oi = BTreeMap::new();
         for (id, v) in w.open_interest {
+            let id = parse_catalog_key::<u32>(&id).map_err(serde::de::Error::custom)?;
             let object = v
                 .as_object()
                 .ok_or_else(|| serde::de::Error::custom("OI object"))?;
@@ -1849,7 +1880,7 @@ impl<'de> Deserialize<'de> for ReplayCatalogV1 {
             };
             oi.insert(id, parsed);
         }
-        Self::new(w.venue_sources, w.instruments, w.connection_epochs, oi)
+        Self::new(venue_sources, instruments, w.connection_epochs, oi)
             .map_err(serde::de::Error::custom)
     }
 }

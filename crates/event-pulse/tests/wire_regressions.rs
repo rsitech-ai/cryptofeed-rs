@@ -780,6 +780,29 @@ fn market_epin_requires_exact_action_and_catalog_mapping() {
     }
 
     let authored = MechanicsInputV1::market(valid, 0, catalog).unwrap();
+    let canonical = serde_json::to_vec(&authored).unwrap();
+    assert_eq!(
+        MechanicsInputV1::from_epin_json(&canonical).unwrap(),
+        authored,
+        "an authored MARKET record must survive its strict canonical EPIN boundary"
+    );
+
+    let authored_value = serde_json::to_value(&authored).unwrap();
+    for invalid_key in ["07", "+7", "4294967296"] {
+        let mut invalid = authored_value.clone();
+        let instrument = invalid["catalog"]["instruments"]
+            .as_object_mut()
+            .unwrap()
+            .remove("7")
+            .unwrap();
+        invalid["catalog"]["instruments"]
+            .as_object_mut()
+            .unwrap()
+            .insert(invalid_key.to_owned(), instrument);
+        invalid = rehash_epin(invalid);
+        assert!(MechanicsInputV1::from_epin_json(&serde_json::to_vec(&invalid).unwrap()).is_err());
+    }
+
     let mut rehashed_overflow = serde_json::to_value(authored).unwrap();
     rehashed_overflow["envelope"]["frame_seq"] = json!(u64::MAX);
     rehashed_overflow = rehash_epin(rehashed_overflow);
