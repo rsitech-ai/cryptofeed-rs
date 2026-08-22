@@ -1,1 +1,3 @@
 ui/dist/assets/*.js -whitespace
+# Pinned provenance hashes cover exact contract bytes; never rewrite them to CRLF.
+crates/event-pulse/contracts/** text eol=lf

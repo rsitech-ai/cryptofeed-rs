@@ -4,6 +4,7 @@ use marketfeed_event_pulse::{
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use std::process::Command;
 
 fn rehash(mut value: Value) -> Value {
     value.as_object_mut().unwrap().remove("content_hash");
@@ -172,6 +173,47 @@ fn provenance_accepts_exact_embedded_artifacts() {
     let verified = verify_embedded_contracts().expect("accepted contract bytes must verify");
     assert_eq!(verified.len(), 8);
     assert!(verified.iter().all(|artifact| !artifact.bytes.is_empty()));
+}
+
+#[test]
+fn pinned_contract_artifacts_have_repository_enforced_lf_checkout() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let repository_root = manifest_dir.parent().unwrap().parent().unwrap();
+    let probe = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(repository_root)
+        .output()
+        .expect("git must be available for repository attribute proof");
+    if !probe.status.success() {
+        return;
+    }
+
+    let manifest = embedded_provenance().expect("embedded provenance");
+    let mut paths = manifest
+        .artifacts
+        .iter()
+        .map(|artifact| format!("crates/event-pulse/{}", artifact.embedded_path))
+        .collect::<Vec<_>>();
+    paths.push("crates/event-pulse/contracts/provenance.json".into());
+
+    let mut command = Command::new("git");
+    command
+        .args(["check-attr", "text", "eol", "--"])
+        .args(&paths)
+        .current_dir(repository_root);
+    let output = command.output().expect("git check-attr must execute");
+    assert!(output.status.success());
+    let attributes = String::from_utf8(output.stdout).expect("git attributes must be UTF-8");
+    for path in paths {
+        assert!(
+            attributes.contains(&format!("{path}: text: set")),
+            "pinned artifact must be classified as text: {path}\n{attributes}"
+        );
+        assert!(
+            attributes.contains(&format!("{path}: eol: lf")),
+            "pinned artifact must retain LF bytes on every checkout: {path}\n{attributes}"
+        );
+    }
 }
 
 #[test]
