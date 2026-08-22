@@ -3156,6 +3156,93 @@ fn first_accepted_warming_market_remains_the_exact_causal_anchor_after_feature_e
 }
 
 #[test]
+fn eligible_warming_anchor_still_rejects_when_clock_freshness_is_exceeded() {
+    let fixture = fixture();
+    let mut processor = MechanicsProcessor::new(fixture.config.clone(), authoring()).unwrap();
+    processor
+        .ingest(&market(
+            1,
+            0,
+            MarketEvent::Quote(Quote {
+                bid_price: Price(Fixed::new(100 * SCALE, 8)),
+                bid_quantity: None,
+                ask_price: Price(Fixed::new(101 * SCALE, 8)),
+                ask_quantity: None,
+            }),
+        ))
+        .unwrap();
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            2_001_000_000,
+            "epoch_clock_a",
+            0,
+            1,
+            "0.25",
+        ))
+        .unwrap();
+
+    assert_eq!(
+        processor.snapshot(time_ns(2_001_000_000)),
+        Err(SnapshotError::StaleCausalAnchor)
+    );
+}
+
+#[test]
+fn healthy_live_natural_horizon_expiry_does_not_reenable_anchor_fallback() {
+    let fixture = fixture();
+    let mut processor = warmed_processor(60_080_000_000);
+    processor
+        .ingest(&clock_input(
+            &fixture,
+            64_890_000_000,
+            "epoch_clock_a",
+            0,
+            2,
+            "0.25",
+        ))
+        .unwrap();
+    processor
+        .ingest(&market(
+            9,
+            64_900_000_000,
+            MarketEvent::Quote(Quote {
+                bid_price: Price(Fixed::new(100 * SCALE, 8)),
+                bid_quantity: None,
+                ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
+                ask_quantity: None,
+            }),
+        ))
+        .unwrap();
+    ingest_coverage_round(&mut processor, &fixture, 64_900_000_000, 2, "epoch_a", 0);
+    let mut without_intermediate_snapshot = processor.clone();
+    processor.snapshot(time_ns(64_900_000_000)).unwrap();
+
+    for candidate in [&mut processor, &mut without_intermediate_snapshot] {
+        candidate
+            .ingest(&clock_input(
+                &fixture,
+                65_190_000_000,
+                "epoch_clock_a",
+                0,
+                3,
+                "0.25",
+            ))
+            .unwrap();
+        ingest_coverage_round(candidate, &fixture, 65_200_000_000, 3, "epoch_a", 0);
+    }
+
+    assert_eq!(
+        processor.snapshot(time_ns(65_200_000_000)),
+        Err(SnapshotError::MissingCausalAnchor)
+    );
+    assert_eq!(
+        without_intermediate_snapshot.snapshot(time_ns(65_200_000_000)),
+        Err(SnapshotError::MissingCausalAnchor)
+    );
+}
+
+#[test]
 fn virgin_primary_market_uses_two_reserves_then_seals_and_retries_live() {
     let mut fixture = fixture();
     let system_key = SystemSourceKeyV1::new(

@@ -84,6 +84,7 @@ struct FeatureRuntime {
     generations: BTreeMap<ContributorKeyV1, u8>,
     causal: BTreeMap<ContributorKeyV1, ContributorCausal>,
     retained_anchor: Option<MarketAnchor>,
+    retained_anchor_fallback_eligible: bool,
 }
 
 impl FeatureRuntime {
@@ -153,6 +154,7 @@ impl FeatureRuntime {
             generations: BTreeMap::new(),
             causal,
             retained_anchor: None,
+            retained_anchor_fallback_eligible: false,
         })
     }
 
@@ -233,6 +235,7 @@ impl FeatureRuntime {
                 self.retained_anchor = Some(candidate);
             }
         }
+        self.retained_anchor_fallback_eligible = self.retained_anchor.is_some();
         Ok(())
     }
 
@@ -282,6 +285,7 @@ impl FeatureRuntime {
         &mut self,
         input: &MechanicsInputV1,
         config: &MechanicsConfigV1,
+        sources: &SourceStateMachine,
     ) -> Result<(), SnapshotError> {
         match input.view() {
             MechanicsInputRefV1::Market {
@@ -446,7 +450,6 @@ impl FeatureRuntime {
                 let exact_anchor = market_anchor(input)?.ok_or_else(|| {
                     SnapshotError::InvalidInput("market input has no causal anchor".into())
                 })?;
-                self.retained_anchor = Some(exact_anchor.clone());
                 if let Some(horizon_ns) = causal_horizon_ns {
                     let source_event_ns = envelope
                         .exchange_ts
@@ -460,10 +463,13 @@ impl FeatureRuntime {
                             source_event_ns,
                             receive_ns: envelope.receive_ts.0,
                             normalized_ns: envelope.receive_ts.0,
-                            exact_anchor,
+                            exact_anchor: exact_anchor.clone(),
                         },
                     )?;
                 }
+                self.retained_anchor = Some(exact_anchor);
+                self.retained_anchor_fallback_eligible =
+                    sources.contributor_state(&contributor) != Some(SlotState::Live);
             }
             MechanicsInputRefV1::Coverage {
                 coverage_source,
@@ -1153,7 +1159,6 @@ struct ReplayCheckpoint {
     master_queue_drops: BTreeMap<CauseKey, Option<u8>>,
     phase: PhaseMachine,
     observation: SnapshotObservation,
-    exact_anchor: Option<MarketAnchor>,
 }
 
 #[derive(Debug, Clone)]
@@ -1397,7 +1402,7 @@ impl MechanicsProcessor {
         };
         if outcome != IngestOutcome::IgnoredDuplicate {
             let mut candidate_runtime = self.feature_runtime.clone();
-            if let Err(error) = candidate_runtime.ingest(input, &self.config) {
+            if let Err(error) = candidate_runtime.ingest(input, &self.config, &candidate_sources) {
                 if queue_recovery {
                     return Err(error);
                 }
@@ -1534,7 +1539,6 @@ impl MechanicsProcessor {
             checkpoint_master_queue_drops,
         ) = candidate.replay_state(decision_ns)?;
         checkpoint_runtime.evict(&candidate.config, decision_ns)?;
-        let checkpoint_exact_anchor = checkpoint_runtime.retained_anchor.clone();
         candidate.checkpoint = Some(ReplayCheckpoint {
             at_ns: decision_ns,
             sources: checkpoint_sources,
@@ -1543,7 +1547,6 @@ impl MechanicsProcessor {
             master_queue_drops: checkpoint_master_queue_drops,
             phase: candidate.phase.clone(),
             observation: aggregate.clone(),
-            exact_anchor: checkpoint_exact_anchor,
         });
         candidate
             .records
@@ -1839,9 +1842,9 @@ impl MechanicsProcessor {
         }
         let anchor = if current_causal.is_empty() {
             runtime
-                .retained_anchor
-                .clone()
-                .or_else(|| checkpoint.and_then(|value| value.exact_anchor.clone()))
+                .retained_anchor_fallback_eligible
+                .then(|| runtime.retained_anchor.clone())
+                .flatten()
         } else {
             let mut exact = current_causal
                 .iter()
@@ -2651,7 +2654,7 @@ impl MechanicsProcessor {
                 Ok(_) => {
                     match record.kind {
                         ProcessorRecordKind::Evidence => {
-                            runtime.ingest(input, &self.config)?;
+                            runtime.ingest(input, &self.config, &sources)?;
                         }
                         ProcessorRecordKind::RejectedState => {
                             return Err(SnapshotError::Contract(
@@ -3159,6 +3162,7 @@ fn apply_replay_fault(
         {
             runtime.retained_anchor = Some(anchor.clone());
         }
+        runtime.retained_anchor_fallback_eligible = true;
     }
     Ok(())
 }
