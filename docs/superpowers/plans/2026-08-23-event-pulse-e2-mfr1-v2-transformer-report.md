@@ -17,16 +17,17 @@ Buffered BOOK correlation is deterministic without changing the adapter. Selecte
 ## TDD evidence
 
 - RED: `cargo test -p marketfeed-event-pulse-mfr1 --test transformer_v2` failed with `E0432` unresolved imports for the absent V2 API.
-- GREEN: the review-hardened focused suite passes 18/18. In addition to the initial matrix, it rejects wrong-route, legacy, advanced, and wrong-config machines before replay; binds complete metadata; proves E/T causal separation; exercises exact 65,536/65,537 raw-record boundaries; proves DropNewest and FailEngine behavior; and proves no partial return after a late replay failure.
+- Review RED: the exact 65,536 ordinary-action assertion returned `Ok(())` instead of `Err(Capacity)`, and `dispatch_capacity=16,384` constructed successfully under both policies instead of returning `InvalidExecutionMetadata`.
+- GREEN: the review-hardened focused suite passes 19/19. In addition to the initial matrix, it rejects wrong-route, legacy, advanced, and wrong-config machines before replay; binds complete metadata; proves E/T causal separation; exercises exact 65,536/65,537 raw-record boundaries; proves DropNewest and FailEngine behavior; and proves no partial return after a late replay failure.
 - Independent oracle: seven frozen canonical MARKET records (PUBLIC quote/snapshot/buffered delta/live delta and MARKET trade/liquidation/OI) match exact JSONL bytes and seven exact payload hashes. Each route strict-reads independently because the two source segments have independent availability sequences. Independently decoded expected values equal the transformer output, and fresh `SourceStateMachineV2` instances produce identical ingest outcomes and exact per-family cursor/state views.
-- Aggregate-boundary unit regressions exercise exact and one-over predicates for 256 MiB input, 65,536 records, 65,536 authored inputs, 65,536 actions, and 16 MiB JSONL; the JSONL writer itself accepts exactly 16 MiB then rejects the next byte.
+- Aggregate-boundary regressions exercise exact and one-over predicates for 256 MiB input, 65,536 records, 65,536 authored inputs, 65,535 ordinary actions, and 16 MiB JSONL. The authoring ceiling is 65,535 actions (`action_index` 0 through 65,534), while a distinct 65,536-action observation buffer retains the one-over action without dropping it so the transformer can inspect then reject it deterministically. Both supported context policies reject `dispatch_capacity=16,384` because its derived authoring capacity would be 65,536. The JSONL writer itself accepts exactly 16 MiB then rejects the next byte.
 - Existing V1 transformer suite remains 29/29 green.
 
 ## Verification
 
-- `cargo test -p marketfeed-event-pulse-mfr1 --test transformer_v2` — GREEN (18 V2 integration, including the 65,536-record public boundary).
+- `cargo test -p marketfeed-event-pulse-mfr1 --test transformer_v2` — GREEN (19 V2 integration, including the 65,536-record public boundary and both-policy 65,536-action rejection).
 - `cargo test -p marketfeed-adapter-binance --test usdm_routed_v4` — GREEN (11 routed-v4 integration).
-- `cargo test -p marketfeed-event-pulse-mfr1 -p marketfeed-event-pulse -p marketfeed-adapter-binance --all-targets --all-features` — GREEN (4 MFR1 unit, 29 V1 integration, 18 V2 integration, and all EventPulse/Binance relevant suites; ignored network tests remained ignored).
+- `cargo test -p marketfeed-event-pulse-mfr1 -p marketfeed-event-pulse -p marketfeed-adapter-binance --all-targets --all-features` — GREEN (4 MFR1 unit, 29 V1 integration, 19 V2 integration, and all EventPulse/Binance relevant suites; ignored network tests remained ignored).
 - `cargo test -p marketfeed-event-pulse -p marketfeed-adapter-binance -p marketfeed-recording -p marketfeed-replay -p marketfeed-dispatch --quiet` — GREEN; ignored network tests remained ignored.
 - `cargo test --workspace --all-targets --all-features --quiet` — GREEN; ignored live-network tests remained ignored.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` — GREEN.

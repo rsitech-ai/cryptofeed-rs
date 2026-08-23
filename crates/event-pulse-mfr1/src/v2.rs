@@ -31,7 +31,8 @@ const MAX_MFR1_BYTES: usize = 256 * 1024 * 1024;
 const MAX_REPLAY_RECORDS: usize = 65_536;
 const MAX_AUTHORED_INPUTS: usize = 65_536;
 const MAX_JSONL_BYTES: usize = 16 * 1024 * 1024;
-const MAX_ACTIONS_PER_FRAME: usize = 65_536;
+const MAX_ORDINARY_ACTIONS_PER_FRAME: usize = 65_535;
+const MAX_OBSERVED_ACTIONS_PER_FRAME: usize = 65_536;
 
 fn ensure_at_most(value: usize, limit: usize) -> Result<(), Mfr1TransformErrorV2> {
     if value > limit {
@@ -126,7 +127,7 @@ impl Mfr1TransformContextV2 {
         let action_capacity = dispatch_capacity
             .checked_mul(4)
             .map(|value| value.max(marketfeed_adapter_api::DEFAULT_ACTION_BUFFER_CAPACITY))
-            .filter(|value| *value <= MAX_ACTIONS_PER_FRAME)
+            .filter(|value| *value <= MAX_ORDINARY_ACTIONS_PER_FRAME)
             .ok_or(Mfr1TransformErrorV2::InvalidExecutionMetadata)?;
         if dispatch_capacity == 0
             || dispatch_capacity > u16::MAX as usize
@@ -824,7 +825,7 @@ impl TransformStateV2 {
         _connect_at: TimestampNs,
     ) -> Result<Self, Mfr1TransformErrorV2> {
         Ok(Self {
-            actions: ActionBuffer::with_capacity(MAX_ACTIONS_PER_FRAME),
+            actions: ActionBuffer::with_capacity(MAX_OBSERVED_ACTIONS_PER_FRAME),
             dispatch: EventDispatcher::new(
                 context.dispatch_capacity,
                 context.dispatch_capacity,
@@ -886,6 +887,7 @@ impl TransformStateV2 {
         ) {
             return Err(Mfr1TransformErrorV2::Provenance);
         }
+        ensure_at_most(observed.len(), MAX_ORDINARY_ACTIONS_PER_FRAME)?;
         let dropped_actions = observed.len().saturating_sub(context.action_capacity);
         for (action_index, action) in observed.iter().enumerate().skip(context.action_capacity) {
             if let SessionAction::EmitBatch(batch) = action {
@@ -1173,7 +1175,8 @@ mod capacity_tests {
             MAX_MFR1_BYTES,
             MAX_REPLAY_RECORDS,
             MAX_AUTHORED_INPUTS,
-            MAX_ACTIONS_PER_FRAME,
+            MAX_ORDINARY_ACTIONS_PER_FRAME,
+            MAX_OBSERVED_ACTIONS_PER_FRAME,
             MAX_JSONL_BYTES,
         ] {
             assert_eq!(ensure_at_most(limit, limit), Ok(()));
@@ -1189,5 +1192,32 @@ mod capacity_tests {
             MAX_JSONL_BYTES
         );
         assert!(exact.write(&[0]).is_err());
+
+        assert_eq!(
+            ensure_at_most(65_535, MAX_ORDINARY_ACTIONS_PER_FRAME),
+            Ok(())
+        );
+        assert_eq!(
+            ensure_at_most(65_536, MAX_ORDINARY_ACTIONS_PER_FRAME),
+            Err(Mfr1TransformErrorV2::Capacity)
+        );
+
+        let mut actions = ActionBuffer::with_capacity(MAX_OBSERVED_ACTIONS_PER_FRAME);
+        actions.extend(
+            std::iter::repeat_with(|| SessionAction::MarkLive).take(MAX_ORDINARY_ACTIONS_PER_FRAME),
+        );
+        assert_eq!(actions.len(), 65_535);
+        assert_eq!(actions.take_dropped(), 0);
+        assert_eq!(
+            ensure_at_most(actions.len(), MAX_ORDINARY_ACTIONS_PER_FRAME),
+            Ok(())
+        );
+        actions.push(SessionAction::MarkLive);
+        assert_eq!(actions.len(), 65_536);
+        assert_eq!(actions.take_dropped(), 0);
+        assert_eq!(
+            ensure_at_most(actions.len(), MAX_ORDINARY_ACTIONS_PER_FRAME),
+            Err(Mfr1TransformErrorV2::Capacity)
+        );
     }
 }

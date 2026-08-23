@@ -207,6 +207,15 @@ fn context_with_policy(
     dispatch_capacity: usize,
     overflow: OverflowPolicy,
 ) -> (Mfr1TransformerV2, i64) {
+    let (context, start) = context_result_with_policy(route, dispatch_capacity, overflow);
+    (Mfr1TransformerV2::new(context.unwrap()), start)
+}
+
+fn context_result_with_policy(
+    route: BinanceMfr1RouteV2,
+    dispatch_capacity: usize,
+    overflow: OverflowPolicy,
+) -> (Result<Mfr1TransformContextV2, Mfr1TransformErrorV2>, i64) {
     let admission = admission();
     let start = admission.capture_starts_at().utc_micros() * 1_000;
     let (name, connection_id, session_id) = if route == BinanceMfr1RouteV2::Public {
@@ -236,9 +245,8 @@ fn context_with_policy(
         system,
         dispatch_capacity,
         overflow,
-    )
-    .unwrap();
-    (Mfr1TransformerV2::new(context), start)
+    );
+    (context, start)
 }
 
 fn public_fixture_output() -> Mfr1TransformOutputV2 {
@@ -641,6 +649,17 @@ fn fail_engine_policy_rejects_the_same_real_dispatch_overflow_atomically() {
         ),
         Err(Mfr1TransformErrorV2::Adapter(_))
     ));
+}
+
+#[test]
+fn derived_action_capacity_rejects_65_536_for_both_policies() {
+    for policy in [OverflowPolicy::DropNewest, OverflowPolicy::FailEngine] {
+        let (result, _) = context_result_with_policy(BinanceMfr1RouteV2::Public, 16_384, policy);
+        assert!(matches!(
+            result,
+            Err(Mfr1TransformErrorV2::InvalidExecutionMetadata)
+        ));
+    }
 }
 
 #[test]
