@@ -957,6 +957,10 @@ impl SourceStateMachineV2 {
         &self.v1
     }
 
+    pub(crate) fn connection_generation(&self, key: &ConnectionKeyV1) -> Option<u8> {
+        self.v1.connections.get(key)?.generation
+    }
+
     pub(crate) fn invalidate_market_family_for_queue_drop(
         &mut self,
         contributor: &ContributorKeyV1,

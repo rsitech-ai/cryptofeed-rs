@@ -146,3 +146,31 @@ The reserve audit found that each new fault replaced the key's recovery allowanc
 - `git diff --check`: passed.
 
 This successor is still repo-ready library evidence only. No fixture, capture, source qualification, runtime, deployment, execution, or trading authority is claimed.
+
+## Reviewer repair successor 4
+
+### RED
+
+The first boundary regression failed when Book generation 1 was accepted but the same PUBLIC connection's Quote generation 1 returned an error, proving recovery quota was allocated only to the triggering family. A second MARKET regression reached snapshot authorship only after explicitly refreshing its Trade/OI/Liquidation connection sidecars, confirming that lifecycle recovery must include subject Clock/Coverage state rather than leaving stale aggregate evidence readable.
+
+### GREEN
+
+- Every MARKET fault resolves its immutable configured connection and atomically allocates a bounded recovery plan for every family on that connection plus the subjects' Clock/Coverage keys. PUBLIC therefore owns Quote/Book together; MARKET owns Trade/OpenInterest/Liquidation together.
+- The triggering valid greater generation activates one shared connection generation. Sibling MARKET families must use that exact generation, while sidecars must bind the recovered subject generation and preserve their own source-generation continuity.
+- Connection advance clears subject Coverage feature eligibility transactionally; `SourceStateMachineV2` remains the lifecycle authority and fans the generation advance across sibling family and sidecar state. No MARKET V2 cursor is lowered into V1.
+- Fault installation clones and validates the entire recovery topology before committing source, feature, cause, log, order, or reserve state. If any required key has exhausted its immutable quota, the new fault returns `SNAPSHOT_V2_RECOVERY_RESERVE_EXHAUSTED` mutation-free.
+- The literal-boundary PUBLIC regression consumes both Quote/Book recovery records and its sidecar refreshes, rejects a second Book fault without changing the accepted/fault count, and produces canonical bytes/hash identical to an independently reconstructed processor. The Clock boundary regression independently proves exact-key exhaustion cannot steal another Clock key's reserve.
+
+### Successor 4 gate evidence
+
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test -p marketfeed-event-pulse --test snapshot_v2 --no-default-features`: 23 passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test -p marketfeed-event-pulse --all-targets --all-features`: passed, including 54 unchanged V1 snapshot-mechanics tests and all V1/V2 contract, cursor, replay, prospective, and preflight regressions.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `cargo deny --offline --locked check`: `advisories ok, bans ok, licenses ok, sources ok`.
+- `git diff --check`: passed.
+
+The authority ceiling is unchanged: this is repo-ready pure Snapshot V2 library evidence. Fixture provenance, source qualification, capture, runtime, deployment, execution, and trading authority remain outside scope and unverified.

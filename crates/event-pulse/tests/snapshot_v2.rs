@@ -457,6 +457,18 @@ fn quote_at(
     rehash_value(value)
 }
 
+fn derived_market_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at_offset_ms: i64,
+    generation: u8,
+) -> MechanicsInputV2 {
+    let mut value = market_at(input, admission, frame, at_offset_ms, generation);
+    value["market_cursor"]["raw_frame_seq"] = json!(frame);
+    rehash_value(value)
+}
+
 fn book_delta_at(
     snapshot: &MechanicsInputV2,
     admission: &ProspectiveCaptureAdmissionV2,
@@ -467,6 +479,44 @@ fn book_delta_at(
     previous_final_update_id: u64,
 ) -> MechanicsInputV2 {
     let mut value = market_at(snapshot, admission, frame, at_offset_ms, 0);
+    value["envelope"]["source_sequence"]["first"] = json!(first_update_id);
+    value["envelope"]["source_sequence"]["last"] = json!(final_update_id);
+    value["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        changes: vec![BookChange {
+            side: BookSide::Bid,
+            operation: BookOperation::Upsert,
+            price: Price(Fixed::new(99, 0)),
+            quantity: Some(Quantity(Fixed::new(5, 0))),
+        }],
+        checksum: None,
+    }))
+    .unwrap();
+    value["market_cursor"]["first_sequence"] = json!(first_update_id);
+    value["market_cursor"]["last_sequence"] = json!(final_update_id);
+    let event_time_ms = value["source_provenance"]["event_time_ms"].clone();
+    let transaction_time_ms = value["source_provenance"]["transaction_time_ms"].clone();
+    value["source_provenance"] = json!({
+        "kind": "BINANCE_BOOK_DELTA",
+        "first_update_id": first_update_id,
+        "final_update_id": final_update_id,
+        "previous_final_update_id": previous_final_update_id,
+        "event_time_ms": event_time_ms,
+        "transaction_time_ms": transaction_time_ms
+    });
+    rehash_value(value)
+}
+
+fn book_delta_generation_at(
+    snapshot: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at_offset_ms: i64,
+    first_update_id: u64,
+    final_update_id: u64,
+    previous_final_update_id: u64,
+    generation: u8,
+) -> MechanicsInputV2 {
+    let mut value = market_at(snapshot, admission, frame, at_offset_ms, generation);
     value["envelope"]["source_sequence"]["first"] = json!(first_update_id);
     value["envelope"]["source_sequence"]["last"] = json!(final_update_id);
     value["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
@@ -510,11 +560,38 @@ fn book_snapshot_at(
     rehash_value(value)
 }
 
+fn book_snapshot_generation_at(
+    snapshot: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at_offset_ms: i64,
+    last_update_id: u64,
+    generation: u8,
+) -> MechanicsInputV2 {
+    let mut value = market_at(snapshot, admission, frame, at_offset_ms, generation);
+    value["envelope"]["source_sequence"]["first"] = json!(last_update_id);
+    value["envelope"]["source_sequence"]["last"] = json!(last_update_id);
+    value["market_cursor"]["first_sequence"] = json!(last_update_id);
+    value["market_cursor"]["last_sequence"] = json!(last_update_id);
+    value["source_provenance"]["last_update_id"] = json!(last_update_id);
+    rehash_value(value)
+}
+
 fn decision_offset(admission: &ProspectiveCaptureAdmissionV2, offset_ms: i64) -> Rfc3339Time {
     Rfc3339Time::from_unix_nanos(
         admission.capture_starts_at().utc_micros() * 1_000 + offset_ms * 1_000_000,
     )
     .unwrap()
+}
+
+fn non_market_subject_source_id(input: &MechanicsInputV2) -> Option<&str> {
+    match input.view() {
+        marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+            marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock { contributor, .. }
+            | marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage { contributor, .. },
+        ) => Some(contributor.key().source_id()),
+        _ => None,
+    }
 }
 
 fn clock_at(
@@ -555,6 +632,68 @@ fn clock_at(
         MechanicsInputV1::clock(
             contributor.clone(),
             source,
+            at.clone(),
+            at,
+            ClockCursorV1::native(sequence, sequence).unwrap(),
+            clock_state,
+            observed_skew_ms.clone(),
+            freshness_limit_ms,
+            quality_state,
+            reason_code,
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+fn clock_with_subject_generation_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    at_offset_ms: i64,
+    source_generation: u8,
+    subject_generation: u8,
+    sequence: u64,
+) -> MechanicsInputV2 {
+    let marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock {
+            contributor,
+            clock_source,
+            clock_state,
+            observed_skew_ms,
+            freshness_limit_ms,
+            quality_state,
+            reason_code,
+            ..
+        },
+    ) = input.view()
+    else {
+        panic!("expected clock input")
+    };
+    let at = decision_offset(admission, at_offset_ms);
+    let subject_epoch = format!("epoch_recovery_{subject_generation}");
+    let source_epoch = format!("epoch_clock_recovery_{source_generation}");
+    MechanicsInputV2::from_v1_non_market(
+        MechanicsInputV1::clock(
+            ContributorV1::new(
+                contributor.key().clone(),
+                if subject_generation == 0 {
+                    contributor.connection_epoch()
+                } else {
+                    &subject_epoch
+                },
+                subject_generation,
+            )
+            .unwrap(),
+            ClockSourceV1::new(
+                clock_source.key().clone(),
+                if source_generation == 0 {
+                    clock_source.epoch()
+                } else {
+                    &source_epoch
+                },
+                source_generation,
+            )
+            .unwrap(),
             at.clone(),
             at,
             ClockCursorV1::native(sequence, sequence).unwrap(),
@@ -646,6 +785,62 @@ fn coverage_at(
             source,
             family,
             covered_from,
+            at.clone(),
+            at,
+            CoverageCursorV1::native(sequence, sequence).unwrap(),
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+fn coverage_with_subject_generation_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    at_offset_ms: i64,
+    source_generation: u8,
+    subject_generation: u8,
+    sequence: u64,
+) -> MechanicsInputV2 {
+    let marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage {
+            contributor,
+            coverage_source,
+            family,
+            covered_from,
+            ..
+        },
+    ) = input.view()
+    else {
+        panic!("expected coverage input")
+    };
+    let at = decision_offset(admission, at_offset_ms);
+    let subject_epoch = format!("epoch_recovery_{subject_generation}");
+    let source_epoch = format!("epoch_coverage_recovery_{source_generation}");
+    MechanicsInputV2::from_v1_non_market(
+        MechanicsInputV1::coverage(
+            ContributorV1::new(
+                contributor.key().clone(),
+                if subject_generation == 0 {
+                    contributor.connection_epoch()
+                } else {
+                    &subject_epoch
+                },
+                subject_generation,
+            )
+            .unwrap(),
+            CoverageSourceV1::new(
+                coverage_source.key().clone(),
+                if source_generation == 0 {
+                    coverage_source.epoch()
+                } else {
+                    &source_epoch
+                },
+                source_generation,
+            )
+            .unwrap(),
+            family,
+            covered_from.clone(),
             at.clone(),
             at,
             CoverageCursorV1::native(sequence, sequence).unwrap(),
@@ -1561,10 +1756,11 @@ fn same_generation_book_resnapshot_uses_its_immutable_reserve_at_ordinary_cap() 
         202,
         201,
     );
-    assert!(matches!(
-        subject.ingest(&ordinary_same_generation),
-        Err(SnapshotV2Error::Snapshot(SnapshotError::Capacity))
-    ));
+    let result = subject.ingest(&ordinary_same_generation);
+    assert!(
+        matches!(result, Err(SnapshotV2Error::RecoveryReserveExhausted)),
+        "unexpected post-recovery result: {result:?}"
+    );
 }
 
 #[test]
@@ -1621,7 +1817,7 @@ fn repeated_ordinary_fault_cycles_cannot_steal_other_keys_boundary_reserves() {
     let exhausted_key = clock_at(&first_recovery, &admission, boundary + 2, 13, 2);
     assert_eq!(
         subject.ingest(&exhausted_key),
-        Err(SnapshotV2Error::FaultReserveExhausted)
+        Err(SnapshotV2Error::RecoveryReserveExhausted)
     );
     assert_eq!(subject.buffered_record_count(), count_before_exhaustion);
 
@@ -1641,4 +1837,138 @@ fn repeated_ordinary_fault_cycles_cannot_steal_other_keys_boundary_reserves() {
     subject.ingest(&second_recovery).unwrap();
     assert_eq!(subject.buffered_record_count(), count_before_exhaustion + 2);
     assert!(subject.buffered_record_count() <= 65_536);
+}
+
+#[test]
+fn public_market_generation_recovery_reserves_quote_and_book_as_one_connection_scope() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut subject = processor(&admission);
+    let mut reconstructed = processor(&admission);
+    for input in &inputs {
+        subject.ingest(input).unwrap();
+        reconstructed.ingest(input).unwrap();
+    }
+    let ordinary_cap = subject.ordinary_record_capacity();
+    for index in 0..(ordinary_cap - subject.buffered_record_count()) {
+        let filler = clock_at(
+            &inputs[6],
+            &admission,
+            16,
+            0,
+            2 + u64::try_from(index).unwrap(),
+        );
+        subject.ingest(&filler).unwrap();
+        reconstructed.ingest(&filler).unwrap();
+    }
+    let dropped_book = book_delta_at(&inputs[2], &admission, 70_000, 17, 190, 201, 0);
+    assert!(matches!(
+        subject.ingest(&dropped_book),
+        Err(SnapshotV2Error::Snapshot(SnapshotError::Capacity))
+    ));
+    assert!(reconstructed.ingest(&dropped_book).is_err());
+
+    let book_recovery = book_snapshot_generation_at(&inputs[2], &admission, 70_001, 18, 1, 1);
+    subject.ingest(&book_recovery).unwrap();
+    reconstructed.ingest(&book_recovery).unwrap();
+    let quote_recovery = quote_at(&inputs[1], &admission, 70_002, 19, 1);
+    subject.ingest(&quote_recovery).unwrap();
+    reconstructed.ingest(&quote_recovery).unwrap();
+
+    let second_book = book_delta_generation_at(&inputs[2], &admission, 80_001, 20, 1, 2, 1, 1);
+    let second_quote = quote_at(&inputs[1], &admission, 80_002, 21, 1);
+    for recovery in [&second_book, &second_quote] {
+        subject.ingest(recovery).unwrap();
+        reconstructed.ingest(recovery).unwrap();
+    }
+
+    let mut offset = 22;
+    for input in inputs
+        .iter()
+        .skip(6)
+        .filter(|input| non_market_subject_source_id(input) == Some("binance_primary_public"))
+    {
+        let recovery = match input.view() {
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock { .. },
+            ) => clock_with_subject_generation_at(input, &admission, offset, 1, 1, 1),
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage { .. },
+            ) => coverage_with_subject_generation_at(input, &admission, offset, 1, 1, 1),
+            _ => unreachable!(),
+        };
+        subject.ingest(&recovery).unwrap();
+        reconstructed.ingest(&recovery).unwrap();
+        offset += 1;
+    }
+
+    let before_exhaustion = subject.buffered_record_count();
+    let second_fault =
+        book_delta_generation_at(&inputs[2], &admission, 80_003, offset + 2, 3, 3, 2, 1);
+    assert_eq!(
+        subject.ingest(&second_fault),
+        Err(SnapshotV2Error::RecoveryReserveExhausted)
+    );
+    assert_eq!(subject.buffered_record_count(), before_exhaustion);
+
+    let actual = subject
+        .snapshot(decision_offset(&admission, offset + 3))
+        .unwrap();
+    let expected = reconstructed
+        .snapshot(decision_offset(&admission, offset + 3))
+        .unwrap();
+    assert_eq!(actual.canonical_json(), expected.canonical_json());
+    assert_eq!(actual.content_hash(), expected.content_hash());
+}
+
+#[test]
+fn market_connection_recovery_admits_trade_oi_liquidation_and_subject_sidecars_together() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut subject = processor(&admission);
+    for input in &inputs {
+        subject.ingest(input).unwrap();
+    }
+
+    let gap = native_trade_at(&inputs[0], &admission, 102, 100, 16, 0);
+    assert!(subject.ingest(&gap).is_err());
+    let first = [
+        native_trade_at(&inputs[0], &admission, 1, 101, 17, 1),
+        derived_market_at(&inputs[3], &admission, 102, 18, 1),
+        derived_market_at(&inputs[4], &admission, 103, 19, 1),
+    ];
+    for recovery in &first {
+        subject.ingest(recovery).unwrap();
+    }
+    let second = [
+        native_trade_at(&inputs[0], &admission, 2, 201, 20, 1),
+        derived_market_at(&inputs[3], &admission, 202, 21, 1),
+        derived_market_at(&inputs[4], &admission, 203, 22, 1),
+    ];
+    for recovery in &second {
+        subject.ingest(recovery).unwrap();
+    }
+
+    let mut offset = 23;
+    for input in inputs
+        .iter()
+        .skip(6)
+        .filter(|input| non_market_subject_source_id(input) == Some("binance_primary_market"))
+    {
+        let recovery = match input.view() {
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock { .. },
+            ) => clock_with_subject_generation_at(input, &admission, offset, 0, 1, 2),
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage { .. },
+            ) => coverage_with_subject_generation_at(input, &admission, offset, 0, 1, 2),
+            _ => unreachable!(),
+        };
+        subject.ingest(&recovery).unwrap();
+        offset += 1;
+    }
+    let snapshot = subject
+        .snapshot(decision_offset(&admission, offset + 1))
+        .unwrap();
+    assert_eq!(source_cursors(&snapshot).len(), 15);
 }

@@ -117,3 +117,12 @@ The implementation is bound independently to root merge `4d3e0f0398d3e113a79df7a
 - [x] RED: valid recovery after failed attempts must produce canonical bytes and content hash identical to a fresh processor that consumed only the committed prefix.
 - [x] GREEN: preallocate immutable per-key reserve accounting, return explicit `SNAPSHOT_V2_FAULT_RESERVE_EXHAUSTED` or `SNAPSHOT_V2_RECOVERY_RESERVE_EXHAUSTED`, and commit recovery candidate state only after all validation succeeds.
 - [x] Verify 21 focused Snapshot V2 tests plus full EventPulse/workspace current and Rust 1.85 tests/clippy, fmt, deny, and diff; append successor evidence and commit cleanly.
+
+## Reviewer repair successor 4
+
+- [x] RED: a greater-generation MARKET recovery triggered by one family must reserve and recover the complete immutable connection scope: PUBLIC Quote/Book or MARKET Trade/OpenInterest/Liquidation, plus that connection's subject Clock/Coverage slots.
+- [x] RED: a boundary fault must fail mutation-free before it becomes durable unless every key in its complete connection recovery scope still owns its immutable quota.
+- [x] RED: complete PUBLIC boundary recovery must consume both market-family allowances, refresh subject sidecars, reject a second fault with typed recovery exhaustion, and match an independently reconstructed processor byte/hash-for-byte.
+- [x] RED: MARKET Trade/OI/Liquidation must recover together under one greater connection generation and accept exact subject-sidecar refreshes.
+- [x] GREEN: bind recovery sessions to immutable configured connections and preallocate the entire recovery scope atomically; advance shared lifecycle/coverage state without lowering MARKET V2 state into V1 cursors.
+- [x] Verify 23 focused Snapshot V2 tests plus full EventPulse/workspace current and Rust 1.85.0 tests/clippy, fmt, deny, and diff; append successor evidence and commit cleanly.

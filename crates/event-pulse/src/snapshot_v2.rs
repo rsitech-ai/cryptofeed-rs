@@ -9,6 +9,7 @@ use crate::{
     MarketCursorV2, MechanicsInputRefV2, MechanicsInputV2, SourceStateMachineV2,
     features::{FeatureName, ReversalPolicy, evaluate_feature},
     prospective_v2::{ProspectiveCaptureAdmissionV2, ProspectiveSystemArtifactPolicyV2},
+    wire::ConnectionKeyV1,
 };
 
 pub const SNAPSHOT_V2_ROOT_MERGE: &str = "4d3e0f0398d3e113a79df7ac901f38912eaa8edd";
@@ -50,6 +51,8 @@ struct FaultIdentityV2 {
     key: FaultKeyV2,
     epoch: String,
     generation: u8,
+    connection: Option<ConnectionKeyV1>,
+    subject_generation: Option<u8>,
     available_at_ns: i64,
 }
 
@@ -58,6 +61,9 @@ struct RecoverySessionV2 {
     fault_generation: u8,
     recovery_generation: Option<u8>,
     remaining: u8,
+    connection: Option<ConnectionKeyV1>,
+    connection_generation: Option<u8>,
+    connection_trigger: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -190,6 +196,30 @@ impl SnapshotProcessorV2 {
         if session.remaining == 0 {
             return false;
         }
+        if session.connection.is_some() {
+            return session.connection_generation.map_or_else(
+                || {
+                    (session.connection_trigger && identity.generation > session.fault_generation)
+                        || (session.connection_trigger
+                            && identity.generation == session.fault_generation
+                            && is_book_snapshot(input)
+                            && matches!(
+                                self.active_causes.get(&identity.key),
+                                Some(Cause::Sequence(_))
+                            ))
+                },
+                |generation| match &identity.key {
+                    FaultKeyV2::MarketFamily(_) => identity.generation == generation,
+                    FaultKeyV2::Clock(_) | FaultKeyV2::Coverage(_) => {
+                        identity.subject_generation == Some(generation)
+                            && self.active_causes.get(&identity.key).is_none_or(|cause| {
+                                *cause == Cause::None
+                                    || identity.generation > cause_generation(*cause)
+                            })
+                    }
+                },
+            );
+        }
         session.recovery_generation.map_or_else(
             || {
                 identity.generation > session.fault_generation
@@ -202,6 +232,103 @@ impl SnapshotProcessorV2 {
             },
             |generation| identity.generation == generation,
         )
+    }
+
+    fn recovery_scope_keys(
+        &self,
+        identity: &FaultIdentityV2,
+    ) -> Result<Vec<FaultKeyV2>, SnapshotV2Error> {
+        let FaultKeyV2::MarketFamily(_) = &identity.key else {
+            return Ok(vec![identity.key.clone()]);
+        };
+        let connection = identity.connection.as_ref().ok_or_else(|| {
+            SnapshotError::InvalidInput("MARKET recovery connection is not configured".into())
+        })?;
+        let contributors = self
+            .config
+            .contributor_connections()
+            .iter()
+            .filter(|(_, configured)| *configured == connection)
+            .map(|(contributor, _)| contributor)
+            .collect::<BTreeSet<_>>();
+        let mut keys = BTreeSet::new();
+        for spec in self
+            .config
+            .contributors()
+            .iter()
+            .filter(|spec| contributors.contains(spec.key()))
+        {
+            keys.extend(
+                spec.allowed_families()
+                    .iter()
+                    .map(|family| FaultKeyV2::MarketFamily((spec.key().clone(), *family))),
+            );
+        }
+        keys.extend(
+            self.config
+                .clock_sources()
+                .iter()
+                .filter(|key| contributors.contains(key.subject()))
+                .cloned()
+                .map(FaultKeyV2::Clock),
+        );
+        keys.extend(
+            self.config
+                .coverage_sources()
+                .iter()
+                .filter(|key| contributors.contains(key.subject()))
+                .cloned()
+                .map(FaultKeyV2::Coverage),
+        );
+        Ok(keys.into_iter().collect())
+    }
+
+    fn install_recovery_plan(
+        &self,
+        sessions: &mut BTreeMap<FaultKeyV2, RecoverySessionV2>,
+        identity: &FaultIdentityV2,
+    ) -> Result<(), SnapshotV2Error> {
+        let keys = self.recovery_scope_keys(identity)?;
+        let scoped_connection = matches!(identity.key, FaultKeyV2::MarketFamily(_))
+            .then(|| identity.connection.clone())
+            .flatten();
+        if let Some(connection) = &scoped_connection {
+            if sessions
+                .values()
+                .any(|session| session.connection.as_ref() == Some(connection))
+            {
+                return Err(SnapshotV2Error::RecoveryReserveExhausted);
+            }
+        } else if sessions.contains_key(&identity.key) {
+            return Err(SnapshotV2Error::RecoveryReserveExhausted);
+        }
+        for key in &keys {
+            let used = self
+                .reserved_recovery_used
+                .get(key)
+                .copied()
+                .expect("recovery reserve is preallocated for every configured key");
+            if used
+                .checked_add(Self::recovery_reserve_for(key))
+                .is_none_or(|required| required > Self::recovery_reserve_for(key))
+            {
+                return Err(SnapshotV2Error::RecoveryReserveExhausted);
+            }
+        }
+        for key in keys {
+            sessions.insert(
+                key.clone(),
+                RecoverySessionV2 {
+                    fault_generation: identity.generation,
+                    recovery_generation: None,
+                    remaining: Self::recovery_reserve_for(&key),
+                    connection: scoped_connection.clone(),
+                    connection_generation: None,
+                    connection_trigger: key == identity.key,
+                },
+            );
+        }
+        Ok(())
     }
 
     pub fn ingest(&mut self, input: &MechanicsInputV2) -> Result<IngestOutcome, SnapshotV2Error> {
@@ -234,7 +361,7 @@ impl SnapshotProcessorV2 {
             }
             .into());
         }
-        let identity = fault_identity(input)?;
+        let identity = fault_identity(input, &self.config)?;
         let recovering = identity
             .as_ref()
             .is_some_and(|identity| self.recovery_session_matches(identity, input));
@@ -261,6 +388,7 @@ impl SnapshotProcessorV2 {
             }
             return Err(SnapshotError::Capacity.into());
         }
+        let connection_advance = market_connection_advance(input, &self.config, &self.sources)?;
         let mut candidate_sources = self.sources.clone();
         let outcome = match candidate_sources.ingest(input) {
             Ok(outcome) => outcome,
@@ -280,6 +408,7 @@ impl SnapshotProcessorV2 {
                         let cause = Cause::Sequence(identity.generation);
                         let mut fault_events = self.fault_events.clone();
                         let mut active_causes = self.active_causes.clone();
+                        let fault_count = fault_events.len();
                         push_fault(
                             &mut fault_events,
                             &mut active_causes,
@@ -292,18 +421,15 @@ impl SnapshotProcessorV2 {
                                 kind: FaultKindV2::RejectedInput(input.clone()),
                             },
                         )?;
+                        let mut recovery_sessions = self.recovery_sessions.clone();
+                        if fault_events.len() > fault_count {
+                            self.install_recovery_plan(&mut recovery_sessions, &identity)?;
+                        }
                         self.sources = candidate_sources;
                         self.runtime = runtime;
                         self.fault_events = fault_events;
                         self.active_causes = active_causes;
-                        self.recovery_sessions.insert(
-                            identity.key.clone(),
-                            RecoverySessionV2 {
-                                fault_generation: identity.generation,
-                                recovery_generation: None,
-                                remaining: Self::recovery_reserve_for(&identity.key),
-                            },
-                        );
+                        self.recovery_sessions = recovery_sessions;
                         self.last_order = Some(order);
                     }
                 }
@@ -312,6 +438,14 @@ impl SnapshotProcessorV2 {
         };
         let mut candidate_runtime = self.runtime.clone();
         if outcome != IngestOutcome::IgnoredDuplicate {
+            if let Some((connection, at_ns)) = &connection_advance {
+                invalidate_runtime_connection(
+                    &mut candidate_runtime,
+                    &self.config,
+                    connection,
+                    *at_ns,
+                )?;
+            }
             if is_book_snapshot(input) {
                 if let Some(FaultIdentityV2 {
                     key: key @ FaultKeyV2::MarketFamily((contributor, FamilyV1::Book)),
@@ -340,7 +474,6 @@ impl SnapshotProcessorV2 {
                 }
                 return Err(error.into());
             }
-            self.records.push_back(input.clone());
         }
         let mut active_causes = self.active_causes.clone();
         if let Some(identity) = &identity {
@@ -359,33 +492,55 @@ impl SnapshotProcessorV2 {
                 active_causes.insert(identity.key.clone(), Cause::None);
             }
         }
-        self.sources = candidate_sources;
-        self.runtime = candidate_runtime;
-        self.active_causes = active_causes;
+        let mut recovery_sessions = self.recovery_sessions.clone();
+        let mut reserved_recovery_used = self.reserved_recovery_used.clone();
         if recovering && outcome != IngestOutcome::IgnoredDuplicate {
             let identity = identity.as_ref().expect("recovery identity was checked");
-            let session = self
-                .recovery_sessions
+            let session = recovery_sessions
                 .get_mut(&identity.key)
                 .expect("recovery session was checked");
             let same_generation_book_recovery = identity.generation == session.fault_generation;
-            session
-                .recovery_generation
-                .get_or_insert(identity.generation);
-            session.remaining -= 1;
-            if same_generation_book_recovery {
-                session.remaining = 0;
+            let recovery_connection = session.connection.clone();
+            if let Some(connection) = &recovery_connection {
+                if same_generation_book_recovery {
+                    recovery_sessions
+                        .retain(|_, candidate| candidate.connection.as_ref() != Some(connection));
+                } else if session.connection_generation.is_none() {
+                    for candidate in recovery_sessions
+                        .values_mut()
+                        .filter(|candidate| candidate.connection.as_ref() == Some(connection))
+                    {
+                        candidate.connection_generation = Some(identity.generation);
+                    }
+                }
+            }
+            let session = recovery_sessions.get_mut(&identity.key);
+            if let Some(session) = session {
+                session
+                    .recovery_generation
+                    .get_or_insert(identity.generation);
+                session.remaining -= 1;
+                if same_generation_book_recovery {
+                    session.remaining = 0;
+                }
+                if session.remaining == 0 {
+                    recovery_sessions.remove(&identity.key);
+                }
             }
             if uses_reserved_recovery {
-                *self
-                    .reserved_recovery_used
+                *reserved_recovery_used
                     .get_mut(&identity.key)
                     .expect("recovery reserve is preallocated for every configured key") += 1;
             }
-            if session.remaining == 0 {
-                self.recovery_sessions.remove(&identity.key);
-            }
         }
+        if outcome != IngestOutcome::IgnoredDuplicate {
+            self.records.push_back(input.clone());
+        }
+        self.sources = candidate_sources;
+        self.runtime = candidate_runtime;
+        self.active_causes = active_causes;
+        self.recovery_sessions = recovery_sessions;
+        self.reserved_recovery_used = reserved_recovery_used;
         self.last_order = Some(order);
         Ok(outcome)
     }
@@ -398,6 +553,13 @@ impl SnapshotProcessorV2 {
         let appends_fault = !self.active_causes.get(&identity.key).is_some_and(|cause| {
             matches!(cause, Cause::QueueDrop(_)) && cause_generation(*cause) >= identity.generation
         });
+        let mut recovery_sessions = self.recovery_sessions.clone();
+        if appends_fault {
+            // A fault may become durable only when its complete, immutable recovery scope is
+            // still available.  In particular, do not consume the per-key fault slot and then
+            // discover that a sibling on the same connection cannot recover.
+            self.install_recovery_plan(&mut recovery_sessions, identity)?;
+        }
         let uses_reserved_fault =
             appends_fault && self.ordinary_record_usage() >= self.ordinary_record_capacity();
         if uses_reserved_fault
@@ -433,21 +595,12 @@ impl SnapshotProcessorV2 {
         self.runtime = runtime;
         self.fault_events = fault_events;
         self.active_causes = active_causes;
-        if appends_fault {
-            self.recovery_sessions.insert(
-                identity.key.clone(),
-                RecoverySessionV2 {
-                    fault_generation: identity.generation,
-                    recovery_generation: None,
-                    remaining: Self::recovery_reserve_for(&identity.key),
-                },
-            );
-            if uses_reserved_fault {
-                *self
-                    .reserved_fault_used
-                    .get_mut(&identity.key)
-                    .expect("fault reserve is preallocated for every configured key") = true;
-            }
+        self.recovery_sessions = recovery_sessions;
+        if appends_fault && uses_reserved_fault {
+            *self
+                .reserved_fault_used
+                .get_mut(&identity.key)
+                .expect("fault reserve is preallocated for every configured key") = true;
         }
         Ok(())
     }
@@ -592,12 +745,22 @@ impl SnapshotProcessorV2 {
             group_at = Some(order.available_micros());
             match item {
                 ReplayItemV2::Accepted(input) => {
+                    let connection_advance =
+                        market_connection_advance(input, &self.config, &sources)?;
                     let outcome = sources.ingest(input).map_err(|error| {
                         SnapshotError::Contract(format!("accepted V2 replay failed: {error}"))
                     })?;
                     if outcome != IngestOutcome::IgnoredDuplicate {
+                        if let Some((connection, at_ns)) = &connection_advance {
+                            invalidate_runtime_connection(
+                                &mut runtime,
+                                &self.config,
+                                connection,
+                                *at_ns,
+                            )?;
+                        }
                         if is_book_snapshot(input) {
-                            if let Some(identity) = fault_identity(input)? {
+                            if let Some(identity) = fault_identity(input, &self.config)? {
                                 if matches!(
                                     replay_causes.get(&identity.key),
                                     Some(Cause::Sequence(_))
@@ -619,7 +782,7 @@ impl SnapshotProcessorV2 {
                         runtime.ingest_v2(input, &self.config, &sources)?;
                         update_clock_and_availability(input, &mut clocks, &mut available_micros)?;
                     }
-                    if let Some(identity) = fault_identity(input)? {
+                    if let Some(identity) = fault_identity(input, &self.config)? {
                         if replay_causes
                             .get(&identity.key)
                             .copied()
@@ -655,6 +818,8 @@ impl SnapshotProcessorV2 {
                                 key: fault.key.clone(),
                                 epoch: epoch.clone(),
                                 generation: fault.generation,
+                                connection: connection_for_fault_key(&self.config, &fault.key),
+                                subject_generation: None,
                                 available_at_ns: *available_at_ns,
                             };
                             invalidate_fault_key(&mut sources, &mut runtime, &identity, true)?;
@@ -663,10 +828,13 @@ impl SnapshotProcessorV2 {
                         }
                     }
                     if matches!(fault.kind, FaultKindV2::RejectedInput(_)) {
-                        let identity = fault_identity(match &fault.kind {
-                            FaultKindV2::RejectedInput(input) => input,
-                            FaultKindV2::QueueDrop { .. } => unreachable!(),
-                        })?
+                        let identity = fault_identity(
+                            match &fault.kind {
+                                FaultKindV2::RejectedInput(input) => input,
+                                FaultKindV2::QueueDrop { .. } => unreachable!(),
+                            },
+                            &self.config,
+                        )?
                         .ok_or_else(|| SnapshotError::Contract("fault identity missing".into()))?;
                         invalidate_fault_key(&mut sources, &mut runtime, &identity, false)?;
                     }
@@ -752,13 +920,17 @@ fn cause_generation(cause: Cause) -> u8 {
     }
 }
 
-fn fault_identity(input: &MechanicsInputV2) -> Result<Option<FaultIdentityV2>, SnapshotV2Error> {
+fn fault_identity(
+    input: &MechanicsInputV2,
+    config: &MechanicsConfigV1,
+) -> Result<Option<FaultIdentityV2>, SnapshotV2Error> {
     let MechanicsInputRefV2::Market {
         envelope, catalog, ..
     } = input.view()
     else {
         return match input.view() {
             MechanicsInputRefV2::NonMarket(MechanicsInputRefV1::Clock {
+                contributor,
                 clock_source,
                 available_at,
                 ..
@@ -766,12 +938,18 @@ fn fault_identity(input: &MechanicsInputV2) -> Result<Option<FaultIdentityV2>, S
                 key: FaultKeyV2::Clock(clock_source.key().clone()),
                 epoch: clock_source.epoch().to_owned(),
                 generation: clock_source.epoch_generation(),
+                connection: config
+                    .contributor_connections()
+                    .get(contributor.key())
+                    .cloned(),
+                subject_generation: Some(contributor.epoch_generation()),
                 available_at_ns: available_at
                     .utc_micros()
                     .checked_mul(1_000)
                     .ok_or(SnapshotError::Capacity)?,
             })),
             MechanicsInputRefV2::NonMarket(MechanicsInputRefV1::Coverage {
+                contributor,
                 coverage_source,
                 available_at,
                 ..
@@ -779,6 +957,11 @@ fn fault_identity(input: &MechanicsInputV2) -> Result<Option<FaultIdentityV2>, S
                 key: FaultKeyV2::Coverage(coverage_source.key().clone()),
                 epoch: coverage_source.epoch().to_owned(),
                 generation: coverage_source.epoch_generation(),
+                connection: config
+                    .contributor_connections()
+                    .get(contributor.key())
+                    .cloned(),
+                subject_generation: Some(contributor.epoch_generation()),
                 available_at_ns: available_at
                     .utc_micros()
                     .checked_mul(1_000)
@@ -823,10 +1006,17 @@ fn fault_identity(input: &MechanicsInputV2) -> Result<Option<FaultIdentityV2>, S
         .div_euclid(1_000)
         .checked_mul(1_000)
         .ok_or(SnapshotError::Capacity)?;
+    let connection = config
+        .contributor_connections()
+        .get(&contributor)
+        .cloned()
+        .ok_or_else(|| SnapshotError::InvalidInput("connection mapping".into()))?;
     Ok(Some(FaultIdentityV2 {
         key: FaultKeyV2::MarketFamily((contributor, family)),
         epoch: epoch.connection_epoch().to_owned(),
         generation: epoch.epoch_generation(),
+        connection: Some(connection),
+        subject_generation: Some(epoch.epoch_generation()),
         available_at_ns,
     }))
 }
@@ -856,6 +1046,60 @@ fn configured_fault_keys_v2(config: &MechanicsConfigV1) -> Vec<FaultKeyV2> {
             .map(FaultKeyV2::Coverage),
     );
     keys
+}
+
+fn connection_for_fault_key(
+    config: &MechanicsConfigV1,
+    key: &FaultKeyV2,
+) -> Option<ConnectionKeyV1> {
+    let contributor = match key {
+        FaultKeyV2::MarketFamily((contributor, _)) => contributor,
+        FaultKeyV2::Clock(key) => key.subject(),
+        FaultKeyV2::Coverage(key) => key.subject(),
+    };
+    config.contributor_connections().get(contributor).cloned()
+}
+
+fn market_connection_advance(
+    input: &MechanicsInputV2,
+    config: &MechanicsConfigV1,
+    sources: &SourceStateMachineV2,
+) -> Result<Option<(ConnectionKeyV1, i64)>, SnapshotV2Error> {
+    let Some(identity) = fault_identity(input, config)? else {
+        return Ok(None);
+    };
+    if !matches!(identity.key, FaultKeyV2::MarketFamily(_)) {
+        return Ok(None);
+    }
+    let connection = identity.connection.ok_or_else(|| {
+        SnapshotError::InvalidInput("MARKET recovery connection is not configured".into())
+    })?;
+    Ok(sources
+        .connection_generation(&connection)
+        .is_some_and(|current| identity.generation > current)
+        .then_some((connection, identity.available_at_ns)))
+}
+
+fn invalidate_runtime_connection(
+    runtime: &mut FeatureRuntime,
+    config: &MechanicsConfigV1,
+    connection: &ConnectionKeyV1,
+    at_ns: i64,
+) -> Result<(), SnapshotV2Error> {
+    let contributors = config
+        .contributor_connections()
+        .iter()
+        .filter(|(_, configured)| *configured == connection)
+        .map(|(contributor, _)| contributor)
+        .collect::<BTreeSet<_>>();
+    for key in config
+        .coverage_sources()
+        .iter()
+        .filter(|key| contributors.contains(key.subject()))
+    {
+        runtime.invalidate_coverage(key, at_ns)?;
+    }
+    Ok(())
 }
 
 fn invalidate_fault_key(
