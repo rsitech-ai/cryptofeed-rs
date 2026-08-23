@@ -53,12 +53,23 @@ struct FaultIdentityV2 {
     available_at_ns: i64,
 }
 
+#[derive(Debug, Clone)]
+struct RecoverySessionV2 {
+    fault_generation: u8,
+    recovery_generation: Option<u8>,
+    remaining: u8,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum SnapshotV2Error {
     #[error("SNAPSHOT_V2_CURSOR_NOT_E1_REPRESENTABLE")]
     CursorNotE1Representable,
     #[error("truthful-empty V2 topology rejects System records")]
     SystemInput,
+    #[error("SNAPSHOT_V2_RECOVERY_RESERVE_EXHAUSTED")]
+    RecoveryReserveExhausted,
+    #[error("SNAPSHOT_V2_FAULT_RESERVE_EXHAUSTED")]
+    FaultReserveExhausted,
     #[error(transparent)]
     Snapshot(#[from] SnapshotError),
 }
@@ -72,7 +83,9 @@ pub struct SnapshotProcessorV2 {
     records: VecDeque<MechanicsInputV2>,
     fault_events: VecDeque<FaultEventV2>,
     active_causes: BTreeMap<FaultKeyV2, Cause>,
-    recovery_allowances: BTreeMap<FaultKeyV2, (u8, u8)>,
+    recovery_sessions: BTreeMap<FaultKeyV2, RecoverySessionV2>,
+    reserved_recovery_used: BTreeMap<FaultKeyV2, u8>,
+    reserved_fault_used: BTreeMap<FaultKeyV2, bool>,
     last_order: Option<crate::replay_v2::ReplayOrderKeyV2>,
     sealed_micros: Option<i64>,
     last_decision_micros: Option<i64>,
@@ -97,16 +110,20 @@ impl SnapshotProcessorV2 {
         let config = admission.mechanics_config().clone();
         // Reuse the accepted V1 constructor validation without retaining its state.
         MechanicsProcessor::new(config.clone(), authoring.clone())?;
+        let fault_keys = configured_fault_keys_v2(&config);
         Ok(Self {
             sources: SourceStateMachineV2::new(config.clone()),
             runtime: FeatureRuntime::new(&config)?,
             records: VecDeque::with_capacity(PROCESSOR_RECORD_CAPACITY),
             fault_events: VecDeque::with_capacity(MAX_FAULT_EVENTS),
-            active_causes: configured_fault_keys_v2(&config)
-                .into_iter()
+            active_causes: fault_keys
+                .iter()
+                .cloned()
                 .map(|key| (key, Cause::None))
                 .collect(),
-            recovery_allowances: BTreeMap::new(),
+            recovery_sessions: BTreeMap::new(),
+            reserved_recovery_used: fault_keys.iter().cloned().map(|key| (key, 0)).collect(),
+            reserved_fault_used: fault_keys.into_iter().map(|key| (key, false)).collect(),
             last_order: None,
             sealed_micros: None,
             last_decision_micros: None,
@@ -141,6 +158,52 @@ impl SnapshotProcessorV2 {
             .sum()
     }
 
+    fn recovery_reserve_for(key: &FaultKeyV2) -> u8 {
+        match key {
+            FaultKeyV2::MarketFamily(_) => 2,
+            FaultKeyV2::Clock(_) | FaultKeyV2::Coverage(_) => 1,
+        }
+    }
+
+    fn ordinary_record_usage(&self) -> usize {
+        let reserved_recoveries = self
+            .reserved_recovery_used
+            .values()
+            .map(|used| usize::from(*used))
+            .sum::<usize>();
+        let reserved_faults = self
+            .reserved_fault_used
+            .values()
+            .filter(|used| **used)
+            .count();
+        self.buffered_record_count() - reserved_recoveries - reserved_faults
+    }
+
+    fn recovery_session_matches(
+        &self,
+        identity: &FaultIdentityV2,
+        input: &MechanicsInputV2,
+    ) -> bool {
+        let Some(session) = self.recovery_sessions.get(&identity.key) else {
+            return false;
+        };
+        if session.remaining == 0 {
+            return false;
+        }
+        session.recovery_generation.map_or_else(
+            || {
+                identity.generation > session.fault_generation
+                    || (identity.generation == session.fault_generation
+                        && is_book_snapshot(input)
+                        && matches!(
+                            self.active_causes.get(&identity.key),
+                            Some(Cause::Sequence(_))
+                        ))
+            },
+            |generation| identity.generation == generation,
+        )
+    }
+
     pub fn ingest(&mut self, input: &MechanicsInputV2) -> Result<IngestOutcome, SnapshotV2Error> {
         input
             .validate_static()
@@ -172,16 +235,26 @@ impl SnapshotProcessorV2 {
             .into());
         }
         let identity = fault_identity(input)?;
-        let recovering = identity.as_ref().is_some_and(|identity| {
-            self.recovery_allowances.get(&identity.key).is_some_and(
-                |(fault_generation, remaining)| {
-                    *remaining > 0 && identity.generation > *fault_generation
-                },
-            )
-        });
-        if self.buffered_record_count() >= PROCESSOR_RECORD_CAPACITY
-            || (!recovering && self.buffered_record_count() >= self.ordinary_record_capacity())
-        {
+        let recovering = identity
+            .as_ref()
+            .is_some_and(|identity| self.recovery_session_matches(identity, input));
+        let uses_reserved_recovery =
+            recovering && self.ordinary_record_usage() >= self.ordinary_record_capacity();
+        if uses_reserved_recovery {
+            let identity = identity.as_ref().expect("recovery identity was checked");
+            let used = self
+                .reserved_recovery_used
+                .get(&identity.key)
+                .copied()
+                .expect("recovery reserve is preallocated for every configured key");
+            if used >= Self::recovery_reserve_for(&identity.key) {
+                return Err(SnapshotV2Error::RecoveryReserveExhausted);
+            }
+        }
+        if self.buffered_record_count() >= PROCESSOR_RECORD_CAPACITY {
+            return Err(SnapshotError::Capacity.into());
+        }
+        if !recovering && self.ordinary_record_usage() >= self.ordinary_record_capacity() {
             if let Some(identity) = identity {
                 self.latch_queue_drop(&order, &identity)?;
                 self.last_order = Some(order);
@@ -192,6 +265,9 @@ impl SnapshotProcessorV2 {
         let outcome = match candidate_sources.ingest(input) {
             Ok(outcome) => outcome,
             Err(error) => {
+                if recovering {
+                    return Err(SnapshotError::InvalidInput(error.to_string()).into());
+                }
                 if error.invalidates_state() {
                     if let Some(identity) = identity {
                         let mut runtime = self.runtime.clone();
@@ -220,15 +296,14 @@ impl SnapshotProcessorV2 {
                         self.runtime = runtime;
                         self.fault_events = fault_events;
                         self.active_causes = active_causes;
-                        self.recovery_allowances
-                            .entry(identity.key.clone())
-                            .or_insert((
-                                identity.generation,
-                                match &identity.key {
-                                    FaultKeyV2::MarketFamily(_) => 2,
-                                    FaultKeyV2::Clock(_) | FaultKeyV2::Coverage(_) => 1,
-                                },
-                            ));
+                        self.recovery_sessions.insert(
+                            identity.key.clone(),
+                            RecoverySessionV2 {
+                                fault_generation: identity.generation,
+                                recovery_generation: None,
+                                remaining: Self::recovery_reserve_for(&identity.key),
+                            },
+                        );
                         self.last_order = Some(order);
                     }
                 }
@@ -254,7 +329,7 @@ impl SnapshotProcessorV2 {
             }
             if let Err(error) = candidate_runtime.ingest_v2(input, &self.config, &candidate_sources)
             {
-                if error == SnapshotError::FeatureQueueDrop {
+                if error == SnapshotError::FeatureQueueDrop && !recovering {
                     let identity = identity.ok_or_else(|| {
                         SnapshotError::InvalidInput(
                             "non-market feature capacity has no family slot".into(),
@@ -287,15 +362,28 @@ impl SnapshotProcessorV2 {
         self.sources = candidate_sources;
         self.runtime = candidate_runtime;
         self.active_causes = active_causes;
-        if recovering {
+        if recovering && outcome != IngestOutcome::IgnoredDuplicate {
             let identity = identity.as_ref().expect("recovery identity was checked");
-            let allowance = self
-                .recovery_allowances
+            let session = self
+                .recovery_sessions
                 .get_mut(&identity.key)
-                .expect("recovery allowance was checked");
-            allowance.1 -= 1;
-            if allowance.1 == 0 {
-                self.recovery_allowances.remove(&identity.key);
+                .expect("recovery session was checked");
+            let same_generation_book_recovery = identity.generation == session.fault_generation;
+            session
+                .recovery_generation
+                .get_or_insert(identity.generation);
+            session.remaining -= 1;
+            if same_generation_book_recovery {
+                session.remaining = 0;
+            }
+            if uses_reserved_recovery {
+                *self
+                    .reserved_recovery_used
+                    .get_mut(&identity.key)
+                    .expect("recovery reserve is preallocated for every configured key") += 1;
+            }
+            if session.remaining == 0 {
+                self.recovery_sessions.remove(&identity.key);
             }
         }
         self.last_order = Some(order);
@@ -307,6 +395,20 @@ impl SnapshotProcessorV2 {
         order: &crate::replay_v2::ReplayOrderKeyV2,
         identity: &FaultIdentityV2,
     ) -> Result<(), SnapshotV2Error> {
+        let appends_fault = !self.active_causes.get(&identity.key).is_some_and(|cause| {
+            matches!(cause, Cause::QueueDrop(_)) && cause_generation(*cause) >= identity.generation
+        });
+        let uses_reserved_fault =
+            appends_fault && self.ordinary_record_usage() >= self.ordinary_record_capacity();
+        if uses_reserved_fault
+            && self
+                .reserved_fault_used
+                .get(&identity.key)
+                .copied()
+                .expect("fault reserve is preallocated for every configured key")
+        {
+            return Err(SnapshotV2Error::FaultReserveExhausted);
+        }
         let mut sources = self.sources.clone();
         let mut runtime = self.runtime.clone();
         invalidate_fault_key(&mut sources, &mut runtime, identity, true)?;
@@ -331,15 +433,22 @@ impl SnapshotProcessorV2 {
         self.runtime = runtime;
         self.fault_events = fault_events;
         self.active_causes = active_causes;
-        self.recovery_allowances
-            .entry(identity.key.clone())
-            .or_insert((
-                identity.generation,
-                match &identity.key {
-                    FaultKeyV2::MarketFamily(_) => 2,
-                    FaultKeyV2::Clock(_) | FaultKeyV2::Coverage(_) => 1,
+        if appends_fault {
+            self.recovery_sessions.insert(
+                identity.key.clone(),
+                RecoverySessionV2 {
+                    fault_generation: identity.generation,
+                    recovery_generation: None,
+                    remaining: Self::recovery_reserve_for(&identity.key),
                 },
-            ));
+            );
+            if uses_reserved_fault {
+                *self
+                    .reserved_fault_used
+                    .get_mut(&identity.key)
+                    .expect("fault reserve is preallocated for every configured key") = true;
+            }
+        }
         Ok(())
     }
 

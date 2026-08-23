@@ -540,12 +540,13 @@ fn clock_at(
         panic!("expected clock input")
     };
     let at = decision_offset(admission, at_offset_ms);
+    let recovery_epoch = format!("epoch_clock_recovery_{generation}");
     let source = ClockSourceV1::new(
         clock_source.key().clone(),
         if generation == 0 {
             clock_source.epoch()
         } else {
-            "epoch_clock_recovery"
+            &recovery_epoch
         },
         generation,
     )
@@ -566,6 +567,47 @@ fn clock_at(
         .unwrap(),
     )
     .unwrap()
+}
+
+fn later_hash_clock_mutation(input: &MechanicsInputV2) -> MechanicsInputV2 {
+    let marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock {
+            contributor,
+            clock_source,
+            observed_at,
+            available_at,
+            clock_cursor,
+            clock_state,
+            observed_skew_ms,
+            freshness_limit_ms,
+            quality_state,
+            ..
+        },
+    ) = input.view()
+    else {
+        panic!("expected clock input")
+    };
+    (1..1_000)
+        .map(|part| {
+            MechanicsInputV2::from_v1_non_market(
+                MechanicsInputV1::clock(
+                    contributor.clone(),
+                    clock_source.clone(),
+                    observed_at.clone(),
+                    available_at.clone(),
+                    clock_cursor.clone(),
+                    clock_state,
+                    observed_skew_ms.clone(),
+                    freshness_limit_ms,
+                    quality_state,
+                    &format!("SOURCE_CLOCK_MUTATION_{part}"),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+        })
+        .find(|candidate| candidate.payload_hash() > input.payload_hash())
+        .expect("bounded mutation with later authenticated hash")
 }
 
 fn coverage_at(
@@ -1386,6 +1428,12 @@ fn literal_combined_cap_preserves_two_market_recovery_records() {
     assert_eq!(processor.buffered_record_count(), ordinary_cap + 1);
     let warming = native_trade_at(&inputs[0], &admission, 1, 70_001, drop_offset + 1, 1);
     processor.ingest(&warming).unwrap();
+    let after_warming = processor.buffered_record_count();
+    assert_eq!(
+        processor.ingest(&warming),
+        Ok(marketfeed_event_pulse::IngestOutcome::IgnoredDuplicate)
+    );
+    assert_eq!(processor.buffered_record_count(), after_warming);
     let live = native_trade_at(&inputs[0], &admission, 2, 70_002, drop_offset + 60_001, 1);
     processor.ingest(&live).unwrap();
     assert_eq!(processor.buffered_record_count(), ordinary_cap + 3);
@@ -1404,4 +1452,193 @@ fn literal_combined_cap_preserves_two_market_recovery_records() {
     processor.ingest(&clock_recovery).unwrap();
     assert_eq!(processor.buffered_record_count(), ordinary_cap + 5);
     assert!(processor.buffered_record_count() <= 65_536);
+}
+
+#[test]
+fn failed_same_epoch_book_recovery_is_atomic_and_valid_retry_matches_fresh() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut subject = processor(&admission);
+    for input in &inputs {
+        subject.ingest(input).unwrap();
+    }
+    let gap = book_delta_at(&inputs[2], &admission, 16, 16, 300, 301, 0);
+    assert!(subject.ingest(&gap).is_err());
+    let count_before = subject.buffered_record_count();
+
+    let mut reused_epoch_value =
+        serde_json::to_value(book_snapshot_at(&inputs[2], &admission, 17, 17, 201)).unwrap();
+    for entry in reused_epoch_value["catalog"]["connection_epochs"]
+        .as_array_mut()
+        .unwrap()
+    {
+        if entry["connection_id"] == 11 && entry["session_id"] == 21 {
+            entry["epoch_generation"] = json!(1);
+        }
+    }
+    let reused_epoch = rehash_value(reused_epoch_value);
+    assert!(subject.ingest(&reused_epoch).is_err());
+    assert_eq!(subject.buffered_record_count(), count_before);
+
+    let mut invalid_value =
+        serde_json::to_value(book_snapshot_at(&inputs[2], &admission, 17, 17, 201)).unwrap();
+    invalid_value["envelope"]["payload"] =
+        serde_json::to_value(MarketEvent::BookSnapshot(BookSnapshot {
+            bids: vec![
+                BookLevel {
+                    price: Price(Fixed::new(99, 0)),
+                    quantity: Quantity(Fixed::new(3, 0)),
+                },
+                BookLevel {
+                    price: Price(Fixed::new(100, 0)),
+                    quantity: Quantity(Fixed::new(1, 0)),
+                },
+            ],
+            asks: vec![BookLevel {
+                price: Price(Fixed::new(101, 0)),
+                quantity: Quantity(Fixed::new(1, 0)),
+            }],
+            depth: Some(2),
+            checksum: None,
+        }))
+        .unwrap();
+    let invalid = rehash_value(invalid_value);
+    assert!(subject.ingest(&invalid).is_err());
+    assert_eq!(subject.buffered_record_count(), count_before);
+
+    let valid = book_snapshot_at(&inputs[2], &admission, 17, 17, 201);
+    subject.ingest(&valid).unwrap();
+    let actual = subject.snapshot(decision_offset(&admission, 18)).unwrap();
+
+    let mut fresh = processor(&admission);
+    for input in &inputs {
+        fresh.ingest(input).unwrap();
+    }
+    assert!(fresh.ingest(&gap).is_err());
+    fresh.ingest(&valid).unwrap();
+    let expected = fresh.snapshot(decision_offset(&admission, 18)).unwrap();
+    assert_eq!(actual.canonical_json(), expected.canonical_json());
+    assert_eq!(actual.content_hash(), expected.content_hash());
+}
+
+#[test]
+fn same_generation_book_resnapshot_uses_its_immutable_reserve_at_ordinary_cap() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut subject = processor(&admission);
+    for input in &inputs {
+        subject.ingest(input).unwrap();
+    }
+    let gap = book_delta_at(&inputs[2], &admission, 16, 16, 300, 301, 0);
+    assert!(subject.ingest(&gap).is_err());
+
+    let ordinary_cap = subject.ordinary_record_capacity();
+    let fill_count = ordinary_cap - subject.buffered_record_count();
+    for index in 0..fill_count {
+        subject
+            .ingest(&clock_at(
+                &inputs[6],
+                &admission,
+                17 + i64::try_from(index).unwrap(),
+                0,
+                2 + u64::try_from(index).unwrap(),
+            ))
+            .unwrap();
+    }
+    assert_eq!(subject.buffered_record_count(), ordinary_cap);
+
+    let recovery_offset = 18 + i64::try_from(fill_count).unwrap();
+    let resnapshot = book_snapshot_at(&inputs[2], &admission, 80_000, recovery_offset, 201);
+    assert!(subject.ingest(&resnapshot).is_ok());
+    assert_eq!(subject.buffered_record_count(), ordinary_cap + 1);
+
+    let ordinary_same_generation = book_delta_at(
+        &inputs[2],
+        &admission,
+        80_001,
+        recovery_offset + 1,
+        202,
+        202,
+        201,
+    );
+    assert!(matches!(
+        subject.ingest(&ordinary_same_generation),
+        Err(SnapshotV2Error::Snapshot(SnapshotError::Capacity))
+    ));
+}
+
+#[test]
+fn repeated_ordinary_fault_cycles_cannot_steal_other_keys_boundary_reserves() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut subject = processor(&admission);
+    for input in &inputs {
+        subject.ingest(input).unwrap();
+    }
+
+    let mut first_clock = clock_at(&inputs[6], &admission, 16, 0, 2);
+    subject.ingest(&first_clock).unwrap();
+    for cycle in 0_u8..12 {
+        let mutation = later_hash_clock_mutation(&first_clock);
+        assert!(subject.ingest(&mutation).is_err());
+        let generation = cycle + 1;
+        let recovery = clock_at(
+            &first_clock,
+            &admission,
+            17 + i64::from(cycle),
+            generation,
+            1,
+        );
+        subject.ingest(&recovery).unwrap();
+        first_clock = recovery;
+    }
+
+    let ordinary_cap = subject.ordinary_record_capacity();
+    let fill_count = ordinary_cap - subject.buffered_record_count();
+    for index in 0..fill_count {
+        subject
+            .ingest(&clock_at(
+                &inputs[7],
+                &admission,
+                100 + i64::try_from(index).unwrap(),
+                0,
+                2 + u64::try_from(index).unwrap(),
+            ))
+            .unwrap();
+    }
+    assert_eq!(subject.buffered_record_count(), ordinary_cap);
+
+    let boundary = 101 + i64::try_from(fill_count).unwrap();
+    let first_drop = clock_at(&first_clock, &admission, boundary, 12, 2);
+    assert!(matches!(
+        subject.ingest(&first_drop),
+        Err(SnapshotV2Error::Snapshot(SnapshotError::Capacity))
+    ));
+    let first_recovery = clock_at(&first_clock, &admission, boundary + 1, 13, 1);
+    subject.ingest(&first_recovery).unwrap();
+
+    let count_before_exhaustion = subject.buffered_record_count();
+    let exhausted_key = clock_at(&first_recovery, &admission, boundary + 2, 13, 2);
+    assert_eq!(
+        subject.ingest(&exhausted_key),
+        Err(SnapshotV2Error::FaultReserveExhausted)
+    );
+    assert_eq!(subject.buffered_record_count(), count_before_exhaustion);
+
+    let second_last_sequence = 1 + u64::try_from(fill_count).unwrap();
+    let second_drop = clock_at(
+        &inputs[7],
+        &admission,
+        boundary + 3,
+        0,
+        second_last_sequence + 1,
+    );
+    assert!(matches!(
+        subject.ingest(&second_drop),
+        Err(SnapshotV2Error::Snapshot(SnapshotError::Capacity))
+    ));
+    let second_recovery = clock_at(&inputs[7], &admission, boundary + 4, 1, 1);
+    subject.ingest(&second_recovery).unwrap();
+    assert_eq!(subject.buffered_record_count(), count_before_exhaustion + 2);
+    assert!(subject.buffered_record_count() <= 65_536);
 }

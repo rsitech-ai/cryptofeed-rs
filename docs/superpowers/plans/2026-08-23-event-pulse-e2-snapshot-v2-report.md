@@ -119,3 +119,30 @@ The first counted-log regression failed exactly at `left: 15, right: 16`: the ac
 - `git diff --check`: passed.
 
 This repair does not alter the authority ceiling: Snapshot V2 is repo-ready pure library evidence only, while E2 remains blocked on fixture provenance and all runtime, capture, evidence, execution, and trading authority remains false.
+
+## Reviewer repair successor 3
+
+### RED
+
+The reserve audit found that each new fault replaced the key's recovery allowance, so repeated ordinary cycles could reset accounting before a boundary drop. It also found that a recovery candidate could commit invalidating source state or a capacity fault before downstream feature validation completed. New regressions cover twelve ordinary fault/recovery cycles before the literal ordinary boundary, a same-generation Book Sequence resnapshot at that boundary, an epoch-reuse failure, a malformed Book feature failure, and a valid retry compared with an independently constructed fresh processor.
+
+### GREEN
+
+- Every configured MARKET-family, Clock, and Coverage key now owns constructor-preallocated immutable fault-use and recovery-use counters. Ordinary history and ignored recovery duplicates do not spend those boundary reserves, and a used exact-key fault reserve fails closed with `SNAPSHOT_V2_FAULT_RESERVE_EXHAUSTED`; another configured key remains independently recoverable.
+- Recovery sessions are bounded to the topology width. A same-generation Book snapshot can enter the reserved path only while that exact Book key has an active Sequence cause. QueueDrop still requires a strictly greater generation.
+- Source state, feature runtime, active cause, accepted/fault log, last order, and reserve allowance are evaluated as candidate state. Epoch reuse or feature validation failure commits none of them; the original fault remains retryable.
+- A valid retry after both failed recovery classes authors canonical bytes and a content hash identical to a fresh processor consuming the same committed prefix.
+
+### Successor 3 gate evidence
+
+- `cargo test -p marketfeed-event-pulse --test snapshot_v2 --no-default-features -- --test-threads=1`: 21 passed, including the literal-capacity tests.
+- `cargo test -p marketfeed-event-pulse --all-targets --all-features`: passed, including 21 Snapshot V2 and 54 unchanged V1 snapshot-mechanics tests.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `cargo deny --offline --locked check`: `advisories ok, bans ok, licenses ok, sources ok`.
+- `git diff --check`: passed.
+
+This successor is still repo-ready library evidence only. No fixture, capture, source qualification, runtime, deployment, execution, or trading authority is claimed.

@@ -108,3 +108,12 @@ The implementation is bound independently to root merge `4d3e0f0398d3e113a79df7a
 - [x] RED: queue-drop availability uses checked Euclidean nanosecond flooring, contributes to the snapshot causal availability maximum, and matches direct/replayed snapshots.
 - [x] GREEN: generalize the bounded fault key/timeline and reserve accounting without changing V1 APIs, bytes, or mechanics behavior.
 - [x] Verify focused RED/GREEN, full EventPulse/workspace current and Rust 1.85 tests/clippy, fmt, deny, LF pins, and diff; append successor evidence and commit cleanly.
+
+## Reviewer repair successor 3
+
+- [x] RED: repeated ordinary fault/recovery cycles must not reset or consume another configured key's immutable boundary fault/recovery reserves; exact-key exhaustion must be typed and mutation-free.
+- [x] RED: a same-generation Book snapshot repairing an active Sequence fault at the ordinary boundary must use that Book family's reserved recovery path, while QueueDrop remains greater-generation only.
+- [x] RED: epoch-reuse and feature-validation failures during recovery must leave source, feature runtime, fault, replay count, order, allowance, and log unchanged so a later valid retry remains admissible.
+- [x] RED: valid recovery after failed attempts must produce canonical bytes and content hash identical to a fresh processor that consumed only the committed prefix.
+- [x] GREEN: preallocate immutable per-key reserve accounting, return explicit `SNAPSHOT_V2_FAULT_RESERVE_EXHAUSTED` or `SNAPSHOT_V2_RECOVERY_RESERVE_EXHAUSTED`, and commit recovery candidate state only after all validation succeeds.
+- [x] Verify 21 focused Snapshot V2 tests plus full EventPulse/workspace current and Rust 1.85 tests/clippy, fmt, deny, and diff; append successor evidence and commit cleanly.
