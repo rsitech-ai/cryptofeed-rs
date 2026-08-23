@@ -6,7 +6,7 @@ use crate::{
     replay::ReplayInputError,
     window::PROCESSOR_RECORD_CAPACITY,
     wire::{CursorV1, MAX_INPUT_BYTES, MechanicsInputRefV1, Rfc3339Time},
-    wire_v2::{MarketCursorV2, MechanicsInputRefV2, MechanicsInputV2},
+    wire_v2::{MechanicsInputRefV2, MechanicsInputV2},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -20,7 +20,11 @@ struct ReplayOrderKeyV2 {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum ReplayCursorOrderV2 {
-    Market(MarketCursorV2),
+    Market {
+        raw_frame_seq: u64,
+        action_index: u32,
+        item_index: u32,
+    },
     V1(CursorV1),
 }
 
@@ -142,7 +146,7 @@ fn replay_order_v2(input: &MechanicsInputV2) -> Result<ReplayOrderKeyV2, ReplayI
         MechanicsInputRefV2::Market {
             envelope,
             catalog,
-            market_cursor,
+            action_index,
             ..
         } => {
             let venue = catalog.venue_source(envelope.venue.0).ok_or_else(invalid)?;
@@ -158,7 +162,11 @@ fn replay_order_v2(input: &MechanicsInputV2) -> Result<ReplayOrderKeyV2, ReplayI
                 envelope.receive_ts.0.div_euclid(1_000),
                 venue.source_id(),
                 epoch.connection_epoch(),
-                ReplayCursorOrderV2::Market(market_cursor.clone()),
+                ReplayCursorOrderV2::Market {
+                    raw_frame_seq: envelope.frame_seq,
+                    action_index,
+                    item_index: u32::from(envelope.event_index),
+                },
             )
         }
         MechanicsInputRefV2::NonMarket(view) => match view {

@@ -28,6 +28,10 @@ Initial RED signals included:
 - a root-valid derived `raw_frame_seq = 2_147_483_648` failing with `Cursor` because
   the first V2 implementation lowered the coordinate through packed `CursorV1`;
   the same defect would have rejected `u64::MAX`.
+- a valid Binance BOOK bootstrap `snapshot=200, U=195, u=205` failing as a generic
+  native regression, while an invalid first delta `U=201, u=205` was accepted;
+- equal-time QUOTE/BOOK replay being ordered by cursor enum variant rather than the
+  authenticated raw frame/action/item coordinate.
 
 GREEN regressions now cover:
 
@@ -47,6 +51,15 @@ GREEN regressions now cover:
   wrong-family/source/provenance rejection;
 - replay line, aggregate-byte, record-count, and reverse-order boundaries, including
   exact 65,536-record acceptance and 65,537-record rejection.
+- frozen Binance BOOK continuity: snapshot establishment, first-delta overlap
+  `U <= lastUpdateId <= u`, subsequent exact `pu == prior u`, discard on mismatch,
+  and same-epoch snapshot recovery; generic native `+1` continuity remains unchanged
+  for all other families;
+- complete PreflightV4 packages with three BOOK records, plus fail-closed no-overlap
+  and wrong-`pu` counterexamples;
+- equal-time PUBLIC QUOTE/BOOK and MARKET TRADE/OPEN_INTEREST/LIQUIDATION ordering by
+  authenticated `(frame_seq, action_index, event_index)` in ascending and regressing
+  raw-coordinate cases, independent of native/derived family cursor mode.
 
 ## Validation
 
@@ -65,6 +78,10 @@ Passed:
 The successor repair re-ran the full current and Rust 1.85 EventPulse suites and
 clippy gates after replacing the cursor representation; the focused exact-cap replay
 test takes approximately 27 seconds and passed on both toolchains.
+
+The BOOK/replay successor likewise re-ran both complete toolchain suites and clippy
+gates. It changes only V2 BOOK family continuity and V2 MARKET replay ordering; V1
+cursor and replay behavior are unchanged.
 
 One Rust 1.85 rebuild initially failed with `No space left on device` while compiling `ring`. This was an environment-capacity failure, not a test failure. Only this isolated worktree's generated `target` directory was cleaned; the same full Rust 1.85 suite then passed.
 

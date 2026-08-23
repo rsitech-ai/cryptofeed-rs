@@ -13,9 +13,10 @@ use marketfeed_event_pulse::{
     },
 };
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookSnapshot, ConnectionId, EventEnvelope, EventFlags, Fixed,
-    InstrumentId, Liquidation, MarketEvent, OpenInterest, Price, PricePoint, Quantity, Quote,
-    SequenceRange, SessionId, TimestampNs, Trade, VenueId,
+    AggressorSide, BookChange, BookDelta, BookLevel, BookOperation, BookSide, BookSnapshot,
+    ConnectionId, EventEnvelope, EventFlags, Fixed, InstrumentId, Liquidation, MarketEvent,
+    OpenInterest, Price, PricePoint, Quantity, Quote, SequenceRange, SessionId, TimestampNs, Trade,
+    VenueId,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -368,6 +369,42 @@ fn rehash_value(mut value: Value) -> MechanicsInputV2 {
     MechanicsInputV2::from_json_line(&serde_json::to_vec(&value).unwrap()).unwrap()
 }
 
+fn book_delta_from(
+    snapshot: &MechanicsInputV2,
+    frame: u64,
+    first_update_id: u64,
+    final_update_id: u64,
+    previous_final_update_id: u64,
+) -> MechanicsInputV2 {
+    let mut value = serde_json::to_value(snapshot).unwrap();
+    value["envelope"]["frame_seq"] = json!(frame);
+    value["envelope"]["source_sequence"]["first"] = json!(first_update_id);
+    value["envelope"]["source_sequence"]["last"] = json!(final_update_id);
+    value["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        changes: vec![BookChange {
+            side: BookSide::Bid,
+            operation: BookOperation::Upsert,
+            price: Price(Fixed::new(99, 0)),
+            quantity: Some(Quantity(Fixed::new(5, 0))),
+        }],
+        checksum: None,
+    }))
+    .unwrap();
+    value["market_cursor"]["first_sequence"] = json!(first_update_id);
+    value["market_cursor"]["last_sequence"] = json!(final_update_id);
+    let event_time_ms = value["source_provenance"]["event_time_ms"].clone();
+    let transaction_time_ms = value["source_provenance"]["transaction_time_ms"].clone();
+    value["source_provenance"] = json!({
+        "kind": "BINANCE_BOOK_DELTA",
+        "first_update_id": first_update_id,
+        "final_update_id": final_update_id,
+        "previous_final_update_id": previous_final_update_id,
+        "event_time_ms": event_time_ms,
+        "transaction_time_ms": transaction_time_ms
+    });
+    rehash_value(value)
+}
+
 fn generation(
     input: &MechanicsInputV2,
     at_ns: i64,
@@ -441,6 +478,107 @@ fn fifteen_records_from_twelve_sources_build_nine_deterministic_artifacts() {
     }
     assert!(!first.evidence_authoring_allowed());
     assert_eq!(first.blocker(), "blocked:fixture-provenance");
+}
+
+#[test]
+fn preflight_accepts_multi_record_binance_book_bootstrap_and_pu_continuity() {
+    let admission = admission();
+    let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
+    let mut records = complete_inputs(&admission);
+    let first = book_delta_from(&records[2], 4, 195, 205, 17);
+    let next = book_delta_from(&records[2], 5, 206, 210, 205);
+    records.insert(3, first);
+    records.insert(4, next);
+    let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
+    for record in &records {
+        writer.write_input(record).unwrap();
+    }
+    let decision = Rfc3339Time::from_unix_nanos(
+        admission.capture_starts_at().utc_micros() * 1_000 + 20_000_000,
+    )
+    .unwrap();
+    let built =
+        OfflineArtifactPreflightV4::build(&admission, &policy, decision, &writer.finish()).unwrap();
+    let book = built
+        .artifacts()
+        .iter()
+        .find(|artifact| artifact.role() == ArtifactRoleV1::Book)
+        .unwrap();
+    assert_eq!(book.record_count(), 3);
+}
+
+#[test]
+fn preflight_rejects_binance_book_no_overlap_and_wrong_pu() {
+    let admission = admission();
+    let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
+    let decision = Rfc3339Time::from_unix_nanos(
+        admission.capture_starts_at().utc_micros() * 1_000 + 20_000_000,
+    )
+    .unwrap();
+    for deltas in [
+        vec![book_delta_from(
+            &complete_inputs(&admission)[2],
+            4,
+            201,
+            205,
+            200,
+        )],
+        vec![
+            book_delta_from(&complete_inputs(&admission)[2], 4, 195, 205, 17),
+            book_delta_from(&complete_inputs(&admission)[2], 5, 206, 210, 204),
+        ],
+    ] {
+        let mut records = complete_inputs(&admission);
+        for (offset, delta) in deltas.into_iter().enumerate() {
+            records.insert(3 + offset, delta);
+        }
+        let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
+        for record in &records {
+            writer.write_input(record).unwrap();
+        }
+        assert_eq!(
+            OfflineArtifactPreflightV4::build(
+                &admission,
+                &policy,
+                decision.clone(),
+                &writer.finish(),
+            ),
+            Err(OfflineArtifactErrorV4::Topology(CursorError::NativeGap))
+        );
+    }
+}
+
+#[test]
+fn equal_time_market_replay_uses_raw_coordinates_for_every_cursor_mode() {
+    let admission = admission();
+    let records = complete_inputs(&admission);
+    let at = admission.capture_starts_at().utc_micros() * 1_000 + 20_000_000;
+    let quote = retime(&records[1], at, 10);
+    let book = retime(&records[2], at, 20);
+    let mut public = MechanicsInputV2JsonlWriter::new(Vec::new());
+    public.write_input(&quote).unwrap();
+    public.write_input(&book).unwrap();
+    let mut public_reversed = MechanicsInputV2JsonlWriter::new(Vec::new());
+    public_reversed.write_input(&book).unwrap();
+    assert_eq!(
+        public_reversed.write_input(&quote),
+        Err(marketfeed_event_pulse::ReplayInputError::OrderViolation)
+    );
+
+    let trade = retime(&records[0], at, 30);
+    let open_interest = retime(&records[3], at, 31);
+    let liquidation = retime(&records[4], at, 32);
+    let mut market = MechanicsInputV2JsonlWriter::new(Vec::new());
+    market.write_input(&trade).unwrap();
+    market.write_input(&open_interest).unwrap();
+    market.write_input(&liquidation).unwrap();
+    let regressing_open_interest = retime(&records[3], at, 20);
+    let mut market_reversed = MechanicsInputV2JsonlWriter::new(Vec::new());
+    market_reversed.write_input(&trade).unwrap();
+    assert_eq!(
+        market_reversed.write_input(&regressing_open_interest),
+        Err(marketfeed_event_pulse::ReplayInputError::OrderViolation)
+    );
 }
 
 #[test]
@@ -518,16 +656,12 @@ fn family_keyed_state_accepts_mixed_modes_in_all_orders_and_rejects_cross_family
     isolated
         .ingest(&retime(&records[2], start + 20_000_000, 402))
         .unwrap();
-    let mut gap = serde_json::to_value(retime(&records[2], start + 30_000_000, 403)).unwrap();
-    gap["envelope"]["source_sequence"]["first"] = json!(202_u64);
-    gap["envelope"]["source_sequence"]["last"] = json!(202_u64);
-    gap["market_cursor"]["first_sequence"] = json!(202_u64);
-    gap["market_cursor"]["last_sequence"] = json!(202_u64);
-    gap["source_provenance"]["last_update_id"] = json!(202_u64);
-    assert_eq!(
-        isolated.ingest(&rehash_value(gap)),
-        Err(CursorError::NativeGap)
+    let gap = retime(
+        &book_delta_from(&records[2], 403, 201, 202, 200),
+        start + 30_000_000,
+        403,
     );
+    assert_eq!(isolated.ingest(&gap), Err(CursorError::NativeGap));
     assert!(
         isolated
             .market_cursor(public, marketfeed_event_pulse::wire::FamilyV1::Quote)

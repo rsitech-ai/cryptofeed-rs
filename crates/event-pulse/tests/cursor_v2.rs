@@ -10,6 +10,10 @@ use marketfeed_event_pulse::{
         SystemSourceV1,
     },
 };
+use marketfeed_model::{
+    BookChange, BookDelta, BookLevel, BookOperation, BookSide, BookSnapshot, Fixed, MarketEvent,
+    Price, Quantity, SequenceRange, TimestampNs,
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -176,6 +180,102 @@ fn retime_and_epoch(
     rehash(value)
 }
 
+fn book_snapshot(
+    at_ns: i64,
+    frame: u64,
+    last_update_id: u64,
+    epoch: &str,
+    generation: u8,
+) -> MechanicsInputV2 {
+    let quote = rehash(quote_value());
+    let marketfeed_event_pulse::MechanicsInputRefV2::Market {
+        envelope, catalog, ..
+    } = quote.view()
+    else {
+        unreachable!()
+    };
+    let mut envelope = envelope.clone();
+    envelope.frame_seq = frame;
+    envelope.exchange_ts = Some(TimestampNs(at_ns));
+    envelope.receive_ts = TimestampNs(at_ns);
+    envelope.source_sequence = Some(SequenceRange {
+        first: last_update_id,
+        last: last_update_id,
+    });
+    envelope.payload = MarketEvent::BookSnapshot(BookSnapshot {
+        bids: vec![BookLevel {
+            price: Price(Fixed::new(100, 0)),
+            quantity: Quantity(Fixed::new(1, 0)),
+        }],
+        asks: vec![BookLevel {
+            price: Price(Fixed::new(101, 0)),
+            quantity: Quantity(Fixed::new(1, 0)),
+        }],
+        depth: Some(1),
+        checksum: None,
+    });
+    let at_ms = u64::try_from(at_ns.div_euclid(1_000_000)).unwrap();
+    let input = MechanicsInputV2::market(
+        envelope,
+        2,
+        catalog.clone(),
+        marketfeed_event_pulse::MarketCursorV2::Native {
+            first_sequence: last_update_id,
+            last_sequence: last_update_id,
+        },
+        marketfeed_event_pulse::SourceProvenanceV2::BinanceBookSnapshot {
+            last_update_id,
+            event_time_ms: at_ms,
+            transaction_time_ms: at_ms,
+        },
+    )
+    .unwrap();
+    let mut value = serde_json::to_value(input).unwrap();
+    value["catalog"]["connection_epochs"][0]["connection_epoch"] = json!(epoch);
+    value["catalog"]["connection_epochs"][0]["epoch_generation"] = json!(generation);
+    rehash(value)
+}
+
+fn book_delta(
+    at_ns: i64,
+    frame: u64,
+    first_update_id: u64,
+    final_update_id: u64,
+    previous_final_update_id: u64,
+    epoch: &str,
+    generation: u8,
+) -> MechanicsInputV2 {
+    let mut input = serde_json::to_value(book_snapshot(
+        at_ns,
+        frame,
+        final_update_id,
+        epoch,
+        generation,
+    ))
+    .unwrap();
+    input["envelope"]["source_sequence"]["first"] = json!(first_update_id);
+    input["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        changes: vec![BookChange {
+            side: BookSide::Bid,
+            operation: BookOperation::Upsert,
+            price: Price(Fixed::new(100, 0)),
+            quantity: Some(Quantity(Fixed::new(2, 0))),
+        }],
+        checksum: None,
+    }))
+    .unwrap();
+    input["market_cursor"]["first_sequence"] = json!(first_update_id);
+    input["source_provenance"] = json!({
+        "kind": "BINANCE_BOOK_DELTA",
+        "first_update_id": first_update_id,
+        "final_update_id": final_update_id,
+        "previous_final_update_id": previous_final_update_id,
+        "event_time_ms": u64::try_from(at_ns.div_euclid(1_000_000)).unwrap(),
+        "transaction_time_ms": u64::try_from(at_ns.div_euclid(1_000_000)).unwrap()
+    });
+    rehash(input)
+}
+
 #[test]
 fn v2_cursor_ingest_uses_explicit_derived_coordinate_and_retains_v2_hash() {
     let (config, public) = config();
@@ -225,6 +325,95 @@ fn v2_state_retains_full_width_derived_frames_without_cursor_v1() {
             item_index: 0,
         }
     );
+}
+
+#[test]
+fn binance_book_bootstrap_accepts_overlap_then_exact_previous_final_update_id() {
+    let (config, public) = config();
+    let mut state = SourceStateMachineV2::new(config);
+    assert_eq!(
+        state.ingest(&book_snapshot(2_000_000_000, 10, 200, "epoch_public", 0)),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+    assert_eq!(
+        state.ingest(&book_delta(
+            2_001_000_000,
+            11,
+            195,
+            205,
+            17,
+            "epoch_public",
+            0
+        )),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+    assert_eq!(
+        state.ingest(&book_delta(
+            2_002_000_000,
+            12,
+            206,
+            210,
+            205,
+            "epoch_public",
+            0
+        )),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+    assert_eq!(
+        state
+            .market_cursor(&public, FamilyV1::Book)
+            .unwrap()
+            .cursor
+            .native_range(),
+        Some((206, 210))
+    );
+}
+
+#[test]
+fn binance_book_gap_or_wrong_pu_discards_until_same_epoch_resnapshot() {
+    for (invalid, needs_first_delta) in [
+        (
+            book_delta(2_001_000_000, 11, 201, 205, 200, "epoch_public", 0),
+            false,
+        ),
+        (
+            book_delta(2_002_000_000, 12, 206, 210, 204, "epoch_public", 0),
+            true,
+        ),
+    ] {
+        let (config, public) = config();
+        let mut state = SourceStateMachineV2::new(config);
+        state
+            .ingest(&book_snapshot(2_000_000_000, 10, 200, "epoch_public", 0))
+            .unwrap();
+        if needs_first_delta {
+            state
+                .ingest(&book_delta(
+                    2_001_000_000,
+                    11,
+                    195,
+                    205,
+                    17,
+                    "epoch_public",
+                    0,
+                ))
+                .unwrap();
+        }
+        assert_eq!(state.ingest(&invalid), Err(CursorError::NativeGap));
+        assert!(state.market_cursor(&public, FamilyV1::Book).is_none());
+        assert_eq!(
+            state.ingest(&book_snapshot(2_003_000_000, 13, 220, "epoch_public", 0)),
+            Ok(IngestOutcome::AcceptedWarming)
+        );
+        assert_eq!(
+            state
+                .market_cursor(&public, FamilyV1::Book)
+                .unwrap()
+                .cursor
+                .native_range(),
+            Some((220, 220))
+        );
+    }
 }
 
 #[test]
