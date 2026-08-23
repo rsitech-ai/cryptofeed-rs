@@ -362,6 +362,20 @@ impl<T> WindowBank<T> {
         Ok(())
     }
 
+    pub(crate) fn recover_configured_key(
+        &mut self,
+        key: &WindowKey,
+        epoch_first_available_ns: i64,
+    ) -> Result<(), WindowError> {
+        let window = self
+            .windows
+            .get_mut(key)
+            .ok_or(WindowError::UnconfiguredKey)?;
+        self.total_records -= window.len();
+        window.clear_for_new_epoch(epoch_first_available_ns);
+        Ok(())
+    }
+
     pub fn advance_source_epoch(
         &mut self,
         source: &WindowSource,

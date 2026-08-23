@@ -301,6 +301,25 @@ impl FeatureRuntime {
         Ok(())
     }
 
+    fn recover_book_family(
+        &mut self,
+        contributor: &ContributorKeyV1,
+        at_ns: i64,
+    ) -> Result<(), SnapshotError> {
+        self.windows
+            .recover_configured_key(
+                &Self::key(contributor, 250_000_000, WindowKind::Book)?,
+                at_ns,
+            )
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        *self
+            .books
+            .get_mut(contributor)
+            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured book family".into()))? =
+            BookProjection::new(8, 8, None);
+        Ok(())
+    }
+
     fn push_causal(
         &mut self,
         contributor: &ContributorKeyV1,

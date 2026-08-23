@@ -494,9 +494,121 @@ fn book_delta_at(
     rehash_value(value)
 }
 
+fn book_snapshot_at(
+    snapshot: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at_offset_ms: i64,
+    last_update_id: u64,
+) -> MechanicsInputV2 {
+    let mut value = market_at(snapshot, admission, frame, at_offset_ms, 0);
+    value["envelope"]["source_sequence"]["first"] = json!(last_update_id);
+    value["envelope"]["source_sequence"]["last"] = json!(last_update_id);
+    value["market_cursor"]["first_sequence"] = json!(last_update_id);
+    value["market_cursor"]["last_sequence"] = json!(last_update_id);
+    value["source_provenance"]["last_update_id"] = json!(last_update_id);
+    rehash_value(value)
+}
+
 fn decision_offset(admission: &ProspectiveCaptureAdmissionV2, offset_ms: i64) -> Rfc3339Time {
     Rfc3339Time::from_unix_nanos(
         admission.capture_starts_at().utc_micros() * 1_000 + offset_ms * 1_000_000,
+    )
+    .unwrap()
+}
+
+fn clock_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    at_offset_ms: i64,
+    generation: u8,
+    sequence: u64,
+) -> MechanicsInputV2 {
+    let marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock {
+            contributor,
+            clock_source,
+            clock_state,
+            observed_skew_ms,
+            freshness_limit_ms,
+            quality_state,
+            reason_code,
+            ..
+        },
+    ) = input.view()
+    else {
+        panic!("expected clock input")
+    };
+    let at = decision_offset(admission, at_offset_ms);
+    let source = ClockSourceV1::new(
+        clock_source.key().clone(),
+        if generation == 0 {
+            clock_source.epoch()
+        } else {
+            "epoch_clock_recovery"
+        },
+        generation,
+    )
+    .unwrap();
+    MechanicsInputV2::from_v1_non_market(
+        MechanicsInputV1::clock(
+            contributor.clone(),
+            source,
+            at.clone(),
+            at,
+            ClockCursorV1::native(sequence, sequence).unwrap(),
+            clock_state,
+            observed_skew_ms.clone(),
+            freshness_limit_ms,
+            quality_state,
+            reason_code,
+        )
+        .unwrap(),
+    )
+    .unwrap()
+}
+
+fn coverage_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    at_offset_ms: i64,
+    generation: u8,
+    sequence: u64,
+    covered_from: Rfc3339Time,
+) -> MechanicsInputV2 {
+    let marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage {
+            contributor,
+            coverage_source,
+            family,
+            ..
+        },
+    ) = input.view()
+    else {
+        panic!("expected coverage input")
+    };
+    let at = decision_offset(admission, at_offset_ms);
+    let source = CoverageSourceV1::new(
+        coverage_source.key().clone(),
+        if generation == 0 {
+            coverage_source.epoch()
+        } else {
+            "epoch_coverage_recovery"
+        },
+        generation,
+    )
+    .unwrap();
+    MechanicsInputV2::from_v1_non_market(
+        MechanicsInputV1::coverage(
+            contributor.clone(),
+            source,
+            family,
+            covered_from,
+            at.clone(),
+            at,
+            CoverageCursorV1::native(sequence, sequence).unwrap(),
+        )
+        .unwrap(),
     )
     .unwrap()
 }
@@ -876,6 +988,10 @@ fn feature_capacity_latches_queue_drop_on_exact_family_and_needs_greater_generat
             .iter()
             .any(|flag| flag == "QUEUE_DROP")
     );
+    assert_eq!(
+        dropped.value()["causal_time"]["available_at"],
+        decision_offset(&admission, 16).canonical()
+    );
     assert!(
         processor
             .ingest(&quote_at(&inputs[1], &admission, frame + 1, 17, 0))
@@ -1004,4 +1120,288 @@ fn optional_oi_mutation_invalidates_only_its_family_feature() {
         .find(|feature| feature["name"] == "log_return")
         .unwrap();
     assert_ne!(trade["reason_code"], "SOURCE_INVALIDATED");
+}
+
+#[test]
+fn buffered_record_count_is_literal_accepted_plus_fault_replay_log_size() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut processor = processor(&admission);
+    assert_eq!(processor.buffered_record_count(), 0);
+    assert_eq!(processor.recovery_record_reserve(), 21);
+    assert_eq!(processor.ordinary_record_capacity(), 65_500);
+    for input in &inputs {
+        processor.ingest(input).unwrap();
+    }
+    assert_eq!(processor.buffered_record_count(), inputs.len());
+    let gap = native_trade_at(&inputs[0], &admission, 102, 16, 16, 0);
+    assert!(processor.ingest(&gap).is_err());
+    assert_eq!(processor.buffered_record_count(), inputs.len() + 1);
+}
+
+#[test]
+fn clock_mutation_is_counted_on_exact_slot_and_needs_greater_source_generation() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in &inputs[..7] {
+        processor.ingest(input).unwrap();
+    }
+    let original = &inputs[6];
+    let marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+        marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock {
+            contributor,
+            clock_source,
+            observed_at,
+            available_at,
+            clock_cursor,
+            clock_state,
+            observed_skew_ms,
+            freshness_limit_ms,
+            quality_state,
+            ..
+        },
+    ) = original.view()
+    else {
+        panic!("expected clock input")
+    };
+    let mutation = (1..100)
+        .map(|part| {
+            MechanicsInputV2::from_v1_non_market(
+                MechanicsInputV1::clock(
+                    contributor.clone(),
+                    clock_source.clone(),
+                    observed_at.clone(),
+                    available_at.clone(),
+                    clock_cursor.clone(),
+                    clock_state,
+                    observed_skew_ms.clone(),
+                    freshness_limit_ms,
+                    quality_state,
+                    &format!("SOURCE_CLOCK_MUTATION_{part}"),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+        })
+        .find(|candidate| candidate.payload_hash() > original.payload_hash())
+        .unwrap();
+    let mutation_error = processor.ingest(&mutation).unwrap_err();
+    assert!(
+        mutation_error
+            .to_string()
+            .contains("cursor coordinate was reused with different payload"),
+        "unexpected clock mutation error: {mutation_error}"
+    );
+    assert_eq!(processor.buffered_record_count(), 8);
+    for input in &inputs[7..] {
+        processor.ingest(input).unwrap();
+    }
+    assert!(matches!(
+        processor.snapshot(decision_offset(&admission, 20)),
+        Err(SnapshotV2Error::Snapshot(
+            SnapshotError::MissingClockEvidence
+        ))
+    ));
+
+    let same_generation = clock_at(original, &admission, 21, 0, 2);
+    assert!(processor.ingest(&same_generation).is_err());
+    let recovery = clock_at(original, &admission, 22, 1, 1);
+    assert!(processor.ingest(&recovery).is_ok());
+    assert!(processor.snapshot(decision_offset(&admission, 23)).is_ok());
+}
+
+#[test]
+fn coverage_mutation_is_slot_scoped_and_greater_source_generation_recovers() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let original = &inputs[9];
+    let mut processor = processor(&admission);
+    for input in &inputs[..10] {
+        processor.ingest(input).unwrap();
+    }
+    let mutation = (1..100)
+        .map(|part| {
+            coverage_at(
+                original,
+                &admission,
+                10,
+                0,
+                1,
+                Rfc3339Time::from_unix_nanos(
+                    admission.capture_starts_at().utc_micros() * 1_000 + part * 1_000,
+                )
+                .unwrap(),
+            )
+        })
+        .find(|candidate| candidate.payload_hash() > original.payload_hash())
+        .unwrap();
+    assert!(processor.ingest(&mutation).is_err());
+    for input in &inputs[10..] {
+        processor.ingest(input).unwrap();
+    }
+    let invalid = processor.snapshot(decision_offset(&admission, 20)).unwrap();
+    assert!(
+        invalid.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+
+    let same_generation = coverage_at(
+        original,
+        &admission,
+        21,
+        0,
+        2,
+        admission.capture_starts_at().clone(),
+    );
+    assert!(processor.ingest(&same_generation).is_err());
+    let recovery = coverage_at(
+        original,
+        &admission,
+        22,
+        1,
+        1,
+        admission.capture_starts_at().clone(),
+    );
+    assert!(processor.ingest(&recovery).is_ok());
+    let recovered = processor.snapshot(decision_offset(&admission, 23)).unwrap();
+    assert!(
+        !recovered.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+}
+
+#[test]
+fn same_epoch_book_resnapshot_clears_sequence_cause_but_not_queue_drop() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut sequence_processor = processor(&admission);
+    for input in &inputs {
+        sequence_processor.ingest(input).unwrap();
+    }
+    let gap = book_delta_at(&inputs[2], &admission, 16, 16, 300, 301, 0);
+    assert!(sequence_processor.ingest(&gap).is_err());
+
+    let resnapshot = book_snapshot_at(&inputs[2], &admission, 17, 17, 201);
+    let resnapshot_outcome = sequence_processor.ingest(&resnapshot);
+    assert!(
+        resnapshot_outcome.is_ok(),
+        "resnapshot: {resnapshot_outcome:?}"
+    );
+    let recovered = sequence_processor
+        .snapshot(decision_offset(&admission, 18))
+        .unwrap();
+    assert!(
+        !recovered.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+
+    let mut queue_processor = processor(&admission);
+    for input in &inputs {
+        queue_processor.ingest(input).unwrap();
+    }
+    let mut previous = 200_u64;
+    let mut frame = 20_u64;
+    loop {
+        let final_update_id = previous + 1;
+        let first_update_id = if previous == 200 {
+            190
+        } else {
+            final_update_id
+        };
+        let delta = book_delta_at(
+            &inputs[2],
+            &admission,
+            frame,
+            20,
+            first_update_id,
+            final_update_id,
+            if previous == 200 { 0 } else { previous },
+        );
+        match queue_processor.ingest(&delta) {
+            Ok(_) => {
+                previous = final_update_id;
+                frame += 1;
+            }
+            Err(SnapshotV2Error::Snapshot(SnapshotError::FeatureQueueDrop)) => break,
+            Err(error) => panic!("unexpected Book capacity error: {error}"),
+        }
+        assert!(frame < 5_000, "Book feature queue never filled");
+    }
+    let same_epoch = book_snapshot_at(&inputs[2], &admission, frame + 1, 21, previous + 1);
+    assert!(matches!(
+        queue_processor.ingest(&same_epoch),
+        Err(SnapshotV2Error::Snapshot(SnapshotError::FeatureQueueDrop))
+    ));
+    let still_dropped = queue_processor
+        .snapshot(decision_offset(&admission, 22))
+        .unwrap();
+    assert!(
+        still_dropped.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "QUEUE_DROP")
+    );
+}
+
+#[test]
+fn literal_combined_cap_preserves_two_market_recovery_records() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in &inputs {
+        processor.ingest(input).unwrap();
+    }
+    let ordinary_cap = processor.ordinary_record_capacity();
+    for index in 0..(ordinary_cap - inputs.len()) {
+        let offset = 16 + i64::try_from(index).unwrap();
+        processor
+            .ingest(&clock_at(
+                &inputs[6],
+                &admission,
+                offset,
+                0,
+                2 + u64::try_from(index).unwrap(),
+            ))
+            .unwrap();
+    }
+    assert_eq!(processor.buffered_record_count(), ordinary_cap);
+
+    let drop_offset = i64::try_from(ordinary_cap).unwrap() + 17;
+    let dropped = native_trade_at(&inputs[0], &admission, 101, 70_000, drop_offset, 0);
+    assert!(matches!(
+        processor.ingest(&dropped),
+        Err(SnapshotV2Error::Snapshot(SnapshotError::Capacity))
+    ));
+    assert_eq!(processor.buffered_record_count(), ordinary_cap + 1);
+    let warming = native_trade_at(&inputs[0], &admission, 1, 70_001, drop_offset + 1, 1);
+    processor.ingest(&warming).unwrap();
+    let live = native_trade_at(&inputs[0], &admission, 2, 70_002, drop_offset + 60_001, 1);
+    processor.ingest(&live).unwrap();
+    assert_eq!(processor.buffered_record_count(), ordinary_cap + 3);
+    let clock_drop = clock_at(
+        &inputs[6],
+        &admission,
+        drop_offset + 60_002,
+        0,
+        u64::try_from(ordinary_cap).unwrap(),
+    );
+    assert!(matches!(
+        processor.ingest(&clock_drop),
+        Err(SnapshotV2Error::Snapshot(SnapshotError::Capacity))
+    ));
+    let clock_recovery = clock_at(&inputs[6], &admission, drop_offset + 60_003, 1, 1);
+    processor.ingest(&clock_recovery).unwrap();
+    assert_eq!(processor.buffered_record_count(), ordinary_cap + 5);
+    assert!(processor.buffered_record_count() <= 65_536);
 }

@@ -972,6 +972,20 @@ impl SourceStateMachineV2 {
         Ok(())
     }
 
+    pub(crate) fn invalidate_clock_for_queue_drop(
+        &mut self,
+        key: &ClockSourceKeyV1,
+    ) -> Result<(), CursorError> {
+        self.v1.invalidate_clock_for_queue_drop(key)
+    }
+
+    pub(crate) fn invalidate_coverage_for_queue_drop(
+        &mut self,
+        key: &CoverageSourceKeyV1,
+    ) -> Result<(), CursorError> {
+        self.v1.invalidate_coverage_for_queue_drop(key)
+    }
+
     fn family_slot_if_current(
         &self,
         contributor: &ContributorKeyV1,

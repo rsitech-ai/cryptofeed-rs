@@ -91,3 +91,31 @@ An additional optional-family regression then exposed that a family cause could 
 - `git diff --check`: passed.
 
 The successor remains repo-ready library evidence only. Fixture provenance, source qualification, capture, runtime, deployment, execution, and trading authority remain outside scope and unverified.
+
+## Reviewer repair successor 2
+
+### RED
+
+The first counted-log regression failed exactly at `left: 15, right: 16`: the accepted log count omitted a replayable rejected MARKET fault. A second focused regression then failed at `left: 15, right: 16` for a mutated Clock record, proving sidecar invalidity was neither keyed nor retained in the V2 fault replay state. The Book recovery regression failed with `FeatureQueueDrop`, proving that a same-epoch accepted resnapshot could repair cursor state while leaving its V2 feature window invalid.
+
+### GREEN
+
+- The immutable topology now preallocates one bounded fault key for each of six MARKET families, three Clock sources, and six Coverage sources. Rejected state-invalidating inputs retain only the precise keyed candidate state and typed `Sequence` cause; no rejected payload becomes feature, clock, coverage, or causal evidence.
+- Queue drops invalidate only their exact MARKET family, Clock, or Coverage slot. Their checked Euclidean-floored availability participates in the replayed causal maximum.
+- `buffered_record_count` is the literal accepted-record plus fault-event total. The 65,536 global ceiling reserves 21 accepted recovery records (two per MARKET family, one per Clock/Coverage key) and 15 fault slots, leaving an ordinary capacity of 65,500. A public boundary regression fills that capacity, records a MARKET drop, admits both Warming and Live greater-generation records, records a Clock drop, admits its greater-generation recovery, and remains below the literal ceiling.
+- Cursor gaps and mutations map uniformly to `Cause::Sequence`. A same-epoch accepted Book snapshot can recover only a Sequence resync and its exact V2 Book feature window. QueueDrop remains generation-latched and only greater generation receives its reserved recovery path.
+- Clock/Coverage causes flow through the existing typed V1 consequence map, while MARKET causes remain family-keyed. Optional OI/LIQ invalidity therefore remains degraded and cannot invalidate unrelated Trade eligibility.
+
+### Successor 2 gate evidence
+
+- `cargo test -p marketfeed-event-pulse --test snapshot_v2`: 18 passed, including the literal 65,536-capacity path.
+- `cargo test -p marketfeed-event-pulse --all-features`: passed, including 54 V1 snapshot-mechanics tests and every V1/V2 wire, cursor, replay, prospective, and preflight regression.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 test -p marketfeed-event-pulse --all-features`: passed.
+- `cargo test --workspace --all-features`: passed, including doc tests.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 clippy -p marketfeed-event-pulse --all-targets --all-features -- -D warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `cargo deny --offline --locked check`: `advisories ok, bans ok, licenses ok, sources ok`.
+- `git diff --check`: passed.
+
+This repair does not alter the authority ceiling: Snapshot V2 is repo-ready pure library evidence only, while E2 remains blocked on fixture provenance and all runtime, capture, evidence, execution, and trading authority remains false.

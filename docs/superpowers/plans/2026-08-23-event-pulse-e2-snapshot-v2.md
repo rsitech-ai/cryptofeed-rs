@@ -98,3 +98,13 @@ The implementation is bound independently to root merge `4d3e0f0398d3e113a79df7a
 - [x] RED: a successful snapshot cache for decision `T` survives later admissible `T+1` input and returns identical bytes/revision until a successful later decision replaces it.
 - [x] GREEN: implement the smallest bounded rejected-state/family-cause timeline, V2-only book transition, and cache repair without changing public V1 APIs or bytes.
 - [x] Verify focused RED/GREEN, full EventPulse/workspace current and Rust 1.85 tests/clippy, fmt, deny, LF pins, and diff; append the successor evidence to the report and commit cleanly.
+
+## Reviewer repair successor 2
+
+- [x] RED: Clock and Coverage mutations commit only their precise invalidating candidate slot and replay a typed `SEQUENCE_GAP`; same-generation input remains blocked and greater source generation recovers that exact slot.
+- [x] RED: processor-capacity drops are keyed to exact MARKET-family, Clock, or Coverage slots and use topology-owned, non-stealable recovery reserves while accepted plus fault replay records never exceed 65,536.
+- [x] RED: MARKET reserves admit two recovery records, Clock/Coverage reserves admit one, and the public buffered count reports the literal combined accepted-plus-fault total at the boundary.
+- [x] RED: a same-epoch accepted Book snapshot clears only a `Sequence`/`Book` resync cause; `QUEUE_DROP` remains latched until greater generation.
+- [x] RED: queue-drop availability uses checked Euclidean nanosecond flooring, contributes to the snapshot causal availability maximum, and matches direct/replayed snapshots.
+- [x] GREEN: generalize the bounded fault key/timeline and reserve accounting without changing V1 APIs, bytes, or mechanics behavior.
+- [x] Verify focused RED/GREEN, full EventPulse/workspace current and Rust 1.85 tests/clippy, fmt, deny, LF pins, and diff; append successor evidence and commit cleanly.
