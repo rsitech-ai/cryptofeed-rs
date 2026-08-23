@@ -36,6 +36,34 @@ const PUBLIC_WS: &str = "wss://fstream.binance.com/public/ws";
 const MARKET_WS: &str = "wss://fstream.binance.com/market/ws";
 const ORACLE_PATH: &str = "crates/event-pulse-mfr1/tests/fixtures/routed_v2_expected.jsonl";
 
+fn assert_git_lf_if_repository(path: &std::path::Path) -> bool {
+    let probe = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .current_dir(path)
+        .output()
+        .expect("git must be available for repository attribute proof");
+    if !probe.status.success() {
+        return false;
+    }
+
+    let output = Command::new("git")
+        .args(["check-attr", "text", "eol", "--", ORACLE_PATH])
+        .current_dir(path)
+        .output()
+        .expect("git check-attr must execute");
+    assert!(output.status.success());
+    let attributes = String::from_utf8(output.stdout).expect("Git attributes must be UTF-8");
+    assert!(
+        attributes.contains(&format!("{ORACLE_PATH}: text: set")),
+        "oracle must be classified as text: {attributes}"
+    );
+    assert!(
+        attributes.contains(&format!("{ORACLE_PATH}: eol: lf")),
+        "oracle must retain LF bytes on every checkout: {attributes}"
+    );
+    true
+}
+
 fn admission() -> ProspectiveCaptureAdmissionV2 {
     let value = json!({
         "schema":"event-pulse-e2-prospective-admission/2.0",
@@ -63,21 +91,15 @@ fn routed_v2_oracle_has_repository_enforced_lf_and_exact_bytes() {
         .unwrap()
         .parent()
         .unwrap();
-    let output = Command::new("git")
-        .args(["check-attr", "text", "eol", "--", ORACLE_PATH])
-        .current_dir(repository_root)
-        .output()
-        .expect("git check-attr must execute");
-    assert!(output.status.success());
-    let attributes = String::from_utf8(output.stdout).expect("Git attributes must be UTF-8");
-    assert!(
-        attributes.contains(&format!("{ORACLE_PATH}: text: set")),
-        "oracle must be classified as text: {attributes}"
-    );
-    assert!(
-        attributes.contains(&format!("{ORACLE_PATH}: eol: lf")),
-        "oracle must retain LF bytes on every checkout: {attributes}"
-    );
+    assert!(assert_git_lf_if_repository(repository_root));
+
+    let archive_root = std::env::temp_dir().join(format!(
+        "marketfeed-event-pulse-source-archive-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&archive_root).unwrap();
+    assert!(!assert_git_lf_if_repository(&archive_root));
+    std::fs::remove_dir(&archive_root).unwrap();
 }
 
 fn catalog_view() -> CatalogView {

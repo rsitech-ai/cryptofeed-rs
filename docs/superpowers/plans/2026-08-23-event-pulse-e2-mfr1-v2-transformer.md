@@ -83,7 +83,7 @@
 - [x] Freeze an independent seven-record canonical oracle with exact hashes, strict route-local readback, typed equality, fresh-machine ingest outcomes, and per-family cursor equality.
 - [x] Exercise exact/one-over aggregate limit predicates, a real 65,536-record boundary, both supported dispatcher policies, and late-error atomicity.
 - [x] Bound ordinary actions to the wire-representable 65,535 count (`action_index` 0 through 65,534), retain a separate 65,536-action observation buffer so one-over is seen and rejected, and reject a derived 65,536 authoring capacity for both policies before replay.
-- [x] Preserve the writer's existing explicit LF byte emission and bind the 7,736-byte routed V2 oracle fixture to `text eol=lf` so Windows checkout cannot rewrite its seven canonical line endings.
+- [x] Preserve the writer's existing explicit LF byte emission and bind the 7,736-byte routed V2 oracle fixture to `text eol=lf` so Windows checkout cannot rewrite its seven canonical line endings; keep byte/hash proof unconditional in source archives and guard only the Git-attribute proof behind successful repository discovery.
 
 ### Task 4: Full verification and report
 
