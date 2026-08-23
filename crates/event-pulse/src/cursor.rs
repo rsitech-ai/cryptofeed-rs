@@ -6,10 +6,11 @@ use thiserror::Error;
 
 use crate::wire::{
     ClockSourceKeyV1, ConfiguredTargetKeyV1, ConnectionKeyV1, ContributorKeyV1,
-    CoverageSourceKeyV1, CursorModeV1, CursorV1, DropCategoryV1, FaultScopeRefV1,
+    CoverageSourceKeyV1, CursorModeV1, CursorV1, DropCategoryV1, FamilyV1, FaultScopeRefV1,
     MechanicsConfigV1, MechanicsInputRefV1, MechanicsInputV1, Rfc3339Time, SystemChainPreimage,
     SystemFaultRefV1, SystemSourceKeyV1,
 };
+use crate::wire_v2::{MarketCursorV2, MechanicsInputRefV2, MechanicsInputV2};
 
 const WARMUP_NS: i64 = 60_000_000_000;
 
@@ -459,6 +460,325 @@ pub struct SourceStateMachine {
     clocks: BTreeMap<ClockSourceKeyV1, Slot>,
     coverage: BTreeMap<CoverageSourceKeyV1, Slot>,
     systems: Vec<SystemSlot>,
+}
+
+/// Additive V2 cursor boundary keyed by the configured contributor and family.
+///
+/// This type deliberately does not expose an aggregate contributor cursor and
+/// is not consumed by the snapshot processor. V1 state and APIs remain exact.
+#[derive(Debug, Clone)]
+pub struct SourceStateMachineV2 {
+    v1: SourceStateMachine,
+    market_families: BTreeMap<(ContributorKeyV1, FamilyV1), Slot>,
+}
+
+impl SourceStateMachineV2 {
+    pub fn new(config: MechanicsConfigV1) -> Self {
+        let market_families = config
+            .contributors()
+            .iter()
+            .flat_map(|spec| {
+                spec.allowed_families()
+                    .iter()
+                    .map(move |family| ((spec.key().clone(), *family), Slot::default()))
+            })
+            .collect();
+        Self {
+            v1: SourceStateMachine::new(config),
+            market_families,
+        }
+    }
+
+    pub fn ingest(&mut self, input: &MechanicsInputV2) -> Result<IngestOutcome, CursorError> {
+        input
+            .validate_static()
+            .map_err(|_| CursorError::CursorMode)?;
+        let mut candidate = self.clone();
+        let result = if let Some(non_market) = input.as_v1_non_market() {
+            candidate.v1.ingest(non_market)
+        } else {
+            candidate.ingest_market_v2(input)
+        };
+        candidate.synchronize_family_invalidity();
+        match &result {
+            Ok(_) => *self = candidate,
+            Err(error) if error.invalidates_slot() => *self = candidate,
+            Err(_) => {}
+        }
+        result
+    }
+
+    pub fn market_state(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<SlotState> {
+        self.market_families
+            .get(&(contributor.clone(), family))
+            .map(|slot| slot.state)
+    }
+
+    pub fn market_invalidity(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<Invalidity> {
+        self.market_families
+            .get(&(contributor.clone(), family))?
+            .invalidity
+    }
+
+    pub fn market_cursor(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<CursorView> {
+        self.family_slot_if_current(contributor, family)?.view()
+    }
+
+    fn family_slot_if_current(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<&Slot> {
+        let aggregate = self.v1.contributors.get(contributor)?;
+        let connection_key = self.v1.config.contributor_connections().get(contributor)?;
+        let connection = self.v1.connections.get(connection_key)?;
+        let family_slot = self.market_families.get(&(contributor.clone(), family))?;
+        if aggregate.state == SlotState::Invalid
+            || connection.state == SlotState::Invalid
+            || aggregate.epoch != family_slot.epoch
+            || aggregate.generation != family_slot.generation
+            || connection.epoch != family_slot.epoch
+            || connection.generation != family_slot.generation
+        {
+            return None;
+        }
+        Some(family_slot)
+    }
+
+    fn synchronize_family_invalidity(&mut self) {
+        for ((contributor, _), family) in &mut self.market_families {
+            let aggregate = self.v1.contributors.get(contributor);
+            let connection = self
+                .v1
+                .config
+                .contributor_connections()
+                .get(contributor)
+                .and_then(|key| self.v1.connections.get(key));
+            let invalidity = match (aggregate, connection) {
+                (Some(aggregate), Some(connection))
+                    if aggregate.invalidity == Some(Invalidity::Terminal)
+                        || connection.invalidity == Some(Invalidity::Terminal) =>
+                {
+                    Some(Invalidity::Terminal)
+                }
+                (Some(aggregate), Some(connection))
+                    if aggregate.state == SlotState::Invalid
+                        || connection.state == SlotState::Invalid =>
+                {
+                    Some(Invalidity::Recoverable)
+                }
+                _ => None,
+            };
+            if let Some(invalidity) = invalidity {
+                family.retire_cursor();
+                if invalidity == Invalidity::Terminal {
+                    family.invalidate_terminal();
+                } else {
+                    family.invalidate_recoverable();
+                }
+            }
+        }
+    }
+
+    fn ingest_market_v2(&mut self, input: &MechanicsInputV2) -> Result<IngestOutcome, CursorError> {
+        let MechanicsInputRefV2::Market {
+            envelope,
+            catalog,
+            market_cursor,
+            payload_hash,
+            ..
+        } = input.view()
+        else {
+            return Err(CursorError::CursorMode);
+        };
+        let venue = catalog
+            .venue_source(envelope.venue.0)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let instrument_id = envelope
+            .instrument
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let instrument = catalog
+            .instrument(instrument_id.0)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let contributor = ContributorKeyV1::new(venue.source_id(), instrument.clone())
+            .map_err(|_| CursorError::UnconfiguredIdentity)?;
+        let family =
+            family_for_v2_market(&envelope.payload).ok_or(CursorError::UnconfiguredIdentity)?;
+        if !self
+            .market_families
+            .contains_key(&(contributor.clone(), family))
+        {
+            return Err(CursorError::UnconfiguredIdentity);
+        }
+        let epoch = catalog
+            .connection_epochs()
+            .iter()
+            .find(|entry| {
+                entry.connection_id() == envelope.connection.0
+                    && entry.session_id() == envelope.session.0
+            })
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let cursor = match market_cursor {
+            MarketCursorV2::Native {
+                first_sequence,
+                last_sequence,
+            } => CursorV1::native(*first_sequence, *last_sequence),
+            MarketCursorV2::Derived {
+                raw_frame_seq,
+                action_index,
+                item_index,
+            } => CursorV1::derived(*raw_frame_seq, *action_index, *item_index),
+        }
+        .map_err(|_| CursorError::CursorMode)?;
+        let connection_key = self
+            .v1
+            .config
+            .contributor_connections()
+            .get(&contributor)
+            .cloned()
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let connection = self
+            .v1
+            .connections
+            .get(&connection_key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let advances = connection.generation.is_none_or(|current| {
+            epoch.epoch_generation() > current
+                || connection.epoch.as_deref() != Some(epoch.connection_epoch())
+        });
+        self.prepare_lifecycle(
+            &connection_key,
+            &contributor,
+            epoch.connection_epoch(),
+            epoch.epoch_generation(),
+            envelope.receive_ts.0,
+        )?;
+        if advances {
+            let bound = self
+                .v1
+                .config
+                .contributor_connections()
+                .iter()
+                .filter(|(_, connection)| *connection == &connection_key)
+                .map(|(key, _)| key)
+                .collect::<BTreeSet<_>>();
+            for ((key, _), slot) in &mut self.market_families {
+                if bound.contains(key) {
+                    slot.clear_current();
+                }
+            }
+        }
+        let slot = self
+            .market_families
+            .get_mut(&(contributor.clone(), family))
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        slot.prepare_epoch(
+            epoch.connection_epoch(),
+            epoch.epoch_generation(),
+            envelope.receive_ts.0,
+        )?;
+        let mode = if cursor.native_range().is_some() {
+            CursorModeV1::Native
+        } else {
+            CursorModeV1::Derived
+        };
+        let outcome = slot.accept_cursor(&cursor, envelope.receive_ts.0, payload_hash, mode)?;
+        if outcome != IngestOutcome::IgnoredDuplicate {
+            let aggregate = self
+                .v1
+                .contributors
+                .get_mut(&contributor)
+                .ok_or(CursorError::UnconfiguredIdentity)?;
+            aggregate.preflight_time(envelope.receive_ts.0)?;
+            aggregate.retained_available_at_ns = Some(envelope.receive_ts.0);
+        }
+        Ok(outcome)
+    }
+
+    fn prepare_lifecycle(
+        &mut self,
+        connection_key: &ConnectionKeyV1,
+        contributor_key: &ContributorKeyV1,
+        epoch: &str,
+        generation: u8,
+        at_ns: i64,
+    ) -> Result<(), CursorError> {
+        let connection = self
+            .v1
+            .connections
+            .get(connection_key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        match connection.generation {
+            None => self.v1.advance_connection(
+                connection_key,
+                contributor_key,
+                epoch,
+                generation,
+                at_ns,
+            ),
+            Some(current) if generation > current => self.v1.advance_connection(
+                connection_key,
+                contributor_key,
+                epoch,
+                generation,
+                at_ns,
+            ),
+            Some(current)
+                if generation == current && connection.epoch.as_deref() == Some(epoch) =>
+            {
+                let contributor = self
+                    .v1
+                    .contributors
+                    .get_mut(contributor_key)
+                    .ok_or(CursorError::UnconfiguredIdentity)?;
+                if contributor.generation.is_none() {
+                    contributor.begin_epoch(epoch, generation, at_ns)
+                } else if contributor.generation == Some(generation)
+                    && contributor.epoch.as_deref() == Some(epoch)
+                    && contributor.state != SlotState::Invalid
+                {
+                    contributor.preflight_time(at_ns)
+                } else {
+                    contributor.invalidate_recoverable();
+                    Err(CursorError::EpochMismatch)
+                }
+            }
+            _ => {
+                self.v1
+                    .contributors
+                    .get_mut(contributor_key)
+                    .ok_or(CursorError::UnconfiguredIdentity)?
+                    .invalidate_recoverable();
+                Err(CursorError::EpochMismatch)
+            }
+        }
+    }
+}
+
+fn family_for_v2_market(payload: &marketfeed_model::MarketEvent) -> Option<FamilyV1> {
+    match payload {
+        marketfeed_model::MarketEvent::Trade(_) => Some(FamilyV1::Trade),
+        marketfeed_model::MarketEvent::Quote(_) => Some(FamilyV1::Quote),
+        marketfeed_model::MarketEvent::BookSnapshot(_)
+        | marketfeed_model::MarketEvent::BookDelta(_) => Some(FamilyV1::Book),
+        marketfeed_model::MarketEvent::OpenInterest(_) => Some(FamilyV1::OpenInterest),
+        marketfeed_model::MarketEvent::Liquidation(_) => Some(FamilyV1::Liquidation),
+        marketfeed_model::MarketEvent::MarkPrice(_)
+        | marketfeed_model::MarketEvent::IndexPrice(_) => Some(FamilyV1::ConfirmationPrice),
+        _ => None,
+    }
 }
 
 impl SourceStateMachine {

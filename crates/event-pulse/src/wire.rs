@@ -1885,7 +1885,7 @@ impl<'de> Deserialize<'de> for ReplayCatalogV1 {
     }
 }
 
-fn validate_market_mapping(
+pub(crate) fn validate_market_mapping(
     catalog: &ReplayCatalogV1,
     envelope: &marketfeed_model::EventEnvelope,
     action_index: u32,
@@ -1980,7 +1980,7 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
     }
 }
 
-fn parse_unique_json(bytes: &[u8]) -> Result<serde_json::Value, WireError> {
+pub(crate) fn parse_unique_json(bytes: &[u8]) -> Result<serde_json::Value, WireError> {
     let mut deserializer = serde_json::Deserializer::from_slice(bytes);
     let value = UniqueJsonSeed
         .deserialize(&mut deserializer)
