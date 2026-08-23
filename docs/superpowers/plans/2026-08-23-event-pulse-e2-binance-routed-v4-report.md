@@ -12,13 +12,15 @@ The successor RED failed because `DepthUpdate` lacked separate `E`/`T`, `ForceOr
 
 The compatibility-review RED then failed to compile when the test constructed the historical `UsdmDecoded::AggTrade`, `DepthUpdate`, and `ForceOrder` shapes. Additional counterexamples showed an empty/mismatched catalog was accepted and native identifiers above `i64::MAX` could reach routed state/output.
 
+The final depth-range RED showed routed `U > u` input was accepted while buffering. The retained regression covers both buffering and resynchronized-live states, requires zero rejected actions, and proves the next valid update succeeds without inherited mutation.
+
 ## GREEN
 
-- `cargo test -p marketfeed-adapter-binance --test usdm_routed_v4`: 9 passed after compatibility and native-bound corrections.
+- `cargo test -p marketfeed-adapter-binance --test usdm_routed_v4`: 10 passed after compatibility, native-bound, and depth-range corrections.
 - `cargo test -p marketfeed-adapter-binance`: all non-ignored tests passed; network tests remained ignored by contract.
 - `cargo test --workspace --all-targets --all-features`: passed across the workspace.
 - `cargo clippy -p marketfeed-adapter-binance --all-targets --all-features -- -D warnings`: passed.
-- `cargo +1.85.0 test -p marketfeed-adapter-binance --test usdm_routed_v4`: 9 passed.
+- `cargo +1.85.0 test -p marketfeed-adapter-binance --test usdm_routed_v4`: 10 passed.
 - `cargo +1.85.0 clippy -p marketfeed-adapter-binance --all-targets --all-features -- -D warnings`: passed.
 - `cargo +1.85.0 check --workspace --all-targets --all-features`: passed.
 - `cargo fmt --all -- --check`: passed.

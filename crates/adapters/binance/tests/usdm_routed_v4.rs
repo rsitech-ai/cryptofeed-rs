@@ -899,3 +899,96 @@ fn routed_snapshot_requires_official_e_t_shape_and_authors_t_without_system() {
             .any(|event| matches!(event.payload, MarketEvent::BookSnapshot(_)))
     );
 }
+
+#[test]
+fn routed_depth_rejects_reversed_ranges_before_buffering_or_live_mutation() {
+    let mut session = routed(BinanceUsdmRouteV4::Public);
+    let mut start = ActionBuffer::new();
+    session
+        .on_input(
+            SessionInput::Connected {
+                now: TimestampNs(1),
+            },
+            &mut start,
+        )
+        .unwrap();
+    let request_id = start
+        .as_slice()
+        .iter()
+        .find_map(|action| match action {
+            SessionAction::RequestHttp(request) if request.url.contains("/depth?") => {
+                Some(request.id)
+            }
+            _ => None,
+        })
+        .unwrap();
+
+    let mut reversed = br#"{"e":"depthUpdate","E":1,"T":2,"s":"BNBUSDT","U":2,"u":1,"pu":0,"b":[["650","1"]],"a":[]}"#.to_vec();
+    let mut rejected = ActionBuffer::new();
+    assert!(
+        session
+            .on_input(
+                SessionInput::TextFrame {
+                    bytes: &mut reversed,
+                    received: stamp(10),
+                },
+                &mut rejected,
+            )
+            .is_err()
+    );
+    assert!(rejected.is_empty());
+
+    assert!(drive_text(
+        &mut session,
+        r#"{"e":"depthUpdate","E":1,"T":2,"s":"BNBUSDT","U":1,"u":1,"pu":0,"b":[["650","1"]],"a":[]}"#,
+    )
+    .is_ok());
+    let mut snapshot = ActionBuffer::new();
+    session
+        .on_input(
+            SessionInput::HttpResponse {
+                request_id,
+                response: &HttpResponse {
+                    status: 200,
+                    headers: Vec::new(),
+                    body: Bytes::from_static(
+                        br#"{"lastUpdateId":1,"E":1,"T":2,"bids":[["650","1"]],"asks":[["651","1"]]}"#,
+                    ),
+                },
+                received: stamp(11),
+            },
+            &mut snapshot,
+        )
+        .unwrap();
+    assert!(
+        emitted(&snapshot)
+            .iter()
+            .any(|event| matches!(event.payload, MarketEvent::BookSnapshot(_)))
+    );
+
+    let mut live_reversed = br#"{"e":"depthUpdate","E":2,"T":3,"s":"BNBUSDT","U":3,"u":2,"pu":1,"b":[["650","2"]],"a":[]}"#.to_vec();
+    let mut live_rejected = ActionBuffer::new();
+    assert!(
+        session
+            .on_input(
+                SessionInput::TextFrame {
+                    bytes: &mut live_reversed,
+                    received: stamp(12),
+                },
+                &mut live_rejected,
+            )
+            .is_err()
+    );
+    assert!(live_rejected.is_empty());
+
+    let valid = drive_text(
+        &mut session,
+        r#"{"e":"depthUpdate","E":2,"T":3,"s":"BNBUSDT","U":2,"u":2,"pu":1,"b":[["650","2"]],"a":[]}"#,
+    )
+    .unwrap();
+    assert!(
+        emitted(&valid)
+            .iter()
+            .any(|event| matches!(event.payload, MarketEvent::BookDelta(_)))
+    );
+}

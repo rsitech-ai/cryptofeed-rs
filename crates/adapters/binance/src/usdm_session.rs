@@ -326,6 +326,7 @@ impl BinanceUsdmSession {
                 },
             ) => {
                 symbol == ROUTED_V4_SYMBOL
+                    && first_update_id <= final_update_id
                     && *first_update_id <= i64::MAX as u64
                     && *final_update_id <= i64::MAX as u64
                     && *prev_final_update_id <= i64::MAX as u64

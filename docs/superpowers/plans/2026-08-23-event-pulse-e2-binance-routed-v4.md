@@ -49,6 +49,6 @@ Root commit `44f3` now pins the append-only wire representation that decouples n
 
 ## Tests and rollback
 
-Focused tests cover exact subscribe/REST routes and ACK id, no replay-start or successful-snapshot System action, missing/out-of-range timestamps, differing `E`/`T`, retained aggregate-trade outer `E`, wrong/ignored family, unknown or retired HTTP correlation, source-compatible legacy decoded variants, exact catalog binding, native-id max/one-over boundaries, non-contiguous quote `u` with DERIVED envelope cursor, trade and book native cursors, paired identity uniqueness, bounded OI polling, official snapshot `E`/`T`, inclusive snapshot bridge, and next-`pu` continuity. Full adapter and workspace gates protect legacy behavior.
+Focused tests cover exact subscribe/REST routes and ACK id, no replay-start or successful-snapshot System action, missing/out-of-range timestamps, differing `E`/`T`, retained aggregate-trade outer `E`, wrong/ignored family, unknown or retired HTTP correlation, source-compatible legacy decoded variants, exact catalog binding, native-id max/one-over boundaries, pre-authorship `U <= u` enforcement while buffering and live, non-contiguous quote `u` with DERIVED envelope cursor, trade and book native cursors, paired identity uniqueness, bounded OI polling, official snapshot `E`/`T`, inclusive snapshot bridge, and next-`pu` continuity. Full adapter and workspace gates protect legacy behavior.
 
 Rollback is one local commit. No migration or external state exists.
