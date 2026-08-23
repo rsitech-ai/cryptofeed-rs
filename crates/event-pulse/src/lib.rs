@@ -48,4 +48,5 @@ pub use provenance::{
 };
 pub use replay::{EpinJson1Reader, EpinJson1Writer, ReplayInputError};
 pub use replay_v2::{MechanicsInputV2JsonlReader, MechanicsInputV2JsonlWriter};
+pub use snapshot::{SnapshotProcessorV2, SnapshotV2Error};
 pub use wire_v2::{MarketCursorV2, MechanicsInputRefV2, MechanicsInputV2, SourceProvenanceV2};

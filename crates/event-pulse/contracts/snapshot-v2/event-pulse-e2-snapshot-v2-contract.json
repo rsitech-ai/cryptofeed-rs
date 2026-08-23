@@ -1,0 +1,291 @@
+{
+  "authority": {
+    "allocation_allowed": false,
+    "canary_allowed": false,
+    "capture_allowed": false,
+    "credentials_allowed": false,
+    "evidence_authoring_allowed": false,
+    "execution_allowed": false,
+    "live_allowed": false,
+    "orders_allowed": false,
+    "paper_allowed": false,
+    "private_endpoints_allowed": false,
+    "promotion_allowed": false,
+    "risk_allowed": false
+  },
+  "bindings": {
+    "cryptofeed": [
+      {
+        "commit": "f8e1ecc1ecb13d150b9bbcf4313d103b7553855a",
+        "commit_time": "2026-08-23T13:17:38+02:00",
+        "parents": [
+          "aab15d6717de106b25426ae0044265f463e5d9a1"
+        ],
+        "role": "MECHANICS_V2_CONSUMER_AND_PREFLIGHT_V4",
+        "tree": "f41d3ad3be5a85caacb4f627582ef2534c65c91b"
+      },
+      {
+        "commit": "d069e59d5ee7ca71848fe4de004c3fdca43b1239",
+        "commit_time": "2026-08-23T17:08:08+02:00",
+        "parents": [
+          "f8e1ecc1ecb13d150b9bbcf4313d103b7553855a"
+        ],
+        "role": "MFR1_V2_TRANSFORMER",
+        "tree": "28d1b398ec0976e639e4cdd388b4839c42ba1c76"
+      }
+    ],
+    "root": [
+      {
+        "byte_length": 10119,
+        "commit": "44f3e091cb47c1b081f673e8bb09e8723a2090c6",
+        "commit_time": "2026-08-23T10:10:48+02:00",
+        "mode": "100644",
+        "parents": [
+          "05994ccd514ddb69fdd5c21a8c78af8bbe75d506",
+          "8fc65cdcd050a03ff4091bc8558cce72903fea2e"
+        ],
+        "path": "docs/superpowers/specs/event-pulse-e2-wire-admission-v2-contract.json",
+        "role": "WIRE_V2",
+        "sha256": "dc79576062caf952be44e4808359c4328c2976282291838973d4884fadafa50b",
+        "tree": "9ebb25340e4ae44def2a8685798008a5e8f941e4"
+      },
+      {
+        "byte_length": 9017,
+        "commit": "258ed2622f3540a75231208eed6ce5c0c33348a5",
+        "commit_time": "2026-08-23T14:23:32+02:00",
+        "mode": "100644",
+        "parents": [
+          "44f3e091cb47c1b081f673e8bb09e8723a2090c6",
+          "9f225e596ffaa06fec1bce15e63b75db3fc3e165"
+        ],
+        "path": "docs/superpowers/specs/event-pulse-e2-mechanics-v2-consumer-lock.json",
+        "role": "MECHANICS_V2_CONSUMER",
+        "sha256": "1fc5b5d1266aee5723786a84f511591305dd4caf644d67538673f59658ea6d08",
+        "tree": "3bb4b81b831f7dee0b334e1337ae1c4b2f8bacc4"
+      },
+      {
+        "byte_length": 7893,
+        "commit": "31868dda54b688cae5327e847df5483a86411c22",
+        "commit_time": "2026-08-23T17:36:55+02:00",
+        "mode": "100644",
+        "parents": [
+          "258ed2622f3540a75231208eed6ce5c0c33348a5",
+          "9aaaf71d1750ecf9f1c96bee3db1a95b892d3b9a"
+        ],
+        "path": "docs/superpowers/specs/event-pulse-e2-mfr1-v2-transformer-lock.json",
+        "role": "MFR1_V2_TRANSFORMER",
+        "sha256": "1674fb97e858bc03f340eea7328a120aa2e81619964f06ccbe9f0a1905cb4209",
+        "tree": "a6061ff0341dcf08eee21d50add0dba28d38e9fb"
+      }
+    ]
+  },
+  "causal_authorship": {
+    "all_represented_sources_require_fresh_bound_clock": true,
+    "available_at_maximum_over": [
+      "MARKET",
+      "SYSTEM",
+      "COVERAGE",
+      "CLOCK"
+    ],
+    "causal_anchor_must_be_market": true,
+    "causal_market_component_maxima": [
+      "source_event_time",
+      "received_at",
+      "normalized_at"
+    ],
+    "contributing_records": "EXACT_RECORDS_USED_BY_EMITTED_FEATURES_AND_STATE_AT_DECISION_TIME",
+    "decision_time_not_before_available_at": true,
+    "future_records_forbidden": true,
+    "partial_clock_or_coverage_aggregation_forbidden": true
+  },
+  "compatibility": {
+    "e1_schema_and_bytes_unchanged": true,
+    "fixture_v4_authored": false,
+    "historical_locks_unchanged": true,
+    "mechanics_input_v1_bytes_unchanged": true,
+    "rust_snapshot_v2_implemented": false
+  },
+  "e1_cursor_projection": {
+    "available_at": "EXACT_INPUT_AVAILABLE_AT",
+    "connection_epoch": "EXACT_FAMILY_SLOT_EPOCH",
+    "derived": {
+      "above_max_outcome": "SNAPSHOT_V2_CURSOR_NOT_E1_REPRESENTABLE",
+      "action_index_max": 65534,
+      "action_index_min": 0,
+      "formula": "raw_frame_seq*4294967296+action_index*65536+item_index",
+      "item_index_max": 65535,
+      "item_index_min": 0,
+      "maximum_display_sequence": 9223372036854710271,
+      "raw_frame_seq_max": 2147483647,
+      "raw_frame_seq_min": 1
+    },
+    "family_slot_key": [
+      "contributor",
+      "family"
+    ],
+    "forbid_aggregate": true,
+    "forbid_market_v1_lowering": true,
+    "forbid_saturate": true,
+    "forbid_truncate": true,
+    "native": {
+      "sequence_end": "market_cursor.last_sequence",
+      "sequence_start": "market_cursor.first_sequence"
+    },
+    "ordering_key": [
+      "available_at",
+      "source_id",
+      "connection_epoch",
+      "sequence_start",
+      "sequence_end",
+      "source_payload_hash"
+    ],
+    "source_payload_hash": "EXACT_MECHANICS_INPUT_V2_PAYLOAD_HASH"
+  },
+  "input_prefix": {
+    "all_records_available_at_or_before_decision_time": true,
+    "maximum_total_records": 65536,
+    "minimum_clock_records": 3,
+    "minimum_coverage_records": 6,
+    "minimum_market_records": 6,
+    "minimum_total_records": 15,
+    "repeated_family_records_allowed": true,
+    "schema": "event-pulse-mechanics-input/2.0",
+    "system_policy": "TRUTHFUL_EMPTY",
+    "system_records": 0
+  },
+  "market_projection": [
+    {
+      "contributor": "binance_primary_public",
+      "cursor_kind": "DERIVED",
+      "e1_source_id": "binance_primary_public_quote",
+      "family": "QUOTE"
+    },
+    {
+      "contributor": "binance_primary_public",
+      "cursor_kind": "NATIVE",
+      "e1_source_id": "binance_primary_public_book",
+      "family": "BOOK"
+    },
+    {
+      "contributor": "binance_primary_market",
+      "cursor_kind": "NATIVE",
+      "e1_source_id": "binance_primary_market_trade",
+      "family": "TRADE"
+    },
+    {
+      "contributor": "binance_primary_market",
+      "cursor_kind": "DERIVED",
+      "e1_source_id": "binance_primary_market_open_interest",
+      "family": "OPEN_INTEREST"
+    },
+    {
+      "contributor": "binance_primary_market",
+      "cursor_kind": "DERIVED",
+      "e1_source_id": "binance_primary_market_liquidation",
+      "family": "LIQUIDATION"
+    },
+    {
+      "contributor": "hyperliquid_confirmation",
+      "cursor_kind": "DERIVED",
+      "e1_source_id": "hyperliquid_confirmation_price",
+      "family": "CONFIRMATION_PRICE"
+    }
+  ],
+  "prefix_examples": {
+    "book_snapshot_multi_delta": {
+      "inputs": [
+        "BOOK_SNAPSHOT",
+        "BOOK_DELTA",
+        "BOOK_DELTA"
+      ],
+      "projected_cursor_count": 1,
+      "projected_cursor_rule": "LATEST_ADMITTED_BOOK_FAMILY_CURSOR"
+    },
+    "repeated_quote": {
+      "inputs": [
+        "QUOTE",
+        "QUOTE"
+      ],
+      "projected_cursor_count": 1,
+      "projected_cursor_rule": "LATEST_ADMITTED_QUOTE_FAMILY_CURSOR"
+    }
+  },
+  "residual": {
+    "e2_blocker": "blocked:fixture-provenance",
+    "e2_status": "IN_PROGRESS",
+    "e3_status": "BLOCKED",
+    "source_qualification": "UNVERIFIED"
+  },
+  "schema": "event-pulse-e2-snapshot-v2-contract/1.0",
+  "sidecar_cursor_projection": {
+    "available_at": "EXACT_TOP_LEVEL_AVAILABLE_AT",
+    "connection_epoch": "EXACT_OWN_SOURCE_KEY_CONNECTION_EPOCH",
+    "epoch_independence_vector": {
+      "projected_connection_epoch": "epoch_clock_public_3",
+      "sidecar_source_connection_epoch": "epoch_clock_public_3",
+      "subject_contributor_connection_epoch": "epoch_public_7"
+    },
+    "sequence_end": "EXACT_NATIVE_CURSOR_END",
+    "sequence_start": "EXACT_NATIVE_CURSOR_START",
+    "source_payload_hash": "EXACT_INPUT_PAYLOAD_HASH"
+  },
+  "sidecar_projection": {
+    "clock_source_ids": [
+      "clock_binance_public",
+      "clock_binance_market",
+      "clock_hyperliquid_confirmation"
+    ],
+    "coverage_source_ids": [
+      "coverage_binance_public_quote",
+      "coverage_binance_public_book",
+      "coverage_binance_market_trade",
+      "coverage_binance_market_open_interest",
+      "coverage_binance_market_liquidation",
+      "coverage_hyperliquid_confirmation"
+    ],
+    "source_id_mapping": "OWN_SOURCE_KEY_IDENTITY"
+  },
+  "snapshot_cursor_cardinality": {
+    "clock": 3,
+    "coverage": 6,
+    "market": 6,
+    "projection": "LATEST_ADMITTED_CURSOR_PER_EXACT_SLOT_AFTER_COMPLETE_PREFIX",
+    "system": 0,
+    "total": 15
+  },
+  "status": "SNAPSHOT_V2_CONTRACT_ONLY",
+  "timestamp_projection": {
+    "market": {
+      "available_at": "RFC3339_UTC_MICROSECOND_FLOOR(receive_ts_ns)",
+      "normalized_at": "RFC3339_UTC_MICROSECOND_FLOOR(receive_ts_ns)",
+      "received_at": "RFC3339_UTC_MICROSECOND_FLOOR(receive_ts_ns)",
+      "source_event_time": "RFC3339_UTC_MICROSECOND_FLOOR(exchange_ts_ns)"
+    },
+    "rounding": "EUCLIDEAN_FLOOR_NS_TO_MICROSECONDS",
+    "vectors": [
+      {
+        "canonical": "1970-01-01T00:00:00.000001Z",
+        "unix_nanos": 1001
+      },
+      {
+        "canonical": "1969-12-31T23:59:59.999999Z",
+        "unix_nanos": -1
+      }
+    ]
+  },
+  "transaction": {
+    "advance_to_effects_may_persist": true,
+    "atomic_success_fields": [
+      "authored_cache",
+      "revision",
+      "predecessor_content_hash",
+      "sealed_prefix_watermark"
+    ],
+    "failure_commits_atomic_success_fields": false,
+    "failure_consumes_revision": false,
+    "failure_seals_prefix": false,
+    "same_time_repair_allowed_after_failure": true,
+    "successful_retry_matches_fresh_processor_prefix": true,
+    "unrepresentable_cursor_is_typed_no_authorship": true
+  }
+}

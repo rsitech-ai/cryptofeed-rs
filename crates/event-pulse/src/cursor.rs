@@ -505,6 +505,22 @@ impl MarketFamilySlotV2 {
         self.retire_cursor();
         self.invalidate_recoverable();
     }
+
+    fn latch_queue_drop(&mut self, epoch: &str, generation: u8, at_ns: i64) {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            return;
+        }
+        if self.generation.is_none_or(|current| generation > current) {
+            self.epoch = Some(epoch.to_owned());
+            self.generation = Some(generation);
+        }
+        self.retained_available_at_ns = Some(
+            self.retained_available_at_ns
+                .map_or(at_ns, |current| current.max(at_ns)),
+        );
+        self.state = SlotState::Invalid;
+        self.invalidity = Some(Invalidity::Recoverable);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -935,6 +951,43 @@ impl SourceStateMachineV2 {
         family: FamilyV1,
     ) -> Option<MarketCursorViewV2> {
         self.family_slot_if_current(contributor, family)?.view()
+    }
+
+    pub(crate) fn v1_state(&self) -> &SourceStateMachine {
+        &self.v1
+    }
+
+    pub(crate) fn connection_generation(&self, key: &ConnectionKeyV1) -> Option<u8> {
+        self.v1.connections.get(key)?.generation
+    }
+
+    pub(crate) fn invalidate_market_family_for_queue_drop(
+        &mut self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+        epoch: &str,
+        generation: u8,
+        at_ns: i64,
+    ) -> Result<(), CursorError> {
+        self.market_families
+            .get_mut(&(contributor.clone(), family))
+            .ok_or(CursorError::UnconfiguredIdentity)?
+            .latch_queue_drop(epoch, generation, at_ns);
+        Ok(())
+    }
+
+    pub(crate) fn invalidate_clock_for_queue_drop(
+        &mut self,
+        key: &ClockSourceKeyV1,
+    ) -> Result<(), CursorError> {
+        self.v1.invalidate_clock_for_queue_drop(key)
+    }
+
+    pub(crate) fn invalidate_coverage_for_queue_drop(
+        &mut self,
+        key: &CoverageSourceKeyV1,
+    ) -> Result<(), CursorError> {
+        self.v1.invalidate_coverage_for_queue_drop(key)
     }
 
     fn family_slot_if_current(

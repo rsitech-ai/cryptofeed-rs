@@ -338,7 +338,8 @@ pub struct BookProjection {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BookSequenceMode {
-    Native(u64),
+    NativeSnapshot(u64),
+    NativeDelta(u64),
     Derived,
 }
 
@@ -392,7 +393,7 @@ impl BookProjection {
             return Err(ProjectionError::SequenceGap);
         }
         self.apply_snapshot(value, Some(sequence.last), at_ns)?;
-        self.sequence_mode = Some(BookSequenceMode::Native(sequence.last));
+        self.sequence_mode = Some(BookSequenceMode::NativeSnapshot(sequence.last));
         Ok(())
     }
     pub fn snapshot_derived(
@@ -410,7 +411,11 @@ impl BookProjection {
         sequence: SequenceRange,
         at_ns: i64,
     ) -> Result<(), ProjectionError> {
-        let Some(BookSequenceMode::Native(previous_last)) = self.sequence_mode else {
+        let Some(
+            BookSequenceMode::NativeSnapshot(previous_last)
+            | BookSequenceMode::NativeDelta(previous_last),
+        ) = self.sequence_mode
+        else {
             self.invalidate();
             return Err(ProjectionError::SequenceMode);
         };
@@ -426,7 +431,33 @@ impl BookProjection {
             return Err(error.into());
         }
         self.book.set_sequence(sequence.last);
-        self.sequence_mode = Some(BookSequenceMode::Native(sequence.last));
+        self.sequence_mode = Some(BookSequenceMode::NativeDelta(sequence.last));
+        self.available_at_ns = Some(at_ns);
+        Ok(())
+    }
+    pub(crate) fn delta_native_v2(
+        &mut self,
+        value: &BookDelta,
+        sequence: SequenceRange,
+        at_ns: i64,
+    ) -> Result<(), ProjectionError> {
+        let valid = match self.sequence_mode {
+            Some(BookSequenceMode::NativeSnapshot(previous_last)) => {
+                sequence.first <= previous_last && previous_last <= sequence.last
+            }
+            Some(BookSequenceMode::NativeDelta(previous_last)) => sequence.last > previous_last,
+            _ => false,
+        };
+        if sequence.first > sequence.last || sequence.last > i64::MAX as u64 || !valid {
+            self.invalidate();
+            return Err(ProjectionError::SequenceGap);
+        }
+        if let Err(error) = self.book.apply_changes_atomic(&value.changes) {
+            self.invalidate();
+            return Err(error.into());
+        }
+        self.book.set_sequence(sequence.last);
+        self.sequence_mode = Some(BookSequenceMode::NativeDelta(sequence.last));
         self.available_at_ns = Some(at_ns);
         Ok(())
     }
