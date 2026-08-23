@@ -410,6 +410,80 @@ fn binance_book_same_kind_snapshot_duplicate_and_mutation_remain_strict() {
 }
 
 #[test]
+fn binance_book_snapshot_rejects_regression_from_snapshot_or_delta_and_recovers() {
+    for from_delta in [false, true] {
+        let (config, public) = config();
+        let mut state = SourceStateMachineV2::new(config);
+        state
+            .ingest(&book_snapshot(2_000_000_000, 10, 200, "epoch_public", 0))
+            .unwrap();
+        if from_delta {
+            state
+                .ingest(&book_delta(
+                    2_001_000_000,
+                    11,
+                    195,
+                    205,
+                    17,
+                    "epoch_public",
+                    0,
+                ))
+                .unwrap();
+        }
+        assert_eq!(
+            state.ingest(&book_snapshot(2_002_000_000, 12, 199, "epoch_public", 0)),
+            Err(CursorError::NativeRegression)
+        );
+        assert!(state.market_cursor(&public, FamilyV1::Book).is_none());
+        assert_eq!(
+            state.ingest(&book_snapshot(2_003_000_000, 13, 220, "epoch_public", 0)),
+            Ok(IngestOutcome::AcceptedWarming)
+        );
+    }
+}
+
+#[test]
+fn binance_book_snapshot_allows_higher_and_delta_equal_resnapshot() {
+    let (config, public) = config();
+    let mut higher = SourceStateMachineV2::new(config.clone());
+    higher
+        .ingest(&book_snapshot(2_000_000_000, 10, 200, "epoch_public", 0))
+        .unwrap();
+    assert_eq!(
+        higher.ingest(&book_snapshot(2_001_000_000, 11, 201, "epoch_public", 0)),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+    assert_eq!(
+        higher
+            .market_cursor(&public, FamilyV1::Book)
+            .unwrap()
+            .cursor
+            .native_range(),
+        Some((201, 201))
+    );
+
+    let mut equal = SourceStateMachineV2::new(config);
+    equal
+        .ingest(&book_snapshot(2_000_000_000, 20, 200, "epoch_public", 0))
+        .unwrap();
+    equal
+        .ingest(&book_delta(
+            2_001_000_000,
+            21,
+            195,
+            205,
+            17,
+            "epoch_public",
+            0,
+        ))
+        .unwrap();
+    assert_eq!(
+        equal.ingest(&book_snapshot(2_002_000_000, 22, 205, "epoch_public", 0)),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+}
+
+#[test]
 fn binance_book_subsequent_delta_requires_strict_final_update_progress() {
     for invalid in [
         book_delta(2_002_000_000, 12, 100, 204, 205, "epoch_public", 0),

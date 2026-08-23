@@ -350,9 +350,18 @@ impl MarketFamilySlotV2 {
         payload_hash: &str,
     ) -> Result<IngestOutcome, CursorError> {
         self.preflight_time(at_ns)?;
-        if matches!(self.book_continuity, BookContinuityV2::Snapshot(_)) {
+        if let BookContinuityV2::Snapshot(prior_last_update_id) = self.book_continuity {
             if let Some(outcome) = self.preflight_duplicate(cursor, payload_hash)? {
                 return Ok(outcome);
+            }
+            if last_update_id < prior_last_update_id {
+                self.invalidate_book_recoverable();
+                return Err(CursorError::NativeRegression);
+            }
+        } else if let BookContinuityV2::Delta(prior_final_update_id) = self.book_continuity {
+            if last_update_id < prior_final_update_id {
+                self.invalidate_book_recoverable();
+                return Err(CursorError::NativeRegression);
             }
         }
         self.book_continuity = BookContinuityV2::Snapshot(last_update_id);

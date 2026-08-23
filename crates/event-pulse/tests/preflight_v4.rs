@@ -405,6 +405,21 @@ fn book_delta_from(
     rehash_value(value)
 }
 
+fn book_snapshot_from(
+    snapshot: &MechanicsInputV2,
+    frame: u64,
+    last_update_id: u64,
+) -> MechanicsInputV2 {
+    let mut value = serde_json::to_value(snapshot).unwrap();
+    value["envelope"]["frame_seq"] = json!(frame);
+    value["envelope"]["source_sequence"]["first"] = json!(last_update_id);
+    value["envelope"]["source_sequence"]["last"] = json!(last_update_id);
+    value["market_cursor"]["first_sequence"] = json!(last_update_id);
+    value["market_cursor"]["last_sequence"] = json!(last_update_id);
+    value["source_provenance"]["last_update_id"] = json!(last_update_id);
+    rehash_value(value)
+}
+
 fn generation(
     input: &MechanicsInputV2,
     at_ns: i64,
@@ -487,8 +502,10 @@ fn preflight_accepts_multi_record_binance_book_bootstrap_and_pu_continuity() {
     let mut records = complete_inputs(&admission);
     let first = book_delta_from(&records[2], 4, 200, 200, 17);
     let next = book_delta_from(&records[2], 5, 201, 205, 200);
+    let equal_resnapshot = book_snapshot_from(&records[2], 6, 205);
     records.insert(3, first);
     records.insert(4, next);
+    records.insert(5, equal_resnapshot);
     let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
     for record in &records {
         writer.write_input(record).unwrap();
@@ -504,7 +521,7 @@ fn preflight_accepts_multi_record_binance_book_bootstrap_and_pu_continuity() {
         .iter()
         .find(|artifact| artifact.role() == ArtifactRoleV1::Book)
         .unwrap();
-    assert_eq!(book.record_count(), 3);
+    assert_eq!(book.record_count(), 4);
 }
 
 #[test]
@@ -574,6 +591,47 @@ fn preflight_rejects_binance_book_no_overlap_and_wrong_pu() {
                 &writer.finish(),
             ),
             Err(OfflineArtifactErrorV4::Topology(expected))
+        );
+    }
+}
+
+#[test]
+fn preflight_rejects_snapshot_regression_from_snapshot_or_delta() {
+    let admission = admission();
+    let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
+    let decision = Rfc3339Time::from_unix_nanos(
+        admission.capture_starts_at().utc_micros() * 1_000 + 20_000_000,
+    )
+    .unwrap();
+    for prior in [
+        Vec::new(),
+        vec![book_delta_from(
+            &complete_inputs(&admission)[2],
+            4,
+            195,
+            205,
+            17,
+        )],
+    ] {
+        let mut records = complete_inputs(&admission);
+        let regression = book_snapshot_from(&records[2], 5, 199);
+        for (offset, input) in prior.into_iter().chain([regression]).enumerate() {
+            records.insert(3 + offset, input);
+        }
+        let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
+        for record in &records {
+            writer.write_input(record).unwrap();
+        }
+        assert_eq!(
+            OfflineArtifactPreflightV4::build(
+                &admission,
+                &policy,
+                decision.clone(),
+                &writer.finish(),
+            ),
+            Err(OfflineArtifactErrorV4::Topology(
+                CursorError::NativeRegression
+            ))
         );
     }
 }

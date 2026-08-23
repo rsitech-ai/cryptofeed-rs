@@ -36,6 +36,8 @@ Initial RED signals included:
   mutated duplicate because the cursor range matched across snapshot/delta phases;
 - subsequent `pu=205, u=204` and no-progress `pu=205, u=205` deltas being accepted
   solely because `pu` matched the prior final update ID.
+- healthy snapshot or delta watermarks accepting a later snapshot with
+  `lastUpdateId=199` after `200`/`205`, regressing retained BOOK causality.
 
 GREEN regressions now cover:
 
@@ -70,6 +72,12 @@ GREEN regressions now cover:
 - strict subsequent BOOK forward progress: exact `pu == prior u` and
   `final_update_id > prior u`, with below-snapshot/above-snapshot bootstrap gaps,
   later regression, later equality/no-progress, wrong-`pu`, and resnapshot recovery.
+- non-regressing healthy snapshots: equal snapshot IDs retain duplicate/mutation or
+  cross-phase resnapshot semantics, higher IDs are accepted, and lower IDs clear and
+  recoverably invalidate before a same-epoch valid snapshot can recover;
+- complete PreflightV4 rejection for `snapshot 200 -> snapshot 199` and
+  `snapshot 200 -> delta u=205 -> snapshot 199`, plus an accepted equal `205`
+  resnapshot after the delta sequence.
 
 ## Validation
 
