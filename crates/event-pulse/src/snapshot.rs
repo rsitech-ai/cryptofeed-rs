@@ -1,6 +1,14 @@
 //! Atomic canonical EventPulse mechanics snapshot authorship.
 
-use std::collections::{BTreeMap, VecDeque};
+#[path = "snapshot_v2.rs"]
+mod v2;
+
+pub use v2::{
+    SNAPSHOT_V2_CONTRACT_SHA256, SNAPSHOT_V2_ROOT_MERGE, SNAPSHOT_V2_ROOT_TREE,
+    SnapshotProcessorV2, SnapshotV2Error,
+};
+
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 
 use marketfeed_model::{AggressorSide, EventEnvelope, MarketEvent};
 use serde_json::{Value, json};
@@ -68,6 +76,7 @@ struct ContributorCausal {
 
 #[derive(Debug, Clone)]
 struct CausalRecord {
+    family: FamilyV1,
     available_at_ns: i64,
     horizon_ns: i64,
     source_event_ns: i64,
@@ -457,6 +466,19 @@ impl FeatureRuntime {
                     self.push_causal(
                         &contributor,
                         CausalRecord {
+                            family: match envelope.payload {
+                                MarketEvent::Trade(_) => FamilyV1::Trade,
+                                MarketEvent::Quote(_) => FamilyV1::Quote,
+                                MarketEvent::BookSnapshot(_) | MarketEvent::BookDelta(_) => {
+                                    FamilyV1::Book
+                                }
+                                MarketEvent::OpenInterest(_) => FamilyV1::OpenInterest,
+                                MarketEvent::Liquidation(_) => FamilyV1::Liquidation,
+                                MarketEvent::MarkPrice(_) | MarketEvent::IndexPrice(_) => {
+                                    FamilyV1::ConfirmationPrice
+                                }
+                                _ => unreachable!("causal horizon excludes unsupported payloads"),
+                            },
                             available_at_ns: at_ns,
                             horizon_ns,
                             source_event_ns,
@@ -1184,6 +1206,14 @@ pub struct MechanicsProcessor {
     next_revision: u64,
     predecessor: Option<String>,
     cache: Option<SuccessfulCache>,
+    family_eligibility: Option<BTreeMap<(ContributorKeyV1, FamilyV1), FamilyEligibility>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct FamilyEligibility {
+    state: SlotState,
+    invalid: bool,
+    generation: u8,
 }
 
 impl MechanicsProcessor {
@@ -1243,6 +1273,7 @@ impl MechanicsProcessor {
             next_revision,
             predecessor,
             cache: None,
+            family_eligibility: None,
         })
     }
 
@@ -1826,14 +1857,13 @@ impl MechanicsProcessor {
         let checkpoint_ns = checkpoint.map(|checkpoint| checkpoint.at_ns);
         let mut current_causal = Vec::new();
         for (key, causal) in &runtime.causal {
-            if sources.contributor_invalidity(key).is_some()
-                || sources
-                    .contributor_cursor(key)
-                    .is_none_or(|cursor| Some(cursor.epoch_generation) != causal.generation)
-            {
-                continue;
-            }
             for record in &causal.records {
+                if self.market_family_invalid(key, record.family, &sources)
+                    || self.market_family_generation(key, record.family, &sources)
+                        != causal.generation
+                {
+                    continue;
+                }
                 let boundary = decision_ns
                     .checked_sub(record.horizon_ns)
                     .ok_or_else(arithmetic_overflow)?;
@@ -2254,8 +2284,12 @@ impl MechanicsProcessor {
                 });
             }
         }
-        let breadth =
-            configured_cross_venue_breadth(&self.config, &sources, direction, &venue_returns).ok();
+        let breadth = if self.family_eligibility.is_some() {
+            self.configured_cross_venue_breadth_v2(direction, &venue_returns)
+                .ok()
+        } else {
+            configured_cross_venue_breadth(&self.config, &sources, direction, &venue_returns).ok()
+        };
         let reversal_policy = if matches!(policy_phase, Phase::Normal | Phase::Invalid) {
             ReversalPolicy::PreEventZero
         } else if direction == Direction::Up {
@@ -2271,7 +2305,7 @@ impl MechanicsProcessor {
         };
         let degraded_clock = clocks.values().any(|clock| clock.degraded);
         let owner_invalid = |key: &ContributorKeyV1, family: FamilyV1| {
-            sources.contributor_state(key) != Some(SlotState::Live)
+            self.market_family_state(key, family, &sources) != Some(SlotState::Live)
                 || active_causes
                     .get(&CauseKey::Contributor(key.clone()))
                     .copied()
@@ -2315,9 +2349,15 @@ impl MechanicsProcessor {
                 Cause::None => {}
             }
         }
-        flag_conditions.reconnect_warmup |= [trade_owner, quote_owner, book_owner]
-            .iter()
-            .any(|key| sources.contributor_state(key) != Some(SlotState::Live));
+        flag_conditions.reconnect_warmup |= [
+            (trade_owner, FamilyV1::Trade),
+            (quote_owner, FamilyV1::Quote),
+            (book_owner, FamilyV1::Book),
+        ]
+        .iter()
+        .any(|(key, family)| {
+            self.market_family_state(key, *family, &sources) != Some(SlotState::Live)
+        });
         flag_conditions.source_stale = stale;
         flag_conditions.clock_degraded = degraded_clock;
         flag_conditions.incomplete_critical = [log, imbalance, cvd, spread, depth]
@@ -2483,7 +2523,7 @@ impl MechanicsProcessor {
                 .clock_sources()
                 .iter()
                 .filter(|key| {
-                    sources.contributor_cursor(key.subject()).is_some()
+                    self.any_market_family_current(key.subject(), &sources)
                         || (current_causal.is_empty()
                             && anchor.is_some()
                             && sources.clock_cursor(key).is_some())
@@ -2499,9 +2539,15 @@ impl MechanicsProcessor {
         );
         let critical_fault = trade_invalid || quote_invalid || book_invalid;
         let fully_warmed = !critical_fault
-            && [trade_owner, quote_owner, book_owner]
-                .iter()
-                .all(|key| sources.contributor_state(key) == Some(SlotState::Live));
+            && [
+                (trade_owner, FamilyV1::Trade),
+                (quote_owner, FamilyV1::Quote),
+                (book_owner, FamilyV1::Book),
+            ]
+            .iter()
+            .all(|(key, family)| {
+                self.market_family_state(key, *family, &sources) == Some(SlotState::Live)
+            });
         Ok(SnapshotObservation {
             available_at: Rfc3339Time::from_unix_nanos(
                 available_micros
@@ -2524,6 +2570,131 @@ impl MechanicsProcessor {
             required_clock_sources,
             clocks: clocks.into_values().collect(),
         })
+    }
+
+    fn market_family_state(
+        &self,
+        key: &ContributorKeyV1,
+        family: FamilyV1,
+        sources: &SourceStateMachine,
+    ) -> Option<SlotState> {
+        self.family_eligibility
+            .as_ref()
+            .and_then(|map| map.get(&(key.clone(), family)).map(|value| value.state))
+            .or_else(|| sources.contributor_state(key))
+    }
+
+    fn market_family_invalid(
+        &self,
+        key: &ContributorKeyV1,
+        family: FamilyV1,
+        sources: &SourceStateMachine,
+    ) -> bool {
+        self.family_eligibility
+            .as_ref()
+            .and_then(|map| map.get(&(key.clone(), family)).map(|value| value.invalid))
+            .unwrap_or_else(|| sources.contributor_invalidity(key).is_some())
+    }
+
+    fn market_family_generation(
+        &self,
+        key: &ContributorKeyV1,
+        family: FamilyV1,
+        sources: &SourceStateMachine,
+    ) -> Option<u8> {
+        self.family_eligibility
+            .as_ref()
+            .and_then(|map| {
+                map.get(&(key.clone(), family))
+                    .map(|value| value.generation)
+            })
+            .or_else(|| {
+                sources
+                    .contributor_cursor(key)
+                    .map(|cursor| cursor.epoch_generation)
+            })
+    }
+
+    fn any_market_family_current(
+        &self,
+        key: &ContributorKeyV1,
+        sources: &SourceStateMachine,
+    ) -> bool {
+        self.family_eligibility.as_ref().map_or_else(
+            || sources.contributor_cursor(key).is_some(),
+            |map| {
+                map.iter().any(|((contributor, _), value)| {
+                    contributor == key && !value.invalid && value.state != SlotState::Cold
+                })
+            },
+        )
+    }
+
+    fn configured_cross_venue_breadth_v2(
+        &self,
+        direction: Direction,
+        returns: &[VenueReturn],
+    ) -> Result<i128, crate::features::ArithmeticError> {
+        if direction == Direction::Unknown {
+            return Err(crate::features::ArithmeticError::OutOfDomain);
+        }
+        let owners = self
+            .config
+            .contributors()
+            .iter()
+            .filter(|spec| match spec.role() {
+                ContributorRoleV1::Primary => spec.allowed_families().contains(&FamilyV1::Trade),
+                ContributorRoleV1::Confirmation => true,
+            });
+        let owner_keys = owners
+            .clone()
+            .map(|owner| owner.key())
+            .collect::<BTreeSet<_>>();
+        let mut supplied = BTreeMap::new();
+        for observation in returns {
+            if !observation.complete
+                || !owner_keys.contains(&observation.contributor)
+                || supplied
+                    .insert(&observation.contributor, observation)
+                    .is_some()
+            {
+                return Err(crate::features::ArithmeticError::OutOfDomain);
+            }
+        }
+        let mut configured_venues = BTreeSet::new();
+        let mut usable = 0usize;
+        let mut confirming = 0usize;
+        for owner in owners {
+            configured_venues.insert(owner.key().instrument().venue().to_owned());
+            let Some(observation) = supplied.get(owner.key()) else {
+                continue;
+            };
+            let family = if owner.role() == ContributorRoleV1::Primary {
+                FamilyV1::Trade
+            } else {
+                FamilyV1::ConfirmationPrice
+            };
+            let Some(eligibility) = self
+                .family_eligibility
+                .as_ref()
+                .and_then(|map| map.get(&(owner.key().clone(), family)))
+            else {
+                continue;
+            };
+            if eligibility.invalid || eligibility.state != SlotState::Live {
+                continue;
+            }
+            usable += 1;
+            confirming += usize::from(match direction {
+                Direction::Up => observation.log_return >= 200_000,
+                Direction::Down => observation.log_return <= -200_000,
+                Direction::Unknown => false,
+            });
+        }
+        if usable < 2 || configured_venues.len() < 2 {
+            return Err(crate::features::ArithmeticError::OutOfDomain);
+        }
+        crate::features::cross_venue_breadth(confirming, configured_venues.len())
     }
 
     fn replay_state(

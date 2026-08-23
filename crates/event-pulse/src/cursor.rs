@@ -937,6 +937,10 @@ impl SourceStateMachineV2 {
         self.family_slot_if_current(contributor, family)?.view()
     }
 
+    pub(crate) fn v1_state(&self) -> &SourceStateMachine {
+        &self.v1
+    }
+
     fn family_slot_if_current(
         &self,
         contributor: &ContributorKeyV1,

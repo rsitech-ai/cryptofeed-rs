@@ -10,12 +10,18 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct ReplayOrderKeyV2 {
+pub(crate) struct ReplayOrderKeyV2 {
     available_micros: i64,
     source_id: String,
     epoch: String,
     cursor: ReplayCursorOrderV2,
     payload_hash: String,
+}
+
+impl ReplayOrderKeyV2 {
+    pub(crate) fn available_micros(&self) -> i64 {
+        self.available_micros
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -140,7 +146,9 @@ impl<R: BufRead> MechanicsInputV2JsonlReader<R> {
     }
 }
 
-fn replay_order_v2(input: &MechanicsInputV2) -> Result<ReplayOrderKeyV2, ReplayInputError> {
+pub(crate) fn replay_order_v2(
+    input: &MechanicsInputV2,
+) -> Result<ReplayOrderKeyV2, ReplayInputError> {
     let invalid = || ReplayInputError::InvalidInput("invalid V2 replay coordinate".to_owned());
     let (available_micros, source_id, epoch, cursor) = match input.view() {
         MechanicsInputRefV2::Market {
