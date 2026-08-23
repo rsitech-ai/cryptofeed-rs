@@ -237,6 +237,7 @@ impl SnapshotProcessorV2 {
     fn validate_active_market_recovery_generation(
         &self,
         identity: Option<&FaultIdentityV2>,
+        recovering: bool,
     ) -> Result<(), SnapshotV2Error> {
         let Some(identity) = identity else {
             return Ok(());
@@ -254,6 +255,18 @@ impl SnapshotProcessorV2 {
         else {
             return Ok(());
         };
+        if session.connection_generation.is_none()
+            && (!recovering
+                || !self
+                    .recovery_sessions
+                    .get(&identity.key)
+                    .is_some_and(|candidate| candidate.connection_trigger))
+        {
+            return Err(SnapshotError::InvalidInput(
+                "only the configured trigger may activate MARKET recovery".into(),
+            )
+            .into());
+        }
         if session
             .connection_generation
             .is_some_and(|expected| identity.generation != expected)
@@ -397,7 +410,7 @@ impl SnapshotProcessorV2 {
         let recovering = identity
             .as_ref()
             .is_some_and(|identity| self.recovery_session_matches(identity, input));
-        self.validate_active_market_recovery_generation(identity.as_ref())?;
+        self.validate_active_market_recovery_generation(identity.as_ref(), recovering)?;
         let uses_reserved_recovery =
             recovering && self.ordinary_record_usage() >= self.ordinary_record_capacity();
         if uses_reserved_recovery {

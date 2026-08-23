@@ -200,3 +200,29 @@ An independent below-capacity counterexample activated MARKET recovery with Trad
 - `git diff --check`: passed.
 
 The successor remains repo-ready pure library evidence only. Fixture provenance, capture, source qualification, runtime, deployment, execution, and trading authority remain unverified and outside scope.
+
+## Reviewer repair successor 6
+
+### RED
+
+The unactivated-plan counterexample faulted a connection through its configured trigger, then sent a greater-generation sibling before the trigger's recovery input. Both MARKET OpenInterest and PUBLIC Quote could activate the plan because the generation guard only constrained an already activated generation. This bypassed the immutable trigger identity and could consume shared lifecycle state before the intended recovery record.
+
+### GREEN
+
+- MARKET ingest now resolves any recovery plan on the input's immutable connection before capacity handling. When the plan has no activated generation, only the exact `connection_trigger` key may proceed, and only when the existing typed recovery predicate accepts its generation and cause.
+- A sibling cannot activate the plan even with a greater generation. The permitted same-generation exception remains limited to an exact Book trigger repairing a Sequence cause; QueueDrop still requires greater generation.
+- Trigger identity and generation are checked before source, feature runtime, accepted/fault count, order, recovery allowance, cache, seal, revision, or predecessor mutation.
+- Below-capacity MARKET and PUBLIC regressions, plus the literal-boundary PUBLIC path, reject sibling drift mutation-free, activate through the exact trigger, accept exact-generation siblings, and match independently reconstructed fresh processors byte-for-byte and hash-for-hash.
+
+### Successor 6 gate evidence
+
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test -p marketfeed-event-pulse --test snapshot_v2 --no-default-features`: 24 passed.
+- `cargo test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `cargo deny --offline --locked check`: passed all advisory, ban, license, and source checks.
+- `git diff --check`: passed.
+
+The authority ceiling is unchanged: this is repo-ready pure Snapshot V2 library evidence. Fixture provenance, source qualification, capture, runtime, deployment, execution, and trading authority remain outside scope and unverified.

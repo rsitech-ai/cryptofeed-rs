@@ -133,3 +133,11 @@ The implementation is bound independently to root merge `4d3e0f0398d3e113a79df7a
 - [x] RED: the generation guard must remain connection-scoped after the triggering family consumes its own recovery slot, and PUBLIC Book generation 1 must likewise reject Quote generation 2 before accepting exact Quote generation 1.
 - [x] GREEN: resolve the active recovery generation through any remaining session on the immutable configured connection and enforce it before every capacity, source, feature, fault-log, order, or quota mutation.
 - [x] Verify 24 focused Snapshot V2 tests plus full workspace current and Rust 1.85.0 tests/clippy, fmt, deny, and diff; append successor evidence and commit cleanly.
+
+## Reviewer repair successor 6
+
+- [x] RED: while a connection recovery plan is not yet activated, a sibling MARKET family at another generation must not activate it, below capacity or at the literal boundary.
+- [x] RED: only the plan's exact configured trigger key may activate the connection, using its permitted greater generation or the existing same-generation Book Sequence-resnapshot exception; same-generation QueueDrop remains blocked.
+- [x] RED: after activation, every sibling family must use the exact activated generation and complete recovery to canonical bytes/hash identical to a fresh processor that never saw rejected sibling drift.
+- [x] GREEN: enforce trigger identity and activation eligibility before capacity, source, feature, fault-log, order, or quota mutation for PUBLIC and MARKET connection scopes.
+- [x] Verify 24 focused Snapshot V2 tests plus full workspace current and Rust 1.85.0 tests/clippy, fmt, deny, and diff; append successor evidence and commit cleanly.

@@ -1304,9 +1304,9 @@ fn optional_oi_mutation_invalidates_only_its_family_feature() {
             .contains("cursor coordinate was reused with different payload"),
         "unexpected OI mutation error: {mutation_error}"
     );
-    for input in healthy.iter().skip(4) {
-        processor.ingest(input).unwrap();
-    }
+    // The OI fault owns an unactivated MARKET connection-recovery plan.  Do not let the
+    // sibling Liquidation family activate it while this test observes the optional OI fault.
+    processor.ingest(&healthy[5]).unwrap();
 
     for (index, input) in live.iter().skip(6).enumerate() {
         let at = decision_offset(&admission, 60_023 + i64::try_from(index).unwrap())
@@ -1575,10 +1575,12 @@ fn same_epoch_book_resnapshot_clears_sequence_cause_but_not_queue_drop() {
         assert!(frame < 5_000, "Book feature queue never filled");
     }
     let same_epoch = book_snapshot_at(&inputs[2], &admission, frame + 1, 21, previous + 1);
-    assert!(matches!(
-        queue_processor.ingest(&same_epoch),
-        Err(SnapshotV2Error::Snapshot(SnapshotError::FeatureQueueDrop))
-    ));
+    let before_disallowed_activation = queue_processor.buffered_record_count();
+    assert!(queue_processor.ingest(&same_epoch).is_err());
+    assert_eq!(
+        queue_processor.buffered_record_count(),
+        before_disallowed_activation
+    );
     let still_dropped = queue_processor
         .snapshot(decision_offset(&admission, 22))
         .unwrap();
@@ -1868,6 +1870,11 @@ fn public_market_generation_recovery_reserves_quote_and_book_as_one_connection_s
     ));
     assert!(reconstructed.ingest(&dropped_book).is_err());
 
+    let before_preactivation_drift = subject.buffered_record_count();
+    let preactivation_quote = quote_at(&inputs[1], &admission, 70_001, 18, 2);
+    assert!(subject.ingest(&preactivation_quote).is_err());
+    assert_eq!(subject.buffered_record_count(), before_preactivation_drift);
+
     let book_recovery = book_snapshot_generation_at(&inputs[2], &admission, 70_001, 18, 1, 1);
     subject.ingest(&book_recovery).unwrap();
     reconstructed.ingest(&book_recovery).unwrap();
@@ -1939,6 +1946,13 @@ fn market_connection_recovery_admits_trade_oi_liquidation_and_subject_sidecars_t
     let gap = native_trade_at(&inputs[0], &admission, 102, 100, 16, 0);
     assert!(subject.ingest(&gap).is_err());
     assert!(reconstructed.ingest(&gap).is_err());
+    let before_preactivation_drift = subject.buffered_record_count();
+    let preactivation_oi = derived_market_at(&inputs[3], &admission, 101, 17, 2);
+    assert!(
+        subject.ingest(&preactivation_oi).is_err(),
+        "a sibling must not activate a MARKET recovery connection"
+    );
+    assert_eq!(subject.buffered_record_count(), before_preactivation_drift);
     let first = [
         native_trade_at(&inputs[0], &admission, 1, 101, 17, 1),
         derived_market_at(&inputs[3], &admission, 102, 18, 1),
@@ -2019,6 +2033,13 @@ fn public_connection_recovery_rejects_quote_generation_drift_before_mutation() {
     let gap = book_delta_at(&inputs[2], &admission, 100, 16, 300, 301, 0);
     assert!(subject.ingest(&gap).is_err());
     assert!(reconstructed.ingest(&gap).is_err());
+    let before_preactivation_drift = subject.buffered_record_count();
+    let preactivation_quote = quote_at(&inputs[1], &admission, 101, 17, 2);
+    assert!(
+        subject.ingest(&preactivation_quote).is_err(),
+        "a sibling must not activate a PUBLIC recovery connection"
+    );
+    assert_eq!(subject.buffered_record_count(), before_preactivation_drift);
     let book = book_snapshot_generation_at(&inputs[2], &admission, 101, 17, 1, 1);
     subject.ingest(&book).unwrap();
     reconstructed.ingest(&book).unwrap();
