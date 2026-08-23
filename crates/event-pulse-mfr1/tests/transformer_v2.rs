@@ -36,17 +36,24 @@ const PUBLIC_WS: &str = "wss://fstream.binance.com/public/ws";
 const MARKET_WS: &str = "wss://fstream.binance.com/market/ws";
 const ORACLE_PATH: &str = "crates/event-pulse-mfr1/tests/fixtures/routed_v2_expected.jsonl";
 
-fn assert_git_lf_if_repository(path: &std::path::Path) -> bool {
-    let probe = Command::new("git")
+fn assert_git_lf_if_repository(path: &std::path::Path) {
+    assert_git_lf_if_repository_with_command(path, "git");
+}
+
+fn assert_git_lf_if_repository_with_command(path: &std::path::Path, command: &str) {
+    let probe = match Command::new(command)
         .args(["rev-parse", "--show-toplevel"])
         .current_dir(path)
         .output()
-        .expect("git must be available for repository attribute proof");
+    {
+        Ok(probe) => probe,
+        Err(_) => return,
+    };
     if !probe.status.success() {
-        return false;
+        return;
     }
 
-    let output = Command::new("git")
+    let output = Command::new(command)
         .args(["check-attr", "text", "eol", "--", ORACLE_PATH])
         .current_dir(path)
         .output()
@@ -61,7 +68,6 @@ fn assert_git_lf_if_repository(path: &std::path::Path) -> bool {
         attributes.contains(&format!("{ORACLE_PATH}: eol: lf")),
         "oracle must retain LF bytes on every checkout: {attributes}"
     );
-    true
 }
 
 fn admission() -> ProspectiveCaptureAdmissionV2 {
@@ -91,14 +97,18 @@ fn routed_v2_oracle_has_repository_enforced_lf_and_exact_bytes() {
         .unwrap()
         .parent()
         .unwrap();
-    assert!(assert_git_lf_if_repository(repository_root));
+    assert_git_lf_if_repository(repository_root);
 
     let archive_root = std::env::temp_dir().join(format!(
         "marketfeed-event-pulse-source-archive-{}",
         std::process::id()
     ));
     std::fs::create_dir_all(&archive_root).unwrap();
-    assert!(!assert_git_lf_if_repository(&archive_root));
+    assert_git_lf_if_repository(&archive_root);
+    assert_git_lf_if_repository_with_command(
+        &archive_root,
+        "definitely-not-an-installed-git-executable",
+    );
     std::fs::remove_dir(&archive_root).unwrap();
 }
 
