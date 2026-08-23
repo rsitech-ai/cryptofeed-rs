@@ -1,3 +1,5 @@
 ui/dist/assets/*.js -whitespace
 # Pinned provenance hashes cover exact contract bytes; never rewrite them to CRLF.
 crates/event-pulse/contracts/** text eol=lf
+# Canonical routed V2 oracle bytes are hash-pinned and must remain LF on Windows.
+crates/event-pulse-mfr1/tests/fixtures/routed_v2_expected.jsonl text eol=lf

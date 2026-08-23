@@ -5,6 +5,13 @@
 
 #![forbid(unsafe_code)]
 
+mod v2;
+
+pub use v2::{
+    BinanceMfr1RouteV2, Mfr1MechanicsFrameV2, Mfr1MetadataBindingV2, Mfr1SessionBindingV2,
+    Mfr1TransformContextV2, Mfr1TransformErrorV2, Mfr1TransformOutputV2, Mfr1TransformerV2,
+};
+
 use marketfeed_adapter_api::{
     ActionBuffer, AdapterError, DEFAULT_ACTION_BUFFER_CAPACITY, SessionAction, SessionInput,
     SessionMachine,

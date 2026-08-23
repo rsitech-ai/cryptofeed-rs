@@ -41,6 +41,33 @@ pub enum BinanceUsdmRouteV4 {
     Market,
 }
 
+/// Immutable identity of a factory-validated routed-v4 session before replay begins.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BinanceUsdmPristineIdentityV4 {
+    route: BinanceUsdmRouteV4,
+    connection: ConnectionId,
+    session: SessionId,
+    instrument: InstrumentId,
+}
+
+impl BinanceUsdmPristineIdentityV4 {
+    pub const fn route(&self) -> BinanceUsdmRouteV4 {
+        self.route
+    }
+    pub const fn connection(&self) -> ConnectionId {
+        self.connection
+    }
+    pub const fn session(&self) -> SessionId {
+        self.session
+    }
+    pub const fn instrument(&self) -> InstrumentId {
+        self.instrument
+    }
+    pub const fn symbol(&self) -> &'static str {
+        ROUTED_V4_SYMBOL
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UsdmMode {
     Legacy,
@@ -165,6 +192,7 @@ pub struct BinanceUsdmSession {
     pending_http: HashMap<u64, (String, PendingHttp)>,
     live: bool,
     mode: UsdmMode,
+    pristine: bool,
 }
 
 impl BinanceUsdmSession {
@@ -206,6 +234,7 @@ impl BinanceUsdmSession {
             pending_http: HashMap::new(),
             live: false,
             mode: UsdmMode::Legacy,
+            pristine: true,
         }
     }
 
@@ -295,6 +324,53 @@ impl BinanceUsdmSession {
             UsdmMode::Legacy => None,
             UsdmMode::RoutedV4(route) => Some(route),
         }
+    }
+
+    /// Return the exact routed identity only while the session is factory-pristine.
+    pub fn pristine_routed_v4_identity(
+        &self,
+    ) -> Result<BinanceUsdmPristineIdentityV4, AdapterError> {
+        let route = self.routed_v4().ok_or_else(|| {
+            AdapterError::Protocol("session is not Binance USD-M routed v4".into())
+        })?;
+        let instrument = self.cfg.instrument_ids.get(ROUTED_V4_SYMBOL).copied();
+        let public_books_pristine = self.books.len() == 1
+            && self.books.get(ROUTED_V4_SYMBOL).is_some_and(|book| {
+                book.snapshot_req_id.is_none()
+                    && book.buffering
+                    && book.awaiting_bridge
+                    && book.depth_buffer.is_empty()
+                    && book.buffered_bytes == 0
+                    && book.buffered_mono_min.is_none()
+                    && book.buffered_mono_max.is_none()
+            });
+        let state_pristine = self.pristine
+            && self.frame_seq == 0
+            && self.next_http_id == 1
+            && self.pending_http.is_empty()
+            && !self.live
+            && self.cfg.symbols.as_slice() == [ROUTED_V4_SYMBOL]
+            && self.cfg.instrument_ids.len() == 1
+            && self.cfg.candle_intervals.is_empty()
+            && self.cfg.enable_l2 == matches!(route, BinanceUsdmRouteV4::Public)
+            && match route {
+                BinanceUsdmRouteV4::Public => public_books_pristine,
+                BinanceUsdmRouteV4::Market => self.books.is_empty(),
+            };
+        if !state_pristine {
+            return Err(AdapterError::Protocol(
+                "routed v4 session is not pristine".into(),
+            ));
+        }
+        let instrument = instrument.ok_or_else(|| {
+            AdapterError::Protocol("routed v4 instrument identity is missing".into())
+        })?;
+        Ok(BinanceUsdmPristineIdentityV4 {
+            route,
+            connection: self.cfg.connection,
+            session: self.cfg.session,
+            instrument,
+        })
     }
 
     fn validate_routed_ws(
@@ -1143,6 +1219,7 @@ impl SessionMachine for BinanceUsdmSession {
         input: SessionInput<'_>,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
+        self.pristine = false;
         match input {
             SessionInput::Connected { now } => {
                 self.live = false;
