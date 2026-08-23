@@ -5,12 +5,12 @@ use sha2::{Digest, Sha256};
 
 use crate::wire::{
     MAX_I64_U64, MAX_INPUT_BYTES, MechanicsInputRefV1, MechanicsInputV1, ReplayCatalogV1,
-    WireError, parse_unique_json, validate_market_mapping,
+    WireError, parse_unique_json, validate_market_catalog_action,
 };
 
 const MAX_TIMESTAMP_MS: u64 = 9_223_372_036_854;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "SCREAMING_SNAKE_CASE", deny_unknown_fields)]
 pub enum MarketCursorV2 {
     Native {
@@ -407,7 +407,7 @@ impl MechanicsInputV2 {
             return Err(WireError::Identity);
         };
         catalog.validate()?;
-        validate_market_mapping(catalog, envelope, *action_index)?;
+        validate_market_catalog_action(catalog, envelope, *action_index)?;
         market_cursor.validate_static()?;
         source_provenance.validate_bounds()?;
         validate_cursor_binding(envelope, *action_index, market_cursor)?;

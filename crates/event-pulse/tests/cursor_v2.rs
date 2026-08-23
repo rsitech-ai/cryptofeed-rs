@@ -206,6 +206,28 @@ fn v2_cursor_ingest_uses_explicit_derived_coordinate_and_retains_v2_hash() {
 }
 
 #[test]
+fn v2_state_retains_full_width_derived_frames_without_cursor_v1() {
+    let (config, public) = config();
+    let base = rehash(quote_value());
+    let first = retime_and_epoch(&base, 2_000_000_000, 2_147_483_648, "epoch_public", 0);
+    let last = retime_and_epoch(&base, 2_100_000_000, u64::MAX, "epoch_public", 0);
+    let mut state = SourceStateMachineV2::new(config);
+    state.ingest(&first).unwrap();
+    state.ingest(&last).unwrap();
+    assert_eq!(
+        state
+            .market_cursor(&public, FamilyV1::Quote)
+            .unwrap()
+            .cursor,
+        marketfeed_event_pulse::MarketCursorV2::Derived {
+            raw_frame_seq: u64::MAX,
+            action_index: 2,
+            item_index: 0,
+        }
+    );
+}
+
+#[test]
 fn invalidating_system_scopes_and_terminal_epoch_reuse_hide_family_cursors() {
     let (config, public) = config();
     let first = retime_and_epoch(&rehash(quote_value()), 2_000_000_000, 41, "epoch_public", 0);

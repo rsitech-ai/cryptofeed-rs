@@ -25,6 +25,9 @@ Initial RED signals included:
 - mixed cursor modes under the V1 contributor-keyed cursor slot;
 - stale family cursor visibility after invalidating aggregate lifecycle events;
 - Rust 1.85/current clippy `large_enum_variant` failures.
+- a root-valid derived `raw_frame_seq = 2_147_483_648` failing with `Cursor` because
+  the first V2 implementation lowered the coordinate through packed `CursorV1`;
+  the same defect would have rejected `u64::MAX`.
 
 GREEN regressions now cover:
 
@@ -38,6 +41,12 @@ GREEN regressions now cover:
 - MARKET selected-source/exchange/receive, CLOCK observed/available, and COVERAGE from/through/available capture-start bounds;
 - missing topology, duplicate record, and any nonempty SYSTEM rejection;
 - complete 15-record/12-source deterministic nine-artifact build and strict readback.
+- direct lexicographic `MarketCursorV2` storage and replay ordering for derived frames
+  `2_147_483_648` and `u64::MAX`, without any V2 MARKET conversion to `CursorV1`;
+- exact derived action/item bounds, native `i64::MAX + 1` rejection, and rehashed
+  wrong-family/source/provenance rejection;
+- replay line, aggregate-byte, record-count, and reverse-order boundaries, including
+  exact 65,536-record acceptance and 65,537-record rejection.
 
 ## Validation
 
@@ -53,6 +62,10 @@ Passed:
 - `cargo fmt --all -- --check`.
 - `git diff --check`.
 
+The successor repair re-ran the full current and Rust 1.85 EventPulse suites and
+clippy gates after replacing the cursor representation; the focused exact-cap replay
+test takes approximately 27 seconds and passed on both toolchains.
+
 One Rust 1.85 rebuild initially failed with `No space left on device` while compiling `ring`. This was an environment-capacity failure, not a test failure. Only this isolated worktree's generated `target` directory was cleaned; the same full Rust 1.85 suite then passed.
 
 ## Authority and Residuals
@@ -60,4 +73,6 @@ One Rust 1.85 rebuild initially failed with `No space left on device` while comp
 - No adapter, MFR1, engine, snapshot, capture, filesystem, network, environment, package/manifest writer, producer, source qualification, evidence authorship, paper/canary/live, order, risk, execution, promotion, or capital authority was added.
 - PreflightV4 is in-memory only and SYSTEM is truthful-empty only.
 - MechanicsInputV2 is intentionally not labeled EPIN2.
+- V2 MARKET family views expose `MarketCursorViewV2`; they do not expose or synthesize
+  a packed aggregate/V1 cursor and do not claim MechanicsProcessor or snapshot parity.
 - A genuine completion fixture and its provenance remain external work: `blocked:fixture-provenance`.

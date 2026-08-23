@@ -678,3 +678,22 @@ fn preflight_rejects_missing_duplicate_and_any_system_record() {
         Err(OfflineArtifactErrorV4::NonEmptyTruthfulEmptySystem)
     );
 }
+
+#[test]
+fn preflight_rejects_aggregate_one_over_before_parsing() {
+    let admission = admission();
+    let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
+    let decision = Rfc3339Time::from_unix_nanos(
+        admission.capture_starts_at().utc_micros() * 1_000 + 1_000_000,
+    )
+    .unwrap();
+    assert_eq!(
+        OfflineArtifactPreflightV4::build(
+            &admission,
+            &policy,
+            decision,
+            &vec![b' '; marketfeed_event_pulse::wire::MAX_INPUT_BYTES + 1],
+        ),
+        Err(OfflineArtifactErrorV4::AggregateTooLarge)
+    );
+}

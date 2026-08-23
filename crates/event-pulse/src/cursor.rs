@@ -109,6 +109,254 @@ pub struct CursorView {
     pub payload_hash: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarketCursorViewV2 {
+    pub epoch: String,
+    pub epoch_generation: u8,
+    pub cursor: MarketCursorV2,
+    pub available_at_ns: i64,
+    pub payload_hash: String,
+}
+
+#[derive(Debug, Clone)]
+struct MarketFamilySlotV2 {
+    state: SlotState,
+    invalidity: Option<Invalidity>,
+    epoch: Option<String>,
+    generation: Option<u8>,
+    history: BTreeSet<String>,
+    first_available_ns: Option<i64>,
+    cursor: Option<MarketCursorV2>,
+    available_at_ns: Option<i64>,
+    retained_available_at_ns: Option<i64>,
+    payload_hash: Option<String>,
+}
+
+impl Default for MarketFamilySlotV2 {
+    fn default() -> Self {
+        Self {
+            state: SlotState::Cold,
+            invalidity: None,
+            epoch: None,
+            generation: None,
+            history: BTreeSet::new(),
+            first_available_ns: None,
+            cursor: None,
+            available_at_ns: None,
+            retained_available_at_ns: None,
+            payload_hash: None,
+        }
+    }
+}
+
+impl MarketFamilySlotV2 {
+    fn clear_current(&mut self) {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            self.state = SlotState::Invalid;
+            return;
+        }
+        self.state = SlotState::Cold;
+        self.invalidity = None;
+        self.epoch = None;
+        self.generation = None;
+        self.first_available_ns = None;
+        self.cursor = None;
+        self.available_at_ns = None;
+        self.payload_hash = None;
+    }
+
+    fn preflight_epoch_transition(&mut self, epoch: &str) -> Result<(), CursorError> {
+        if self.history.contains(epoch) {
+            self.invalidate_terminal();
+            return Err(CursorError::EpochReused);
+        }
+        if self.history.len() >= 256 {
+            self.invalidate_terminal();
+            return Err(CursorError::EpochHistoryExhausted);
+        }
+        Ok(())
+    }
+
+    fn begin_epoch(&mut self, epoch: &str, generation: u8, at_ns: i64) -> Result<(), CursorError> {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            return Err(CursorError::TerminalInvalid);
+        }
+        self.preflight_epoch_transition(epoch)?;
+        self.preflight_time(at_ns)?;
+        self.history.insert(epoch.to_owned());
+        self.epoch = Some(epoch.to_owned());
+        self.generation = Some(generation);
+        self.first_available_ns = Some(at_ns);
+        self.cursor = None;
+        self.available_at_ns = None;
+        self.retained_available_at_ns = Some(at_ns);
+        self.payload_hash = None;
+        self.state = SlotState::Warming;
+        self.invalidity = None;
+        Ok(())
+    }
+
+    fn prepare_epoch(
+        &mut self,
+        epoch: &str,
+        generation: u8,
+        at_ns: i64,
+    ) -> Result<(), CursorError> {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            return Err(CursorError::TerminalInvalid);
+        }
+        if self.epoch.as_deref() != Some(epoch) {
+            self.preflight_epoch_transition(epoch)?;
+        }
+        match (self.generation, self.epoch.as_deref()) {
+            (None, None) => self.begin_epoch(epoch, generation, at_ns),
+            (Some(current), Some(current_epoch))
+                if generation == current && epoch == current_epoch =>
+            {
+                if self.state == SlotState::Invalid {
+                    Err(CursorError::EpochMismatch)
+                } else {
+                    if self.state == SlotState::Cold {
+                        self.first_available_ns = Some(at_ns);
+                        self.state = SlotState::Warming;
+                    }
+                    Ok(())
+                }
+            }
+            (Some(current), _) if generation > current => {
+                self.begin_epoch(epoch, generation, at_ns)
+            }
+            _ => {
+                self.invalidate_recoverable();
+                Err(CursorError::EpochMismatch)
+            }
+        }
+    }
+
+    fn accept_cursor(
+        &mut self,
+        cursor: &MarketCursorV2,
+        at_ns: i64,
+        payload_hash: &str,
+    ) -> Result<IngestOutcome, CursorError> {
+        self.preflight_time(at_ns)?;
+        if self.available_at_ns.is_some_and(|last| at_ns < last) {
+            self.invalidate_recoverable();
+            return Err(CursorError::AvailabilityRegression);
+        }
+        if let Some(previous) = self.cursor.clone() {
+            if &previous == cursor {
+                if self.payload_hash.as_deref() == Some(payload_hash) {
+                    return Ok(IngestOutcome::IgnoredDuplicate);
+                }
+                self.invalidate_recoverable();
+                return Err(CursorError::MutatedDuplicate);
+            }
+            match (&previous, cursor) {
+                (
+                    MarketCursorV2::Native {
+                        first_sequence: previous_start,
+                        last_sequence: previous_end,
+                    },
+                    MarketCursorV2::Native {
+                        first_sequence: start,
+                        ..
+                    },
+                ) => {
+                    if start <= previous_end {
+                        self.invalidate_recoverable();
+                        return Err(if start < previous_start {
+                            CursorError::NativeRegression
+                        } else {
+                            CursorError::NativeOverlap
+                        });
+                    }
+                    if previous_end.checked_add(1) != Some(*start) {
+                        self.invalidate_recoverable();
+                        return Err(CursorError::NativeGap);
+                    }
+                }
+                (MarketCursorV2::Derived { .. }, MarketCursorV2::Derived { .. }) => {
+                    if cursor < &previous {
+                        self.invalidate_recoverable();
+                        return Err(CursorError::DerivedRegression);
+                    }
+                }
+                _ => {
+                    self.invalidate_recoverable();
+                    return Err(CursorError::CursorMode);
+                }
+            }
+        }
+        let first = self.first_available_ns.ok_or_else(|| {
+            self.invalidate_recoverable();
+            CursorError::TimeOverflow
+        })?;
+        let elapsed = at_ns.checked_sub(first).ok_or_else(|| {
+            self.invalidate_recoverable();
+            CursorError::TimeOverflow
+        })?;
+        self.cursor = Some(cursor.clone());
+        self.available_at_ns = Some(at_ns);
+        self.retained_available_at_ns = Some(at_ns);
+        self.payload_hash = Some(payload_hash.to_owned());
+        if elapsed >= WARMUP_NS {
+            self.state = SlotState::Live;
+            Ok(IngestOutcome::AcceptedLive)
+        } else {
+            self.state = SlotState::Warming;
+            Ok(IngestOutcome::AcceptedWarming)
+        }
+    }
+
+    fn view(&self) -> Option<MarketCursorViewV2> {
+        Some(MarketCursorViewV2 {
+            epoch: self.epoch.clone()?,
+            epoch_generation: self.generation?,
+            cursor: self.cursor.clone()?,
+            available_at_ns: self.available_at_ns?,
+            payload_hash: self.payload_hash.clone()?,
+        })
+    }
+
+    fn retire_cursor(&mut self) {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            self.state = SlotState::Invalid;
+            return;
+        }
+        self.state = SlotState::Cold;
+        self.invalidity = None;
+        self.first_available_ns = None;
+        self.cursor = None;
+        self.available_at_ns = None;
+        self.payload_hash = None;
+    }
+
+    fn preflight_time(&mut self, at_ns: i64) -> Result<(), CursorError> {
+        if self
+            .retained_available_at_ns
+            .is_some_and(|retained| at_ns < retained)
+        {
+            self.invalidate_recoverable();
+            Err(CursorError::AvailabilityRegression)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn invalidate_recoverable(&mut self) {
+        if self.invalidity != Some(Invalidity::Terminal) {
+            self.state = SlotState::Invalid;
+            self.invalidity = Some(Invalidity::Recoverable);
+        }
+    }
+
+    fn invalidate_terminal(&mut self) {
+        self.state = SlotState::Invalid;
+        self.invalidity = Some(Invalidity::Terminal);
+    }
+}
+
 #[derive(Debug, Clone)]
 struct Slot {
     state: SlotState,
@@ -469,7 +717,7 @@ pub struct SourceStateMachine {
 #[derive(Debug, Clone)]
 pub struct SourceStateMachineV2 {
     v1: SourceStateMachine,
-    market_families: BTreeMap<(ContributorKeyV1, FamilyV1), Slot>,
+    market_families: BTreeMap<(ContributorKeyV1, FamilyV1), MarketFamilySlotV2>,
 }
 
 impl SourceStateMachineV2 {
@@ -478,9 +726,9 @@ impl SourceStateMachineV2 {
             .contributors()
             .iter()
             .flat_map(|spec| {
-                spec.allowed_families()
-                    .iter()
-                    .map(move |family| ((spec.key().clone(), *family), Slot::default()))
+                spec.allowed_families().iter().map(move |family| {
+                    ((spec.key().clone(), *family), MarketFamilySlotV2::default())
+                })
             })
             .collect();
         Self {
@@ -532,7 +780,7 @@ impl SourceStateMachineV2 {
         &self,
         contributor: &ContributorKeyV1,
         family: FamilyV1,
-    ) -> Option<CursorView> {
+    ) -> Option<MarketCursorViewV2> {
         self.family_slot_if_current(contributor, family)?.view()
     }
 
@@ -540,7 +788,7 @@ impl SourceStateMachineV2 {
         &self,
         contributor: &ContributorKeyV1,
         family: FamilyV1,
-    ) -> Option<&Slot> {
+    ) -> Option<&MarketFamilySlotV2> {
         let aggregate = self.v1.contributors.get(contributor)?;
         let connection_key = self.v1.config.contributor_connections().get(contributor)?;
         let connection = self.v1.connections.get(connection_key)?;
@@ -630,18 +878,6 @@ impl SourceStateMachineV2 {
                     && entry.session_id() == envelope.session.0
             })
             .ok_or(CursorError::UnconfiguredIdentity)?;
-        let cursor = match market_cursor {
-            MarketCursorV2::Native {
-                first_sequence,
-                last_sequence,
-            } => CursorV1::native(*first_sequence, *last_sequence),
-            MarketCursorV2::Derived {
-                raw_frame_seq,
-                action_index,
-                item_index,
-            } => CursorV1::derived(*raw_frame_seq, *action_index, *item_index),
-        }
-        .map_err(|_| CursorError::CursorMode)?;
         let connection_key = self
             .v1
             .config
@@ -689,12 +925,7 @@ impl SourceStateMachineV2 {
             epoch.epoch_generation(),
             envelope.receive_ts.0,
         )?;
-        let mode = if cursor.native_range().is_some() {
-            CursorModeV1::Native
-        } else {
-            CursorModeV1::Derived
-        };
-        let outcome = slot.accept_cursor(&cursor, envelope.receive_ts.0, payload_hash, mode)?;
+        let outcome = slot.accept_cursor(market_cursor, envelope.receive_ts.0, payload_hash)?;
         if outcome != IngestOutcome::IgnoredDuplicate {
             let aggregate = self
                 .v1

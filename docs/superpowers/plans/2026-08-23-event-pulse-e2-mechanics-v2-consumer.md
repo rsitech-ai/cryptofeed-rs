@@ -144,6 +144,7 @@
 ## Risks and Rollback
 
 - Risk: a V2 MARKET record could be reconstructed as V1 and silently lose provenance or select cursor mode from `source_sequence`. Mitigation: no V1 MARKET conversion path; cursor ingestion consumes the explicit V2 cursor/hash directly.
+- Risk: a full-width derived V2 frame could be packed through the narrower V1 cursor display domain. Mitigation: V2 family slots, views, and replay ordering retain and compare `MarketCursorV2` directly; V1 cursor validation remains confined to V1.
 - Risk: admission validates a coordinated caller-selected topology. Mitigation: caller supplies only the exact descriptor; topology and config are derived from independently pinned embedded root contracts.
 - Risk: a nonempty or fabricated SYSTEM artifact false-greens completion. Mitigation: the policy is non-forgeable, processor-bound, and V4 rejects every SYSTEM input before staging.
 - Risk: the shorthand “12 records” could omit required evidence. Mitigation: freeze 12 identities and 15 minimum records explicitly, with exact source and role set equality.
@@ -161,6 +162,7 @@
 ## Final Notes
 
 - Added the independent topology/wire pins, strict V2 wire and JSONL boundary, family-keyed cursor state, fixed admission capability, and atomic truthful-empty PreflightV4.
+- The successor repair removed the last V2 MARKET-to-V1 cursor lowering and proves the full root-authorized `u64` derived-frame domain plus exact replay/cap boundaries.
 - Preserved V1 state, APIs, contract bytes, provenance meaning, EPIN-JSON1, admission/1.0, and PreflightV1/V3 behavior. No V2 snapshot integration is claimed.
 - Validation completed on current Rust and Rust 1.85, including the full EventPulse suite, focused V2 regressions, clippy with warnings denied, cargo-deny, formatting, and diff checks. Exact commands and RED/GREEN evidence are in the report.
 - Residual status remains `UNVERIFIED` and `blocked:fixture-provenance`; this slice grants no capture, evidence, runtime, risk, or trading authority.

@@ -110,6 +110,30 @@ fn quote_provenance_accepts_full_u64_without_selecting_native_cursor() {
 }
 
 #[test]
+fn derived_market_cursor_accepts_full_raw_frame_domain_without_v1_packing() {
+    for frame in [2_147_483_648_u64, u64::MAX] {
+        let mut quote = root_quote();
+        quote["envelope"]["frame_seq"] = json!(frame);
+        quote["market_cursor"]["raw_frame_seq"] = json!(frame);
+        let parsed = MechanicsInputV2::from_json_line(&canonical(&rehash(quote))).unwrap();
+        assert!(matches!(
+            parsed.view(),
+            MechanicsInputRefV2::Market {
+                market_cursor: MarketCursorV2::Derived { raw_frame_seq, action_index: 2, item_index: 0 },
+                ..
+            } if *raw_frame_seq == frame
+        ));
+    }
+    for (action, item) in [(65_535_u64, 0_u64), (2, 65_536)] {
+        let mut quote = root_quote();
+        quote["action_index"] = json!(action);
+        quote["market_cursor"]["action_index"] = json!(action);
+        quote["market_cursor"]["item_index"] = json!(item);
+        assert!(MechanicsInputV2::from_json_line(&canonical(&rehash(quote))).is_err());
+    }
+}
+
+#[test]
 fn timestamp_aliases_and_out_of_range_values_fail_closed() {
     for value in [
         json!(-1),
@@ -124,4 +148,32 @@ fn timestamp_aliases_and_out_of_range_values_fail_closed() {
         let quote = rehash(quote);
         assert!(MechanicsInputV2::from_json_line(&canonical(&quote)).is_err());
     }
+}
+
+#[test]
+fn native_i64_plus_one_and_rehashed_family_source_provenance_drift_fail_exactly() {
+    let too_large = i64::MAX as u64 + 1;
+    let mut native = root_quote();
+    native["envelope"]["source_sequence"] = json!({"first": too_large, "last": too_large});
+    native["market_cursor"] =
+        json!({"kind":"NATIVE","first_sequence":too_large,"last_sequence":too_large});
+    assert!(MechanicsInputV2::from_json_line(&canonical(&rehash(native))).is_err());
+
+    let mut wrong_family = root_quote();
+    wrong_family["envelope"]["payload"] = json!({"Trade": {
+        "price":{"coefficient":6500,"scale":1},
+        "quantity":{"coefficient":1,"scale":0},
+        "aggressor":"Buy",
+        "trade_id":null
+    }});
+    assert!(MechanicsInputV2::from_json_line(&canonical(&rehash(wrong_family))).is_err());
+
+    let mut wrong_source = root_quote();
+    wrong_source["catalog"]["venue_sources"]["3"]["source_id"] = json!("binance_primary_market");
+    assert!(MechanicsInputV2::from_json_line(&canonical(&rehash(wrong_source))).is_err());
+
+    let mut wrong_provenance = root_quote();
+    wrong_provenance["source_provenance"] =
+        json!({"kind":"BINANCE_OPEN_INTEREST","source_time_ms":1000});
+    assert!(MechanicsInputV2::from_json_line(&canonical(&rehash(wrong_provenance))).is_err());
 }

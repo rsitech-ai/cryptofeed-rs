@@ -27,8 +27,8 @@ pub use contract::{
     validate_revision_transition,
 };
 pub use cursor::{
-    CursorError, CursorView, IngestOutcome, Invalidity, SlotState, SourceStateMachine,
-    SourceStateMachineV2,
+    CursorError, CursorView, IngestOutcome, Invalidity, MarketCursorViewV2, SlotState,
+    SourceStateMachine, SourceStateMachineV2,
 };
 pub use preflight::{
     ArtifactRoleV1, InMemoryArtifactV1, InMemoryArtifactV3, OfflineArtifactError,

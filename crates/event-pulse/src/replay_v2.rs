@@ -14,9 +14,14 @@ struct ReplayOrderKeyV2 {
     available_micros: i64,
     source_id: String,
     epoch: String,
-    sequence_start: u64,
-    sequence_end: u64,
+    cursor: ReplayCursorOrderV2,
     payload_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum ReplayCursorOrderV2 {
+    Market(MarketCursorV2),
+    V1(CursorV1),
 }
 
 pub struct MechanicsInputV2JsonlWriter<W: Write> {
@@ -149,23 +154,11 @@ fn replay_order_v2(input: &MechanicsInputV2) -> Result<ReplayOrderKeyV2, ReplayI
                         && entry.session_id() == envelope.session.0
                 })
                 .ok_or_else(invalid)?;
-            let cursor = match market_cursor {
-                MarketCursorV2::Native {
-                    first_sequence,
-                    last_sequence,
-                } => CursorV1::native(*first_sequence, *last_sequence),
-                MarketCursorV2::Derived {
-                    raw_frame_seq,
-                    action_index,
-                    item_index,
-                } => CursorV1::derived(*raw_frame_seq, *action_index, *item_index),
-            }
-            .map_err(|_| invalid())?;
             (
                 envelope.receive_ts.0.div_euclid(1_000),
                 venue.source_id(),
                 epoch.connection_epoch(),
-                cursor,
+                ReplayCursorOrderV2::Market(market_cursor.clone()),
             )
         }
         MechanicsInputRefV2::NonMarket(view) => match view {
@@ -178,7 +171,7 @@ fn replay_order_v2(input: &MechanicsInputV2) -> Result<ReplayOrderKeyV2, ReplayI
                 available_at.utc_micros(),
                 system_source.key().source_id(),
                 system_source.epoch(),
-                system_cursor.clone(),
+                ReplayCursorOrderV2::V1(system_cursor.clone()),
             ),
             MechanicsInputRefV1::Coverage {
                 coverage_source,
@@ -189,7 +182,7 @@ fn replay_order_v2(input: &MechanicsInputV2) -> Result<ReplayOrderKeyV2, ReplayI
                 available_at.utc_micros(),
                 coverage_source.key().source_id(),
                 coverage_source.epoch(),
-                coverage_cursor.cursor().clone(),
+                ReplayCursorOrderV2::V1(coverage_cursor.cursor().clone()),
             ),
             MechanicsInputRefV1::Clock {
                 clock_source,
@@ -200,19 +193,16 @@ fn replay_order_v2(input: &MechanicsInputV2) -> Result<ReplayOrderKeyV2, ReplayI
                 available_at.utc_micros(),
                 clock_source.key().source_id(),
                 clock_source.epoch(),
-                clock_cursor.cursor().clone(),
+                ReplayCursorOrderV2::V1(clock_cursor.cursor().clone()),
             ),
             MechanicsInputRefV1::Market { .. } => return Err(invalid()),
         },
     };
-    let displayed = cursor.display_sequence().map_err(|_| invalid())?;
-    let (sequence_start, sequence_end) = cursor.native_range().unwrap_or((displayed, displayed));
     Ok(ReplayOrderKeyV2 {
         available_micros,
         source_id: source_id.to_owned(),
         epoch: epoch.to_owned(),
-        sequence_start,
-        sequence_end,
+        cursor,
         payload_hash: input.payload_hash().to_owned(),
     })
 }
