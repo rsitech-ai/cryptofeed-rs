@@ -11,6 +11,7 @@ rust-version.workspace = true
 
 [dependencies]
 marketfeed-adapter-api = { workspace = true }
+marketfeed-adapter-binance = { path = "../adapters/binance" }
 marketfeed-dispatch = { workspace = true }
 marketfeed-event-pulse = { path = "../event-pulse" }
 marketfeed-model = { workspace = true }

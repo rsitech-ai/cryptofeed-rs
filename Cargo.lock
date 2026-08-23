@@ -968,6 +968,7 @@ name = "marketfeed-event-pulse-mfr1"
 version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-adapter-api",
+ "marketfeed-adapter-binance",
  "marketfeed-dispatch",
  "marketfeed-event-pulse",
  "marketfeed-model",
