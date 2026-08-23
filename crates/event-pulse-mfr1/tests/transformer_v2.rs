@@ -28,10 +28,13 @@ use marketfeed_recording::{
     RawSegmentWriter, SessionRecordingMetadata, SubscriptionMetadata, encode_http_response,
 };
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
+use std::process::Command;
 
 const PUBLIC_WS: &str = "wss://fstream.binance.com/public/ws";
 const MARKET_WS: &str = "wss://fstream.binance.com/market/ws";
+const ORACLE_PATH: &str = "crates/event-pulse-mfr1/tests/fixtures/routed_v2_expected.jsonl";
 
 fn admission() -> ProspectiveCaptureAdmissionV2 {
     let value = json!({
@@ -42,6 +45,39 @@ fn admission() -> ProspectiveCaptureAdmissionV2 {
         "authority":{"allocation_allowed":false,"canary_allowed":false,"capture_allowed":false,"credentials_allowed":false,"evidence_authoring_allowed":false,"execution_allowed":false,"live_allowed":false,"orders_allowed":false,"paper_allowed":false,"private_endpoints_allowed":false,"promotion_allowed":false,"risk_allowed":false}
     });
     ProspectiveCaptureAdmissionV2::from_json(&serde_json::to_vec(&value).unwrap()).unwrap()
+}
+
+#[test]
+fn routed_v2_oracle_has_repository_enforced_lf_and_exact_bytes() {
+    let bytes = include_bytes!("fixtures/routed_v2_expected.jsonl");
+    assert_eq!(bytes.len(), 7_736);
+    assert_eq!(bytes.iter().filter(|byte| **byte == b'\n').count(), 7);
+    assert!(!bytes.contains(&b'\r'));
+    assert_eq!(
+        format!("{:x}", Sha256::digest(bytes)),
+        "a65c1f39f7dc0150748d0f0facb0ea6cc09ca0dcedeaaff07284513c90040237"
+    );
+
+    let repository_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .parent()
+        .unwrap();
+    let output = Command::new("git")
+        .args(["check-attr", "text", "eol", "--", ORACLE_PATH])
+        .current_dir(repository_root)
+        .output()
+        .expect("git check-attr must execute");
+    assert!(output.status.success());
+    let attributes = String::from_utf8(output.stdout).expect("Git attributes must be UTF-8");
+    assert!(
+        attributes.contains(&format!("{ORACLE_PATH}: text: set")),
+        "oracle must be classified as text: {attributes}"
+    );
+    assert!(
+        attributes.contains(&format!("{ORACLE_PATH}: eol: lf")),
+        "oracle must retain LF bytes on every checkout: {attributes}"
+    );
 }
 
 fn catalog_view() -> CatalogView {

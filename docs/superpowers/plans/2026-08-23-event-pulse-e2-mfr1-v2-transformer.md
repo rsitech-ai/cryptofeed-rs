@@ -83,6 +83,7 @@
 - [x] Freeze an independent seven-record canonical oracle with exact hashes, strict route-local readback, typed equality, fresh-machine ingest outcomes, and per-family cursor equality.
 - [x] Exercise exact/one-over aggregate limit predicates, a real 65,536-record boundary, both supported dispatcher policies, and late-error atomicity.
 - [x] Bound ordinary actions to the wire-representable 65,535 count (`action_index` 0 through 65,534), retain a separate 65,536-action observation buffer so one-over is seen and rejected, and reject a derived 65,536 authoring capacity for both policies before replay.
+- [x] Preserve the writer's existing explicit LF byte emission and bind the 7,736-byte routed V2 oracle fixture to `text eol=lf` so Windows checkout cannot rewrite its seven canonical line endings.
 
 ### Task 4: Full verification and report
 
@@ -134,6 +135,6 @@
 - [x] Adapter inspection confirms routed snapshots and buffered deltas can be correlated deterministically by exact selected session and unique native BOOK coordinates; emitted availability is the snapshot/transport frame that releases them.
 - [x] RED captured: the focused target failed with `E0432` for the absent routed V2 transformer types.
 - [x] Initial GREEN complete: 11 routed V2 regressions plus all 29 existing V1 transformer regressions pass.
-- [x] Review-hardening focused GREEN: 19 routed V2 regressions and 11 routed adapter regressions pass.
+- [x] Review-hardening focused GREEN: 20 routed V2 regressions and 11 routed adapter regressions pass.
 - [x] Re-run current and Rust 1.85 tests/clippy, full workspace tests/clippy, fmt, deny, and diff checks for the successor.
 - [x] Commit the clean review-hardening successor.

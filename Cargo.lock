@@ -975,6 +975,7 @@ dependencies = [
  "marketfeed-recording",
  "marketfeed-replay",
  "serde_json",
+ "sha2",
  "thiserror",
 ]
 
