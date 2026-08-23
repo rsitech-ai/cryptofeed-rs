@@ -485,8 +485,8 @@ fn preflight_accepts_multi_record_binance_book_bootstrap_and_pu_continuity() {
     let admission = admission();
     let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
     let mut records = complete_inputs(&admission);
-    let first = book_delta_from(&records[2], 4, 195, 205, 17);
-    let next = book_delta_from(&records[2], 5, 206, 210, 205);
+    let first = book_delta_from(&records[2], 4, 200, 200, 17);
+    let next = book_delta_from(&records[2], 5, 201, 205, 200);
     records.insert(3, first);
     records.insert(4, next);
     let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
@@ -515,18 +515,48 @@ fn preflight_rejects_binance_book_no_overlap_and_wrong_pu() {
         admission.capture_starts_at().utc_micros() * 1_000 + 20_000_000,
     )
     .unwrap();
-    for deltas in [
-        vec![book_delta_from(
-            &complete_inputs(&admission)[2],
-            4,
-            201,
-            205,
-            200,
-        )],
-        vec![
-            book_delta_from(&complete_inputs(&admission)[2], 4, 195, 205, 17),
-            book_delta_from(&complete_inputs(&admission)[2], 5, 206, 210, 204),
-        ],
+    for (deltas, expected) in [
+        (
+            vec![book_delta_from(
+                &complete_inputs(&admission)[2],
+                4,
+                199,
+                199,
+                200,
+            )],
+            CursorError::NativeGap,
+        ),
+        (
+            vec![book_delta_from(
+                &complete_inputs(&admission)[2],
+                4,
+                201,
+                205,
+                200,
+            )],
+            CursorError::NativeGap,
+        ),
+        (
+            vec![
+                book_delta_from(&complete_inputs(&admission)[2], 4, 195, 205, 17),
+                book_delta_from(&complete_inputs(&admission)[2], 5, 100, 204, 205),
+            ],
+            CursorError::NativeRegression,
+        ),
+        (
+            vec![
+                book_delta_from(&complete_inputs(&admission)[2], 4, 195, 205, 17),
+                book_delta_from(&complete_inputs(&admission)[2], 5, 200, 205, 205),
+            ],
+            CursorError::NativeRegression,
+        ),
+        (
+            vec![
+                book_delta_from(&complete_inputs(&admission)[2], 4, 195, 205, 17),
+                book_delta_from(&complete_inputs(&admission)[2], 5, 206, 210, 204),
+            ],
+            CursorError::NativeGap,
+        ),
     ] {
         let mut records = complete_inputs(&admission);
         for (offset, delta) in deltas.into_iter().enumerate() {
@@ -543,7 +573,7 @@ fn preflight_rejects_binance_book_no_overlap_and_wrong_pu() {
                 decision.clone(),
                 &writer.finish(),
             ),
-            Err(OfflineArtifactErrorV4::Topology(CursorError::NativeGap))
+            Err(OfflineArtifactErrorV4::Topology(expected))
         );
     }
 }

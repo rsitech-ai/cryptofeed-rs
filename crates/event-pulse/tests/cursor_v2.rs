@@ -370,8 +370,83 @@ fn binance_book_bootstrap_accepts_overlap_then_exact_previous_final_update_id() 
 }
 
 #[test]
+fn binance_book_first_delta_allows_exact_snapshot_equality_without_losing_duplicates() {
+    let (config, _public) = config();
+    let snapshot = book_snapshot(2_000_000_000, 10, 200, "epoch_public", 0);
+    let first_delta = book_delta(2_001_000_000, 11, 200, 200, 17, "epoch_public", 0);
+    let mut state = SourceStateMachineV2::new(config);
+    state.ingest(&snapshot).unwrap();
+    assert_eq!(
+        state.ingest(&first_delta),
+        Ok(IngestOutcome::AcceptedWarming)
+    );
+    assert_eq!(
+        state.ingest(&first_delta),
+        Ok(IngestOutcome::IgnoredDuplicate)
+    );
+    let mut mutation = serde_json::to_value(&first_delta).unwrap();
+    mutation["envelope"]["payload"]["BookDelta"]["changes"][0]["quantity"]["coefficient"] =
+        json!(3_i64);
+    assert_eq!(
+        state.ingest(&rehash(mutation)),
+        Err(CursorError::MutatedDuplicate)
+    );
+}
+
+#[test]
+fn binance_book_same_kind_snapshot_duplicate_and_mutation_remain_strict() {
+    let (config, _public) = config();
+    let snapshot = book_snapshot(2_000_000_000, 10, 200, "epoch_public", 0);
+    let mut state = SourceStateMachineV2::new(config);
+    state.ingest(&snapshot).unwrap();
+    assert_eq!(state.ingest(&snapshot), Ok(IngestOutcome::IgnoredDuplicate));
+    let mut mutation = serde_json::to_value(&snapshot).unwrap();
+    mutation["envelope"]["payload"]["BookSnapshot"]["bids"][0]["quantity"]["coefficient"] =
+        json!(2_i64);
+    assert_eq!(
+        state.ingest(&rehash(mutation)),
+        Err(CursorError::MutatedDuplicate)
+    );
+}
+
+#[test]
+fn binance_book_subsequent_delta_requires_strict_final_update_progress() {
+    for invalid in [
+        book_delta(2_002_000_000, 12, 100, 204, 205, "epoch_public", 0),
+        book_delta(2_002_000_000, 12, 200, 205, 205, "epoch_public", 0),
+    ] {
+        let (config, public) = config();
+        let mut state = SourceStateMachineV2::new(config);
+        state
+            .ingest(&book_snapshot(2_000_000_000, 10, 200, "epoch_public", 0))
+            .unwrap();
+        state
+            .ingest(&book_delta(
+                2_001_000_000,
+                11,
+                195,
+                205,
+                17,
+                "epoch_public",
+                0,
+            ))
+            .unwrap();
+        assert_eq!(state.ingest(&invalid), Err(CursorError::NativeRegression));
+        assert!(state.market_cursor(&public, FamilyV1::Book).is_none());
+        assert_eq!(
+            state.ingest(&book_snapshot(2_003_000_000, 13, 220, "epoch_public", 0)),
+            Ok(IngestOutcome::AcceptedWarming)
+        );
+    }
+}
+
+#[test]
 fn binance_book_gap_or_wrong_pu_discards_until_same_epoch_resnapshot() {
     for (invalid, needs_first_delta) in [
+        (
+            book_delta(2_001_000_000, 11, 199, 199, 200, "epoch_public", 0),
+            false,
+        ),
         (
             book_delta(2_001_000_000, 11, 201, 205, 200, "epoch_public", 0),
             false,

@@ -350,8 +350,10 @@ impl MarketFamilySlotV2 {
         payload_hash: &str,
     ) -> Result<IngestOutcome, CursorError> {
         self.preflight_time(at_ns)?;
-        if let Some(outcome) = self.preflight_duplicate(cursor, payload_hash)? {
-            return Ok(outcome);
+        if matches!(self.book_continuity, BookContinuityV2::Snapshot(_)) {
+            if let Some(outcome) = self.preflight_duplicate(cursor, payload_hash)? {
+                return Ok(outcome);
+            }
         }
         self.book_continuity = BookContinuityV2::Snapshot(last_update_id);
         self.commit_cursor(cursor, at_ns, payload_hash)
@@ -367,21 +369,33 @@ impl MarketFamilySlotV2 {
         payload_hash: &str,
     ) -> Result<IngestOutcome, CursorError> {
         self.preflight_time(at_ns)?;
-        if let Some(outcome) = self.preflight_duplicate(cursor, payload_hash)? {
-            return Ok(outcome);
-        }
-        let valid = match self.book_continuity {
+        let result = match self.book_continuity {
             BookContinuityV2::Snapshot(last_update_id) => {
-                first_update_id <= last_update_id && last_update_id <= final_update_id
+                if first_update_id <= last_update_id && last_update_id <= final_update_id {
+                    Ok(())
+                } else {
+                    Err(CursorError::NativeGap)
+                }
             }
             BookContinuityV2::Delta(prior_final_update_id) => {
-                previous_final_update_id == prior_final_update_id
+                if let Some(outcome) = self.preflight_duplicate(cursor, payload_hash)? {
+                    return Ok(outcome);
+                }
+                if previous_final_update_id != prior_final_update_id {
+                    Err(CursorError::NativeGap)
+                } else if final_update_id <= prior_final_update_id {
+                    Err(CursorError::NativeRegression)
+                } else {
+                    Ok(())
+                }
             }
-            BookContinuityV2::NotBook | BookContinuityV2::AwaitingSnapshot => false,
+            BookContinuityV2::NotBook | BookContinuityV2::AwaitingSnapshot => {
+                Err(CursorError::NativeGap)
+            }
         };
-        if !valid {
+        if let Err(error) = result {
             self.invalidate_book_recoverable();
-            return Err(CursorError::NativeGap);
+            return Err(error);
         }
         self.book_continuity = BookContinuityV2::Delta(final_update_id);
         self.commit_cursor(cursor, at_ns, payload_hash)

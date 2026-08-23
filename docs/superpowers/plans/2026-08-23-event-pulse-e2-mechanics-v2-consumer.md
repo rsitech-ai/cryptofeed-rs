@@ -146,6 +146,7 @@
 - Risk: a V2 MARKET record could be reconstructed as V1 and silently lose provenance or select cursor mode from `source_sequence`. Mitigation: no V1 MARKET conversion path; cursor ingestion consumes the explicit V2 cursor/hash directly.
 - Risk: a full-width derived V2 frame could be packed through the narrower V1 cursor display domain. Mitigation: V2 family slots, views, and replay ordering retain and compare `MarketCursorV2` directly; V1 cursor validation remains confined to V1.
 - Risk: generic native `+1` continuity would reject Binance depth bootstrap overlap or accept a non-overlapping first delta. Mitigation: only the V2 BOOK family carries the frozen snapshot/first-overlap/subsequent-`pu` state and requires resnapshot after invalidity; every other native family keeps generic continuity.
+- Risk: identical native ranges across different BOOK phases could be mistaken for duplicate mutation, or matching `pu` could admit a regressing/no-progress `u`. Mitigation: duplicate identity is phase-aware and subsequent deltas require both exact `pu` and strict final-ID progress.
 - Risk: equal-time MARKET replay could order native before derived cursor variants instead of causal raw capture order. Mitigation: replay uses the payload-authenticated envelope frame/action/item tuple for every MARKET family and retains `MarketCursorV2` solely for family continuity.
 - Risk: admission validates a coordinated caller-selected topology. Mitigation: caller supplies only the exact descriptor; topology and config are derived from independently pinned embedded root contracts.
 - Risk: a nonempty or fabricated SYSTEM artifact false-greens completion. Mitigation: the policy is non-forgeable, processor-bound, and V4 rejects every SYSTEM input before staging.
@@ -166,6 +167,7 @@
 - Added the independent topology/wire pins, strict V2 wire and JSONL boundary, family-keyed cursor state, fixed admission capability, and atomic truthful-empty PreflightV4.
 - The successor repair removed the last V2 MARKET-to-V1 cursor lowering and proves the full root-authorized `u64` derived-frame domain plus exact replay/cap boundaries.
 - The final repair applies frozen Binance BOOK bootstrap/`pu` semantics and raw-coordinate equal-time replay ordering without changing V1 or widening the authority ceiling.
+- Boundary hardening preserves inclusive snapshot bootstrap equality while rejecting later regression/no-progress and retaining strict same-kind duplicate/mutation behavior.
 - Preserved V1 state, APIs, contract bytes, provenance meaning, EPIN-JSON1, admission/1.0, and PreflightV1/V3 behavior. No V2 snapshot integration is claimed.
 - Validation completed on current Rust and Rust 1.85, including the full EventPulse suite, focused V2 regressions, clippy with warnings denied, cargo-deny, formatting, and diff checks. Exact commands and RED/GREEN evidence are in the report.
 - Residual status remains `UNVERIFIED` and `blocked:fixture-provenance`; this slice grants no capture, evidence, runtime, risk, or trading authority.

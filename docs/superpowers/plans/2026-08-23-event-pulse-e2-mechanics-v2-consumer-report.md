@@ -32,6 +32,10 @@ Initial RED signals included:
   native regression, while an invalid first delta `U=201, u=205` was accepted;
 - equal-time QUOTE/BOOK replay being ordered by cursor enum variant rather than the
   authenticated raw frame/action/item coordinate.
+- inclusive bootstrap equality `snapshot=200, U=u=200` being misclassified as a
+  mutated duplicate because the cursor range matched across snapshot/delta phases;
+- subsequent `pu=205, u=204` and no-progress `pu=205, u=205` deltas being accepted
+  solely because `pu` matched the prior final update ID.
 
 GREEN regressions now cover:
 
@@ -60,6 +64,12 @@ GREEN regressions now cover:
 - equal-time PUBLIC QUOTE/BOOK and MARKET TRADE/OPEN_INTEREST/LIQUIDATION ordering by
   authenticated `(frame_seq, action_index, event_index)` in ascending and regressing
   raw-coordinate cases, independent of native/derived family cursor mode.
+- phase-aware BOOK duplicate handling: snapshot-to-first-delta cursor equality is
+  valid, while same-kind/same-cursor identical hashes remain ignored duplicates and
+  changed hashes remain mutated duplicates;
+- strict subsequent BOOK forward progress: exact `pu == prior u` and
+  `final_update_id > prior u`, with below-snapshot/above-snapshot bootstrap gaps,
+  later regression, later equality/no-progress, wrong-`pu`, and resnapshot recovery.
 
 ## Validation
 
