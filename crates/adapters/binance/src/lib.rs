@@ -104,7 +104,7 @@ pub use usdm_messages::decode_text_simd as decode_usdm_text_simd;
 pub use usdm_messages::{
     UsdmDecoded, decode_text as decode_usdm_text, decode_text_serde as decode_usdm_text_serde,
 };
-pub use usdm_session::{BinanceUsdmSession, BinanceUsdmSessionConfig};
+pub use usdm_session::{BinanceUsdmRouteV4, BinanceUsdmSession, BinanceUsdmSessionConfig};
 pub use usdm_specification::{
     BINANCE_USDM_SPEC, BINANCE_USDM_VENUE_ID, OI_POLL_INTERVAL_MS, OI_TIMER_ID,
 };

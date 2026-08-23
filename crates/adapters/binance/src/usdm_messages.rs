@@ -22,6 +22,10 @@ pub enum UsdmDecoded {
     Quote {
         symbol: String,
         update_id: u64,
+        /// Venue message output time (`E`) when the source shape provides it.
+        event_time_ms: Option<i64>,
+        /// Venue transaction time (`T`) when the source shape provides it.
+        transaction_time_ms: Option<i64>,
         bid_price: Price,
         bid_qty: Quantity,
         ask_price: Price,
@@ -81,6 +85,10 @@ pub enum UsdmDecoded {
     },
     DepthSnapshot {
         last_update_id: u64,
+        /// Venue message output time (`E`) on the current USD-M REST shape.
+        event_time_ms: Option<i64>,
+        /// Venue transaction time (`T`) retained separately from `E`.
+        transaction_time_ms: Option<i64>,
         bids: Vec<(Price, Quantity)>,
         asks: Vec<(Price, Quantity)>,
     },
@@ -131,6 +139,10 @@ struct TradeMsg {
 
 #[derive(Debug, Deserialize)]
 struct BookTickerMsg {
+    #[serde(rename = "E")]
+    event_time: Option<i64>,
+    #[serde(rename = "T")]
+    transaction_time: Option<i64>,
     u: u64,
     s: String,
     b: String,
@@ -192,6 +204,10 @@ struct DepthUpdateMsg {
 struct DepthSnapshotMsg {
     #[serde(rename = "lastUpdateId")]
     last_update_id: u64,
+    #[serde(rename = "E")]
+    event_time: Option<i64>,
+    #[serde(rename = "T")]
+    transaction_time: Option<i64>,
     bids: Vec<[String; 2]>,
     asks: Vec<[String; 2]>,
 }
@@ -384,6 +400,8 @@ fn decode_book_ticker(v: &Value) -> Result<UsdmDecoded, String> {
     Ok(UsdmDecoded::Quote {
         symbol: m.s,
         update_id: m.u,
+        event_time_ms: m.event_time,
+        transaction_time_ms: m.transaction_time,
         bid_price: Price(parse_fixed(&m.b)?),
         bid_qty: Quantity(parse_fixed(&m.bid_qty)?),
         ask_price: Price(parse_fixed(&m.a)?),
@@ -456,6 +474,8 @@ fn decode_snapshot(v: &Value) -> Result<UsdmDecoded, String> {
     let m: DepthSnapshotMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
     Ok(UsdmDecoded::DepthSnapshot {
         last_update_id: m.last_update_id,
+        event_time_ms: m.event_time,
+        transaction_time_ms: m.transaction_time,
         bids: parse_levels(&m.bids)?,
         asks: parse_levels(&m.asks)?,
     })
