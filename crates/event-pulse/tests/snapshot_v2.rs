@@ -1871,6 +1871,10 @@ fn public_market_generation_recovery_reserves_quote_and_book_as_one_connection_s
     let book_recovery = book_snapshot_generation_at(&inputs[2], &admission, 70_001, 18, 1, 1);
     subject.ingest(&book_recovery).unwrap();
     reconstructed.ingest(&book_recovery).unwrap();
+    let before_boundary_drift = subject.buffered_record_count();
+    let wrong_quote_generation = quote_at(&inputs[1], &admission, 70_002, 19, 2);
+    assert!(subject.ingest(&wrong_quote_generation).is_err());
+    assert_eq!(subject.buffered_record_count(), before_boundary_drift);
     let quote_recovery = quote_at(&inputs[1], &admission, 70_002, 19, 1);
     subject.ingest(&quote_recovery).unwrap();
     reconstructed.ingest(&quote_recovery).unwrap();
@@ -1926,27 +1930,50 @@ fn market_connection_recovery_admits_trade_oi_liquidation_and_subject_sidecars_t
     let admission = admission();
     let inputs = complete_inputs(&admission);
     let mut subject = processor(&admission);
+    let mut reconstructed = processor(&admission);
     for input in &inputs {
         subject.ingest(input).unwrap();
+        reconstructed.ingest(input).unwrap();
     }
 
     let gap = native_trade_at(&inputs[0], &admission, 102, 100, 16, 0);
     assert!(subject.ingest(&gap).is_err());
+    assert!(reconstructed.ingest(&gap).is_err());
     let first = [
         native_trade_at(&inputs[0], &admission, 1, 101, 17, 1),
         derived_market_at(&inputs[3], &admission, 102, 18, 1),
         derived_market_at(&inputs[4], &admission, 103, 19, 1),
     ];
-    for recovery in &first {
+    subject.ingest(&first[0]).unwrap();
+    reconstructed.ingest(&first[0]).unwrap();
+    let before_drift = subject.buffered_record_count();
+    let wrong_oi_generation = derived_market_at(&inputs[3], &admission, 102, 18, 2);
+    assert!(
+        subject.ingest(&wrong_oi_generation).is_err(),
+        "an activated MARKET recovery plan must reject sibling generation drift"
+    );
+    assert_eq!(subject.buffered_record_count(), before_drift);
+    for recovery in &first[1..] {
         subject.ingest(recovery).unwrap();
+        reconstructed.ingest(recovery).unwrap();
     }
     let second = [
         native_trade_at(&inputs[0], &admission, 2, 201, 20, 1),
         derived_market_at(&inputs[3], &admission, 202, 21, 1),
         derived_market_at(&inputs[4], &admission, 203, 22, 1),
     ];
-    for recovery in &second {
+    subject.ingest(&second[0]).unwrap();
+    reconstructed.ingest(&second[0]).unwrap();
+    let before_consumed_family_drift = subject.buffered_record_count();
+    let wrong_completed_trade_generation = native_trade_at(&inputs[0], &admission, 3, 204, 20, 2);
+    assert!(subject.ingest(&wrong_completed_trade_generation).is_err());
+    assert_eq!(
+        subject.buffered_record_count(),
+        before_consumed_family_drift
+    );
+    for recovery in &second[1..] {
         subject.ingest(recovery).unwrap();
+        reconstructed.ingest(recovery).unwrap();
     }
 
     let mut offset = 23;
@@ -1965,10 +1992,77 @@ fn market_connection_recovery_admits_trade_oi_liquidation_and_subject_sidecars_t
             _ => unreachable!(),
         };
         subject.ingest(&recovery).unwrap();
+        reconstructed.ingest(&recovery).unwrap();
         offset += 1;
     }
-    let snapshot = subject
+    let actual = subject
         .snapshot(decision_offset(&admission, offset + 1))
         .unwrap();
-    assert_eq!(source_cursors(&snapshot).len(), 15);
+    let expected = reconstructed
+        .snapshot(decision_offset(&admission, offset + 1))
+        .unwrap();
+    assert_eq!(source_cursors(&actual).len(), 15);
+    assert_eq!(actual.canonical_json(), expected.canonical_json());
+    assert_eq!(actual.content_hash(), expected.content_hash());
+}
+
+#[test]
+fn public_connection_recovery_rejects_quote_generation_drift_before_mutation() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut subject = processor(&admission);
+    let mut reconstructed = processor(&admission);
+    for input in &inputs {
+        subject.ingest(input).unwrap();
+        reconstructed.ingest(input).unwrap();
+    }
+    let gap = book_delta_at(&inputs[2], &admission, 100, 16, 300, 301, 0);
+    assert!(subject.ingest(&gap).is_err());
+    assert!(reconstructed.ingest(&gap).is_err());
+    let book = book_snapshot_generation_at(&inputs[2], &admission, 101, 17, 1, 1);
+    subject.ingest(&book).unwrap();
+    reconstructed.ingest(&book).unwrap();
+
+    let before_drift = subject.buffered_record_count();
+    let wrong_quote = quote_at(&inputs[1], &admission, 102, 18, 2);
+    assert!(
+        subject.ingest(&wrong_quote).is_err(),
+        "an activated PUBLIC recovery plan must reject sibling generation drift"
+    );
+    assert_eq!(subject.buffered_record_count(), before_drift);
+
+    let quote = quote_at(&inputs[1], &admission, 102, 18, 1);
+    let second_book = book_delta_generation_at(&inputs[2], &admission, 103, 19, 1, 2, 1, 1);
+    let second_quote = quote_at(&inputs[1], &admission, 104, 20, 1);
+    for recovery in [&quote, &second_book, &second_quote] {
+        subject.ingest(recovery).unwrap();
+        reconstructed.ingest(recovery).unwrap();
+    }
+    let mut offset = 21;
+    for input in inputs
+        .iter()
+        .skip(6)
+        .filter(|input| non_market_subject_source_id(input) == Some("binance_primary_public"))
+    {
+        let recovery = match input.view() {
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock { .. },
+            ) => clock_with_subject_generation_at(input, &admission, offset, 0, 1, 2),
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage { .. },
+            ) => coverage_with_subject_generation_at(input, &admission, offset, 0, 1, 2),
+            _ => unreachable!(),
+        };
+        subject.ingest(&recovery).unwrap();
+        reconstructed.ingest(&recovery).unwrap();
+        offset += 1;
+    }
+    let actual = subject
+        .snapshot(decision_offset(&admission, offset + 1))
+        .unwrap();
+    let expected = reconstructed
+        .snapshot(decision_offset(&admission, offset + 1))
+        .unwrap();
+    assert_eq!(actual.canonical_json(), expected.canonical_json());
+    assert_eq!(actual.content_hash(), expected.content_hash());
 }

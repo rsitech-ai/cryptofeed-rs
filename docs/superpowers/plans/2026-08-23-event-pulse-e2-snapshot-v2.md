@@ -126,3 +126,10 @@ The implementation is bound independently to root merge `4d3e0f0398d3e113a79df7a
 - [x] RED: MARKET Trade/OI/Liquidation must recover together under one greater connection generation and accept exact subject-sidecar refreshes.
 - [x] GREEN: bind recovery sessions to immutable configured connections and preallocate the entire recovery scope atomically; advance shared lifecycle/coverage state without lowering MARKET V2 state into V1 cursors.
 - [x] Verify 23 focused Snapshot V2 tests plus full EventPulse/workspace current and Rust 1.85.0 tests/clippy, fmt, deny, and diff; append successor evidence and commit cleanly.
+
+## Reviewer repair successor 5
+
+- [x] RED: after Trade generation 1 activates a MARKET connection recovery, OI generation 2 must reject below capacity without changing source/runtime/log/order/quota state; exact OI generation 1 retry must succeed and match a fresh processor.
+- [x] RED: the generation guard must remain connection-scoped after the triggering family consumes its own recovery slot, and PUBLIC Book generation 1 must likewise reject Quote generation 2 before accepting exact Quote generation 1.
+- [x] GREEN: resolve the active recovery generation through any remaining session on the immutable configured connection and enforce it before every capacity, source, feature, fault-log, order, or quota mutation.
+- [x] Verify 24 focused Snapshot V2 tests plus full workspace current and Rust 1.85.0 tests/clippy, fmt, deny, and diff; append successor evidence and commit cleanly.

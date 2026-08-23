@@ -234,6 +234,38 @@ impl SnapshotProcessorV2 {
         )
     }
 
+    fn validate_active_market_recovery_generation(
+        &self,
+        identity: Option<&FaultIdentityV2>,
+    ) -> Result<(), SnapshotV2Error> {
+        let Some(identity) = identity else {
+            return Ok(());
+        };
+        if !matches!(&identity.key, FaultKeyV2::MarketFamily(_)) {
+            return Ok(());
+        }
+        let Some(connection) = identity.connection.as_ref() else {
+            return Ok(());
+        };
+        let Some(session) = self
+            .recovery_sessions
+            .values()
+            .find(|session| session.connection.as_ref() == Some(connection))
+        else {
+            return Ok(());
+        };
+        if session
+            .connection_generation
+            .is_some_and(|expected| identity.generation != expected)
+        {
+            return Err(SnapshotError::InvalidInput(
+                "MARKET recovery generation differs from active connection plan".into(),
+            )
+            .into());
+        }
+        Ok(())
+    }
+
     fn recovery_scope_keys(
         &self,
         identity: &FaultIdentityV2,
@@ -365,6 +397,7 @@ impl SnapshotProcessorV2 {
         let recovering = identity
             .as_ref()
             .is_some_and(|identity| self.recovery_session_matches(identity, input));
+        self.validate_active_market_recovery_generation(identity.as_ref())?;
         let uses_reserved_recovery =
             recovering && self.ordinary_record_usage() >= self.ordinary_record_capacity();
         if uses_reserved_recovery {

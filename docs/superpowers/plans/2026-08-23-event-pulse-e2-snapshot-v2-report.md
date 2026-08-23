@@ -174,3 +174,29 @@ The first boundary regression failed when Book generation 1 was accepted but the
 - `git diff --check`: passed.
 
 The authority ceiling is unchanged: this is repo-ready pure Snapshot V2 library evidence. Fixture provenance, source qualification, capture, runtime, deployment, execution, and trading authority remain outside scope and unverified.
+
+## Reviewer repair successor 5
+
+### RED
+
+An independent below-capacity counterexample activated MARKET recovery with Trade generation 1, then supplied OI generation 2. The processor accepted it as ordinary input because recovery matching was exact-key-only; this advanced the shared connection and poisoned the valid OI generation 1 retry. The same false green existed for PUBLIC Book generation 1 followed by Quote generation 2.
+
+### GREEN
+
+- Before capacity handling or any candidate mutation, MARKET ingest now resolves any remaining recovery session for the input's immutable configured connection. Once the plan has an activated generation, every MARKET family on that connection must use that exact generation.
+- The connection lookup remains effective after the triggering family's own two-record recovery allowance is consumed and its exact session is removed, as long as any sibling recovery remains active.
+- Rejected drift does not change source state, feature runtime, accepted/fault count, last order, active causes, recovery quota, cache, seal, revision, or predecessor. An exact-generation retry at the same authoritative coordinate succeeds.
+- MARKET Trade/OI/Liquidation and PUBLIC Quote/Book regressions compare the repaired processor against an independently reconstructed processor that never saw the rejected drift; canonical JSON and content hashes are identical.
+
+### Successor 5 gate evidence
+
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test -p marketfeed-event-pulse --test snapshot_v2 --no-default-features`: 24 passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 test --workspace --all-targets --all-features`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `CARGO_INCREMENTAL=0 RUSTFLAGS='-C debuginfo=0' cargo +1.85.0 clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `cargo fmt --all -- --check`: passed.
+- `cargo deny --offline --locked check`: passed all advisory, ban, license, and source checks.
+- `git diff --check`: passed.
+
+The successor remains repo-ready pure library evidence only. Fixture provenance, capture, source qualification, runtime, deployment, execution, and trading authority remain unverified and outside scope.
