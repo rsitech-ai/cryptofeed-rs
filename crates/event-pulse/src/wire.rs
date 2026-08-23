@@ -1885,14 +1885,12 @@ impl<'de> Deserialize<'de> for ReplayCatalogV1 {
     }
 }
 
-fn validate_market_mapping(
+pub(crate) fn validate_market_mapping(
     catalog: &ReplayCatalogV1,
     envelope: &marketfeed_model::EventEnvelope,
     action_index: u32,
 ) -> Result<(), WireError> {
-    if action_index > 65_534 || !catalog.contains_envelope(envelope) {
-        return Err(WireError::Identity);
-    }
+    validate_market_catalog_action(catalog, envelope, action_index)?;
     match envelope.source_sequence {
         Some(sequence) => CursorV1::native(sequence.first, sequence.last),
         None => CursorV1::derived(
@@ -1902,6 +1900,18 @@ fn validate_market_mapping(
         ),
     }
     .map(|_| ())
+}
+
+pub(crate) fn validate_market_catalog_action(
+    catalog: &ReplayCatalogV1,
+    envelope: &marketfeed_model::EventEnvelope,
+    action_index: u32,
+) -> Result<(), WireError> {
+    if action_index > 65_534 || !catalog.contains_envelope(envelope) {
+        Err(WireError::Identity)
+    } else {
+        Ok(())
+    }
 }
 
 struct UniqueJsonSeed;
@@ -1980,7 +1990,7 @@ impl<'de> serde::de::Visitor<'de> for UniqueJsonVisitor {
     }
 }
 
-fn parse_unique_json(bytes: &[u8]) -> Result<serde_json::Value, WireError> {
+pub(crate) fn parse_unique_json(bytes: &[u8]) -> Result<serde_json::Value, WireError> {
     let mut deserializer = serde_json::Deserializer::from_slice(bytes);
     let value = UniqueJsonSeed
         .deserialize(&mut deserializer)

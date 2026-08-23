@@ -6,10 +6,11 @@ use thiserror::Error;
 
 use crate::wire::{
     ClockSourceKeyV1, ConfiguredTargetKeyV1, ConnectionKeyV1, ContributorKeyV1,
-    CoverageSourceKeyV1, CursorModeV1, CursorV1, DropCategoryV1, FaultScopeRefV1,
+    CoverageSourceKeyV1, CursorModeV1, CursorV1, DropCategoryV1, FamilyV1, FaultScopeRefV1,
     MechanicsConfigV1, MechanicsInputRefV1, MechanicsInputV1, Rfc3339Time, SystemChainPreimage,
     SystemFaultRefV1, SystemSourceKeyV1,
 };
+use crate::wire_v2::{MarketCursorV2, MechanicsInputRefV2, MechanicsInputV2};
 
 const WARMUP_NS: i64 = 60_000_000_000;
 
@@ -106,6 +107,404 @@ pub struct CursorView {
     pub cursor: CursorV1,
     pub available_at_ns: i64,
     pub payload_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarketCursorViewV2 {
+    pub epoch: String,
+    pub epoch_generation: u8,
+    pub cursor: MarketCursorV2,
+    pub available_at_ns: i64,
+    pub payload_hash: String,
+}
+
+#[derive(Debug, Clone)]
+struct MarketFamilySlotV2 {
+    state: SlotState,
+    invalidity: Option<Invalidity>,
+    epoch: Option<String>,
+    generation: Option<u8>,
+    history: BTreeSet<String>,
+    first_available_ns: Option<i64>,
+    cursor: Option<MarketCursorV2>,
+    available_at_ns: Option<i64>,
+    retained_available_at_ns: Option<i64>,
+    payload_hash: Option<String>,
+    book_continuity: BookContinuityV2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BookContinuityV2 {
+    NotBook,
+    AwaitingSnapshot,
+    Snapshot(u64),
+    Delta(u64),
+}
+
+impl MarketFamilySlotV2 {
+    fn new(family: FamilyV1) -> Self {
+        Self {
+            state: SlotState::Cold,
+            invalidity: None,
+            epoch: None,
+            generation: None,
+            history: BTreeSet::new(),
+            first_available_ns: None,
+            cursor: None,
+            available_at_ns: None,
+            retained_available_at_ns: None,
+            payload_hash: None,
+            book_continuity: if family == FamilyV1::Book {
+                BookContinuityV2::AwaitingSnapshot
+            } else {
+                BookContinuityV2::NotBook
+            },
+        }
+    }
+
+    fn reset_book_continuity(&mut self) {
+        if self.book_continuity != BookContinuityV2::NotBook {
+            self.book_continuity = BookContinuityV2::AwaitingSnapshot;
+        }
+    }
+
+    fn clear_current(&mut self) {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            self.state = SlotState::Invalid;
+            return;
+        }
+        self.state = SlotState::Cold;
+        self.invalidity = None;
+        self.epoch = None;
+        self.generation = None;
+        self.first_available_ns = None;
+        self.cursor = None;
+        self.available_at_ns = None;
+        self.payload_hash = None;
+        self.reset_book_continuity();
+    }
+
+    fn preflight_epoch_transition(&mut self, epoch: &str) -> Result<(), CursorError> {
+        if self.history.contains(epoch) {
+            self.invalidate_terminal();
+            return Err(CursorError::EpochReused);
+        }
+        if self.history.len() >= 256 {
+            self.invalidate_terminal();
+            return Err(CursorError::EpochHistoryExhausted);
+        }
+        Ok(())
+    }
+
+    fn begin_epoch(&mut self, epoch: &str, generation: u8, at_ns: i64) -> Result<(), CursorError> {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            return Err(CursorError::TerminalInvalid);
+        }
+        self.preflight_epoch_transition(epoch)?;
+        self.preflight_time(at_ns)?;
+        self.history.insert(epoch.to_owned());
+        self.epoch = Some(epoch.to_owned());
+        self.generation = Some(generation);
+        self.first_available_ns = Some(at_ns);
+        self.cursor = None;
+        self.available_at_ns = None;
+        self.retained_available_at_ns = Some(at_ns);
+        self.payload_hash = None;
+        self.reset_book_continuity();
+        self.state = SlotState::Warming;
+        self.invalidity = None;
+        Ok(())
+    }
+
+    fn prepare_epoch(
+        &mut self,
+        epoch: &str,
+        generation: u8,
+        at_ns: i64,
+        allow_book_resnapshot: bool,
+    ) -> Result<(), CursorError> {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            return Err(CursorError::TerminalInvalid);
+        }
+        if self.epoch.as_deref() != Some(epoch) {
+            self.preflight_epoch_transition(epoch)?;
+        }
+        match (self.generation, self.epoch.as_deref()) {
+            (None, None) => self.begin_epoch(epoch, generation, at_ns),
+            (Some(current), Some(current_epoch))
+                if generation == current && epoch == current_epoch =>
+            {
+                if self.state == SlotState::Invalid {
+                    if allow_book_resnapshot && self.invalidity == Some(Invalidity::Recoverable) {
+                        self.preflight_time(at_ns)?;
+                        self.state = SlotState::Warming;
+                        self.invalidity = None;
+                        self.first_available_ns = Some(at_ns);
+                        self.cursor = None;
+                        self.available_at_ns = None;
+                        self.payload_hash = None;
+                        self.reset_book_continuity();
+                        Ok(())
+                    } else {
+                        Err(CursorError::EpochMismatch)
+                    }
+                } else {
+                    if self.state == SlotState::Cold {
+                        self.first_available_ns = Some(at_ns);
+                        self.state = SlotState::Warming;
+                    }
+                    Ok(())
+                }
+            }
+            (Some(current), _) if generation > current => {
+                self.begin_epoch(epoch, generation, at_ns)
+            }
+            _ => {
+                self.invalidate_recoverable();
+                Err(CursorError::EpochMismatch)
+            }
+        }
+    }
+
+    fn accept_cursor(
+        &mut self,
+        cursor: &MarketCursorV2,
+        at_ns: i64,
+        payload_hash: &str,
+    ) -> Result<IngestOutcome, CursorError> {
+        self.preflight_time(at_ns)?;
+        if self.available_at_ns.is_some_and(|last| at_ns < last) {
+            self.invalidate_recoverable();
+            return Err(CursorError::AvailabilityRegression);
+        }
+        if let Some(previous) = self.cursor.clone() {
+            if &previous == cursor {
+                if self.payload_hash.as_deref() == Some(payload_hash) {
+                    return Ok(IngestOutcome::IgnoredDuplicate);
+                }
+                self.invalidate_recoverable();
+                return Err(CursorError::MutatedDuplicate);
+            }
+            match (&previous, cursor) {
+                (
+                    MarketCursorV2::Native {
+                        first_sequence: previous_start,
+                        last_sequence: previous_end,
+                    },
+                    MarketCursorV2::Native {
+                        first_sequence: start,
+                        ..
+                    },
+                ) => {
+                    if start <= previous_end {
+                        self.invalidate_recoverable();
+                        return Err(if start < previous_start {
+                            CursorError::NativeRegression
+                        } else {
+                            CursorError::NativeOverlap
+                        });
+                    }
+                    if previous_end.checked_add(1) != Some(*start) {
+                        self.invalidate_recoverable();
+                        return Err(CursorError::NativeGap);
+                    }
+                }
+                (MarketCursorV2::Derived { .. }, MarketCursorV2::Derived { .. }) => {
+                    if cursor < &previous {
+                        self.invalidate_recoverable();
+                        return Err(CursorError::DerivedRegression);
+                    }
+                }
+                _ => {
+                    self.invalidate_recoverable();
+                    return Err(CursorError::CursorMode);
+                }
+            }
+        }
+        let first = self.first_available_ns.ok_or_else(|| {
+            self.invalidate_recoverable();
+            CursorError::TimeOverflow
+        })?;
+        let elapsed = at_ns.checked_sub(first).ok_or_else(|| {
+            self.invalidate_recoverable();
+            CursorError::TimeOverflow
+        })?;
+        self.cursor = Some(cursor.clone());
+        self.available_at_ns = Some(at_ns);
+        self.retained_available_at_ns = Some(at_ns);
+        self.payload_hash = Some(payload_hash.to_owned());
+        if elapsed >= WARMUP_NS {
+            self.state = SlotState::Live;
+            Ok(IngestOutcome::AcceptedLive)
+        } else {
+            self.state = SlotState::Warming;
+            Ok(IngestOutcome::AcceptedWarming)
+        }
+    }
+
+    fn accept_book_snapshot(
+        &mut self,
+        cursor: &MarketCursorV2,
+        last_update_id: u64,
+        at_ns: i64,
+        payload_hash: &str,
+    ) -> Result<IngestOutcome, CursorError> {
+        self.preflight_time(at_ns)?;
+        if let BookContinuityV2::Snapshot(prior_last_update_id) = self.book_continuity {
+            if let Some(outcome) = self.preflight_duplicate(cursor, payload_hash)? {
+                return Ok(outcome);
+            }
+            if last_update_id < prior_last_update_id {
+                self.invalidate_book_recoverable();
+                return Err(CursorError::NativeRegression);
+            }
+        } else if let BookContinuityV2::Delta(prior_final_update_id) = self.book_continuity {
+            if last_update_id < prior_final_update_id {
+                self.invalidate_book_recoverable();
+                return Err(CursorError::NativeRegression);
+            }
+        }
+        self.book_continuity = BookContinuityV2::Snapshot(last_update_id);
+        self.commit_cursor(cursor, at_ns, payload_hash)
+    }
+
+    fn accept_book_delta(
+        &mut self,
+        cursor: &MarketCursorV2,
+        first_update_id: u64,
+        final_update_id: u64,
+        previous_final_update_id: u64,
+        at_ns: i64,
+        payload_hash: &str,
+    ) -> Result<IngestOutcome, CursorError> {
+        self.preflight_time(at_ns)?;
+        let result = match self.book_continuity {
+            BookContinuityV2::Snapshot(last_update_id) => {
+                if first_update_id <= last_update_id && last_update_id <= final_update_id {
+                    Ok(())
+                } else {
+                    Err(CursorError::NativeGap)
+                }
+            }
+            BookContinuityV2::Delta(prior_final_update_id) => {
+                if let Some(outcome) = self.preflight_duplicate(cursor, payload_hash)? {
+                    return Ok(outcome);
+                }
+                if previous_final_update_id != prior_final_update_id {
+                    Err(CursorError::NativeGap)
+                } else if final_update_id <= prior_final_update_id {
+                    Err(CursorError::NativeRegression)
+                } else {
+                    Ok(())
+                }
+            }
+            BookContinuityV2::NotBook | BookContinuityV2::AwaitingSnapshot => {
+                Err(CursorError::NativeGap)
+            }
+        };
+        if let Err(error) = result {
+            self.invalidate_book_recoverable();
+            return Err(error);
+        }
+        self.book_continuity = BookContinuityV2::Delta(final_update_id);
+        self.commit_cursor(cursor, at_ns, payload_hash)
+    }
+
+    fn preflight_duplicate(
+        &mut self,
+        cursor: &MarketCursorV2,
+        payload_hash: &str,
+    ) -> Result<Option<IngestOutcome>, CursorError> {
+        if self.cursor.as_ref() != Some(cursor) {
+            return Ok(None);
+        }
+        if self.payload_hash.as_deref() == Some(payload_hash) {
+            Ok(Some(IngestOutcome::IgnoredDuplicate))
+        } else {
+            self.invalidate_book_recoverable();
+            Err(CursorError::MutatedDuplicate)
+        }
+    }
+
+    fn commit_cursor(
+        &mut self,
+        cursor: &MarketCursorV2,
+        at_ns: i64,
+        payload_hash: &str,
+    ) -> Result<IngestOutcome, CursorError> {
+        let first = self.first_available_ns.ok_or_else(|| {
+            self.invalidate_recoverable();
+            CursorError::TimeOverflow
+        })?;
+        let elapsed = at_ns.checked_sub(first).ok_or_else(|| {
+            self.invalidate_recoverable();
+            CursorError::TimeOverflow
+        })?;
+        self.cursor = Some(cursor.clone());
+        self.available_at_ns = Some(at_ns);
+        self.retained_available_at_ns = Some(at_ns);
+        self.payload_hash = Some(payload_hash.to_owned());
+        if elapsed >= WARMUP_NS {
+            self.state = SlotState::Live;
+            Ok(IngestOutcome::AcceptedLive)
+        } else {
+            self.state = SlotState::Warming;
+            Ok(IngestOutcome::AcceptedWarming)
+        }
+    }
+
+    fn view(&self) -> Option<MarketCursorViewV2> {
+        Some(MarketCursorViewV2 {
+            epoch: self.epoch.clone()?,
+            epoch_generation: self.generation?,
+            cursor: self.cursor.clone()?,
+            available_at_ns: self.available_at_ns?,
+            payload_hash: self.payload_hash.clone()?,
+        })
+    }
+
+    fn retire_cursor(&mut self) {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            self.state = SlotState::Invalid;
+            return;
+        }
+        self.state = SlotState::Cold;
+        self.invalidity = None;
+        self.first_available_ns = None;
+        self.cursor = None;
+        self.available_at_ns = None;
+        self.payload_hash = None;
+        self.reset_book_continuity();
+    }
+
+    fn preflight_time(&mut self, at_ns: i64) -> Result<(), CursorError> {
+        if self
+            .retained_available_at_ns
+            .is_some_and(|retained| at_ns < retained)
+        {
+            self.invalidate_recoverable();
+            Err(CursorError::AvailabilityRegression)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn invalidate_recoverable(&mut self) {
+        if self.invalidity != Some(Invalidity::Terminal) {
+            self.state = SlotState::Invalid;
+            self.invalidity = Some(Invalidity::Recoverable);
+        }
+    }
+
+    fn invalidate_terminal(&mut self) {
+        self.state = SlotState::Invalid;
+        self.invalidity = Some(Invalidity::Terminal);
+    }
+
+    fn invalidate_book_recoverable(&mut self) {
+        self.retire_cursor();
+        self.invalidate_recoverable();
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -459,6 +858,347 @@ pub struct SourceStateMachine {
     clocks: BTreeMap<ClockSourceKeyV1, Slot>,
     coverage: BTreeMap<CoverageSourceKeyV1, Slot>,
     systems: Vec<SystemSlot>,
+}
+
+/// Additive V2 cursor boundary keyed by the configured contributor and family.
+///
+/// This type deliberately does not expose an aggregate contributor cursor and
+/// is not consumed by the snapshot processor. V1 state and APIs remain exact.
+#[derive(Debug, Clone)]
+pub struct SourceStateMachineV2 {
+    v1: SourceStateMachine,
+    market_families: BTreeMap<(ContributorKeyV1, FamilyV1), MarketFamilySlotV2>,
+}
+
+impl SourceStateMachineV2 {
+    pub fn new(config: MechanicsConfigV1) -> Self {
+        let market_families = config
+            .contributors()
+            .iter()
+            .flat_map(|spec| {
+                spec.allowed_families().iter().map(move |family| {
+                    (
+                        (spec.key().clone(), *family),
+                        MarketFamilySlotV2::new(*family),
+                    )
+                })
+            })
+            .collect();
+        Self {
+            v1: SourceStateMachine::new(config),
+            market_families,
+        }
+    }
+
+    pub fn ingest(&mut self, input: &MechanicsInputV2) -> Result<IngestOutcome, CursorError> {
+        input
+            .validate_static()
+            .map_err(|_| CursorError::CursorMode)?;
+        let mut candidate = self.clone();
+        let result = if let Some(non_market) = input.as_v1_non_market() {
+            candidate.v1.ingest(non_market)
+        } else {
+            candidate.ingest_market_v2(input)
+        };
+        candidate.synchronize_family_invalidity();
+        match &result {
+            Ok(_) => *self = candidate,
+            Err(error) if error.invalidates_slot() => *self = candidate,
+            Err(_) => {}
+        }
+        result
+    }
+
+    pub fn market_state(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<SlotState> {
+        self.market_families
+            .get(&(contributor.clone(), family))
+            .map(|slot| slot.state)
+    }
+
+    pub fn market_invalidity(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<Invalidity> {
+        self.market_families
+            .get(&(contributor.clone(), family))?
+            .invalidity
+    }
+
+    pub fn market_cursor(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<MarketCursorViewV2> {
+        self.family_slot_if_current(contributor, family)?.view()
+    }
+
+    fn family_slot_if_current(
+        &self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Option<&MarketFamilySlotV2> {
+        let aggregate = self.v1.contributors.get(contributor)?;
+        let connection_key = self.v1.config.contributor_connections().get(contributor)?;
+        let connection = self.v1.connections.get(connection_key)?;
+        let family_slot = self.market_families.get(&(contributor.clone(), family))?;
+        if aggregate.state == SlotState::Invalid
+            || connection.state == SlotState::Invalid
+            || aggregate.epoch != family_slot.epoch
+            || aggregate.generation != family_slot.generation
+            || connection.epoch != family_slot.epoch
+            || connection.generation != family_slot.generation
+        {
+            return None;
+        }
+        Some(family_slot)
+    }
+
+    fn synchronize_family_invalidity(&mut self) {
+        for ((contributor, _), family) in &mut self.market_families {
+            let aggregate = self.v1.contributors.get(contributor);
+            let connection = self
+                .v1
+                .config
+                .contributor_connections()
+                .get(contributor)
+                .and_then(|key| self.v1.connections.get(key));
+            let invalidity = match (aggregate, connection) {
+                (Some(aggregate), Some(connection))
+                    if aggregate.invalidity == Some(Invalidity::Terminal)
+                        || connection.invalidity == Some(Invalidity::Terminal) =>
+                {
+                    Some(Invalidity::Terminal)
+                }
+                (Some(aggregate), Some(connection))
+                    if aggregate.state == SlotState::Invalid
+                        || connection.state == SlotState::Invalid =>
+                {
+                    Some(Invalidity::Recoverable)
+                }
+                _ => None,
+            };
+            if let Some(invalidity) = invalidity {
+                family.retire_cursor();
+                if invalidity == Invalidity::Terminal {
+                    family.invalidate_terminal();
+                } else {
+                    family.invalidate_recoverable();
+                }
+            }
+        }
+    }
+
+    fn ingest_market_v2(&mut self, input: &MechanicsInputV2) -> Result<IngestOutcome, CursorError> {
+        let MechanicsInputRefV2::Market {
+            envelope,
+            catalog,
+            market_cursor,
+            source_provenance,
+            payload_hash,
+            ..
+        } = input.view()
+        else {
+            return Err(CursorError::CursorMode);
+        };
+        let venue = catalog
+            .venue_source(envelope.venue.0)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let instrument_id = envelope
+            .instrument
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let instrument = catalog
+            .instrument(instrument_id.0)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let contributor = ContributorKeyV1::new(venue.source_id(), instrument.clone())
+            .map_err(|_| CursorError::UnconfiguredIdentity)?;
+        let family =
+            family_for_v2_market(&envelope.payload).ok_or(CursorError::UnconfiguredIdentity)?;
+        if !self
+            .market_families
+            .contains_key(&(contributor.clone(), family))
+        {
+            return Err(CursorError::UnconfiguredIdentity);
+        }
+        let epoch = catalog
+            .connection_epochs()
+            .iter()
+            .find(|entry| {
+                entry.connection_id() == envelope.connection.0
+                    && entry.session_id() == envelope.session.0
+            })
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let connection_key = self
+            .v1
+            .config
+            .contributor_connections()
+            .get(&contributor)
+            .cloned()
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let connection = self
+            .v1
+            .connections
+            .get(&connection_key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let advances = connection.generation.is_none_or(|current| {
+            epoch.epoch_generation() > current
+                || connection.epoch.as_deref() != Some(epoch.connection_epoch())
+        });
+        self.prepare_lifecycle(
+            &connection_key,
+            &contributor,
+            epoch.connection_epoch(),
+            epoch.epoch_generation(),
+            envelope.receive_ts.0,
+        )?;
+        if advances {
+            let bound = self
+                .v1
+                .config
+                .contributor_connections()
+                .iter()
+                .filter(|(_, connection)| *connection == &connection_key)
+                .map(|(key, _)| key)
+                .collect::<BTreeSet<_>>();
+            for ((key, _), slot) in &mut self.market_families {
+                if bound.contains(key) {
+                    slot.clear_current();
+                }
+            }
+        }
+        let slot = self
+            .market_families
+            .get_mut(&(contributor.clone(), family))
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        let is_book_snapshot = matches!(
+            (&envelope.payload, source_provenance),
+            (
+                marketfeed_model::MarketEvent::BookSnapshot(_),
+                crate::SourceProvenanceV2::BinanceBookSnapshot { .. }
+            )
+        );
+        slot.prepare_epoch(
+            epoch.connection_epoch(),
+            epoch.epoch_generation(),
+            envelope.receive_ts.0,
+            is_book_snapshot,
+        )?;
+        let outcome = match (&envelope.payload, source_provenance) {
+            (
+                marketfeed_model::MarketEvent::BookSnapshot(_),
+                crate::SourceProvenanceV2::BinanceBookSnapshot { last_update_id, .. },
+            ) => slot.accept_book_snapshot(
+                market_cursor,
+                *last_update_id,
+                envelope.receive_ts.0,
+                payload_hash,
+            ),
+            (
+                marketfeed_model::MarketEvent::BookDelta(_),
+                crate::SourceProvenanceV2::BinanceBookDelta {
+                    first_update_id,
+                    final_update_id,
+                    previous_final_update_id,
+                    ..
+                },
+            ) => slot.accept_book_delta(
+                market_cursor,
+                *first_update_id,
+                *final_update_id,
+                *previous_final_update_id,
+                envelope.receive_ts.0,
+                payload_hash,
+            ),
+            _ => slot.accept_cursor(market_cursor, envelope.receive_ts.0, payload_hash),
+        }?;
+        if outcome != IngestOutcome::IgnoredDuplicate {
+            let aggregate = self
+                .v1
+                .contributors
+                .get_mut(&contributor)
+                .ok_or(CursorError::UnconfiguredIdentity)?;
+            aggregate.preflight_time(envelope.receive_ts.0)?;
+            aggregate.retained_available_at_ns = Some(envelope.receive_ts.0);
+        }
+        Ok(outcome)
+    }
+
+    fn prepare_lifecycle(
+        &mut self,
+        connection_key: &ConnectionKeyV1,
+        contributor_key: &ContributorKeyV1,
+        epoch: &str,
+        generation: u8,
+        at_ns: i64,
+    ) -> Result<(), CursorError> {
+        let connection = self
+            .v1
+            .connections
+            .get(connection_key)
+            .ok_or(CursorError::UnconfiguredIdentity)?;
+        match connection.generation {
+            None => self.v1.advance_connection(
+                connection_key,
+                contributor_key,
+                epoch,
+                generation,
+                at_ns,
+            ),
+            Some(current) if generation > current => self.v1.advance_connection(
+                connection_key,
+                contributor_key,
+                epoch,
+                generation,
+                at_ns,
+            ),
+            Some(current)
+                if generation == current && connection.epoch.as_deref() == Some(epoch) =>
+            {
+                let contributor = self
+                    .v1
+                    .contributors
+                    .get_mut(contributor_key)
+                    .ok_or(CursorError::UnconfiguredIdentity)?;
+                if contributor.generation.is_none() {
+                    contributor.begin_epoch(epoch, generation, at_ns)
+                } else if contributor.generation == Some(generation)
+                    && contributor.epoch.as_deref() == Some(epoch)
+                    && contributor.state != SlotState::Invalid
+                {
+                    contributor.preflight_time(at_ns)
+                } else {
+                    contributor.invalidate_recoverable();
+                    Err(CursorError::EpochMismatch)
+                }
+            }
+            _ => {
+                self.v1
+                    .contributors
+                    .get_mut(contributor_key)
+                    .ok_or(CursorError::UnconfiguredIdentity)?
+                    .invalidate_recoverable();
+                Err(CursorError::EpochMismatch)
+            }
+        }
+    }
+}
+
+fn family_for_v2_market(payload: &marketfeed_model::MarketEvent) -> Option<FamilyV1> {
+    match payload {
+        marketfeed_model::MarketEvent::Trade(_) => Some(FamilyV1::Trade),
+        marketfeed_model::MarketEvent::Quote(_) => Some(FamilyV1::Quote),
+        marketfeed_model::MarketEvent::BookSnapshot(_)
+        | marketfeed_model::MarketEvent::BookDelta(_) => Some(FamilyV1::Book),
+        marketfeed_model::MarketEvent::OpenInterest(_) => Some(FamilyV1::OpenInterest),
+        marketfeed_model::MarketEvent::Liquidation(_) => Some(FamilyV1::Liquidation),
+        marketfeed_model::MarketEvent::MarkPrice(_)
+        | marketfeed_model::MarketEvent::IndexPrice(_) => Some(FamilyV1::ConfirmationPrice),
+        _ => None,
+    }
 }
 
 impl SourceStateMachine {
