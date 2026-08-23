@@ -106,6 +106,21 @@ pub enum UsdmDecoded {
     Unknown,
 }
 
+/// Routed-v4 timestamp provenance kept outside the stable [`UsdmDecoded`] API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UsdmRoutedV4SourceTimes {
+    pub event_time_ms: Option<i64>,
+    pub transaction_time_ms: Option<i64>,
+}
+
+/// Additive routed-v4 decode result with venue provenance separated from the
+/// legacy public decoded-event shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UsdmRoutedV4Decoded {
+    pub decoded: UsdmDecoded,
+    pub source_times: UsdmRoutedV4SourceTimes,
+}
+
 #[derive(Debug, Deserialize)]
 struct AggTradeMsg {
     s: String,
@@ -256,6 +271,35 @@ struct ResultMsg {
 pub fn decode_text(bytes: &[u8]) -> Result<UsdmDecoded, String> {
     let v: Value = crate::json::value_from_slice(bytes)?;
     decode_value(&v)
+}
+
+/// Decode one routed-v4 USD-M payload while retaining distinct venue `E` and
+/// `T`/`o.T` values without changing [`UsdmDecoded`].
+pub fn decode_routed_v4_text(bytes: &[u8]) -> Result<UsdmRoutedV4Decoded, String> {
+    let value: Value = crate::json::value_from_slice(bytes)?;
+    let decoded = decode_value(&value)?;
+    let payload = value.get("data").unwrap_or(&value);
+    let event_time_ms = payload.get("E").and_then(Value::as_i64);
+    let transaction_time_ms = match &decoded {
+        UsdmDecoded::AggTrade { exchange_ts_ms, .. }
+        | UsdmDecoded::OpenInterest { exchange_ts_ms, .. } => Some(*exchange_ts_ms),
+        UsdmDecoded::Quote { .. } | UsdmDecoded::DepthSnapshot { .. } => {
+            payload.get("T").and_then(Value::as_i64)
+        }
+        UsdmDecoded::DepthUpdate { .. } => payload.get("T").and_then(Value::as_i64),
+        UsdmDecoded::ForceOrder { .. } => payload
+            .get("o")
+            .and_then(|order| order.get("T"))
+            .and_then(Value::as_i64),
+        _ => None,
+    };
+    Ok(UsdmRoutedV4Decoded {
+        decoded,
+        source_times: UsdmRoutedV4SourceTimes {
+            event_time_ms,
+            transaction_time_ms,
+        },
+    })
 }
 
 /// Reference decode that always uses `serde_json` (parity oracle).

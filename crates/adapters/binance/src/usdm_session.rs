@@ -11,17 +11,41 @@ use marketfeed_adapter_api::{
 use marketfeed_book::{BookSynchronizer, OrderBook, SyncLimits, SyncState};
 use marketfeed_model::{
     BookChange, BookDelta, BookSide, BookSnapshot, Candle, CatalogView, ConnectionId,
-    EventEnvelope, EventFlags, FrameStamp, Funding, InstrumentId, Liquidation, MarketEvent,
-    OpenInterest, Price, PricePoint, Quantity, Quote, SequenceRange, SessionId, Statistics24h,
-    SystemEvent, TimestampNs, Trade,
+    EventEnvelope, EventFlags, FrameStamp, Funding, InstrumentId, InstrumentKind, Liquidation,
+    MarketEvent, OpenInterest, Price, PricePoint, Quantity, Quote, SequenceRange, SessionId,
+    Statistics24h, SystemEvent, TimestampNs, Trade,
 };
 
 use crate::messages::kline_stream_interval;
-use crate::usdm_messages::{UsdmDecoded, agg_id_source, decode_text, level_op, to_book_levels};
+use crate::usdm_messages::{
+    UsdmDecoded, UsdmRoutedV4SourceTimes, agg_id_source, decode_routed_v4_text, decode_text,
+    level_op, to_book_levels,
+};
 use crate::usdm_specification::{BINANCE_USDM_VENUE_ID, OI_POLL_INTERVAL_MS, OI_TIMER_ID};
 
 const SCHEMA_VERSION: u16 = 1;
 const MAX_BUFFERED_DEPTH_SPAN_NS: u64 = 5_000_000_000;
+const ROUTED_V4_SYMBOL: &str = "BNBUSDT";
+const ROUTED_V4_PUBLIC_ENDPOINT: &str = "wss://fstream.binance.com/public/ws";
+const ROUTED_V4_MARKET_ENDPOINT: &str = "wss://fstream.binance.com/market/ws";
+const MAX_ROUTED_SOURCE_MS: i64 = i64::MAX / 1_000_000;
+
+fn valid_routed_source_ms(value: i64) -> bool {
+    (0..=MAX_ROUTED_SOURCE_MS).contains(&value)
+}
+
+/// Immutable role of an E2 Binance USD-M routed session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinanceUsdmRouteV4 {
+    Public,
+    Market,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UsdmMode {
+    Legacy,
+    RoutedV4(BinanceUsdmRouteV4),
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PendingHttp {
@@ -58,6 +82,8 @@ impl Default for BinanceUsdmSessionConfig {
     }
 }
 
+type SourceTimes = UsdmRoutedV4SourceTimes;
+
 #[derive(Debug, Clone)]
 struct BufferedDepthEvent {
     first_u: u64,
@@ -65,7 +91,7 @@ struct BufferedDepthEvent {
     prev_u: u64,
     bids: Vec<(Price, Quantity)>,
     asks: Vec<(Price, Quantity)>,
-    exchange_ts_ms: i64,
+    source_times: SourceTimes,
     bytes_len: usize,
     received_mono_ns: u64,
 }
@@ -138,6 +164,7 @@ pub struct BinanceUsdmSession {
     /// ponytail: one pending map until typed HTTP correlation lands in adapter-api.
     pending_http: HashMap<u64, (String, PendingHttp)>,
     live: bool,
+    mode: UsdmMode,
 }
 
 impl BinanceUsdmSession {
@@ -178,6 +205,173 @@ impl BinanceUsdmSession {
             books,
             pending_http: HashMap::new(),
             live: false,
+            mode: UsdmMode::Legacy,
+        }
+    }
+
+    /// Construct the split, public-read-only BNBUSDT E2 route without changing
+    /// the legacy factory/session behavior.
+    fn try_new_routed_v4(
+        spec: SessionSpec,
+        catalog: CatalogView,
+        cfg: BinanceUsdmSessionConfig,
+        route: BinanceUsdmRouteV4,
+    ) -> Result<Self, AdapterError> {
+        let expected_endpoint = match route {
+            BinanceUsdmRouteV4::Public => ROUTED_V4_PUBLIC_ENDPOINT,
+            BinanceUsdmRouteV4::Market => ROUTED_V4_MARKET_ENDPOINT,
+        };
+        if spec.endpoint_name != expected_endpoint
+            || !spec.subscriptions.items.is_empty()
+            || cfg.symbols.as_slice() != [ROUTED_V4_SYMBOL]
+            || cfg.instrument_ids.len() != 1
+            || !cfg.instrument_ids.contains_key(ROUTED_V4_SYMBOL)
+            || cfg.connection.0 == 0
+            || cfg.session.0 == 0
+            || !cfg.candle_intervals.is_empty()
+            || cfg.enable_l2 != matches!(route, BinanceUsdmRouteV4::Public)
+        {
+            return Err(AdapterError::Subscription(
+                "invalid Binance USD-M routed v4 identity or topology".into(),
+            ));
+        }
+        let mut session = Self::new(spec, catalog, cfg);
+        session.mode = UsdmMode::RoutedV4(route);
+        Ok(session)
+    }
+
+    /// Construct the supported E2 routed topology as one checked pair.
+    pub fn try_new_routed_pair_v4(
+        public_spec: SessionSpec,
+        market_spec: SessionSpec,
+        catalog: CatalogView,
+        public_cfg: BinanceUsdmSessionConfig,
+        market_cfg: BinanceUsdmSessionConfig,
+    ) -> Result<(Self, Self), AdapterError> {
+        let configured_id = public_cfg.instrument_ids.get(ROUTED_V4_SYMBOL);
+        let catalog_row = catalog.find_by_native(ROUTED_V4_SYMBOL);
+        if public_cfg.connection == market_cfg.connection
+            || public_cfg.session == market_cfg.session
+            || public_cfg.instrument_ids != market_cfg.instrument_ids
+            || catalog.venue != BINANCE_USDM_VENUE_ID
+            || catalog_row.is_none_or(|instrument| {
+                Some(instrument.id) != configured_id.copied()
+                    || instrument.catalog_version != catalog.version
+                    || instrument.key.venue.0 != "binance-usdm"
+                    || instrument.base.0 != "BNB"
+                    || instrument.quote.0 != "USDT"
+                    || instrument.key.kind != InstrumentKind::PerpetualLinear
+                    || instrument
+                        .settlement
+                        .as_ref()
+                        .is_none_or(|asset| asset.0 != "USDT")
+                    || instrument
+                        .key
+                        .settlement
+                        .as_ref()
+                        .is_none_or(|asset| asset.0 != "USDT")
+                    || instrument.inverse
+                    || instrument.expiry_ns.is_some()
+                    || instrument.key.expiry_ns.is_some()
+            })
+        {
+            return Err(AdapterError::Subscription(
+                "routed v4 pair identities must be distinct and instrument-equal".into(),
+            ));
+        }
+        let public = Self::try_new_routed_v4(
+            public_spec,
+            catalog.clone(),
+            public_cfg,
+            BinanceUsdmRouteV4::Public,
+        )?;
+        let market =
+            Self::try_new_routed_v4(market_spec, catalog, market_cfg, BinanceUsdmRouteV4::Market)?;
+        Ok((public, market))
+    }
+
+    fn routed_v4(&self) -> Option<BinanceUsdmRouteV4> {
+        match self.mode {
+            UsdmMode::Legacy => None,
+            UsdmMode::RoutedV4(route) => Some(route),
+        }
+    }
+
+    fn validate_routed_ws(
+        &self,
+        decoded: &UsdmDecoded,
+        source_times: SourceTimes,
+    ) -> Result<(), AdapterError> {
+        let Some(route) = self.routed_v4() else {
+            return Ok(());
+        };
+        let valid = match (route, decoded) {
+            (BinanceUsdmRouteV4::Public, UsdmDecoded::Quote { symbol, .. }) => {
+                symbol == ROUTED_V4_SYMBOL
+                    && source_times
+                        .event_time_ms
+                        .is_some_and(valid_routed_source_ms)
+                    && source_times
+                        .transaction_time_ms
+                        .is_some_and(valid_routed_source_ms)
+            }
+            (
+                BinanceUsdmRouteV4::Public,
+                UsdmDecoded::DepthUpdate {
+                    symbol,
+                    first_update_id,
+                    final_update_id,
+                    prev_final_update_id,
+                    ..
+                },
+            ) => {
+                symbol == ROUTED_V4_SYMBOL
+                    && first_update_id <= final_update_id
+                    && *first_update_id <= i64::MAX as u64
+                    && *final_update_id <= i64::MAX as u64
+                    && *prev_final_update_id <= i64::MAX as u64
+                    && source_times
+                        .event_time_ms
+                        .is_some_and(valid_routed_source_ms)
+                    && source_times
+                        .transaction_time_ms
+                        .is_some_and(valid_routed_source_ms)
+            }
+            (BinanceUsdmRouteV4::Market, UsdmDecoded::AggTrade { symbol, agg_id, .. }) => {
+                symbol == ROUTED_V4_SYMBOL
+                    && *agg_id <= i64::MAX as u64
+                    && source_times
+                        .event_time_ms
+                        .is_some_and(valid_routed_source_ms)
+                    && source_times
+                        .transaction_time_ms
+                        .is_some_and(valid_routed_source_ms)
+            }
+            (BinanceUsdmRouteV4::Market, UsdmDecoded::OpenInterest { symbol, .. }) => {
+                symbol == ROUTED_V4_SYMBOL
+                    && source_times
+                        .transaction_time_ms
+                        .is_some_and(valid_routed_source_ms)
+            }
+            (BinanceUsdmRouteV4::Market, UsdmDecoded::ForceOrder { symbol, .. }) => {
+                symbol == ROUTED_V4_SYMBOL
+                    && source_times
+                        .event_time_ms
+                        .is_some_and(valid_routed_source_ms)
+                    && source_times
+                        .transaction_time_ms
+                        .is_some_and(valid_routed_source_ms)
+            }
+            (_, UsdmDecoded::SubscribeAck { id: Some(1) }) => true,
+            _ => false,
+        };
+        if valid {
+            Ok(())
+        } else {
+            Err(AdapterError::Protocol(
+                "message does not match Binance USD-M routed v4 role, symbol, or timestamp shape"
+                    .into(),
+            ))
         }
     }
 
@@ -256,6 +450,13 @@ impl BinanceUsdmSession {
     }
 
     fn request_open_interest(&mut self, symbol: &str, output: &mut ActionBuffer) {
+        if self.routed_v4() == Some(BinanceUsdmRouteV4::Market)
+            && self.pending_http.values().any(|(pending_symbol, kind)| {
+                pending_symbol == symbol && *kind == PendingHttp::OpenInterest
+            })
+        {
+            return;
+        }
         let id = self.alloc_http(symbol, PendingHttp::OpenInterest);
         output.push(SessionAction::RequestHttp(HttpRequestSpec {
             id,
@@ -286,6 +487,7 @@ impl BinanceUsdmSession {
     fn handle_decoded(
         &mut self,
         decoded: UsdmDecoded,
+        routed_source_times: Option<SourceTimes>,
         received: FrameStamp,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
@@ -306,7 +508,9 @@ impl BinanceUsdmSession {
                         frame_seq,
                         0,
                         received,
-                        Some(exchange_ts_ms),
+                        routed_source_times
+                            .and_then(|times| times.transaction_time_ms)
+                            .or(Some(exchange_ts_ms)),
                         Some(SequenceRange {
                             first: agg_id,
                             last: agg_id,
@@ -376,8 +580,8 @@ impl BinanceUsdmSession {
                         frame_seq,
                         0,
                         received,
-                        None,
-                        Some(SequenceRange {
+                        routed_source_times.and_then(|times| times.transaction_time_ms),
+                        self.routed_v4().is_none().then_some(SequenceRange {
                             first: update_id,
                             last: update_id,
                         }),
@@ -524,7 +728,10 @@ impl BinanceUsdmSession {
                     prev_final_update_id,
                     bids,
                     asks,
-                    exchange_ts_ms,
+                    routed_source_times.unwrap_or(SourceTimes {
+                        event_time_ms: Some(exchange_ts_ms),
+                        transaction_time_ms: None,
+                    }),
                     received,
                     output,
                 )?;
@@ -535,7 +742,18 @@ impl BinanceUsdmSession {
                 asks,
             } => {
                 if let Some(sym) = self.cfg.symbols.first().cloned() {
-                    self.apply_snapshot(&sym, last_update_id, &bids, &asks, received, output)?;
+                    self.apply_snapshot(
+                        &sym,
+                        last_update_id,
+                        routed_source_times.unwrap_or(SourceTimes {
+                            event_time_ms: None,
+                            transaction_time_ms: None,
+                        }),
+                        &bids,
+                        &asks,
+                        received,
+                        output,
+                    )?;
                 }
             }
             UsdmDecoded::OpenInterest {
@@ -574,7 +792,9 @@ impl BinanceUsdmSession {
                         frame_seq,
                         0,
                         received,
-                        Some(exchange_ts_ms),
+                        routed_source_times
+                            .and_then(|times| times.transaction_time_ms)
+                            .or(Some(exchange_ts_ms)),
                         None,
                         EventFlags::empty(),
                         MarketEvent::Liquidation(Liquidation {
@@ -587,11 +807,13 @@ impl BinanceUsdmSession {
                 );
             }
             UsdmDecoded::SubscribeAck { .. } => {
-                output.push(SessionAction::EmitSystem(
-                    SystemEvent::SubscriptionStateChanged {
-                        state: "subscribed".into(),
-                    },
-                ));
+                if self.routed_v4().is_none() {
+                    output.push(SessionAction::EmitSystem(
+                        SystemEvent::SubscriptionStateChanged {
+                            state: "subscribed".into(),
+                        },
+                    ));
+                }
                 if !self.cfg.enable_l2 && !self.live {
                     self.live = true;
                     output.push(SessionAction::MarkLive);
@@ -599,6 +821,11 @@ impl BinanceUsdmSession {
             }
             UsdmDecoded::Ignored => {}
             UsdmDecoded::Unknown => {
+                if self.routed_v4().is_some() {
+                    return Err(AdapterError::Protocol(
+                        "unknown Binance USD-M routed v4 message".into(),
+                    ));
+                }
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "binance-usdm".into(),
                 }));
@@ -615,7 +842,7 @@ impl BinanceUsdmSession {
         prev_u: u64,
         bids: Vec<(Price, Quantity)>,
         asks: Vec<(Price, Quantity)>,
-        exchange_ts_ms: i64,
+        source_times: SourceTimes,
         received: FrameStamp,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
@@ -632,7 +859,7 @@ impl BinanceUsdmSession {
             bytes_len: 64 + bids.len().saturating_mul(24) + asks.len().saturating_mul(24),
             bids,
             asks,
-            exchange_ts_ms,
+            source_times,
             received_mono_ns: received.mono_ns,
         };
 
@@ -747,13 +974,18 @@ impl BinanceUsdmSession {
 
         let instrument = self.instrument_for(symbol);
         let frame_seq = self.next_frame();
+        let authored_time_ms = if self.routed_v4() == Some(BinanceUsdmRouteV4::Public) {
+            event.source_times.transaction_time_ms
+        } else {
+            event.source_times.event_time_ms
+        };
         self.emit_one(
             self.envelope(
                 instrument,
                 frame_seq,
                 0,
                 received,
-                Some(event.exchange_ts_ms),
+                authored_time_ms,
                 Some(SequenceRange {
                     first: event.first_u,
                     last: event.final_u,
@@ -774,11 +1006,17 @@ impl BinanceUsdmSession {
         &mut self,
         symbol: &str,
         last_update_id: u64,
+        source_times: SourceTimes,
         bids: &[(Price, Quantity)],
         asks: &[(Price, Quantity)],
         received: FrameStamp,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
+        let authored_time_ms = if self.routed_v4() == Some(BinanceUsdmRouteV4::Public) {
+            source_times.transaction_time_ms
+        } else {
+            source_times.event_time_ms
+        };
         let Some(book) = self.books.get_mut(symbol) else {
             return Ok(());
         };
@@ -850,7 +1088,7 @@ impl BinanceUsdmSession {
                 frame_seq,
                 0,
                 received,
-                None,
+                authored_time_ms,
                 Some(SequenceRange {
                     first: last_update_id,
                     last: last_update_id,
@@ -865,9 +1103,11 @@ impl BinanceUsdmSession {
             ),
             output,
         );
-        output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
-            instrument,
-        }));
+        if self.routed_v4().is_none() {
+            output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
+                instrument,
+            }));
+        }
 
         for (index, ev) in pending.into_iter().enumerate() {
             self.apply_live_depth(symbol, &ev, index != 0, received, output)?;
@@ -909,19 +1149,31 @@ impl SessionMachine for BinanceUsdmSession {
                 let mut params = Vec::new();
                 for s in &self.cfg.symbols {
                     let lower = s.to_ascii_lowercase();
-                    // Prefer `@trade` — `@aggTrade` produces no frames on fstream (2026).
-                    params.push(format!("{lower}@trade"));
-                    params.push(format!("{lower}@bookTicker"));
-                    params.push(format!("{lower}@ticker"));
-                    params.push(format!("{lower}@markPrice@1s"));
-                    params.push(format!("{lower}@indexPrice@1s"));
-                    params.push(format!("{lower}@forceOrder"));
-                    if self.cfg.enable_l2 {
-                        params.push(format!("{lower}@depth@100ms"));
-                    }
-                    for interval in &self.cfg.candle_intervals {
-                        let suffix = kline_stream_interval(*interval);
-                        params.push(format!("{lower}@kline_{suffix}"));
+                    match self.routed_v4() {
+                        Some(BinanceUsdmRouteV4::Public) => {
+                            params.push(format!("{lower}@bookTicker"));
+                            params.push(format!("{lower}@depth@100ms"));
+                        }
+                        Some(BinanceUsdmRouteV4::Market) => {
+                            params.push(format!("{lower}@aggTrade"));
+                            params.push(format!("{lower}@forceOrder"));
+                        }
+                        None => {
+                            // Prefer `@trade` — `@aggTrade` produces no frames on fstream (2026).
+                            params.push(format!("{lower}@trade"));
+                            params.push(format!("{lower}@bookTicker"));
+                            params.push(format!("{lower}@ticker"));
+                            params.push(format!("{lower}@markPrice@1s"));
+                            params.push(format!("{lower}@indexPrice@1s"));
+                            params.push(format!("{lower}@forceOrder"));
+                            if self.cfg.enable_l2 {
+                                params.push(format!("{lower}@depth@100ms"));
+                            }
+                            for interval in &self.cfg.candle_intervals {
+                                let suffix = kline_stream_interval(*interval);
+                                params.push(format!("{lower}@kline_{suffix}"));
+                            }
+                        }
                     }
                 }
                 let body = serde_json::json!({
@@ -930,14 +1182,18 @@ impl SessionMachine for BinanceUsdmSession {
                     "id": 1
                 });
                 output.push(SessionAction::SendText(Bytes::from(body.to_string())));
-                output.push(SessionAction::EmitSystem(
-                    SystemEvent::ConnectionStateChanged {
-                        state: "connected".into(),
-                    },
-                ));
+                if self.routed_v4().is_none() {
+                    output.push(SessionAction::EmitSystem(
+                        SystemEvent::ConnectionStateChanged {
+                            state: "connected".into(),
+                        },
+                    ));
+                }
 
-                self.poll_open_interest_all(output);
-                self.schedule_oi_timer(now, output);
+                if self.routed_v4() != Some(BinanceUsdmRouteV4::Public) {
+                    self.poll_open_interest_all(output);
+                    self.schedule_oi_timer(now, output);
+                }
 
                 let symbols: Vec<_> = self.cfg.symbols.clone();
                 if self.cfg.enable_l2 {
@@ -961,32 +1217,58 @@ impl SessionMachine for BinanceUsdmSession {
                     book.clear_depth_buffer();
                 }
                 self.pending_http.clear();
-                output.push(SessionAction::CancelTimer(OI_TIMER_ID));
-                output.push(SessionAction::EmitSystem(
-                    SystemEvent::ConnectionStateChanged {
-                        state: "disconnected".into(),
-                    },
-                ));
+                if self.routed_v4() != Some(BinanceUsdmRouteV4::Public) {
+                    output.push(SessionAction::CancelTimer(OI_TIMER_ID));
+                }
+                if self.routed_v4().is_none() {
+                    output.push(SessionAction::EmitSystem(
+                        SystemEvent::ConnectionStateChanged {
+                            state: "disconnected".into(),
+                        },
+                    ));
+                }
                 Ok(())
             }
-            SessionInput::TextFrame { bytes, received } => match decode_text(bytes) {
-                Ok(decoded) => self.handle_decoded(decoded, received, output),
-                Err(e) => {
-                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
-                        detail: e,
-                    }));
-                    Ok(())
+            SessionInput::TextFrame { bytes, received } => {
+                if self.routed_v4().is_some() {
+                    let routed = decode_routed_v4_text(bytes).map_err(AdapterError::Parse)?;
+                    self.validate_routed_ws(&routed.decoded, routed.source_times)?;
+                    self.handle_decoded(routed.decoded, Some(routed.source_times), received, output)
+                } else {
+                    match decode_text(bytes) {
+                        Ok(decoded) => self.handle_decoded(decoded, None, received, output),
+                        Err(e) => {
+                            output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                                detail: e,
+                            }));
+                            Ok(())
+                        }
+                    }
                 }
-            },
+            }
             SessionInput::HttpResponse {
                 request_id,
                 response,
                 received,
             } => {
-                let Some((symbol, kind)) = self.pending_http.remove(&request_id) else {
+                let Some((symbol, kind)) = self.pending_http.get(&request_id).cloned() else {
+                    if self.routed_v4().is_some() {
+                        return Err(AdapterError::Protocol(format!(
+                            "unknown or retired routed v4 HTTP request id {request_id}"
+                        )));
+                    }
                     return Ok(());
                 };
+                if self.routed_v4().is_none() {
+                    self.pending_http.remove(&request_id);
+                }
                 if response.status != 200 {
+                    if self.routed_v4().is_some() {
+                        return Err(AdapterError::Protocol(format!(
+                            "routed v4 HTTP {} for {:?}",
+                            response.status, kind
+                        )));
+                    }
                     output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
                         detail: format!("usdm HTTP {} for {:?}", response.status, kind),
                     }));
@@ -996,45 +1278,106 @@ impl SessionMachine for BinanceUsdmSession {
                     return Ok(());
                 }
                 match kind {
-                    PendingHttp::DepthSnapshot => match decode_text(&response.body) {
-                        Ok(UsdmDecoded::DepthSnapshot {
-                            last_update_id,
-                            bids,
-                            asks,
-                        }) => {
-                            if let Some(book) = self.books.get_mut(&symbol) {
-                                book.snapshot_req_id = None;
+                    PendingHttp::DepthSnapshot => {
+                        let decoded = if self.routed_v4().is_some() {
+                            decode_routed_v4_text(&response.body)
+                                .map(|routed| (routed.decoded, Some(routed.source_times)))
+                        } else {
+                            decode_text(&response.body).map(|decoded| (decoded, None))
+                        };
+                        match decoded {
+                            Ok((
+                                UsdmDecoded::DepthSnapshot {
+                                    last_update_id,
+                                    bids,
+                                    asks,
+                                },
+                                routed_source_times,
+                            )) => {
+                                let source_times = routed_source_times.unwrap_or(SourceTimes {
+                                    event_time_ms: None,
+                                    transaction_time_ms: None,
+                                });
+                                if self.routed_v4().is_some()
+                                    && (last_update_id > i64::MAX as u64
+                                        || !source_times
+                                            .event_time_ms
+                                            .is_some_and(valid_routed_source_ms)
+                                        || !source_times
+                                            .transaction_time_ms
+                                            .is_some_and(valid_routed_source_ms))
+                                {
+                                    return Err(AdapterError::Protocol(
+                                    "routed v4 depth snapshot requires bounded E, T, and lastUpdateId"
+                                        .into(),
+                                ));
+                                }
+                                self.pending_http.remove(&request_id);
+                                if let Some(book) = self.books.get_mut(&symbol) {
+                                    book.snapshot_req_id = None;
+                                }
+                                self.apply_snapshot(
+                                    &symbol,
+                                    last_update_id,
+                                    source_times,
+                                    &bids,
+                                    &asks,
+                                    received,
+                                    output,
+                                )
                             }
-                            self.apply_snapshot(
-                                &symbol,
-                                last_update_id,
-                                &bids,
-                                &asks,
-                                received,
-                                output,
-                            )
+                            Ok(_) | Err(_) => {
+                                if self.routed_v4().is_some() {
+                                    return Err(AdapterError::Parse(
+                                        "bad routed v4 depth snapshot body".into(),
+                                    ));
+                                }
+                                output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                                    detail: "bad usdm depth snapshot body".into(),
+                                }));
+                                Ok(())
+                            }
                         }
-                        Ok(_) | Err(_) => {
-                            output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
-                                detail: "bad usdm depth snapshot body".into(),
-                            }));
-                            Ok(())
+                    }
+                    PendingHttp::OpenInterest => {
+                        let decoded = if self.routed_v4().is_some() {
+                            decode_routed_v4_text(&response.body)
+                                .map(|routed| (routed.decoded, Some(routed.source_times)))
+                        } else {
+                            decode_text(&response.body).map(|decoded| (decoded, None))
+                        };
+                        match decoded {
+                            Ok((
+                                decoded @ UsdmDecoded::OpenInterest { .. },
+                                routed_source_times,
+                            )) => {
+                                if let Some(source_times) = routed_source_times {
+                                    self.validate_routed_ws(&decoded, source_times)?;
+                                }
+                                self.pending_http.remove(&request_id);
+                                self.handle_decoded(decoded, routed_source_times, received, output)
+                            }
+                            Ok(_) | Err(_) => {
+                                if self.routed_v4().is_some() {
+                                    return Err(AdapterError::Parse(
+                                        "bad routed v4 openInterest body".into(),
+                                    ));
+                                }
+                                output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                                    detail: "bad usdm openInterest body".into(),
+                                }));
+                                Ok(())
+                            }
                         }
-                    },
-                    PendingHttp::OpenInterest => match decode_text(&response.body) {
-                        Ok(decoded @ UsdmDecoded::OpenInterest { .. }) => {
-                            self.handle_decoded(decoded, received, output)
-                        }
-                        Ok(_) | Err(_) => {
-                            output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
-                                detail: "bad usdm openInterest body".into(),
-                            }));
-                            Ok(())
-                        }
-                    },
+                    }
                 }
             }
             SessionInput::BinaryFrame { .. } => {
+                if self.routed_v4().is_some() {
+                    return Err(AdapterError::Protocol(
+                        "binary frame is not admitted by Binance USD-M routed v4".into(),
+                    ));
+                }
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "binary".into(),
                 }));
@@ -1042,7 +1385,7 @@ impl SessionMachine for BinanceUsdmSession {
             }
             SessionInput::Pong { .. } => Ok(()),
             SessionInput::Timer { timer_id, now } => {
-                if timer_id == OI_TIMER_ID {
+                if timer_id == OI_TIMER_ID && self.routed_v4() != Some(BinanceUsdmRouteV4::Public) {
                     self.poll_open_interest_all(output);
                     self.schedule_oi_timer(now, output);
                 }
@@ -1062,10 +1405,14 @@ impl SessionMachine for BinanceUsdmSession {
                                 book.clear_depth_buffer();
                                 book.buffering = true;
                             }
-                            if self.cfg.enable_l2 {
+                            if self.routed_v4() != Some(BinanceUsdmRouteV4::Market)
+                                && self.cfg.enable_l2
+                            {
                                 self.request_depth_snapshot(&sym, output);
                             }
-                            self.request_open_interest(&sym, output);
+                            if self.routed_v4() != Some(BinanceUsdmRouteV4::Public) {
+                                self.request_open_interest(&sym, output);
+                            }
                         }
                     }
                     _ => {}
