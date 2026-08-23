@@ -17,8 +17,34 @@ pub const SNAPSHOT_V2_CONTRACT_SHA256: &str =
     "b9062e8e8bdc08e61f92b7890fe4d1dcebbb2eb975cc145c34ddf19f94be28af";
 
 const MAX_E1_DERIVED_FRAME: u64 = 2_147_483_647;
+const MAX_FAMILY_FAULT_EVENTS: usize = 6 * 256;
 const SNAPSHOT_V2_CONTRACT_BYTES: &[u8] =
     include_bytes!("../contracts/snapshot-v2/event-pulse-e2-snapshot-v2-contract.json");
+
+type FamilyKeyV2 = (ContributorKeyV1, FamilyV1);
+
+#[derive(Debug, Clone)]
+struct FamilyFaultEventV2 {
+    order: crate::replay_v2::ReplayOrderKeyV2,
+    key: FamilyKeyV2,
+    generation: u8,
+    cause: Cause,
+    kind: FamilyFaultKindV2,
+}
+
+#[derive(Debug, Clone)]
+enum FamilyFaultKindV2 {
+    RejectedInput(MechanicsInputV2),
+    QueueDrop { epoch: String, available_at_ns: i64 },
+}
+
+#[derive(Debug)]
+struct MarketIdentityV2 {
+    key: FamilyKeyV2,
+    epoch: String,
+    generation: u8,
+    available_at_ns: i64,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum SnapshotV2Error {
@@ -37,6 +63,8 @@ pub struct SnapshotProcessorV2 {
     sources: SourceStateMachineV2,
     runtime: FeatureRuntime,
     records: VecDeque<MechanicsInputV2>,
+    fault_events: VecDeque<FamilyFaultEventV2>,
+    active_family_causes: BTreeMap<FamilyKeyV2, Cause>,
     last_order: Option<crate::replay_v2::ReplayOrderKeyV2>,
     sealed_micros: Option<i64>,
     last_decision_micros: Option<i64>,
@@ -65,6 +93,16 @@ impl SnapshotProcessorV2 {
             sources: SourceStateMachineV2::new(config.clone()),
             runtime: FeatureRuntime::new(&config)?,
             records: VecDeque::with_capacity(PROCESSOR_RECORD_CAPACITY),
+            fault_events: VecDeque::with_capacity(MAX_FAMILY_FAULT_EVENTS),
+            active_family_causes: config
+                .contributors()
+                .iter()
+                .flat_map(|spec| {
+                    spec.allowed_families()
+                        .iter()
+                        .map(move |family| ((spec.key().clone(), *family), Cause::None))
+                })
+                .collect(),
             last_order: None,
             sealed_micros: None,
             last_decision_micros: None,
@@ -115,23 +153,124 @@ impl SnapshotProcessorV2 {
             }
             .into());
         }
+        let identity = market_identity(input)?;
         if self.records.len() >= PROCESSOR_RECORD_CAPACITY {
+            if let Some(identity) = identity {
+                self.latch_queue_drop(&order, &identity)?;
+                self.last_order = Some(order);
+            }
             return Err(SnapshotError::Capacity.into());
         }
         let mut candidate_sources = self.sources.clone();
-        let outcome = candidate_sources
-            .ingest(input)
-            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        let outcome = match candidate_sources.ingest(input) {
+            Ok(outcome) => outcome,
+            Err(error) => {
+                if error.invalidates_state() {
+                    if let Some(identity) = identity {
+                        let mut runtime = self.runtime.clone();
+                        runtime.invalidate_family(&identity.key.0, identity.key.1)?;
+                        let cause = if identity.key.1 == FamilyV1::Book {
+                            Cause::Book(identity.generation)
+                        } else {
+                            Cause::Sequence(identity.generation)
+                        };
+                        let mut fault_events = self.fault_events.clone();
+                        let mut active_causes = self.active_family_causes.clone();
+                        push_family_fault(
+                            &mut fault_events,
+                            &mut active_causes,
+                            FamilyFaultEventV2 {
+                                order: order.clone(),
+                                key: identity.key,
+                                generation: identity.generation,
+                                cause,
+                                kind: FamilyFaultKindV2::RejectedInput(input.clone()),
+                            },
+                        )?;
+                        self.sources = candidate_sources;
+                        self.runtime = runtime;
+                        self.fault_events = fault_events;
+                        self.active_family_causes = active_causes;
+                        self.last_order = Some(order);
+                    }
+                }
+                return Err(SnapshotError::InvalidInput(error.to_string()).into());
+            }
+        };
         let mut candidate_runtime = self.runtime.clone();
         if outcome != IngestOutcome::IgnoredDuplicate {
-            candidate_runtime.ingest_v2(input, &self.config, &candidate_sources)?;
+            if let Err(error) = candidate_runtime.ingest_v2(input, &self.config, &candidate_sources)
+            {
+                if error == SnapshotError::FeatureQueueDrop {
+                    let identity = identity.ok_or_else(|| {
+                        SnapshotError::InvalidInput(
+                            "non-market feature capacity has no family slot".into(),
+                        )
+                    })?;
+                    self.latch_queue_drop(&order, &identity)?;
+                    self.last_order = Some(order);
+                }
+                return Err(error.into());
+            }
             self.records.push_back(input.clone());
+        }
+        let mut active_causes = self.active_family_causes.clone();
+        if let Some(identity) = &identity {
+            if active_causes
+                .get(&identity.key)
+                .copied()
+                .is_some_and(|cause| {
+                    cause != Cause::None && identity.generation > cause_generation(cause)
+                })
+            {
+                active_causes.insert(identity.key.clone(), Cause::None);
+            }
         }
         self.sources = candidate_sources;
         self.runtime = candidate_runtime;
+        self.active_family_causes = active_causes;
         self.last_order = Some(order);
-        self.cache = None;
         Ok(outcome)
+    }
+
+    fn latch_queue_drop(
+        &mut self,
+        order: &crate::replay_v2::ReplayOrderKeyV2,
+        identity: &MarketIdentityV2,
+    ) -> Result<(), SnapshotV2Error> {
+        let mut sources = self.sources.clone();
+        sources
+            .invalidate_market_family_for_queue_drop(
+                &identity.key.0,
+                identity.key.1,
+                &identity.epoch,
+                identity.generation,
+                identity.available_at_ns,
+            )
+            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        let mut runtime = self.runtime.clone();
+        runtime.invalidate_family(&identity.key.0, identity.key.1)?;
+        let mut fault_events = self.fault_events.clone();
+        let mut active_causes = self.active_family_causes.clone();
+        push_family_fault(
+            &mut fault_events,
+            &mut active_causes,
+            FamilyFaultEventV2 {
+                order: order.clone(),
+                key: identity.key.clone(),
+                generation: identity.generation,
+                cause: Cause::QueueDrop(identity.generation),
+                kind: FamilyFaultKindV2::QueueDrop {
+                    epoch: identity.epoch.clone(),
+                    available_at_ns: identity.available_at_ns,
+                },
+            },
+        )?;
+        self.sources = sources;
+        self.runtime = runtime;
+        self.fault_events = fault_events;
+        self.active_family_causes = active_causes;
+        Ok(())
     }
 
     pub fn snapshot(
@@ -154,7 +293,7 @@ impl SnapshotProcessorV2 {
             return Err(SnapshotError::DecisionTimeRegression.into());
         }
 
-        let (sources, runtime, clocks, available_micros, mut phase) =
+        let (sources, runtime, clocks, available_micros, mut phase, family_causes) =
             self.replay_prefix(decision_micros)?;
         let cursors = project_cursors(&self.config, &sources)?;
         if cursors.len() != 15 {
@@ -179,6 +318,7 @@ impl SnapshotProcessorV2 {
             decision_micros,
             available_micros,
             clocks,
+            &family_causes,
         )?;
         observation.cursors = cursors;
         let mut decision_evidence = derive_evidence(&observation)?;
@@ -195,6 +335,7 @@ impl SnapshotProcessorV2 {
             decision_micros,
             available_micros,
             observation.clocks,
+            &family_causes,
         )?;
         observation.cursors = project_cursors(&self.config, &sources)?;
 
@@ -223,13 +364,36 @@ impl SnapshotProcessorV2 {
         let mut sources = SourceStateMachineV2::new(self.config.clone());
         let mut runtime = FeatureRuntime::new(&self.config)?;
         let mut clocks = BTreeMap::new();
+        let mut family_causes = self
+            .active_family_causes
+            .keys()
+            .cloned()
+            .map(|key| (key, Cause::None))
+            .collect::<BTreeMap<_, _>>();
         let mut available_micros = i64::MIN;
         let mut phase = PhaseMachine::new();
         let mut group_at = None;
-        for input in self.records.iter().filter(|input| {
-            order_v2(input).is_ok_and(|order| order.available_micros() <= decision_micros)
-        }) {
-            let order = order_v2(input)?;
+        enum ReplayItemV2<'a> {
+            Accepted(&'a MechanicsInputV2),
+            Fault(&'a FamilyFaultEventV2),
+        }
+        let timeline_capacity = self
+            .records
+            .len()
+            .checked_add(self.fault_events.len())
+            .ok_or(SnapshotError::Capacity)?;
+        let mut timeline = Vec::with_capacity(timeline_capacity);
+        for input in &self.records {
+            timeline.push((order_v2(input)?, ReplayItemV2::Accepted(input)));
+        }
+        for fault in &self.fault_events {
+            timeline.push((fault.order.clone(), ReplayItemV2::Fault(fault)));
+        }
+        timeline.sort_by(|left, right| left.0.cmp(&right.0));
+        for (order, item) in timeline
+            .into_iter()
+            .filter(|(order, _)| order.available_micros() <= decision_micros)
+        {
             if group_at.is_some_and(|at| at != order.available_micros()) {
                 let observation = observation_from_state(
                     &self.config,
@@ -240,18 +404,61 @@ impl SnapshotProcessorV2 {
                     group_at.expect("group exists"),
                     available_micros,
                     clocks.values().cloned().collect(),
+                    &family_causes,
                 )?;
                 phase
                     .observe(&derive_evidence(&observation)?)
                     .map_err(phase_error)?;
             }
             group_at = Some(order.available_micros());
-            let outcome = sources.ingest(input).map_err(|error| {
-                SnapshotError::Contract(format!("accepted V2 replay failed: {error}"))
-            })?;
-            if outcome != IngestOutcome::IgnoredDuplicate {
-                runtime.ingest_v2(input, &self.config, &sources)?;
-                update_clock_and_availability(input, &mut clocks, &mut available_micros)?;
+            match item {
+                ReplayItemV2::Accepted(input) => {
+                    let outcome = sources.ingest(input).map_err(|error| {
+                        SnapshotError::Contract(format!("accepted V2 replay failed: {error}"))
+                    })?;
+                    if outcome != IngestOutcome::IgnoredDuplicate {
+                        runtime.ingest_v2(input, &self.config, &sources)?;
+                        update_clock_and_availability(input, &mut clocks, &mut available_micros)?;
+                    }
+                    if let Some(identity) = market_identity(input)? {
+                        if family_causes
+                            .get(&identity.key)
+                            .copied()
+                            .is_some_and(|cause| {
+                                cause != Cause::None
+                                    && identity.generation > cause_generation(cause)
+                            })
+                        {
+                            family_causes.insert(identity.key, Cause::None);
+                        }
+                    }
+                }
+                ReplayItemV2::Fault(fault) => {
+                    match &fault.kind {
+                        FamilyFaultKindV2::RejectedInput(input) => {
+                            if sources.ingest(input).is_ok() {
+                                return Err(SnapshotError::Contract(
+                                    "rejected V2 state replay unexpectedly succeeded".into(),
+                                )
+                                .into());
+                            }
+                        }
+                        FamilyFaultKindV2::QueueDrop {
+                            epoch,
+                            available_at_ns,
+                        } => sources
+                            .invalidate_market_family_for_queue_drop(
+                                &fault.key.0,
+                                fault.key.1,
+                                epoch,
+                                fault.generation,
+                                *available_at_ns,
+                            )
+                            .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?,
+                    }
+                    runtime.invalidate_family(&fault.key.0, fault.key.1)?;
+                    family_causes.insert(fault.key.clone(), fault.cause);
+                }
             }
         }
         if let Some(at) = group_at.filter(|at| *at < decision_micros) {
@@ -264,6 +471,7 @@ impl SnapshotProcessorV2 {
                 at,
                 available_micros,
                 clocks.values().cloned().collect(),
+                &family_causes,
             )?;
             phase
                 .observe(&derive_evidence(&observation)?)
@@ -278,8 +486,90 @@ impl SnapshotProcessorV2 {
             clocks.into_values().collect(),
             available_micros,
             phase,
+            family_causes,
         ))
     }
+}
+
+fn push_family_fault(
+    events: &mut VecDeque<FamilyFaultEventV2>,
+    active: &mut BTreeMap<FamilyKeyV2, Cause>,
+    event: FamilyFaultEventV2,
+) -> Result<(), SnapshotV2Error> {
+    let current = active
+        .get(&event.key)
+        .copied()
+        .ok_or_else(|| SnapshotError::InvalidInput("unconfigured family cause slot".into()))?;
+    if current != Cause::None && cause_generation(current) >= event.generation {
+        return Ok(());
+    }
+    if events.len() >= MAX_FAMILY_FAULT_EVENTS {
+        return Err(SnapshotError::Capacity.into());
+    }
+    active.insert(event.key.clone(), event.cause);
+    events.push_back(event);
+    Ok(())
+}
+
+fn cause_generation(cause: Cause) -> u8 {
+    match cause {
+        Cause::Sequence(generation)
+        | Cause::Book(generation)
+        | Cause::QueueDrop(generation)
+        | Cause::Warmup(generation) => generation,
+        Cause::None => 0,
+    }
+}
+
+fn market_identity(input: &MechanicsInputV2) -> Result<Option<MarketIdentityV2>, SnapshotV2Error> {
+    let MechanicsInputRefV2::Market {
+        envelope, catalog, ..
+    } = input.view()
+    else {
+        return Ok(None);
+    };
+    let venue = catalog
+        .venue_source(envelope.venue.0)
+        .ok_or_else(|| SnapshotError::InvalidInput("venue mapping".into()))?;
+    let instrument_id = envelope
+        .instrument
+        .ok_or_else(|| SnapshotError::InvalidInput("instrument mapping".into()))?;
+    let instrument = catalog
+        .instrument(instrument_id.0)
+        .ok_or_else(|| SnapshotError::InvalidInput("instrument mapping".into()))?;
+    let contributor = ContributorKeyV1::new(venue.source_id(), instrument.clone())
+        .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+    let family = match envelope.payload {
+        MarketEvent::Trade(_) => FamilyV1::Trade,
+        MarketEvent::Quote(_) => FamilyV1::Quote,
+        MarketEvent::BookSnapshot(_) | MarketEvent::BookDelta(_) => FamilyV1::Book,
+        MarketEvent::OpenInterest(_) => FamilyV1::OpenInterest,
+        MarketEvent::Liquidation(_) => FamilyV1::Liquidation,
+        MarketEvent::MarkPrice(_) | MarketEvent::IndexPrice(_) => FamilyV1::ConfirmationPrice,
+        _ => {
+            return Err(SnapshotError::InvalidInput("unsupported V2 market family".into()).into());
+        }
+    };
+    let epoch = catalog
+        .connection_epochs()
+        .iter()
+        .find(|entry| {
+            entry.connection_id() == envelope.connection.0
+                && entry.session_id() == envelope.session.0
+        })
+        .ok_or_else(|| SnapshotError::InvalidInput("epoch mapping".into()))?;
+    let available_at_ns = envelope
+        .receive_ts
+        .0
+        .div_euclid(1_000)
+        .checked_mul(1_000)
+        .ok_or(SnapshotError::Capacity)?;
+    Ok(Some(MarketIdentityV2 {
+        key: (contributor, family),
+        epoch: epoch.connection_epoch().to_owned(),
+        generation: epoch.epoch_generation(),
+        available_at_ns,
+    }))
 }
 
 fn verify_snapshot_v2_contract() -> Result<(), SnapshotV2Error> {
@@ -310,6 +600,7 @@ type ReplayStateV2 = (
     Vec<ClockEvidence>,
     i64,
     PhaseMachine,
+    BTreeMap<FamilyKeyV2, Cause>,
 );
 
 impl FeatureRuntime {
@@ -421,7 +712,7 @@ impl FeatureRuntime {
                     SnapshotError::InvalidInput("book delta requires native cursor".into())
                 })?;
                 projection
-                    .delta_native(delta, SequenceRange { first, last }, at_ns)
+                    .delta_native_v2(delta, SequenceRange { first, last }, at_ns)
                     .map_err(|error| SnapshotError::Contract(error.to_string()))?;
                 self.push(
                     &contributor,
@@ -531,6 +822,17 @@ impl FeatureRuntime {
         )?;
         self.retained_anchor = Some(RetainedMarketAnchor {
             owner: contributor.clone(),
+            family: match envelope.payload {
+                MarketEvent::Trade(_) => FamilyV1::Trade,
+                MarketEvent::Quote(_) => FamilyV1::Quote,
+                MarketEvent::BookSnapshot(_) | MarketEvent::BookDelta(_) => FamilyV1::Book,
+                MarketEvent::OpenInterest(_) => FamilyV1::OpenInterest,
+                MarketEvent::Liquidation(_) => FamilyV1::Liquidation,
+                MarketEvent::MarkPrice(_) | MarketEvent::IndexPrice(_) => {
+                    FamilyV1::ConfirmationPrice
+                }
+                _ => unreachable!("unsupported returned above"),
+            },
             anchor,
             fallback_eligible: sources.market_state(
                 &contributor,
@@ -650,6 +952,7 @@ fn observation_from_state(
     decision_micros: i64,
     available_micros: i64,
     clocks: Vec<ClockEvidence>,
+    family_causes: &BTreeMap<FamilyKeyV2, Cause>,
 ) -> Result<SnapshotObservation, SnapshotV2Error> {
     let mut proxy = MechanicsProcessor::new(config.clone(), authoring.clone())?;
     let placeholder = placeholder_observation(available_micros, clocks)?;
@@ -685,6 +988,10 @@ fn observation_from_state(
                                 .unwrap_or(SlotState::Cold),
                             invalid: sources.market_invalidity(spec.key(), *family).is_some(),
                             generation: cursor.as_ref().map_or(0, |view| view.epoch_generation),
+                            cause: family_causes
+                                .get(&(spec.key().clone(), *family))
+                                .copied()
+                                .unwrap_or(Cause::None),
                         },
                     )
                 })

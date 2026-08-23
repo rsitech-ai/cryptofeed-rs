@@ -54,3 +54,40 @@ The regression remained and turned GREEN only after the additive public API and 
 - No fixture or evidence package was authored.
 - No MFR transformer, adapter, capture, filesystem, network, runtime, source-qualification, paper, canary, live, execution, or trading surface changed.
 - This slice does not promote EventPulse beyond its existing evidence/risk-only authority ceiling.
+
+## Reviewer repair successor
+
+### RED
+
+The focused successor suite compiled 12 tests and failed five direct counterexamples before the repair:
+
+- rejected native gap snapshot lacked `SEQUENCE_GAP`;
+- mutated duplicate snapshot lacked `SEQUENCE_GAP`;
+- Binance snapshot-overlap Book delta failed with `book delta sequence is not contiguous`;
+- a cached decision `T` was re-authored with a new revision after ingest at `T+1`;
+- the exact-family feature-capacity failure did not author `QUEUE_DROP`.
+
+An additional optional-family regression then exposed that a family cause could author a flag without participating in feature owner eligibility; the OI row incorrectly selected `INSUFFICIENT_COVERAGE` instead of exact `SOURCE_INVALIDATED`.
+
+### GREEN
+
+- Rejected state-invalidating V2 MARKET inputs now commit only the invalidating candidate family state plus a preallocated, generation-bounded family fault event. They never become feature, clock, coverage, causal, or availability evidence.
+- Family causes are replayed in authoritative input order, clear only on a valid greater generation for the same family, and participate in feature eligibility as well as flags.
+- Exact-family feature capacity latches `QUEUE_DROP`, clears that family's feature/book/causal contribution, blocks same-generation evidence, and admits greater-generation recovery. An optional OI mutation invalidates only `open_interest_change`; the Trade feature does not inherit `SOURCE_INVALIDATED`.
+- V2 Book feature projection distinguishes snapshot from delta: the first delta accepts `U <= lastUpdateId <= u`; later deltas use the cursor-validated exact `pu` chain. V1 Book behavior remains unchanged.
+- A successful cached decision remains byte- and revision-identical after admissible future input; only a successful later decision replaces the cache and advances predecessor/revision.
+
+### Successor gate evidence
+
+- `cargo test -p marketfeed-event-pulse --test snapshot_v2`: 13 passed.
+- `cargo test -p marketfeed-event-pulse --all-targets --all-features`: passed, including 54 V1 snapshot-mechanics tests.
+- `cargo +1.85 test -p marketfeed-event-pulse --all-targets --all-features`: passed.
+- `cargo test --workspace --all-targets --all-features`: passed.
+- `cargo +1.85 test --workspace --all-targets --all-features`: passed.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`: passed.
+- `cargo +1.85.0 clippy --workspace --all-targets --all-features -- -D warnings`: passed. (`+1.85` lacks the installed Clippy component; `+1.85.0` is the pinned installed Clippy toolchain.)
+- `cargo fmt --all -- --check`: passed.
+- `cargo deny --offline --locked check`: `advisories ok, bans ok, licenses ok, sources ok`.
+- `git diff --check`: passed.
+
+The successor remains repo-ready library evidence only. Fixture provenance, source qualification, capture, runtime, deployment, execution, and trading authority remain outside scope and unverified.

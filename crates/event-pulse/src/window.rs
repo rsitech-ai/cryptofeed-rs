@@ -351,6 +351,17 @@ impl<T> WindowBank<T> {
         Ok(())
     }
 
+    pub(crate) fn invalidate_configured_key(&mut self, key: &WindowKey) -> Result<(), WindowError> {
+        let window = self
+            .windows
+            .get_mut(key)
+            .ok_or(WindowError::UnconfiguredKey)?;
+        self.total_records -= window.len();
+        window.records.clear();
+        window.invalid = true;
+        Ok(())
+    }
+
     pub fn advance_source_epoch(
         &mut self,
         source: &WindowSource,

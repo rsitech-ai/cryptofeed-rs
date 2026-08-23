@@ -5,6 +5,7 @@ use marketfeed_event_pulse::{
     MarketCursorV2, MechanicsInputV2, MechanicsInputV2JsonlReader, MechanicsInputV2JsonlWriter,
     ProspectiveCaptureAdmissionV2, ProspectiveSystemArtifactPolicyV2, SnapshotProcessorV2,
     SnapshotV2Error, SourceProvenanceV2,
+    snapshot::SnapshotError,
     snapshot::{SNAPSHOT_V2_CONTRACT_SHA256, SNAPSHOT_V2_ROOT_MERGE, SNAPSHOT_V2_ROOT_TREE},
     wire::{
         CanonicalDecimal, ClockCursorV1, ClockQualityV1, ClockSourceV1, ClockStateV1,
@@ -14,9 +15,10 @@ use marketfeed_event_pulse::{
     },
 };
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookSnapshot, ConnectionId, EventEnvelope, EventFlags, Fixed,
-    InstrumentId, Liquidation, MarketEvent, OpenInterest, Price, PricePoint, Quantity, Quote,
-    SequenceRange, SessionId, TimestampNs, Trade, VenueId,
+    AggressorSide, BookChange, BookDelta, BookLevel, BookOperation, BookSide, BookSnapshot,
+    ConnectionId, EventEnvelope, EventFlags, Fixed, InstrumentId, Liquidation, MarketEvent,
+    OpenInterest, Price, PricePoint, Quantity, Quote, SequenceRange, SessionId, TimestampNs, Trade,
+    VenueId,
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -377,6 +379,199 @@ fn retimed_quote(
     MechanicsInputV2::from_json_line(&serde_json::to_vec(&value).unwrap()).unwrap()
 }
 
+fn rehash_value(mut value: Value) -> MechanicsInputV2 {
+    value.as_object_mut().unwrap().remove("payload_hash");
+    value["payload_hash"] = json!(marketfeed_event_pulse::content_hash(&value).unwrap());
+    MechanicsInputV2::from_json_line(&serde_json::to_vec(&value).unwrap()).unwrap()
+}
+
+fn market_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at_offset_ms: i64,
+    generation: u8,
+) -> Value {
+    let mut value = serde_json::to_value(input).unwrap();
+    let at_ns = admission.capture_starts_at().utc_micros() * 1_000 + at_offset_ms * 1_000_000;
+    let at_ms = u64::try_from(at_ns.div_euclid(1_000_000)).unwrap();
+    value["envelope"]["frame_seq"] = json!(frame);
+    value["envelope"]["exchange_ts"] = json!(at_ns);
+    value["envelope"]["receive_ts"] = json!(at_ns);
+    let connection = value["envelope"]["connection"].clone();
+    let session = value["envelope"]["session"].clone();
+    if generation > 0 {
+        for entry in value["catalog"]["connection_epochs"]
+            .as_array_mut()
+            .unwrap()
+        {
+            if entry["connection_id"] == connection && entry["session_id"] == session {
+                entry["connection_epoch"] = json!(format!("epoch_recovery_{generation}"));
+                entry["epoch_generation"] = json!(generation);
+            }
+        }
+    }
+    if let Some(provenance) = value["source_provenance"].as_object_mut() {
+        for field in [
+            "event_time_ms",
+            "trade_time_ms",
+            "transaction_time_ms",
+            "source_time_ms",
+            "order_trade_time_ms",
+        ] {
+            if provenance.contains_key(field) {
+                provenance.insert(field.to_owned(), json!(at_ms));
+            }
+        }
+    }
+    value
+}
+
+fn native_trade_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    sequence: u64,
+    frame: u64,
+    at_offset_ms: i64,
+    generation: u8,
+) -> MechanicsInputV2 {
+    let mut value = market_at(input, admission, frame, at_offset_ms, generation);
+    value["envelope"]["source_sequence"]["first"] = json!(sequence);
+    value["envelope"]["source_sequence"]["last"] = json!(sequence);
+    value["market_cursor"]["first_sequence"] = json!(sequence);
+    value["market_cursor"]["last_sequence"] = json!(sequence);
+    value["source_provenance"]["aggregate_trade_id"] = json!(sequence);
+    rehash_value(value)
+}
+
+fn quote_at(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at_offset_ms: i64,
+    generation: u8,
+) -> MechanicsInputV2 {
+    let mut value = market_at(input, admission, frame, at_offset_ms, generation);
+    value["market_cursor"]["raw_frame_seq"] = json!(frame);
+    value["source_provenance"]["update_id"] = json!(10_000 + frame);
+    rehash_value(value)
+}
+
+fn book_delta_at(
+    snapshot: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at_offset_ms: i64,
+    first_update_id: u64,
+    final_update_id: u64,
+    previous_final_update_id: u64,
+) -> MechanicsInputV2 {
+    let mut value = market_at(snapshot, admission, frame, at_offset_ms, 0);
+    value["envelope"]["source_sequence"]["first"] = json!(first_update_id);
+    value["envelope"]["source_sequence"]["last"] = json!(final_update_id);
+    value["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        changes: vec![BookChange {
+            side: BookSide::Bid,
+            operation: BookOperation::Upsert,
+            price: Price(Fixed::new(99, 0)),
+            quantity: Some(Quantity(Fixed::new(5, 0))),
+        }],
+        checksum: None,
+    }))
+    .unwrap();
+    value["market_cursor"]["first_sequence"] = json!(first_update_id);
+    value["market_cursor"]["last_sequence"] = json!(final_update_id);
+    let event_time_ms = value["source_provenance"]["event_time_ms"].clone();
+    let transaction_time_ms = value["source_provenance"]["transaction_time_ms"].clone();
+    value["source_provenance"] = json!({
+        "kind": "BINANCE_BOOK_DELTA",
+        "first_update_id": first_update_id,
+        "final_update_id": final_update_id,
+        "previous_final_update_id": previous_final_update_id,
+        "event_time_ms": event_time_ms,
+        "transaction_time_ms": transaction_time_ms
+    });
+    rehash_value(value)
+}
+
+fn decision_offset(admission: &ProspectiveCaptureAdmissionV2, offset_ms: i64) -> Rfc3339Time {
+    Rfc3339Time::from_unix_nanos(
+        admission.capture_starts_at().utc_micros() * 1_000 + offset_ms * 1_000_000,
+    )
+    .unwrap()
+}
+
+fn live_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsInputV2> {
+    let initial = complete_inputs(admission);
+    let mut live = Vec::with_capacity(initial.len());
+    for (index, input) in initial.iter().take(6).enumerate() {
+        let frame = 101 + u64::try_from(index).unwrap();
+        let mut value = market_at(
+            input,
+            admission,
+            frame,
+            60_001 + i64::try_from(index).unwrap(),
+            0,
+        );
+        match index {
+            0 => {
+                value["envelope"]["source_sequence"]["first"] = json!(101);
+                value["envelope"]["source_sequence"]["last"] = json!(101);
+                value["market_cursor"]["first_sequence"] = json!(101);
+                value["market_cursor"]["last_sequence"] = json!(101);
+                value["source_provenance"]["aggregate_trade_id"] = json!(101);
+            }
+            1 | 3 | 4 | 5 => value["market_cursor"]["raw_frame_seq"] = json!(frame),
+            2 => {
+                value["envelope"]["source_sequence"]["first"] = json!(201);
+                value["envelope"]["source_sequence"]["last"] = json!(201);
+                value["market_cursor"]["first_sequence"] = json!(201);
+                value["market_cursor"]["last_sequence"] = json!(201);
+                value["source_provenance"]["last_update_id"] = json!(201);
+            }
+            _ => unreachable!(),
+        }
+        value.as_object_mut().unwrap().remove("payload_hash");
+        value["payload_hash"] = json!(marketfeed_event_pulse::content_hash(&value).unwrap());
+        let bytes = serde_json::to_vec(&value).unwrap();
+        live.push(
+            MechanicsInputV2::from_json_line(&bytes).unwrap_or_else(|error| {
+                panic!(
+                    "live market {index} failed: {error:?}: {}",
+                    String::from_utf8_lossy(&bytes)
+                )
+            }),
+        );
+    }
+    for (index, input) in initial.iter().skip(6).enumerate() {
+        let offset = 60_007 + i64::try_from(index).unwrap();
+        let at = decision_offset(admission, offset).canonical().to_owned();
+        let mut value = serde_json::to_value(input).unwrap();
+        value["available_at"] = json!(at);
+        if value.get("observed_at").is_some() {
+            value["observed_at"] = json!(at);
+            value["clock_cursor"]["start"] = json!(2);
+            value["clock_cursor"]["end"] = json!(2);
+        } else {
+            value["covered_through"] = json!(at);
+            value["coverage_cursor"]["start"] = json!(2);
+            value["coverage_cursor"]["end"] = json!(2);
+        }
+        value.as_object_mut().unwrap().remove("payload_hash");
+        value["payload_hash"] = json!(marketfeed_event_pulse::content_hash(&value).unwrap());
+        let bytes = serde_json::to_vec(&value).unwrap();
+        live.push(
+            MechanicsInputV2::from_json_line(&bytes).unwrap_or_else(|error| {
+                panic!(
+                    "live sidecar {index} failed: {error:?}: {}",
+                    String::from_utf8_lossy(&bytes)
+                )
+            }),
+        );
+    }
+    live
+}
+
 #[test]
 fn embedded_contract_and_independent_root_pins_are_exact() {
     let bytes = include_bytes!("../contracts/snapshot-v2/event-pulse-e2-snapshot-v2-contract.json");
@@ -545,4 +740,268 @@ fn unrepresentable_derived_cursor_does_not_seal_or_consume_revision() {
         Err(SnapshotV2Error::CursorNotE1Representable)
     );
     assert_eq!(processor.next_revision(), 1);
+}
+
+#[test]
+fn rejected_native_gap_is_replayed_as_family_invalidity_until_greater_generation() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in &inputs {
+        processor.ingest(input).unwrap();
+    }
+    let gap = native_trade_at(&inputs[0], &admission, 102, 16, 16, 0);
+    assert!(processor.ingest(&gap).is_err());
+    let invalid = processor.snapshot(decision_offset(&admission, 20)).unwrap();
+    assert_eq!(invalid.value()["quality_state"], "INVALID");
+    assert!(
+        invalid.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+
+    let same_generation = native_trade_at(&inputs[0], &admission, 101, 17, 17, 0);
+    assert!(processor.ingest(&same_generation).is_err());
+    let recovery = native_trade_at(&inputs[0], &admission, 1, 18, 60_100, 1);
+    assert!(processor.ingest(&recovery).is_ok());
+}
+
+#[test]
+fn mutated_duplicate_is_replayed_as_sequence_failure_without_new_evidence() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in &inputs {
+        processor.ingest(input).unwrap();
+    }
+    let mut mutation = market_at(&inputs[0], &admission, 16, 16, 0);
+    mutation["envelope"]["payload"] = serde_json::to_value(MarketEvent::Trade(Trade {
+        price: Price(Fixed::new(100, 0)),
+        quantity: Quantity(Fixed::new(999, 0)),
+        aggressor: AggressorSide::Buy,
+        trade_id: None,
+    }))
+    .unwrap();
+    let mutation = rehash_value(mutation);
+    let mutation_error = processor.ingest(&mutation).unwrap_err();
+    assert!(
+        mutation_error
+            .to_string()
+            .contains("cursor coordinate was reused with different payload"),
+        "unexpected mutation error: {mutation_error}"
+    );
+    let invalid = processor.snapshot(decision_offset(&admission, 20)).unwrap();
+    assert_eq!(invalid.value()["quality_state"], "INVALID");
+    assert!(
+        invalid.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+}
+
+#[test]
+fn v2_book_features_accept_snapshot_overlap_then_multiple_pu_contiguous_deltas() {
+    let admission = admission();
+    let mut inputs = complete_inputs(&admission);
+    inputs.push(book_delta_at(&inputs[2], &admission, 16, 16, 190, 205, 0));
+    inputs.push(book_delta_at(&inputs[2], &admission, 17, 17, 150, 210, 205));
+    let mut processor = processor(&admission);
+    for input in &inputs {
+        processor.ingest(input).unwrap();
+    }
+    let snapshot = processor.snapshot(decision_offset(&admission, 20)).unwrap();
+    let book = source_cursors(&snapshot)
+        .iter()
+        .find(|cursor| cursor["source_id"] == "binance_primary_public_book")
+        .unwrap();
+    assert_eq!(book["sequence_start"], 150);
+    assert_eq!(book["sequence_end"], 210);
+}
+
+#[test]
+fn successful_cache_survives_future_ingest_until_later_snapshot_replaces_it() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in &inputs {
+        processor.ingest(input).unwrap();
+    }
+    let at_t = processor.snapshot(decision_offset(&admission, 20)).unwrap();
+    processor
+        .ingest(&quote_at(&inputs[1], &admission, 21, 21, 0))
+        .unwrap();
+    let cached = processor.snapshot(decision_offset(&admission, 20)).unwrap();
+    assert_eq!(cached.canonical_json(), at_t.canonical_json());
+    assert_eq!(cached.revision(), at_t.revision());
+
+    let later = processor.snapshot(decision_offset(&admission, 22)).unwrap();
+    assert_eq!(later.revision(), at_t.revision() + 1);
+    assert_ne!(later.content_hash(), at_t.content_hash());
+    assert_eq!(
+        processor
+            .snapshot(decision_offset(&admission, 22))
+            .unwrap()
+            .canonical_json(),
+        later.canonical_json()
+    );
+}
+
+#[test]
+fn feature_capacity_latches_queue_drop_on_exact_family_and_needs_greater_generation() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in &inputs {
+        processor.ingest(input).unwrap();
+    }
+    let mut frame = 16_u64;
+    loop {
+        let input = quote_at(&inputs[1], &admission, frame, 16, 0);
+        match processor.ingest(&input) {
+            Ok(_) => frame += 1,
+            Err(SnapshotV2Error::Snapshot(SnapshotError::FeatureQueueDrop)) => break,
+            Err(error) => panic!("unexpected capacity result: {error}"),
+        }
+        assert!(frame < 5_000, "feature queue never filled");
+    }
+    let dropped = processor.snapshot(decision_offset(&admission, 20)).unwrap();
+    assert!(
+        dropped.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "QUEUE_DROP")
+    );
+    assert!(
+        processor
+            .ingest(&quote_at(&inputs[1], &admission, frame + 1, 17, 0))
+            .is_err()
+    );
+    assert!(
+        processor
+            .ingest(&quote_at(&inputs[1], &admission, frame + 2, 60_100, 1))
+            .is_ok()
+    );
+}
+
+#[test]
+fn optional_oi_mutation_invalidates_only_its_family_feature() {
+    let admission = admission();
+    let inputs = complete_inputs(&admission);
+    let live = live_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in inputs.iter().chain(&live) {
+        processor.ingest(input).unwrap();
+    }
+
+    let mut healthy = Vec::with_capacity(6);
+    for (index, input) in live.iter().take(6).enumerate() {
+        let frame = 201 + u64::try_from(index).unwrap();
+        let mut value = market_at(
+            input,
+            &admission,
+            frame,
+            60_017 + i64::try_from(index).unwrap(),
+            0,
+        );
+        match index {
+            0 => {
+                value["envelope"]["source_sequence"]["first"] = json!(102);
+                value["envelope"]["source_sequence"]["last"] = json!(102);
+                value["market_cursor"]["first_sequence"] = json!(102);
+                value["market_cursor"]["last_sequence"] = json!(102);
+                value["source_provenance"]["aggregate_trade_id"] = json!(102);
+            }
+            1 | 3 | 4 | 5 => value["market_cursor"]["raw_frame_seq"] = json!(frame),
+            2 => {
+                value["envelope"]["source_sequence"]["first"] = json!(202);
+                value["envelope"]["source_sequence"]["last"] = json!(202);
+                value["market_cursor"]["first_sequence"] = json!(202);
+                value["market_cursor"]["last_sequence"] = json!(202);
+                value["source_provenance"]["last_update_id"] = json!(202);
+            }
+            _ => unreachable!(),
+        }
+        healthy.push(rehash_value(value));
+    }
+    for input in healthy.iter().take(4) {
+        processor.ingest(input).unwrap();
+    }
+
+    let mutation = (11..1_000)
+        .map(|quantity| {
+            let mut value = serde_json::to_value(&healthy[3]).unwrap();
+            value["envelope"]["payload"] =
+                serde_json::to_value(MarketEvent::OpenInterest(OpenInterest {
+                    quantity: Quantity(Fixed::new(quantity, 0)),
+                }))
+                .unwrap();
+            rehash_value(value)
+        })
+        .find(|candidate| candidate.payload_hash() > healthy[3].payload_hash())
+        .expect("bounded mutation with a later authenticated hash");
+    let mutation_error = processor.ingest(&mutation).unwrap_err();
+    assert!(
+        mutation_error
+            .to_string()
+            .contains("cursor coordinate was reused with different payload"),
+        "unexpected OI mutation error: {mutation_error}"
+    );
+    for input in healthy.iter().skip(4) {
+        processor.ingest(input).unwrap();
+    }
+
+    for (index, input) in live.iter().skip(6).enumerate() {
+        let at = decision_offset(&admission, 60_023 + i64::try_from(index).unwrap())
+            .canonical()
+            .to_owned();
+        let mut value = serde_json::to_value(input).unwrap();
+        value["available_at"] = json!(at);
+        if value.get("observed_at").is_some() {
+            value["observed_at"] = json!(at);
+            value["clock_cursor"]["start"] = json!(3);
+            value["clock_cursor"]["end"] = json!(3);
+        } else {
+            value["covered_through"] = json!(at);
+            value["coverage_cursor"]["start"] = json!(3);
+            value["coverage_cursor"]["end"] = json!(3);
+        }
+        processor.ingest(&rehash_value(value)).unwrap();
+    }
+
+    let snapshot = processor
+        .snapshot(decision_offset(&admission, 60_031))
+        .unwrap();
+    assert!(
+        snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "OI_STALE")
+    );
+    assert!(
+        snapshot.value()["quality_flags"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|flag| flag == "SEQUENCE_GAP")
+    );
+    let oi = snapshot.value()["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|feature| feature["name"] == "open_interest_change")
+        .unwrap();
+    assert_eq!(oi["reason_code"], "SOURCE_INVALIDATED");
+    let trade = snapshot.value()["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|feature| feature["name"] == "log_return")
+        .unwrap();
+    assert_ne!(trade["reason_code"], "SOURCE_INVALIDATED");
 }

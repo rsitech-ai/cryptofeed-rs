@@ -89,3 +89,12 @@ The implementation is bound independently to root merge `4d3e0f0398d3e113a79df7a
 - The implementation accepts arbitrary ordered prefixes up to 65,536 records, projects the latest six MARKET family cursors plus three CLOCK and six COVERAGE cursors, and fails atomically before seal/revision/cache mutation when a derived cursor cannot be represented in E1.
 - Validation completed with the focused and full EventPulse suites, full current and Rust 1.85 workspace tests and clippy, formatting, cargo-deny, LF attributes, and diff checks.
 - Residual boundary: this is repo-ready Snapshot V2 library implementation only. No prospective fixture has been authored, no source has been qualified, and capture, MFR, adapter, runtime, deployment, execution, and trading authority remain outside this slice.
+
+## Reviewer repair successor
+
+- [x] RED: rejected sequence gaps and mutated duplicates must remain replayable family invalidity, clear only that family's feature/causal contribution, and recover only on a valid greater generation.
+- [x] RED: a bounded V2 feature-capacity failure must latch `QUEUE_DROP` on the exact affected family; optional OI/LIQ faults degrade rather than globally invalidate.
+- [x] RED: the V2 book feature projection must accept Binance snapshot overlap `U <= L <= u`, then require cursor-validated `pu` continuity across later deltas; V1 projection behavior remains exact.
+- [x] RED: a successful snapshot cache for decision `T` survives later admissible `T+1` input and returns identical bytes/revision until a successful later decision replaces it.
+- [x] GREEN: implement the smallest bounded rejected-state/family-cause timeline, V2-only book transition, and cache repair without changing public V1 APIs or bytes.
+- [x] Verify focused RED/GREEN, full EventPulse/workspace current and Rust 1.85 tests/clippy, fmt, deny, LF pins, and diff; append the successor evidence to the report and commit cleanly.

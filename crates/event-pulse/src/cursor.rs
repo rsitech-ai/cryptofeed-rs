@@ -505,6 +505,22 @@ impl MarketFamilySlotV2 {
         self.retire_cursor();
         self.invalidate_recoverable();
     }
+
+    fn latch_queue_drop(&mut self, epoch: &str, generation: u8, at_ns: i64) {
+        if self.invalidity == Some(Invalidity::Terminal) {
+            return;
+        }
+        if self.generation.is_none_or(|current| generation > current) {
+            self.epoch = Some(epoch.to_owned());
+            self.generation = Some(generation);
+        }
+        self.retained_available_at_ns = Some(
+            self.retained_available_at_ns
+                .map_or(at_ns, |current| current.max(at_ns)),
+        );
+        self.state = SlotState::Invalid;
+        self.invalidity = Some(Invalidity::Recoverable);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -939,6 +955,21 @@ impl SourceStateMachineV2 {
 
     pub(crate) fn v1_state(&self) -> &SourceStateMachine {
         &self.v1
+    }
+
+    pub(crate) fn invalidate_market_family_for_queue_drop(
+        &mut self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+        epoch: &str,
+        generation: u8,
+        at_ns: i64,
+    ) -> Result<(), CursorError> {
+        self.market_families
+            .get_mut(&(contributor.clone(), family))
+            .ok_or(CursorError::UnconfiguredIdentity)?
+            .latch_queue_drop(epoch, generation, at_ns);
+        Ok(())
     }
 
     fn family_slot_if_current(

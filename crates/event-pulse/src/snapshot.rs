@@ -88,6 +88,7 @@ struct CausalRecord {
 #[derive(Debug, Clone)]
 struct RetainedMarketAnchor {
     owner: ContributorKeyV1,
+    family: FamilyV1,
     anchor: MarketAnchor,
     fallback_eligible: bool,
 }
@@ -254,6 +255,49 @@ impl FeatureRuntime {
             .ok_or_else(|| SnapshotError::InvalidInput("unconfigured causal source".into()))?
             .records
             .clear();
+        Ok(())
+    }
+
+    fn invalidate_family(
+        &mut self,
+        contributor: &ContributorKeyV1,
+        family: FamilyV1,
+    ) -> Result<(), SnapshotError> {
+        let windows: &[(i64, WindowKind)] = match family {
+            FamilyV1::Trade => &[
+                (1_000_000_000, WindowKind::Trade),
+                (5_000_000_000, WindowKind::Trade),
+            ],
+            FamilyV1::Quote => &[(250_000_000, WindowKind::Quote)],
+            FamilyV1::Book => &[(250_000_000, WindowKind::Book)],
+            FamilyV1::OpenInterest => &[(5_000_000_000, WindowKind::OpenInterest)],
+            FamilyV1::Liquidation => &[(5_000_000_000, WindowKind::Liquidation)],
+            FamilyV1::ConfirmationPrice => &[(1_000_000_000, WindowKind::ConfirmationPrice)],
+        };
+        for (horizon, kind) in windows {
+            self.windows
+                .invalidate_configured_key(&Self::key(contributor, *horizon, *kind)?)
+                .map_err(|error| SnapshotError::InvalidInput(error.to_string()))?;
+        }
+        if family == FamilyV1::Book {
+            *self
+                .books
+                .get_mut(contributor)
+                .ok_or_else(|| SnapshotError::InvalidInput("unconfigured book family".into()))? =
+                BookProjection::new(8, 8, None);
+        }
+        self.causal
+            .get_mut(contributor)
+            .ok_or_else(|| SnapshotError::InvalidInput("unconfigured causal source".into()))?
+            .records
+            .retain(|record| record.family != family);
+        if let Some(retained) = self
+            .retained_anchor
+            .as_mut()
+            .filter(|retained| retained.owner == *contributor && retained.family == family)
+        {
+            retained.fallback_eligible = true;
+        }
         Ok(())
     }
 
@@ -490,6 +534,17 @@ impl FeatureRuntime {
                 }
                 self.retained_anchor = Some(RetainedMarketAnchor {
                     owner: contributor.clone(),
+                    family: match envelope.payload {
+                        MarketEvent::Trade(_) => FamilyV1::Trade,
+                        MarketEvent::Quote(_) => FamilyV1::Quote,
+                        MarketEvent::BookSnapshot(_) | MarketEvent::BookDelta(_) => FamilyV1::Book,
+                        MarketEvent::OpenInterest(_) => FamilyV1::OpenInterest,
+                        MarketEvent::Liquidation(_) => FamilyV1::Liquidation,
+                        MarketEvent::MarkPrice(_) | MarketEvent::IndexPrice(_) => {
+                            FamilyV1::ConfirmationPrice
+                        }
+                        _ => FamilyV1::Trade,
+                    },
                     anchor: exact_anchor,
                     fallback_eligible: sources.contributor_state(&contributor)
                         != Some(SlotState::Live),
@@ -1214,6 +1269,7 @@ struct FamilyEligibility {
     state: SlotState,
     invalid: bool,
     generation: u8,
+    cause: Cause,
 }
 
 impl MechanicsProcessor {
@@ -2306,6 +2362,12 @@ impl MechanicsProcessor {
         let degraded_clock = clocks.values().any(|clock| clock.degraded);
         let owner_invalid = |key: &ContributorKeyV1, family: FamilyV1| {
             self.market_family_state(key, family, &sources) != Some(SlotState::Live)
+                || self.market_family_invalid(key, family, &sources)
+                || self
+                    .family_eligibility
+                    .as_ref()
+                    .and_then(|families| families.get(&(key.clone(), family)))
+                    .is_some_and(|eligibility| eligibility.cause != Cause::None)
                 || active_causes
                     .get(&CauseKey::Contributor(key.clone()))
                     .copied()
@@ -2347,6 +2409,17 @@ impl MechanicsProcessor {
                 Cause::QueueDrop(_) => flag_conditions.queue_drop = true,
                 Cause::Warmup(_) => flag_conditions.reconnect_warmup = true,
                 Cause::None => {}
+            }
+        }
+        if let Some(families) = &self.family_eligibility {
+            for eligibility in families.values() {
+                match eligibility.cause {
+                    Cause::Sequence(_) => flag_conditions.sequence_failure = true,
+                    Cause::Book(_) => flag_conditions.book_resyncing = true,
+                    Cause::QueueDrop(_) => flag_conditions.queue_drop = true,
+                    Cause::Warmup(_) => flag_conditions.reconnect_warmup = true,
+                    Cause::None => {}
+                }
             }
         }
         flag_conditions.reconnect_warmup |= [
@@ -3336,6 +3409,7 @@ fn apply_replay_fault(
             (None, Some(anchor)) => {
                 runtime.retained_anchor = Some(RetainedMarketAnchor {
                     owner: owner.clone(),
+                    family: FamilyV1::Trade,
                     anchor: anchor.clone(),
                     fallback_eligible: true,
                 });
