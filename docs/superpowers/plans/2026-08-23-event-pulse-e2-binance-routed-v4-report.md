@@ -8,13 +8,15 @@ Adapter-only prerequisite. No public prospective admission/preflight API is incl
 
 `cargo test -p marketfeed-adapter-binance --test usdm_routed_v4` failed before implementation with unresolved `BinanceUsdmRouteV4` and missing `BinanceUsdmSession::try_new_routed_v4`.
 
+The successor RED failed because `DepthUpdate` lacked separate `E`/`T`, `ForceOrder` lacked outer `E`/inner `o.T`, and the pair constructor did not exist. Runtime counterexamples additionally exposed routed snapshot System output, duplicate outstanding OI requests, ignored zero-value routed trades, permissive subscription ACK/HTTP correlation, saturating source-time conversion, and missing aggregate-trade outer `E` provenance.
+
 ## GREEN
 
-- `cargo test -p marketfeed-adapter-binance --test usdm_routed_v4`: 4 passed.
+- `cargo test -p marketfeed-adapter-binance --test usdm_routed_v4`: 6 passed after the root wire-contract correction.
 - `cargo test -p marketfeed-adapter-binance`: all non-ignored tests passed; network tests remained ignored by contract.
 - `cargo test --workspace --all-targets --all-features`: passed across the workspace.
 - `cargo clippy -p marketfeed-adapter-binance --all-targets --all-features -- -D warnings`: passed.
-- `cargo +1.85.0 test -p marketfeed-adapter-binance --test usdm_routed_v4`: 4 passed.
+- `cargo +1.85.0 test -p marketfeed-adapter-binance --test usdm_routed_v4`: 6 passed.
 - `cargo +1.85.0 clippy -p marketfeed-adapter-binance --all-targets --all-features -- -D warnings`: passed.
 - `cargo +1.85.0 check --workspace --all-targets --all-features`: passed.
 - `cargo fmt --all -- --check`: passed.
@@ -22,6 +24,8 @@ Adapter-only prerequisite. No public prospective admission/preflight API is incl
 - `git diff --check`: passed.
 
 The routed HTTP failure tests also prove a malformed timestamp response produces no actions and does not consume the pending request; a corrected retry succeeds.
+
+The successor correction binds routed BOOK and LIQUIDATION authoring to Binance transaction time (`T` / `o.T`) while retaining distinct decoded event and transaction timestamps, including aggregate-trade outer `E`. It also makes routed construction pair-only, suppresses successful snapshot System output, deduplicates outstanding OI polls, requires ACK id `1`, rejects ignored routed frames and unknown/retired HTTP ids, and checks every routed source millisecond before nanosecond authorship. Legacy/default authoring remains on its original timestamps and actions.
 
 ## Residual hold
 

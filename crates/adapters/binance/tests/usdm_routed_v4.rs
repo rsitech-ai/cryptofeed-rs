@@ -24,31 +24,41 @@ fn stamp(value: i64) -> FrameStamp {
 }
 
 fn routed(route: BinanceUsdmRouteV4) -> BinanceUsdmSession {
-    let mut instrument_ids = HashMap::new();
-    instrument_ids.insert("BNBUSDT".to_owned(), InstrumentId(7));
-    let (endpoint_name, connection, session, enable_l2) = match route {
-        BinanceUsdmRouteV4::Public => (PUBLIC_WS, ConnectionId(11), SessionId(21), true),
-        BinanceUsdmRouteV4::Market => (MARKET_WS, ConnectionId(12), SessionId(22), false),
-    };
-    BinanceUsdmSession::try_new_routed_v4(
+    let (public, market) = BinanceUsdmSession::try_new_routed_pair_v4(
         SessionSpec {
-            endpoint_name: endpoint_name.to_owned(),
+            endpoint_name: PUBLIC_WS.to_owned(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        SessionSpec {
+            endpoint_name: MARKET_WS.to_owned(),
             subscriptions: ConcreteSubscriptionSet::default(),
         },
         CatalogView::new(VenueId(3), CatalogVersion(1)),
-        BinanceUsdmSessionConfig {
-            symbols: vec!["BNBUSDT".to_owned()],
-            instrument_ids,
-            connection,
-            session,
-            enable_l2,
-            price_scale: 2,
-            qty_scale: 3,
-            ..BinanceUsdmSessionConfig::default()
-        },
-        route,
+        routed_config(ConnectionId(11), SessionId(21), true),
+        routed_config(ConnectionId(12), SessionId(22), false),
     )
-    .expect("valid routed session")
+    .expect("valid routed pair");
+    match route {
+        BinanceUsdmRouteV4::Public => public,
+        BinanceUsdmRouteV4::Market => market,
+    }
+}
+
+fn routed_config(
+    connection: ConnectionId,
+    session: SessionId,
+    enable_l2: bool,
+) -> BinanceUsdmSessionConfig {
+    BinanceUsdmSessionConfig {
+        symbols: vec!["BNBUSDT".to_owned()],
+        instrument_ids: HashMap::from([("BNBUSDT".to_owned(), InstrumentId(7))]),
+        connection,
+        session,
+        enable_l2,
+        price_scale: 2,
+        qty_scale: 3,
+        ..BinanceUsdmSessionConfig::default()
+    }
 }
 
 fn emitted(out: &ActionBuffer) -> Vec<&EventEnvelope> {
@@ -135,28 +145,51 @@ fn routed_sessions_bind_exact_identity_endpoint_and_family() {
             }
         }
 
-        let bad = SessionSpec {
-            endpoint_name: format!("{endpoint}/wrong"),
+        let public_spec = SessionSpec {
+            endpoint_name: if route == BinanceUsdmRouteV4::Public {
+                format!("{endpoint}/wrong")
+            } else {
+                PUBLIC_WS.to_owned()
+            },
             subscriptions: ConcreteSubscriptionSet::default(),
         };
-        let cfg = BinanceUsdmSessionConfig {
-            symbols: vec!["BNBUSDT".into()],
-            instrument_ids: HashMap::from([("BNBUSDT".into(), InstrumentId(7))]),
-            connection: ConnectionId(11),
-            session: SessionId(21),
-            enable_l2: route == BinanceUsdmRouteV4::Public,
-            ..BinanceUsdmSessionConfig::default()
+        let market_spec = SessionSpec {
+            endpoint_name: if route == BinanceUsdmRouteV4::Market {
+                format!("{endpoint}/wrong")
+            } else {
+                MARKET_WS.to_owned()
+            },
+            subscriptions: ConcreteSubscriptionSet::default(),
         };
         assert!(
-            BinanceUsdmSession::try_new_routed_v4(
-                bad,
+            BinanceUsdmSession::try_new_routed_pair_v4(
+                public_spec,
+                market_spec,
                 CatalogView::new(VenueId(3), CatalogVersion(1)),
-                cfg,
-                route,
+                routed_config(ConnectionId(11), SessionId(21), true),
+                routed_config(ConnectionId(12), SessionId(22), false),
             )
             .is_err()
         );
     }
+}
+
+#[test]
+fn routed_pair_requires_distinct_connection_and_session_ids() {
+    let result = BinanceUsdmSession::try_new_routed_pair_v4(
+        SessionSpec {
+            endpoint_name: PUBLIC_WS.to_owned(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        SessionSpec {
+            endpoint_name: MARKET_WS.to_owned(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        CatalogView::new(VenueId(3), CatalogVersion(1)),
+        routed_config(ConnectionId(11), SessionId(21), true),
+        routed_config(ConnectionId(11), SessionId(21), false),
+    );
+    assert!(result.is_err());
 }
 
 #[test]
@@ -228,6 +261,24 @@ fn routed_market_preserves_family_source_times_and_native_trade_cursor() {
             _ => None,
         })
         .unwrap();
+    for now in [TimestampNs(2), TimestampNs(3)] {
+        let mut timer = ActionBuffer::new();
+        session
+            .on_input(
+                SessionInput::Timer {
+                    timer_id: marketfeed_adapter_binance::OI_TIMER_ID,
+                    now,
+                },
+                &mut timer,
+            )
+            .unwrap();
+        assert!(
+            !timer
+                .as_slice()
+                .iter()
+                .any(|action| matches!(action, SessionAction::RequestHttp(_)))
+        );
+    }
     let trade = drive_text(
         &mut session,
         r#"{"e":"aggTrade","E":1000,"s":"BNBUSDT","a":42,"p":"650.1","q":"0.01","T":1001,"m":false}"#,
@@ -237,15 +288,44 @@ fn routed_market_preserves_family_source_times_and_native_trade_cursor() {
     assert!(matches!(event.payload, MarketEvent::Trade(_)));
     assert_eq!(event.exchange_ts, Some(TimestampNs(1_001_000_000)));
     assert_eq!(event.source_sequence.unwrap().first, 42);
+    assert!(matches!(
+        decode_usdm_text(
+            br#"{"e":"aggTrade","E":1000,"s":"BNBUSDT","a":42,"p":"650.1","q":"0.01","T":1001,"m":false}"#
+        )
+        .unwrap(),
+        UsdmDecoded::AggTrade {
+            event_time_ms: Some(1000),
+            exchange_ts_ms: 1001,
+            ..
+        }
+    ));
 
     let liquidation = drive_text(
         &mut session,
-        r#"{"e":"forceOrder","E":2002,"o":{"s":"BNBUSDT","S":"SELL","ap":"649","l":"0.5"}}"#,
+        r#"{"e":"forceOrder","E":2002,"o":{"s":"BNBUSDT","S":"SELL","ap":"649","l":"0.5","T":1999}}"#,
     )
     .unwrap();
     assert_eq!(
         emitted(&liquidation)[0].exchange_ts,
-        Some(TimestampNs(2_002_000_000))
+        Some(TimestampNs(1_999_000_000))
+    );
+    assert!(matches!(
+        decode_usdm_text(
+            br#"{"e":"forceOrder","E":2002,"o":{"s":"BNBUSDT","S":"SELL","ap":"649","l":"0.5","T":1999}}"#
+        )
+        .unwrap(),
+        UsdmDecoded::ForceOrder {
+            outer_event_time_ms: 2002,
+            inner_transaction_time_ms: Some(1999),
+            ..
+        }
+    ));
+    assert!(
+        drive_text(
+            &mut session,
+            r#"{"e":"forceOrder","E":2003,"o":{"s":"BNBUSDT","S":"SELL","ap":"649","l":"0.5"}}"#,
+        )
+        .is_err()
     );
     assert!(drive_text(
         &mut session,
@@ -254,6 +334,24 @@ fn routed_market_preserves_family_source_times_and_native_trade_cursor() {
     .is_err());
 
     let mut rejected = ActionBuffer::new();
+    assert!(session
+        .on_input(
+            SessionInput::HttpResponse {
+                request_id: oi_request_id + 100,
+                response: &HttpResponse {
+                    status: 200,
+                    headers: Vec::new(),
+                    body: Bytes::from_static(
+                        br#"{"symbol":"BNBUSDT","openInterest":"10659.509","time":1589437530011}"#,
+                    ),
+                },
+                received: stamp(9_000_000_001),
+            },
+            &mut rejected,
+        )
+        .is_err());
+    assert!(rejected.is_empty());
+
     assert!(
         session
             .on_input(
@@ -295,10 +393,69 @@ fn routed_market_preserves_family_source_times_and_native_trade_cursor() {
         emitted(&oi)[0].exchange_ts,
         Some(TimestampNs(1_589_437_530_011_000_000))
     );
+    let mut duplicate = ActionBuffer::new();
+    assert!(session
+        .on_input(
+            SessionInput::HttpResponse {
+                request_id: oi_request_id,
+                response: &HttpResponse {
+                    status: 200,
+                    headers: Vec::new(),
+                    body: Bytes::from_static(
+                        br#"{"symbol":"BNBUSDT","openInterest":"10659.509","time":1589437530011}"#,
+                    ),
+                },
+                received: stamp(9_000_000_003),
+            },
+            &mut duplicate,
+        )
+        .is_err());
+    assert!(duplicate.is_empty());
+    let mut next_poll = ActionBuffer::new();
+    session
+        .on_input(
+            SessionInput::Timer {
+                timer_id: marketfeed_adapter_binance::OI_TIMER_ID,
+                now: TimestampNs(4),
+            },
+            &mut next_poll,
+        )
+        .unwrap();
+    assert_eq!(
+        next_poll
+            .as_slice()
+            .iter()
+            .filter(|action| matches!(action, SessionAction::RequestHttp(_)))
+            .count(),
+        1
+    );
 }
 
 #[test]
-fn routed_snapshot_requires_official_e_t_shape_and_authors_e() {
+fn routed_frames_fail_closed_before_authorship() {
+    let mut market = routed(BinanceUsdmRouteV4::Market);
+    for rejected in [
+        r#"{"e":"aggTrade","E":1,"s":"BNBUSDT","a":1,"p":"0","q":"1","T":2,"m":false}"#,
+        r#"{"e":"aggTrade","E":-1,"s":"BNBUSDT","a":1,"p":"650","q":"1","T":2,"m":false}"#,
+        r#"{"e":"aggTrade","E":1,"s":"BNBUSDT","a":1,"p":"650","q":"1","T":9223372036855,"m":false}"#,
+        r#"{"result":null,"id":2}"#,
+        r#"{"result":null}"#,
+    ] {
+        assert!(drive_text(&mut market, rejected).is_err(), "{rejected}");
+    }
+    let trade = drive_text(
+        &mut market,
+        r#"{"e":"aggTrade","E":1,"s":"BNBUSDT","a":2,"p":"650","q":"1","T":2,"m":false}"#,
+    )
+    .unwrap();
+    assert_eq!(emitted(&trade)[0].frame_seq, 1);
+
+    let mut ack = routed(BinanceUsdmRouteV4::Public);
+    assert!(drive_text(&mut ack, r#"{"result":null,"id":1}"#).is_ok());
+}
+
+#[test]
+fn routed_snapshot_requires_official_e_t_shape_and_authors_t_without_system() {
     let decoded = decode_usdm_text(
         br#"{"lastUpdateId":100,"E":1784841086945,"T":1784841086836,"bids":[["650.0","1"]],"asks":[["651.0","2"]]}"#,
     )
@@ -361,7 +518,12 @@ fn routed_snapshot_requires_official_e_t_shape_and_authors_e() {
         .unwrap();
     assert_eq!(
         snapshot.exchange_ts,
-        Some(TimestampNs(1_784_841_086_945_000_000))
+        Some(TimestampNs(1_784_841_086_836_000_000))
+    );
+    assert!(
+        !out.as_slice()
+            .iter()
+            .any(|action| matches!(action, SessionAction::EmitSystem(_)))
     );
     assert!(
         emitted(&out)
@@ -378,6 +540,26 @@ fn routed_snapshot_requires_official_e_t_shape_and_authors_e() {
         emitted(&next)[0].payload,
         MarketEvent::BookDelta(_)
     ));
+    assert_eq!(
+        emitted(&next)[0].exchange_ts,
+        Some(TimestampNs(1_784_841_086_838_000_000))
+    );
+    assert!(matches!(
+        decode_usdm_text(
+            br#"{"e":"depthUpdate","E":1784841086947,"T":1784841086838,"s":"BNBUSDT","U":102,"u":102,"pu":101,"b":[["650.0","2"]],"a":[]}"#
+        )
+        .unwrap(),
+        UsdmDecoded::DepthUpdate {
+            event_time_ms: 1_784_841_086_947,
+            transaction_time_ms: Some(1_784_841_086_838),
+            ..
+        }
+    ));
+    assert!(drive_text(
+        &mut session,
+        r#"{"e":"depthUpdate","E":1784841086948,"s":"BNBUSDT","U":103,"u":103,"pu":102,"b":[["650.0","3"]],"a":[]}"#,
+    )
+    .is_err());
     let mismatch = drive_text(
         &mut session,
         r#"{"e":"depthUpdate","E":1784841086948,"T":1784841086839,"s":"BNBUSDT","U":103,"u":103,"pu":99,"b":[["650.0","3"]],"a":[]}"#,

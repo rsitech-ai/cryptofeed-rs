@@ -21,12 +21,14 @@ Official USD-M source-time mapping:
 
 - aggTrade: `T`
 - bookTicker: `T`, while retaining decoded `E`, `T`, and `u`
-- depth update: `E`
-- REST depth snapshot: `E`, while retaining decoded `T`
+- depth update: `T`, while retaining decoded `E` and `T`
+- REST depth snapshot: `T`, while retaining decoded `E` and `T`
 - open interest: `time`
-- force order: outer `E`
+- force order: inner `o.T`, while retaining decoded outer `E` and inner `o.T`
 
 The REST depth schema currently and officially includes both `E` and `T`; routed snapshots require both. Legacy decode keeps them optional so historical fixtures remain accepted.
+
+Routed construction is pair-only: one checked constructor returns PUBLIC and MARKET together and rejects aliased connection/session IDs or different instrument mappings. Successful routed snapshot activation emits no System action. MARKET OI polling permits at most one outstanding request per symbol, preventing timer-driven pending-map growth. These restrictions do not change the legacy constructor or factory.
 
 ## Explicit hold
 
@@ -45,6 +47,6 @@ Preflight v4 remains `HOLD`: current EventPulse cursor derivation interprets `Ev
 
 ## Tests and rollback
 
-Focused tests cover exact subscribe/REST routes, no replay-start System action, missing timestamps, wrong family, non-contiguous quote `u` with DERIVED envelope cursor, trade native cursor, official snapshot `E`/`T`, inclusive snapshot bridge, and next-`pu` continuity. Full adapter and workspace gates protect legacy behavior.
+Focused tests cover exact subscribe/REST routes and ACK id, no replay-start or successful-snapshot System action, missing/out-of-range timestamps, differing `E`/`T`, retained aggregate-trade outer `E`, wrong/ignored family, unknown or retired HTTP correlation, non-contiguous quote `u` with DERIVED envelope cursor, trade and book native cursors, paired identity uniqueness, bounded OI polling, official snapshot `E`/`T`, inclusive snapshot bridge, and next-`pu` continuity. Full adapter and workspace gates protect legacy behavior.
 
 Rollback is one local commit. No migration or external state exists.
