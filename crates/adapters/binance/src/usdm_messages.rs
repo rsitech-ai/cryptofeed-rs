@@ -17,18 +17,11 @@ pub enum UsdmDecoded {
         price: Price,
         quantity: Quantity,
         aggressor: AggressorSide,
-        /// Outer message event time (`E`) retained separately from trade time.
-        event_time_ms: Option<i64>,
-        /// Venue aggregate-trade transaction time (`T`).
         exchange_ts_ms: i64,
     },
     Quote {
         symbol: String,
         update_id: u64,
-        /// Venue message output time (`E`) when the source shape provides it.
-        event_time_ms: Option<i64>,
-        /// Venue transaction time (`T`) when the source shape provides it.
-        transaction_time_ms: Option<i64>,
         bid_price: Price,
         bid_qty: Quantity,
         ask_price: Price,
@@ -84,17 +77,10 @@ pub enum UsdmDecoded {
         prev_final_update_id: u64,
         bids: Vec<(Price, Quantity)>,
         asks: Vec<(Price, Quantity)>,
-        /// Venue message output time (`E`).
-        event_time_ms: i64,
-        /// Venue transaction time (`T`) on the current USD-M shape.
-        transaction_time_ms: Option<i64>,
+        exchange_ts_ms: i64,
     },
     DepthSnapshot {
         last_update_id: u64,
-        /// Venue message output time (`E`) on the current USD-M REST shape.
-        event_time_ms: Option<i64>,
-        /// Venue transaction time (`T`) retained separately from `E`.
-        transaction_time_ms: Option<i64>,
         bids: Vec<(Price, Quantity)>,
         asks: Vec<(Price, Quantity)>,
     },
@@ -109,10 +95,7 @@ pub enum UsdmDecoded {
         price: Price,
         quantity: Quantity,
         side: AggressorSide,
-        /// Outer force-order event time (`E`).
-        outer_event_time_ms: i64,
-        /// Inner order transaction time (`o.T`).
-        inner_transaction_time_ms: Option<i64>,
+        exchange_ts_ms: i64,
     },
     SubscribeAck {
         id: Option<u64>,
@@ -123,10 +106,23 @@ pub enum UsdmDecoded {
     Unknown,
 }
 
+/// Routed-v4 timestamp provenance kept outside the stable [`UsdmDecoded`] API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UsdmRoutedV4SourceTimes {
+    pub event_time_ms: Option<i64>,
+    pub transaction_time_ms: Option<i64>,
+}
+
+/// Additive routed-v4 decode result with venue provenance separated from the
+/// legacy public decoded-event shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UsdmRoutedV4Decoded {
+    pub decoded: UsdmDecoded,
+    pub source_times: UsdmRoutedV4SourceTimes,
+}
+
 #[derive(Debug, Deserialize)]
 struct AggTradeMsg {
-    #[serde(rename = "E")]
-    event_time: Option<i64>,
     s: String,
     a: u64,
     p: String,
@@ -139,8 +135,6 @@ struct AggTradeMsg {
 /// Individual trade (`e=trade` / `@trade`) — preferred over silent `@aggTrade`.
 #[derive(Debug, Deserialize)]
 struct TradeMsg {
-    #[serde(rename = "E")]
-    event_time: Option<i64>,
     s: String,
     t: u64,
     p: String,
@@ -152,10 +146,6 @@ struct TradeMsg {
 
 #[derive(Debug, Deserialize)]
 struct BookTickerMsg {
-    #[serde(rename = "E")]
-    event_time: Option<i64>,
-    #[serde(rename = "T")]
-    transaction_time: Option<i64>,
     u: u64,
     s: String,
     b: String,
@@ -203,8 +193,6 @@ struct MarkPriceMsg {
 struct DepthUpdateMsg {
     #[serde(rename = "E")]
     event_time: i64,
-    #[serde(rename = "T")]
-    transaction_time: Option<i64>,
     s: String,
     #[serde(rename = "U")]
     first_update_id: u64,
@@ -219,10 +207,6 @@ struct DepthUpdateMsg {
 struct DepthSnapshotMsg {
     #[serde(rename = "lastUpdateId")]
     last_update_id: u64,
-    #[serde(rename = "E")]
-    event_time: Option<i64>,
-    #[serde(rename = "T")]
-    transaction_time: Option<i64>,
     bids: Vec<[String; 2]>,
     asks: Vec<[String; 2]>,
 }
@@ -251,8 +235,6 @@ struct ForceOrderInner {
     ap: String,
     /// Last filled quantity.
     l: String,
-    #[serde(rename = "T")]
-    transaction_time: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -289,6 +271,35 @@ struct ResultMsg {
 pub fn decode_text(bytes: &[u8]) -> Result<UsdmDecoded, String> {
     let v: Value = crate::json::value_from_slice(bytes)?;
     decode_value(&v)
+}
+
+/// Decode one routed-v4 USD-M payload while retaining distinct venue `E` and
+/// `T`/`o.T` values without changing [`UsdmDecoded`].
+pub fn decode_routed_v4_text(bytes: &[u8]) -> Result<UsdmRoutedV4Decoded, String> {
+    let value: Value = crate::json::value_from_slice(bytes)?;
+    let decoded = decode_value(&value)?;
+    let payload = value.get("data").unwrap_or(&value);
+    let event_time_ms = payload.get("E").and_then(Value::as_i64);
+    let transaction_time_ms = match &decoded {
+        UsdmDecoded::AggTrade { exchange_ts_ms, .. }
+        | UsdmDecoded::OpenInterest { exchange_ts_ms, .. } => Some(*exchange_ts_ms),
+        UsdmDecoded::Quote { .. } | UsdmDecoded::DepthSnapshot { .. } => {
+            payload.get("T").and_then(Value::as_i64)
+        }
+        UsdmDecoded::DepthUpdate { .. } => payload.get("T").and_then(Value::as_i64),
+        UsdmDecoded::ForceOrder { .. } => payload
+            .get("o")
+            .and_then(|order| order.get("T"))
+            .and_then(Value::as_i64),
+        _ => None,
+    };
+    Ok(UsdmRoutedV4Decoded {
+        decoded,
+        source_times: UsdmRoutedV4SourceTimes {
+            event_time_ms,
+            transaction_time_ms,
+        },
+    })
 }
 
 /// Reference decode that always uses `serde_json` (parity oracle).
@@ -382,7 +393,6 @@ fn decode_agg_trade(v: &Value) -> Result<UsdmDecoded, String> {
         price,
         quantity,
         aggressor,
-        event_time_ms: m.event_time,
         exchange_ts_ms: m.trade_time,
     })
 }
@@ -409,7 +419,6 @@ fn decode_trade(v: &Value) -> Result<UsdmDecoded, String> {
         price,
         quantity,
         aggressor,
-        event_time_ms: m.event_time,
         exchange_ts_ms: m.trade_time,
     })
 }
@@ -419,8 +428,6 @@ fn decode_book_ticker(v: &Value) -> Result<UsdmDecoded, String> {
     Ok(UsdmDecoded::Quote {
         symbol: m.s,
         update_id: m.u,
-        event_time_ms: m.event_time,
-        transaction_time_ms: m.transaction_time,
         bid_price: Price(parse_fixed(&m.b)?),
         bid_qty: Quantity(parse_fixed(&m.bid_qty)?),
         ask_price: Price(parse_fixed(&m.a)?),
@@ -485,8 +492,7 @@ fn decode_depth_update(v: &Value) -> Result<UsdmDecoded, String> {
         prev_final_update_id: m.pu,
         bids: parse_levels(&m.b)?,
         asks: parse_levels(&m.a)?,
-        event_time_ms: m.event_time,
-        transaction_time_ms: m.transaction_time,
+        exchange_ts_ms: m.event_time,
     })
 }
 
@@ -494,8 +500,6 @@ fn decode_snapshot(v: &Value) -> Result<UsdmDecoded, String> {
     let m: DepthSnapshotMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
     Ok(UsdmDecoded::DepthSnapshot {
         last_update_id: m.last_update_id,
-        event_time_ms: m.event_time,
-        transaction_time_ms: m.transaction_time,
         bids: parse_levels(&m.bids)?,
         asks: parse_levels(&m.asks)?,
     })
@@ -512,7 +516,6 @@ fn decode_open_interest(v: &Value) -> Result<UsdmDecoded, String> {
 
 fn decode_force_order(v: &Value) -> Result<UsdmDecoded, String> {
     let m: ForceOrderMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
-    let inner_transaction_time_ms = m.o.transaction_time;
     let side = match m.o.side.as_str() {
         "BUY" => AggressorSide::Buy,
         "SELL" => AggressorSide::Sell,
@@ -523,8 +526,7 @@ fn decode_force_order(v: &Value) -> Result<UsdmDecoded, String> {
         price: Price(parse_fixed(&m.o.ap)?),
         quantity: Quantity(parse_fixed(&m.o.l)?),
         side,
-        outer_event_time_ms: m.event_time,
-        inner_transaction_time_ms,
+        exchange_ts_ms: m.event_time,
     })
 }
 

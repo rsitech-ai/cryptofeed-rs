@@ -102,7 +102,9 @@ pub use usdm_instruments::parse_usdm_exchange_info;
 #[cfg(feature = "simd-json")]
 pub use usdm_messages::decode_text_simd as decode_usdm_text_simd;
 pub use usdm_messages::{
-    UsdmDecoded, decode_text as decode_usdm_text, decode_text_serde as decode_usdm_text_serde,
+    UsdmDecoded, UsdmRoutedV4Decoded, UsdmRoutedV4SourceTimes,
+    decode_routed_v4_text as decode_usdm_routed_v4_text, decode_text as decode_usdm_text,
+    decode_text_serde as decode_usdm_text_serde,
 };
 pub use usdm_session::{BinanceUsdmRouteV4, BinanceUsdmSession, BinanceUsdmSessionConfig};
 pub use usdm_specification::{

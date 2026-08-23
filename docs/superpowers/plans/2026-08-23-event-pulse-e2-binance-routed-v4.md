@@ -30,6 +30,8 @@ The REST depth schema currently and officially includes both `E` and `T`; routed
 
 Routed construction is pair-only: one checked constructor returns PUBLIC and MARKET together and rejects aliased connection/session IDs or different instrument mappings. Successful routed snapshot activation emits no System action. MARKET OI polling permits at most one outstanding request per symbol, preventing timer-driven pending-map growth. These restrictions do not change the legacy constructor or factory.
 
+The pair also requires a real `BNBUSDT` row in the supplied Binance USD-M `CatalogView`, with the exact configured instrument id, venue, and catalog version. Routed `E`/`T` provenance lives in an additive routed decode sidecar; the established public `UsdmDecoded` variant fields and legacy decode behavior remain unchanged. Native `a`, `u`, `U`, `pu`, and `lastUpdateId` values are admitted only through `i64::MAX`, matching the downstream canonical integer domain before any routed output or book-state mutation.
+
 ## Explicit hold
 
 Preflight v4 remains `HOLD`: current EventPulse cursor derivation interprets `EventEnvelope.source_sequence` as NATIVE. The root topology requires non-contiguous bookTicker `u` to remain venue provenance while the QUOTE cursor is DERIVED. The routed decoder retains `u`, but the emitted EventEnvelope deliberately leaves `source_sequence` empty; no existing canonical EPIN field can retain `u` without incorrectly changing cursor mode. A separately accepted append-only provenance/cursor representation and frozen admission descriptor are prerequisites to preflight or fixture work.
@@ -47,6 +49,6 @@ Preflight v4 remains `HOLD`: current EventPulse cursor derivation interprets `Ev
 
 ## Tests and rollback
 
-Focused tests cover exact subscribe/REST routes and ACK id, no replay-start or successful-snapshot System action, missing/out-of-range timestamps, differing `E`/`T`, retained aggregate-trade outer `E`, wrong/ignored family, unknown or retired HTTP correlation, non-contiguous quote `u` with DERIVED envelope cursor, trade and book native cursors, paired identity uniqueness, bounded OI polling, official snapshot `E`/`T`, inclusive snapshot bridge, and next-`pu` continuity. Full adapter and workspace gates protect legacy behavior.
+Focused tests cover exact subscribe/REST routes and ACK id, no replay-start or successful-snapshot System action, missing/out-of-range timestamps, differing `E`/`T`, retained aggregate-trade outer `E`, wrong/ignored family, unknown or retired HTTP correlation, source-compatible legacy decoded variants, exact catalog binding, native-id max/one-over boundaries, non-contiguous quote `u` with DERIVED envelope cursor, trade and book native cursors, paired identity uniqueness, bounded OI polling, official snapshot `E`/`T`, inclusive snapshot bridge, and next-`pu` continuity. Full adapter and workspace gates protect legacy behavior.
 
 Rollback is one local commit. No migration or external state exists.
