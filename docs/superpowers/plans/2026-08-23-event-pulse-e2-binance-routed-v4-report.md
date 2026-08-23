@@ -2,7 +2,7 @@
 
 ## Scope
 
-Adapter-only prerequisite. No public prospective admission/preflight API is included because the root freeze does not yet pin that request shape. No authority or fixture claim is made.
+Adapter-only prerequisite. Root `44f3` pins the append-only wire contract, but this slice does not implement its Rust consumer, prospective admission/preflight v4, or fixture v4. No authority or fixture claim is made.
 
 ## RED
 
@@ -29,8 +29,8 @@ The routed HTTP failure tests also prove a malformed timestamp response produces
 
 The successor correction binds routed BOOK and LIQUIDATION authoring to Binance transaction time (`T` / `o.T`) while retaining distinct decoded event and transaction timestamps, including aggregate-trade outer `E`. It also makes routed construction pair-only, suppresses successful snapshot System output, deduplicates outstanding OI polls, requires ACK id `1`, rejects ignored routed frames and unknown/retired HTTP ids, and checks every routed source millisecond before nanosecond authorship. Legacy/default authoring remains on its original timestamps and actions.
 
-The compatibility correction restores the public `UsdmDecoded` variants exactly and moves routed provenance to `UsdmRoutedV4Decoded`/`UsdmRoutedV4SourceTimes`. Pair construction now proves the exact native catalog row, and all routed native sequence identifiers fail closed above `i64::MAX` before output/state mutation.
+The compatibility correction restores the public `UsdmDecoded` variants exactly and moves routed provenance to `UsdmRoutedV4Decoded`/`UsdmRoutedV4SourceTimes`. Pair construction now proves the complete BNB/USDT linear-perpetual catalog identity. Native trade/book sequence identifiers fail closed above `i64::MAX` before output/state mutation, while derived quote `u` accepts the full `u64` domain.
 
 ## Residual hold
 
-`blocked:fixture-provenance`. Preflight v4 cannot truthfully retain bookTicker `u` provenance while authoring a DERIVED quote cursor with the current canonical EventEnvelope/EPIN representation. Source qualification and capture evidence are also unverified.
+`blocked:fixture-provenance`. Root `44f3` defines the required provenance/cursor wire separation; its Rust consumer plus admission/preflight/fixture v4 are not implemented here. Source qualification and authentic capture evidence are also unverified.

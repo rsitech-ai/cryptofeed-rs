@@ -11,9 +11,9 @@ use marketfeed_adapter_api::{
 use marketfeed_book::{BookSynchronizer, OrderBook, SyncLimits, SyncState};
 use marketfeed_model::{
     BookChange, BookDelta, BookSide, BookSnapshot, Candle, CatalogView, ConnectionId,
-    EventEnvelope, EventFlags, FrameStamp, Funding, InstrumentId, Liquidation, MarketEvent,
-    OpenInterest, Price, PricePoint, Quantity, Quote, SequenceRange, SessionId, Statistics24h,
-    SystemEvent, TimestampNs, Trade,
+    EventEnvelope, EventFlags, FrameStamp, Funding, InstrumentId, InstrumentKind, Liquidation,
+    MarketEvent, OpenInterest, Price, PricePoint, Quantity, Quote, SequenceRange, SessionId,
+    Statistics24h, SystemEvent, TimestampNs, Trade,
 };
 
 use crate::messages::kline_stream_interval;
@@ -258,6 +258,21 @@ impl BinanceUsdmSession {
                 Some(instrument.id) != configured_id.copied()
                     || instrument.catalog_version != catalog.version
                     || instrument.key.venue.0 != "binance-usdm"
+                    || instrument.base.0 != "BNB"
+                    || instrument.quote.0 != "USDT"
+                    || instrument.key.kind != InstrumentKind::PerpetualLinear
+                    || instrument
+                        .settlement
+                        .as_ref()
+                        .is_none_or(|asset| asset.0 != "USDT")
+                    || instrument
+                        .key
+                        .settlement
+                        .as_ref()
+                        .is_none_or(|asset| asset.0 != "USDT")
+                    || instrument.inverse
+                    || instrument.expiry_ns.is_some()
+                    || instrument.key.expiry_ns.is_some()
             })
         {
             return Err(AdapterError::Subscription(
@@ -291,14 +306,8 @@ impl BinanceUsdmSession {
             return Ok(());
         };
         let valid = match (route, decoded) {
-            (
-                BinanceUsdmRouteV4::Public,
-                UsdmDecoded::Quote {
-                    symbol, update_id, ..
-                },
-            ) => {
+            (BinanceUsdmRouteV4::Public, UsdmDecoded::Quote { symbol, .. }) => {
                 symbol == ROUTED_V4_SYMBOL
-                    && *update_id <= i64::MAX as u64
                     && source_times
                         .event_time_ms
                         .is_some_and(valid_routed_source_ms)

@@ -30,11 +30,11 @@ The REST depth schema currently and officially includes both `E` and `T`; routed
 
 Routed construction is pair-only: one checked constructor returns PUBLIC and MARKET together and rejects aliased connection/session IDs or different instrument mappings. Successful routed snapshot activation emits no System action. MARKET OI polling permits at most one outstanding request per symbol, preventing timer-driven pending-map growth. These restrictions do not change the legacy constructor or factory.
 
-The pair also requires a real `BNBUSDT` row in the supplied Binance USD-M `CatalogView`, with the exact configured instrument id, venue, and catalog version. Routed `E`/`T` provenance lives in an additive routed decode sidecar; the established public `UsdmDecoded` variant fields and legacy decode behavior remain unchanged. Native `a`, `u`, `U`, `pu`, and `lastUpdateId` values are admitted only through `i64::MAX`, matching the downstream canonical integer domain before any routed output or book-state mutation.
+The pair also requires a real `BNBUSDT` row in the supplied Binance USD-M `CatalogView`, with the exact configured instrument id, venue/version, BNB/USDT linear-perpetual identity, USDT settlement, noninverse encoding, and no expiry. Routed `E`/`T` provenance lives in an additive routed decode sidecar; the established public `UsdmDecoded` variant fields and legacy decode behavior remain unchanged. Native `a`, `U`, `u`, `pu`, and `lastUpdateId` values are admitted only through `i64::MAX`, matching the downstream canonical integer domain before any routed output or book-state mutation. The non-contiguous quote `u` is DERIVED provenance rather than a native cursor and therefore retains the full `u64` domain.
 
 ## Explicit hold
 
-Preflight v4 remains `HOLD`: current EventPulse cursor derivation interprets `EventEnvelope.source_sequence` as NATIVE. The root topology requires non-contiguous bookTicker `u` to remain venue provenance while the QUOTE cursor is DERIVED. The routed decoder retains `u`, but the emitted EventEnvelope deliberately leaves `source_sequence` empty; no existing canonical EPIN field can retain `u` without incorrectly changing cursor mode. A separately accepted append-only provenance/cursor representation and frozen admission descriptor are prerequisites to preflight or fixture work.
+Root commit `44f3` now pins the append-only wire representation that decouples non-contiguous bookTicker `u` provenance from the DERIVED QUOTE cursor. This adapter prerequisite does not implement that Rust consumer, prospective admission/preflight v4, or fixture v4. Those integrations and authentic fixture provenance remain `HOLD`; the root wire contract itself is no longer the blocker.
 
 ## TDD and implementation steps
 

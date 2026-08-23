@@ -51,6 +51,12 @@ fn routed_catalog(id: InstrumentId) -> CatalogView {
     )
 }
 
+fn mutated_routed_catalog(mutate: fn(&mut Instrument)) -> CatalogView {
+    let mut instruments = routed_catalog(InstrumentId(7)).instruments.to_vec();
+    mutate(&mut instruments[0]);
+    CatalogView::with_instruments(VenueId(3), CatalogVersion(1), instruments)
+}
+
 fn stamp(value: i64) -> FrameStamp {
     FrameStamp {
         receive_ts: TimestampNs(value),
@@ -252,6 +258,22 @@ fn routed_pair_requires_exact_catalog_row() {
     let mut wrong_version = routed_catalog(InstrumentId(7));
     wrong_version.version = CatalogVersion(2);
     assert!(construct(wrong_version).is_err());
+    for catalog in [
+        mutated_routed_catalog(|instrument| instrument.base = AssetCode("BTC".to_owned())),
+        mutated_routed_catalog(|instrument| instrument.quote = AssetCode("USDC".to_owned())),
+        mutated_routed_catalog(|instrument| instrument.key.kind = InstrumentKind::FutureLinear),
+        mutated_routed_catalog(|instrument| {
+            instrument.settlement = Some(AssetCode("USDC".to_owned()));
+            instrument.key.settlement = Some(AssetCode("USDC".to_owned()));
+        }),
+        mutated_routed_catalog(|instrument| instrument.inverse = true),
+        mutated_routed_catalog(|instrument| {
+            instrument.expiry_ns = Some(1);
+            instrument.key.expiry_ns = Some(1);
+        }),
+    ] {
+        assert!(construct(catalog).is_err());
+    }
 }
 
 #[test]
@@ -601,19 +623,21 @@ fn routed_native_ids_are_bounded_before_output_or_state_mutation() {
     )
     .unwrap();
     assert_eq!(emitted(&quote)[0].frame_seq, 1);
-    assert!(drive_text(
+    let max_quote = drive_text(
         &mut public,
         &format!(
-            r#"{{"e":"bookTicker","E":1,"T":2,"u":{OVER},"s":"BNBUSDT","b":"650","B":"1","a":"651","A":"1"}}"#
+            r#"{{"e":"bookTicker","E":1,"T":2,"u":{},"s":"BNBUSDT","b":"650","B":"1","a":"651","A":"1"}}"#,
+            u64::MAX
         ),
     )
-    .is_err());
+    .unwrap();
+    assert_eq!(emitted(&max_quote)[0].source_sequence, None);
     let next_quote = drive_text(
         &mut public,
         r#"{"e":"bookTicker","E":1,"T":2,"u":1,"s":"BNBUSDT","b":"650","B":"1","a":"651","A":"1"}"#,
     )
     .unwrap();
-    assert_eq!(emitted(&next_quote)[0].frame_seq, 2);
+    assert_eq!(emitted(&next_quote)[0].frame_seq, 3);
     assert!(drive_text(
         &mut public,
         &format!(
