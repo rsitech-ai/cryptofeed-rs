@@ -1,19 +1,22 @@
 //! Fail-closed tests for the routed Binance MFR1 -> MechanicsInputV2 boundary.
 
-use marketfeed_adapter_api::{ConcreteSubscriptionSet, HttpResponse, SessionSpec};
+use marketfeed_adapter_api::{
+    ActionBuffer, ConcreteSubscriptionSet, HttpResponse, SessionInput, SessionMachine, SessionSpec,
+};
 use marketfeed_adapter_binance::{
     BinanceUsdmRouteV4, BinanceUsdmSession, BinanceUsdmSessionConfig,
 };
 use marketfeed_event_pulse::{
-    MechanicsInputRefV2, ProspectiveCaptureAdmissionV2, SourceProvenanceV2, SourceStateMachineV2,
+    MechanicsInputRefV2, MechanicsInputV2JsonlReader, ProspectiveCaptureAdmissionV2,
+    SourceProvenanceV2, SourceStateMachineV2,
     wire::{
-        InstrumentIdentityV1, OpenInterestEncodingV1, ReplayCatalogV1, ReplayEpochEntryV1,
-        Rfc3339Time, SystemSourceV1, VenueCatalogEntryV1,
+        FamilyV1, InstrumentIdentityV1, OpenInterestEncodingV1, ReplayCatalogV1,
+        ReplayEpochEntryV1, Rfc3339Time, SystemSourceV1, VenueCatalogEntryV1,
     },
 };
 use marketfeed_event_pulse_mfr1::{
     BinanceMfr1RouteV2, Mfr1MetadataBindingV2, Mfr1SessionBindingV2, Mfr1TransformContextV2,
-    Mfr1TransformErrorV2, Mfr1TransformerV2,
+    Mfr1TransformErrorV2, Mfr1TransformOutputV2, Mfr1TransformerV2,
 };
 use marketfeed_model::{
     AssetCode, CatalogVersion, CatalogView, ConnectionId, Fixed, Instrument, InstrumentId,
@@ -22,7 +25,7 @@ use marketfeed_model::{
 };
 use marketfeed_recording::{
     CatalogInstrumentMetadata, Direction, FixedMetadata, FrameOpcode, MetadataRecord,
-    RawSegmentWriter, SessionRecordingMetadata, encode_http_response,
+    RawSegmentWriter, SessionRecordingMetadata, SubscriptionMetadata, encode_http_response,
 };
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap};
@@ -196,6 +199,14 @@ fn context_with_capacity(
     route: BinanceMfr1RouteV2,
     dispatch_capacity: usize,
 ) -> (Mfr1TransformerV2, i64) {
+    context_with_policy(route, dispatch_capacity, OverflowPolicy::DropNewest)
+}
+
+fn context_with_policy(
+    route: BinanceMfr1RouteV2,
+    dispatch_capacity: usize,
+    overflow: OverflowPolicy,
+) -> (Mfr1TransformerV2, i64) {
     let admission = admission();
     let start = admission.capture_starts_at().utc_micros() * 1_000;
     let (name, connection_id, session_id) = if route == BinanceMfr1RouteV2::Public {
@@ -224,10 +235,68 @@ fn context_with_capacity(
         metadata,
         system,
         dispatch_capacity,
-        OverflowPolicy::DropNewest,
+        overflow,
     )
     .unwrap();
     (Mfr1TransformerV2::new(context), start)
+}
+
+fn public_fixture_output() -> Mfr1TransformOutputV2 {
+    let (transformer, start) = context(BinanceMfr1RouteV2::Public);
+    let (public, _) = machines();
+    let source_ms = u64::try_from(start.div_euclid(1_000_000)).unwrap();
+    let snapshot = encode_http_response(
+        1,
+        &HttpResponse {
+            status: 200,
+            headers: vec![],
+            body: format!(r#"{{"lastUpdateId":100,"E":{},"T":{},"bids":[["650.0","1"]],"asks":[["651.0","2"]]}}"#,source_ms+2,source_ms+2).into_bytes().into(),
+        },
+    )
+    .unwrap();
+    let records = vec![
+        (1, FrameOpcode::Text, format!(r#"{{"e":"bookTicker","E":{source_ms},"T":{source_ms},"u":99,"s":"BNBUSDT","b":"650.0","B":"1","a":"651.0","A":"2"}}"#).into_bytes()),
+        (2, FrameOpcode::Text, format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":99,"u":101,"pu":98,"b":[["650.0","1.5"]],"a":[["651.0","1.5"]]}}"#,source_ms+1,source_ms+1).into_bytes()),
+        (3, FrameOpcode::HttpResponse, snapshot),
+        (4, FrameOpcode::Text, format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":102,"u":102,"pu":101,"b":[["650.0","2"]],"a":[]}}"#,source_ms+3,source_ms+3).into_bytes()),
+    ];
+    transformer
+        .transform(
+            public,
+            &mfr(BinanceMfr1RouteV2::Public, start, &records),
+            TimestampNs(start),
+            decision(start, records.len()),
+        )
+        .unwrap()
+}
+
+fn market_fixture_output() -> Mfr1TransformOutputV2 {
+    let (transformer, start) = context(BinanceMfr1RouteV2::Market);
+    let (_, market) = machines();
+    let source_ms = u64::try_from(start.div_euclid(1_000_000)).unwrap();
+    let oi = encode_http_response(
+        1,
+        &HttpResponse {
+            status: 200,
+            headers: vec![],
+            body: format!(
+                r#"{{"symbol":"BNBUSDT","openInterest":"10659.509","time":{}}}"#,
+                source_ms + 2
+            )
+            .into_bytes()
+            .into(),
+        },
+    )
+    .unwrap();
+    let records=vec![(51,FrameOpcode::Text,format!(r#"{{"e":"aggTrade","E":{source_ms},"s":"BNBUSDT","a":42,"p":"650.1","q":"0.01","T":{source_ms},"m":false}}"#).into_bytes()),(52,FrameOpcode::Text,format!(r#"{{"e":"forceOrder","E":{},"o":{{"s":"BNBUSDT","S":"SELL","ap":"649","l":"0.5","T":{}}}}}"#,source_ms+1,source_ms+1).into_bytes()),(53,FrameOpcode::HttpResponse,oi)];
+    transformer
+        .transform(
+            market,
+            &mfr(BinanceMfr1RouteV2::Market, start, &records),
+            TimestampNs(start),
+            decision(start, records.len()),
+        )
+        .unwrap()
 }
 
 fn mfr(route: BinanceMfr1RouteV2, start: i64, records: &[(u64, FrameOpcode, Vec<u8>)]) -> Vec<u8> {
@@ -255,6 +324,37 @@ fn mfr(route: BinanceMfr1RouteV2, start: i64, records: &[(u64, FrameOpcode, Vec<
                 *opcode,
                 0,
                 payload,
+            )
+            .unwrap();
+    }
+    writer.into_inner()
+}
+
+fn mfr_pings(route: BinanceMfr1RouteV2, start: i64, count: usize) -> Vec<u8> {
+    let session = if route == BinanceMfr1RouteV2::Public {
+        21
+    } else {
+        22
+    };
+    let mut writer = RawSegmentWriter::create(Vec::new(), start).unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Build(build_metadata()), start)
+        .unwrap();
+    writer
+        .write_metadata(&MetadataRecord::Session(session_metadata(route)), start)
+        .unwrap();
+    for ordinal in 0..count {
+        let offset = i64::try_from(ordinal).unwrap() + 1;
+        writer
+            .write_record(
+                SessionId(session),
+                u64::try_from(ordinal).unwrap() + 1,
+                start + offset,
+                u64::try_from(start + offset).unwrap(),
+                Direction::Inbound,
+                FrameOpcode::Ping,
+                0,
+                &[],
             )
             .unwrap();
     }
@@ -345,44 +445,7 @@ fn market_trade_force_order_and_open_interest_are_strict_v2_inputs() {
 
 #[test]
 fn public_book_snapshot_consumes_buffered_and_live_delta_provenance() {
-    let (transformer, start) = context(BinanceMfr1RouteV2::Public);
-    let (public, _) = machines();
-    let source_ms = u64::try_from(start.div_euclid(1_000_000)).unwrap();
-    let snapshot = encode_http_response(
-        1,
-        &HttpResponse {
-            status: 200,
-            headers: vec![],
-            body: format!(r#"{{"lastUpdateId":100,"E":{},"T":{},"bids":[["650.0","1"]],"asks":[["651.0","2"]]}}"#,source_ms+2,source_ms+2).into_bytes().into(),
-        },
-    )
-    .unwrap();
-    let records = vec![
-        (
-            1,
-            FrameOpcode::Text,
-            format!(r#"{{"e":"bookTicker","E":{source_ms},"T":{source_ms},"u":99,"s":"BNBUSDT","b":"650.0","B":"1","a":"651.0","A":"2"}}"#).into_bytes(),
-        ),
-        (
-            2,
-            FrameOpcode::Text,
-            format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":99,"u":101,"pu":98,"b":[["650.0","1.5"]],"a":[["651.0","1.5"]]}}"#,source_ms+1,source_ms+1).into_bytes(),
-        ),
-        (3, FrameOpcode::HttpResponse, snapshot),
-        (
-            4,
-            FrameOpcode::Text,
-            format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":102,"u":102,"pu":101,"b":[["650.0","2"]],"a":[]}}"#,source_ms+3,source_ms+3).into_bytes(),
-        ),
-    ];
-    let output = transformer
-        .transform(
-            public,
-            &mfr(BinanceMfr1RouteV2::Public, start, &records),
-            TimestampNs(start),
-            decision(start, records.len()),
-        )
-        .unwrap();
+    let output = public_fixture_output();
     assert_eq!(output.inputs().len(), 4);
     assert_eq!(
         output
@@ -431,6 +494,92 @@ fn public_book_snapshot_consumes_buffered_and_live_delta_provenance() {
 }
 
 #[test]
+fn seven_record_oracle_is_independent_canonical_and_state_equivalent() {
+    let public = public_fixture_output();
+    let market = market_fixture_output();
+    let mut actual_bytes = public.canonical_jsonl().to_vec();
+    actual_bytes.extend_from_slice(market.canonical_jsonl());
+    let expected_bytes = include_bytes!("fixtures/routed_v2_expected.jsonl");
+    assert_eq!(actual_bytes, expected_bytes);
+
+    let start = admission().capture_starts_at().utc_micros() * 1_000;
+    let split = expected_bytes
+        .iter()
+        .enumerate()
+        .filter(|(_, byte)| **byte == b'\n')
+        .nth(3)
+        .map(|(index, _)| index + 1)
+        .unwrap();
+    let not_after = Rfc3339Time::from_unix_nanos(start + 1_000_000_000).unwrap();
+    let mut expected =
+        MechanicsInputV2JsonlReader::new(&expected_bytes[..split], not_after.clone())
+            .read_all()
+            .unwrap();
+    expected.extend(
+        MechanicsInputV2JsonlReader::new(&expected_bytes[split..], not_after)
+            .read_all()
+            .unwrap(),
+    );
+    let actual = public
+        .inputs()
+        .iter()
+        .chain(market.inputs())
+        .cloned()
+        .collect::<Vec<_>>();
+    assert_eq!(actual, expected);
+    assert_eq!(
+        actual
+            .iter()
+            .map(|input| input.payload_hash())
+            .collect::<Vec<_>>(),
+        [
+            "c4bdb697dbc1ac40b4e3afb396d6edd18f22a9502faf1f0c6e333e3a9ba0a802",
+            "4b606841f271568385eccc7e7f7d520ce15d5a0abbfbf02256a855cb5edf34c4",
+            "7487328cc27525e711121693cb1621986b68db9660b8444dc9d86a4891b85626",
+            "3bb2442736ef2fb1f18c6c2f7402d08ec85cbad3004f7d246b730e5292a6b107",
+            "46aa3b7d2c37465169cdf16a8ccf51558c7ef3d56ad0630e9a8931bd520d354e",
+            "46e249573e362c3865164ebbe54fe7f1843011a2ece8df7d62f37678d7ec728d",
+            "31915db8a8d5c510085a575ebab5f463b53ee526dd652ec43f3b238cc10085be",
+        ]
+    );
+
+    let config = admission().mechanics_config().clone();
+    let mut actual_state = SourceStateMachineV2::new(config.clone());
+    let mut expected_state = SourceStateMachineV2::new(config.clone());
+    let actual_outcomes = actual
+        .iter()
+        .map(|input| actual_state.ingest(input))
+        .collect::<Vec<_>>();
+    let expected_outcomes = expected
+        .iter()
+        .map(|input| expected_state.ingest(input))
+        .collect::<Vec<_>>();
+    assert_eq!(actual_outcomes, expected_outcomes);
+    assert!(actual_outcomes.iter().all(Result::is_ok));
+    for contributor in config.contributors() {
+        for family in contributor.allowed_families() {
+            if matches!(
+                family,
+                FamilyV1::Trade
+                    | FamilyV1::Quote
+                    | FamilyV1::Book
+                    | FamilyV1::OpenInterest
+                    | FamilyV1::Liquidation
+            ) {
+                assert_eq!(
+                    actual_state.market_state(contributor.key(), *family),
+                    expected_state.market_state(contributor.key(), *family)
+                );
+                assert_eq!(
+                    actual_state.market_cursor(contributor.key(), *family),
+                    expected_state.market_cursor(contributor.key(), *family)
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn real_market_dispatch_overflow_is_reserved_and_does_not_leave_ledger_entries() {
     let (transformer, start) = context_with_capacity(BinanceMfr1RouteV2::Public, 1);
     let (public, _) = machines();
@@ -461,6 +610,102 @@ fn real_market_dispatch_overflow_is_reserved_and_does_not_leave_ledger_entries()
     assert!(matches!(
         output.inputs()[1].view(),
         MechanicsInputRefV2::NonMarket(_)
+    ));
+}
+
+#[test]
+fn fail_engine_policy_rejects_the_same_real_dispatch_overflow_atomically() {
+    let (transformer, start) =
+        context_with_policy(BinanceMfr1RouteV2::Public, 1, OverflowPolicy::FailEngine);
+    let (public, _) = machines();
+    let source_ms = u64::try_from(start.div_euclid(1_000_000)).unwrap();
+    let snapshot = encode_http_response(
+        1,
+        &HttpResponse {
+            status: 200,
+            headers: vec![],
+            body: format!(r#"{{"lastUpdateId":100,"E":{},"T":{},"bids":[["650.0","1"]],"asks":[["651.0","2"]]}}"#,source_ms+1,source_ms+1).into_bytes().into(),
+        },
+    )
+    .unwrap();
+    let records = vec![
+        (2, FrameOpcode::Text, format!(r#"{{"e":"depthUpdate","E":{source_ms},"T":{source_ms},"s":"BNBUSDT","U":99,"u":101,"pu":98,"b":[],"a":[]}}"#).into_bytes()),
+        (3, FrameOpcode::HttpResponse, snapshot),
+    ];
+    assert!(matches!(
+        transformer.transform(
+            public,
+            &mfr(BinanceMfr1RouteV2::Public, start, &records),
+            TimestampNs(start),
+            decision(start, records.len()),
+        ),
+        Err(Mfr1TransformErrorV2::Adapter(_))
+    ));
+}
+
+#[test]
+fn replay_record_cap_accepts_exact_boundary_and_rejects_one_over() {
+    let exact = mfr_pings(
+        BinanceMfr1RouteV2::Public,
+        admission().capture_starts_at().utc_micros() * 1_000,
+        65_534,
+    );
+    let (transformer, start) = context(BinanceMfr1RouteV2::Public);
+    let (public, _) = machines();
+    let output = transformer
+        .transform(
+            public,
+            &exact,
+            TimestampNs(start),
+            Rfc3339Time::from_unix_nanos(start + 1_000_000_000).unwrap(),
+        )
+        .unwrap();
+    assert!(output.inputs().is_empty());
+
+    let one_over = mfr_pings(BinanceMfr1RouteV2::Public, start, 65_535);
+    let (transformer, _) = context(BinanceMfr1RouteV2::Public);
+    let (public, _) = machines();
+    assert_eq!(
+        transformer
+            .transform(
+                public,
+                &one_over,
+                TimestampNs(start),
+                Rfc3339Time::from_unix_nanos(start + 1_000_000_000).unwrap(),
+            )
+            .unwrap_err(),
+        Mfr1TransformErrorV2::Capacity
+    );
+}
+
+#[test]
+fn late_replay_failure_returns_no_partial_output() {
+    let (transformer, start) = context(BinanceMfr1RouteV2::Market);
+    let (_, market) = machines();
+    let source_ms = start.div_euclid(1_000_000);
+    let unknown = encode_http_response(
+        99,
+        &HttpResponse {
+            status: 200,
+            headers: vec![],
+            body: format!(r#"{{"symbol":"BNBUSDT","openInterest":"1","time":{source_ms}}}"#)
+                .into_bytes()
+                .into(),
+        },
+    )
+    .unwrap();
+    let records = vec![
+        (1, FrameOpcode::Text, format!(r#"{{"e":"aggTrade","E":{source_ms},"s":"BNBUSDT","a":42,"p":"650.1","q":"0.01","T":{source_ms},"m":false}}"#).into_bytes()),
+        (2, FrameOpcode::HttpResponse, unknown),
+    ];
+    assert!(matches!(
+        transformer.transform(
+            market,
+            &mfr(BinanceMfr1RouteV2::Market, start, &records),
+            TimestampNs(start),
+            decision(start, records.len()),
+        ),
+        Err(Mfr1TransformErrorV2::Adapter(_))
     ));
 }
 
@@ -553,6 +798,39 @@ fn source_time_must_be_inside_admission_and_not_after_receive() {
                 .unwrap_err(),
             Mfr1TransformErrorV2::Provenance
         );
+    }
+}
+
+#[test]
+fn event_time_is_retained_but_only_transaction_time_is_causal() {
+    for event_offset in [-100_i64, 100] {
+        let (transformer, start) = context(BinanceMfr1RouteV2::Public);
+        let (public, _) = machines();
+        let start_ms = start.div_euclid(1_000_000);
+        let event_ms = start_ms + event_offset;
+        let quote = format!(r#"{{"e":"bookTicker","E":{event_ms},"T":{start_ms},"u":1,"s":"BNBUSDT","b":"650","B":"1","a":"651","A":"1"}}"#).into_bytes();
+        let bytes = mfr(
+            BinanceMfr1RouteV2::Public,
+            start,
+            &[(1, FrameOpcode::Text, quote)],
+        );
+        let output = transformer
+            .transform(public, &bytes, TimestampNs(start), decision(start, 1))
+            .unwrap();
+        let MechanicsInputRefV2::Market {
+            source_provenance:
+                SourceProvenanceV2::BinanceBookTicker {
+                    event_time_ms,
+                    transaction_time_ms,
+                    ..
+                },
+            ..
+        } = output.inputs()[0].view()
+        else {
+            panic!("quote")
+        };
+        assert_eq!(*event_time_ms, u64::try_from(event_ms).unwrap());
+        assert_eq!(*transaction_time_ms, u64::try_from(start_ms).unwrap());
     }
 }
 
@@ -651,6 +929,123 @@ fn one_to_three_byte_tails_fail_closed() {
 }
 
 #[test]
+fn transformer_rejects_wrong_legacy_advanced_and_mismatched_routed_machine_before_replay() {
+    for (context_route, use_public, with_ack) in [
+        (BinanceMfr1RouteV2::Public, false, false),
+        (BinanceMfr1RouteV2::Market, true, false),
+        (BinanceMfr1RouteV2::Public, false, true),
+        (BinanceMfr1RouteV2::Market, true, true),
+    ] {
+        let (transformer, start) = context(context_route);
+        let (public, market) = machines();
+        let machine = if use_public { public } else { market };
+        let records = if with_ack {
+            vec![(1, FrameOpcode::Text, br#"{"result":null,"id":1}"#.to_vec())]
+        } else {
+            vec![]
+        };
+        let bytes = mfr(context_route, start, &records);
+        assert_eq!(
+            transformer
+                .transform(
+                    machine,
+                    &bytes,
+                    TimestampNs(start),
+                    decision(start, records.len())
+                )
+                .unwrap_err(),
+            Mfr1TransformErrorV2::MachineIdentity,
+        );
+    }
+
+    let (transformer, start) = context(BinanceMfr1RouteV2::Public);
+    let legacy = BinanceUsdmSession::new(
+        SessionSpec {
+            endpoint_name: "legacy".into(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        catalog_view(),
+        config(11, 21, true),
+    );
+    assert_eq!(
+        transformer
+            .transform(
+                legacy,
+                &mfr(BinanceMfr1RouteV2::Public, start, &[]),
+                TimestampNs(start),
+                decision(start, 0)
+            )
+            .unwrap_err(),
+        Mfr1TransformErrorV2::MachineIdentity
+    );
+
+    let (transformer, start) = context(BinanceMfr1RouteV2::Public);
+    let (mut advanced, _) = machines();
+    let mut ack = br#"{"result":null,"id":1}"#.to_vec();
+    advanced
+        .on_input(
+            SessionInput::TextFrame {
+                bytes: &mut ack,
+                received: marketfeed_model::FrameStamp {
+                    receive_ts: TimestampNs(start),
+                    mono_ns: u64::try_from(start).unwrap(),
+                },
+            },
+            &mut ActionBuffer::new(),
+        )
+        .unwrap();
+    assert_eq!(
+        transformer
+            .transform(
+                advanced,
+                &mfr(BinanceMfr1RouteV2::Public, start, &[]),
+                TimestampNs(start),
+                decision(start, 0)
+            )
+            .unwrap_err(),
+        Mfr1TransformErrorV2::MachineIdentity
+    );
+
+    let (transformer, start) = context(BinanceMfr1RouteV2::Public);
+    let mut wrong_public = config(31, 41, true);
+    wrong_public.instrument_ids = HashMap::from([("BNBUSDT".into(), InstrumentId(8))]);
+    let mut wrong_market = config(32, 42, false);
+    wrong_market.instrument_ids = wrong_public.instrument_ids.clone();
+    let (wrong, _) = BinanceUsdmSession::try_new_routed_pair_v4(
+        SessionSpec {
+            endpoint_name: PUBLIC_WS.into(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        SessionSpec {
+            endpoint_name: MARKET_WS.into(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        {
+            let mut view = catalog_view();
+            let mut instrument = view.instruments[0].clone();
+            instrument.id = InstrumentId(8);
+            instrument.catalog_version = view.version;
+            view = CatalogView::with_instruments(VenueId(3), view.version, vec![instrument]);
+            view
+        },
+        wrong_public,
+        wrong_market,
+    )
+    .unwrap();
+    assert_eq!(
+        transformer
+            .transform(
+                wrong,
+                &mfr(BinanceMfr1RouteV2::Public, start, &[]),
+                TimestampNs(start),
+                decision(start, 0)
+            )
+            .unwrap_err(),
+        Mfr1TransformErrorV2::MachineIdentity
+    );
+}
+
+#[test]
 fn v2_transformer_api_is_additive_and_false_authority() {
     let _ = std::mem::size_of::<Mfr1SessionBindingV2>();
     let _ = std::mem::size_of::<Mfr1MetadataBindingV2>();
@@ -658,4 +1053,35 @@ fn v2_transformer_api_is_additive_and_false_authority() {
     let _ = std::mem::size_of::<Mfr1TransformerV2>();
     assert_ne!(BinanceMfr1RouteV2::Public, BinanceMfr1RouteV2::Market);
     assert_ne!(BinanceUsdmRouteV4::Public, BinanceUsdmRouteV4::Market);
+}
+
+#[test]
+fn metadata_binding_requires_complete_build_and_empty_routed_subscriptions() {
+    for field in 0..4 {
+        let mut build = build_metadata();
+        match field {
+            0 => build.package_name.clear(),
+            1 => build.package_version.clear(),
+            2 => build.target_os.clear(),
+            3 => build.target_arch.clear(),
+            _ => unreachable!(),
+        }
+        assert_eq!(
+            Mfr1MetadataBindingV2::new(build, session_metadata(BinanceMfr1RouteV2::Public))
+                .unwrap_err(),
+            Mfr1TransformErrorV2::InvalidExecutionMetadata,
+        );
+    }
+    let mut session = session_metadata(BinanceMfr1RouteV2::Public);
+    session.initial_subscriptions.push(SubscriptionMetadata {
+        instrument_id: 7,
+        channel: "depth".into(),
+        emit_book_snapshots: true,
+        emit_book_deltas: true,
+        emit_bbo: false,
+    });
+    assert_eq!(
+        Mfr1MetadataBindingV2::new(build_metadata(), session).unwrap_err(),
+        Mfr1TransformErrorV2::InvalidExecutionMetadata,
+    );
 }

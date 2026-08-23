@@ -4,7 +4,9 @@
 
 Implemented a pure offline, route-specific Binance USD-M MFR1-to-`MechanicsInputV2` transformer in the leaf `marketfeed-event-pulse-mfr1` crate. The existing V1 API and implementation remain unchanged.
 
-The transformer consumes an owned routed Binance session and complete MFR1 segment bytes. Before invoking the session machine it validates the MFR1 v3 header and reserved word, exact framed length, 256 MiB/65,536-record bounds, capture and decision times, selected session, exact build/session metadata, route-specific admission/catalog/epoch identity, and every selected payload's role, symbol, native range, E/T provenance, and action-producing frame order.
+The transformer consumes an owned routed Binance session and complete MFR1 segment bytes. Before parsing the MFR or invoking replay, it requires an adapter-owned pristine routed-v4 identity matching the exact route, connection, session, instrument, and BNBUSDT symbol. It then validates the MFR1 v3 header and reserved word, exact framed length, 256 MiB/65,536-record bounds, capture and decision times, selected session, exact nonempty build/session metadata with no initial routed subscriptions, route-specific admission/catalog/epoch identity, and every selected payload's role, symbol, native range, E/T provenance, and action-producing frame order.
+
+The causal admission/receive interval applies to the source field used by mechanics: Binance T for quote/book/trade, `time` for OI, and inner `o.T` for liquidation. Binance E remains bounded and retained exactly as provenance but is not misrepresented as the causal source time, so an E before capture start or after receive does not reject an otherwise truthful T.
 
 PUBLIC and MARKET use distinct checked `ReplayCatalogV1` values because venue id 3 must resolve to exactly one admitted source per transform. MARKET output is authored directly through `MechanicsInputV2::market`; no V1 MARKET cursor or serialization path is used. V1 remains the exact path only for reserved ActionBuffer and MarketDispatch drop inputs.
 
@@ -15,16 +17,20 @@ Buffered BOOK correlation is deterministic without changing the adapter. Selecte
 ## TDD evidence
 
 - RED: `cargo test -p marketfeed-event-pulse-mfr1 --test transformer_v2` failed with `E0432` unresolved imports for the absent V2 API.
-- GREEN: the focused suite passes 11/11. It covers PUBLIC quote full-`u64` provenance with derived raw cursor; snapshot/buffered/live BOOK; MARKET trade/OI/liquidation; fresh `SourceStateMachineV2` ingestion; actual dispatcher overflow and reserved drop authorship; wrong route/symbol/timestamps/native bounds; frame zero/regression; subscription ACK id binding; duplicate ledger identity; unknown HTTP request id; and 1/2/3-byte truncation.
+- GREEN: the review-hardened focused suite passes 18/18. In addition to the initial matrix, it rejects wrong-route, legacy, advanced, and wrong-config machines before replay; binds complete metadata; proves E/T causal separation; exercises exact 65,536/65,537 raw-record boundaries; proves DropNewest and FailEngine behavior; and proves no partial return after a late replay failure.
+- Independent oracle: seven frozen canonical MARKET records (PUBLIC quote/snapshot/buffered delta/live delta and MARKET trade/liquidation/OI) match exact JSONL bytes and seven exact payload hashes. Each route strict-reads independently because the two source segments have independent availability sequences. Independently decoded expected values equal the transformer output, and fresh `SourceStateMachineV2` instances produce identical ingest outcomes and exact per-family cursor/state views.
+- Aggregate-boundary unit regressions exercise exact and one-over predicates for 256 MiB input, 65,536 records, 65,536 authored inputs, 65,536 actions, and 16 MiB JSONL; the JSONL writer itself accepts exactly 16 MiB then rejects the next byte.
 - Existing V1 transformer suite remains 29/29 green.
 
 ## Verification
 
-- `cargo test -p marketfeed-event-pulse-mfr1 --quiet` — GREEN (3 unit, 29 V1 integration, 11 V2 integration).
+- `cargo test -p marketfeed-event-pulse-mfr1 --test transformer_v2` — GREEN (18 V2 integration, including the 65,536-record public boundary).
+- `cargo test -p marketfeed-adapter-binance --test usdm_routed_v4` — GREEN (11 routed-v4 integration).
+- `cargo test -p marketfeed-event-pulse-mfr1 -p marketfeed-event-pulse -p marketfeed-adapter-binance --all-targets --all-features` — GREEN (4 MFR1 unit, 29 V1 integration, 18 V2 integration, and all EventPulse/Binance relevant suites; ignored network tests remained ignored).
 - `cargo test -p marketfeed-event-pulse -p marketfeed-adapter-binance -p marketfeed-recording -p marketfeed-replay -p marketfeed-dispatch --quiet` — GREEN; ignored network tests remained ignored.
 - `cargo test --workspace --all-targets --all-features --quiet` — GREEN; ignored live-network tests remained ignored.
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` — GREEN.
-- `cargo +1.85.0 test -p marketfeed-event-pulse-mfr1 -p marketfeed-event-pulse -p marketfeed-adapter-binance --quiet` — GREEN.
+- `cargo +1.85.0 test -p marketfeed-event-pulse-mfr1 -p marketfeed-event-pulse -p marketfeed-adapter-binance --all-targets --all-features --quiet` — GREEN.
 - `cargo +1.85.0 clippy -p marketfeed-event-pulse-mfr1 -p marketfeed-event-pulse -p marketfeed-adapter-binance --all-targets --all-features -- -D warnings` — GREEN.
 - `cargo fmt --all -- --check` — GREEN.
 - `cargo deny --offline --locked check` — GREEN: advisories, bans, licenses, and sources.
@@ -34,7 +40,7 @@ Buffered BOOK correlation is deterministic without changing the adapter. Selecte
 
 The only new dependency edge is `marketfeed-event-pulse-mfr1 -> marketfeed-adapter-binance`. Binance's normal dependency graph is pure adapter state, model, book, bytes, and Serde code; transport, engine, recording, and replay remain dev-only. `Cargo.lock` changes only by adding that existing workspace package name to the leaf crate's dependency list.
 
-No adapter, recording, replay, engine, daemon, transport, filesystem, network, environment, credential, snapshot, capture, package, manifest, or trading implementation changed. Returned output explicitly reports `evidence_authoring_allowed=false` and `blocked:fixture-provenance`.
+The adapter change is additive and read-only: a routed-v4 machine exposes immutable identity only while it is in the exact factory-pristine state, and any input permanently retires that proof. Existing public decoded/event APIs and legacy/default behavior are preserved. No recording, replay, engine, daemon, transport, filesystem, network, environment, credential, snapshot, capture, package, manifest, or trading implementation changed. Returned output explicitly reports `evidence_authoring_allowed=false` and `blocked:fixture-provenance`.
 
 ## Residual hold
 

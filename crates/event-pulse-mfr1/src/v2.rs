@@ -7,7 +7,8 @@ use std::{
 
 use marketfeed_adapter_api::{ActionBuffer, SessionAction, SessionInput, SessionMachine};
 use marketfeed_adapter_binance::{
-    BinanceUsdmSession, UsdmDecoded, UsdmRoutedV4Decoded, decode_usdm_routed_v4_text,
+    BinanceUsdmRouteV4, BinanceUsdmSession, UsdmDecoded, UsdmRoutedV4Decoded,
+    decode_usdm_routed_v4_text,
 };
 use marketfeed_dispatch::{EventDispatcher, PushOutcome};
 use marketfeed_event_pulse::{
@@ -25,6 +26,20 @@ use marketfeed_recording::{
     decode_subscription_command,
 };
 use thiserror::Error;
+
+const MAX_MFR1_BYTES: usize = 256 * 1024 * 1024;
+const MAX_REPLAY_RECORDS: usize = 65_536;
+const MAX_AUTHORED_INPUTS: usize = 65_536;
+const MAX_JSONL_BYTES: usize = 16 * 1024 * 1024;
+const MAX_ACTIONS_PER_FRAME: usize = 65_536;
+
+fn ensure_at_most(value: usize, limit: usize) -> Result<(), Mfr1TransformErrorV2> {
+    if value > limit {
+        Err(Mfr1TransformErrorV2::Capacity)
+    } else {
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BinanceMfr1RouteV2 {
@@ -67,7 +82,19 @@ impl Mfr1MetadataBindingV2 {
         build: BuildMetadata,
         session: SessionRecordingMetadata,
     ) -> Result<Self, Mfr1TransformErrorV2> {
-        if build.schema_version != 1 || session.schema_version != 1 || session.catalog.is_empty() {
+        if build.schema_version != 1
+            || build.package_name.trim().is_empty()
+            || build.package_version.trim().is_empty()
+            || build.target_os.trim().is_empty()
+            || build.target_arch.trim().is_empty()
+            || session.schema_version != 1
+            || session.adapter.trim().is_empty()
+            || session.environment.trim().is_empty()
+            || session.endpoint.trim().is_empty()
+            || session.catalog_version == 0
+            || session.catalog.is_empty()
+            || !session.initial_subscriptions.is_empty()
+        {
             return Err(Mfr1TransformErrorV2::InvalidExecutionMetadata);
         }
         Ok(Self { build, session })
@@ -99,7 +126,7 @@ impl Mfr1TransformContextV2 {
         let action_capacity = dispatch_capacity
             .checked_mul(4)
             .map(|value| value.max(marketfeed_adapter_api::DEFAULT_ACTION_BUFFER_CAPACITY))
-            .filter(|value| *value <= u16::MAX as usize)
+            .filter(|value| *value <= MAX_ACTIONS_PER_FRAME)
             .ok_or(Mfr1TransformErrorV2::InvalidExecutionMetadata)?;
         if dispatch_capacity == 0
             || dispatch_capacity > u16::MAX as usize
@@ -298,6 +325,8 @@ pub enum Mfr1TransformErrorV2 {
     ProvenanceLedger,
     #[error("ordinary system or reconnect action is unsupported")]
     UnsupportedAction,
+    #[error("owned Binance routed-v4 machine is not pristine or does not match the context")]
+    MachineIdentity,
 }
 
 pub struct Mfr1TransformerV2 {
@@ -316,6 +345,21 @@ impl Mfr1TransformerV2 {
         connect_at: TimestampNs,
         not_after: Rfc3339Time,
     ) -> Result<Mfr1TransformOutputV2, Mfr1TransformErrorV2> {
+        let identity = machine
+            .pristine_routed_v4_identity()
+            .map_err(|_| Mfr1TransformErrorV2::MachineIdentity)?;
+        let expected_route = match self.context.session.route {
+            BinanceMfr1RouteV2::Public => BinanceUsdmRouteV4::Public,
+            BinanceMfr1RouteV2::Market => BinanceUsdmRouteV4::Market,
+        };
+        if identity.route() != expected_route
+            || identity.connection().0 != self.context.session.connection_id
+            || identity.session().0 != self.context.session.session_id
+            || identity.instrument().0 != 7
+            || identity.symbol() != "BNBUSDT"
+        {
+            return Err(Mfr1TransformErrorV2::MachineIdentity);
+        }
         let (records, mut ledger) = self.prevalidate(mfr1_bytes, connect_at, &not_after)?;
         let mut state = TransformStateV2::new(&self.context, connect_at)?;
         state.apply(
@@ -448,7 +492,8 @@ impl Mfr1TransformerV2 {
         not_after: &Rfc3339Time,
     ) -> Result<(Vec<PreparedRecord>, BTreeMap<LedgerKey, SourceProvenanceV2>), Mfr1TransformErrorV2>
     {
-        if bytes.len() > 256 * 1024 * 1024 || bytes.len() < HEADER_SIZE {
+        ensure_at_most(bytes.len(), MAX_MFR1_BYTES)?;
+        if bytes.len() < HEADER_SIZE {
             return Err(Mfr1TransformErrorV2::Capacity);
         }
         let mut reader = RawSegmentReader::open(Cursor::new(bytes)).map_err(recording)?;
@@ -482,7 +527,7 @@ impl Mfr1TransformerV2 {
         let mut session_metadata = None;
         let mut last_market_frame = None;
         while let Some(record) = reader.read_record().map_err(recording)? {
-            if records.len() == 65_536 {
+            if records.len() == MAX_REPLAY_RECORDS {
                 return Err(Mfr1TransformErrorV2::Capacity);
             }
             consumed = consumed
@@ -633,38 +678,28 @@ fn validate_provenance_time(
     .map_err(|_| Mfr1TransformErrorV2::Provenance)?;
     let available_ms = u64::try_from(record.header.receive_ts_ns.div_euclid(1_000_000))
         .map_err(|_| Mfr1TransformErrorV2::Provenance)?;
-    let values: &[u64] = match provenance {
-        SourceProvenanceV2::None => &[],
+    let causal_time = match provenance {
+        SourceProvenanceV2::None => None,
         SourceProvenanceV2::BinanceBookTicker {
-            event_time_ms,
             transaction_time_ms,
             ..
         }
         | SourceProvenanceV2::BinanceBookDelta {
-            event_time_ms,
             transaction_time_ms,
             ..
         }
         | SourceProvenanceV2::BinanceBookSnapshot {
-            event_time_ms,
             transaction_time_ms,
             ..
-        } => &[*event_time_ms, *transaction_time_ms],
-        SourceProvenanceV2::BinanceAggregateTrade {
-            event_time_ms,
-            trade_time_ms,
-            ..
-        } => &[*event_time_ms, *trade_time_ms],
-        SourceProvenanceV2::BinanceOpenInterest { source_time_ms } => &[*source_time_ms],
+        } => Some(*transaction_time_ms),
+        SourceProvenanceV2::BinanceAggregateTrade { trade_time_ms, .. } => Some(*trade_time_ms),
+        SourceProvenanceV2::BinanceOpenInterest { source_time_ms } => Some(*source_time_ms),
         SourceProvenanceV2::BinanceForceOrder {
-            event_time_ms,
             order_trade_time_ms,
-        } => &[*event_time_ms, *order_trade_time_ms],
+            ..
+        } => Some(*order_trade_time_ms),
     };
-    if values
-        .iter()
-        .any(|value| *value < start_ms || *value > available_ms)
-    {
+    if causal_time.is_some_and(|value| value < start_ms || value > available_ms) {
         return Err(Mfr1TransformErrorV2::Provenance);
     }
     Ok(())
@@ -789,7 +824,7 @@ impl TransformStateV2 {
         _connect_at: TimestampNs,
     ) -> Result<Self, Mfr1TransformErrorV2> {
         Ok(Self {
-            actions: ActionBuffer::with_capacity(65_536),
+            actions: ActionBuffer::with_capacity(MAX_ACTIONS_PER_FRAME),
             dispatch: EventDispatcher::new(
                 context.dispatch_capacity,
                 context.dispatch_capacity,
@@ -924,7 +959,7 @@ impl TransformStateV2 {
                     .len()
                     .checked_add(frame_inputs.len())
                     .and_then(|count| count.checked_add(1))
-                    .is_none_or(|count| count > 65_536)
+                    .is_none_or(|count| count > MAX_AUTHORED_INPUTS)
                 {
                     return Err(Mfr1TransformErrorV2::Capacity);
                 }
@@ -965,7 +1000,7 @@ impl TransformStateV2 {
             .inputs
             .len()
             .checked_add(frame_inputs.len())
-            .is_none_or(|count| count > 65_536)
+            .is_none_or(|count| count > MAX_AUTHORED_INPUTS)
         {
             return Err(Mfr1TransformErrorV2::Capacity);
         }
@@ -1094,7 +1129,7 @@ impl Write for BoundedJsonl {
             .bytes
             .len()
             .checked_add(buffer.len())
-            .is_none_or(|size| size > 16 * 1024 * 1024)
+            .is_none_or(|size| size > MAX_JSONL_BYTES)
         {
             return Err(io::Error::other("canonical V2 JSONL aggregate capacity"));
         }
@@ -1126,4 +1161,33 @@ fn canonical_jsonl(
         ));
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod capacity_tests {
+    use super::*;
+
+    #[test]
+    fn aggregate_caps_accept_exact_boundary_and_reject_one_over() {
+        for limit in [
+            MAX_MFR1_BYTES,
+            MAX_REPLAY_RECORDS,
+            MAX_AUTHORED_INPUTS,
+            MAX_ACTIONS_PER_FRAME,
+            MAX_JSONL_BYTES,
+        ] {
+            assert_eq!(ensure_at_most(limit, limit), Ok(()));
+            assert_eq!(
+                ensure_at_most(limit + 1, limit),
+                Err(Mfr1TransformErrorV2::Capacity)
+            );
+        }
+
+        let mut exact = BoundedJsonl::default();
+        assert_eq!(
+            exact.write(&vec![0; MAX_JSONL_BYTES]).unwrap(),
+            MAX_JSONL_BYTES
+        );
+        assert!(exact.write(&[0]).is_err());
+    }
 }

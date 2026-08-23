@@ -85,6 +85,48 @@ fn routed(route: BinanceUsdmRouteV4) -> BinanceUsdmSession {
     }
 }
 
+#[test]
+fn pristine_routed_identity_is_available_only_before_any_session_progress() {
+    let (mut public, market) = BinanceUsdmSession::try_new_routed_pair_v4(
+        SessionSpec {
+            endpoint_name: PUBLIC_WS.to_owned(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        SessionSpec {
+            endpoint_name: MARKET_WS.to_owned(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        routed_catalog(InstrumentId(7)),
+        routed_config(ConnectionId(11), SessionId(21), true),
+        routed_config(ConnectionId(12), SessionId(22), false),
+    )
+    .unwrap();
+    let identity = public.pristine_routed_v4_identity().unwrap();
+    assert_eq!(identity.route(), BinanceUsdmRouteV4::Public);
+    assert_eq!(identity.connection(), ConnectionId(11));
+    assert_eq!(identity.session(), SessionId(21));
+    assert_eq!(identity.instrument(), InstrumentId(7));
+    assert_eq!(identity.symbol(), "BNBUSDT");
+    assert_eq!(
+        market.pristine_routed_v4_identity().unwrap().route(),
+        BinanceUsdmRouteV4::Market
+    );
+
+    let mut out = ActionBuffer::new();
+    public.on_replay_start(TimestampNs(1), &mut out).unwrap();
+    assert!(public.pristine_routed_v4_identity().is_err());
+
+    let legacy = BinanceUsdmSession::new(
+        SessionSpec {
+            endpoint_name: "legacy".into(),
+            subscriptions: ConcreteSubscriptionSet::default(),
+        },
+        routed_catalog(InstrumentId(7)),
+        routed_config(ConnectionId(11), SessionId(21), true),
+    );
+    assert!(legacy.pristine_routed_v4_identity().is_err());
+}
+
 fn routed_config(
     connection: ConnectionId,
     session: SessionId,

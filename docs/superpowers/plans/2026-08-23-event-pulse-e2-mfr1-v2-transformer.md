@@ -4,7 +4,7 @@
 
 **Goal:** Add a bounded, pure-offline Binance routed-v4 MFR1 transformer that authors strict `MechanicsInputV2` directly, including exact venue provenance and reserved V1 non-market drop inputs, without changing V1 behavior or claiming fixture/runtime authority.
 
-**Architecture:** `marketfeed-event-pulse-mfr1` remains the offline orchestration leaf. A small internal validated-segment driver owns complete MFR1 framing, selected-session metadata/time/order/cap checks before machine mutation. The V2 transformer consumes an owned `BinanceUsdmSession`, observes every raw routed payload before replay, records bounded exact provenance, normalizes emitted envelopes to authoritative MFR action groups, and resolves buffered BOOK outputs by unique native coordinates. It stages every input and canonical JSONL byte in memory, rejects any missing/duplicate/ambiguous/unconsumed provenance or unsupported action, strict-reads the complete output, and returns only after all checks pass.
+**Architecture:** `marketfeed-event-pulse-mfr1` remains the offline orchestration leaf. A small internal validated-segment driver owns complete MFR1 framing, selected-session metadata/time/order/cap checks before machine mutation. The adapter exposes one additive immutable query that proves an owned routed-v4 machine is still pristine and identifies its exact route/connection/session/instrument. The V2 transformer checks that identity before prevalidation, observes every raw routed payload before replay, records bounded exact provenance, normalizes emitted envelopes to authoritative MFR action groups, and resolves buffered BOOK outputs by unique native coordinates. It stages every input and canonical JSONL byte in memory, rejects any missing/duplicate/ambiguous/unconsumed provenance or unsupported action, strict-reads the complete output, and returns only after all checks pass.
 
 **Tech Stack:** Rust 1.85, `marketfeed-recording`, `marketfeed-adapter-api`, pure `marketfeed-adapter-binance`, `marketfeed-event-pulse`, canonical JSONL, existing model/dispatch types.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Owner is `marketfeed-event-pulse-mfr1`; adapter, recording, replay, engine, EventPulse V1, capture, runtime, and trading surfaces remain unchanged.
+- Owner is `marketfeed-event-pulse-mfr1`; the only adapter change is an additive read-only pristine routed-v4 identity query and its state bit. Existing decoded/event APIs and legacy/default behavior remain unchanged. Recording, replay, engine, EventPulse V1, capture, runtime, and trading surfaces remain unchanged.
 - `marketfeed-adapter-binance` is an allowed normal dependency only because its normal dependency graph is pure state-machine/model/book/Serde code and contains no transport, filesystem, socket, environment, credential, or runtime I/O dependency.
 - V2 MARKET records are created only with `MechanicsInputV2::market`; they are never lowered through `MechanicsInputV1`.
 - Non-market reserved ActionBuffer and MarketDispatch drops use the existing exact V1 system mapping and `MechanicsInputV2::from_v1_non_market`. SystemDispatch/category 2, ordinary `EmitSystem`, and `Reconnect` remain unsupported.
@@ -75,6 +75,14 @@
 - [x] Feed the returned sequence to a fresh `SourceStateMachineV2` and compare exact per-family cursor/outcome parity with an independently reconstructed direct sequence.
 - [x] Re-run the focused V2 suite GREEN and the complete V1 transformer suite unchanged.
 
+### Task 3A: Review hardening successor
+
+- [x] Require the adapter-owned pristine routed identity before any MFR parsing or replay; reject legacy, advanced, wrong-route, and mismatched configured machines.
+- [x] Apply admission/receive causality only to Binance T/time/o.T while retaining bounded E provenance even when E is before capture start or after receive.
+- [x] Require all nonempty V1 build/session metadata fields and routed empty initial subscriptions.
+- [x] Freeze an independent seven-record canonical oracle with exact hashes, strict route-local readback, typed equality, fresh-machine ingest outcomes, and per-family cursor equality.
+- [x] Exercise exact/one-over aggregate limit predicates, a real 65,536-record boundary, both supported dispatcher policies, and late-error atomicity.
+
 ### Task 4: Full verification and report
 
 **Files:**
@@ -89,7 +97,7 @@
 - [x] Run focused V2/V1 MFR1, full EventPulse, full Binance, recording/replay/dispatch relevant tests on current Rust.
 - [x] Run the same focused/full relevant checks on Rust 1.85 with incremental/debuginfo disabled if disk pressure requires it.
 - [x] Run workspace check/test and clippy `-D warnings`, formatter, `cargo deny --offline --locked check`, docs/link scans, and `git diff --check`.
-- [x] Confirm V1 public signatures/bytes and adapter source/tests are unchanged, no forbidden dependency/I/O/runtime surface entered the diff, and worktree scope is intentional.
+- [x] Confirm V1 public signatures/bytes and legacy adapter behavior are unchanged, the additive adapter identity query is the only adapter semantic addition, no forbidden dependency/I/O/runtime surface entered the diff, and worktree scope is intentional.
 - [x] Write the report, commit only owned paths, and leave the branch clean without pushing.
 
 ## Test Plan
@@ -124,6 +132,7 @@
 - [x] Dependency audit confirms `marketfeed-adapter-binance` has only pure normal dependencies; transport/engine/recording/replay remain dev-only.
 - [x] Adapter inspection confirms routed snapshots and buffered deltas can be correlated deterministically by exact selected session and unique native BOOK coordinates; emitted availability is the snapshot/transport frame that releases them.
 - [x] RED captured: the focused target failed with `E0432` for the absent routed V2 transformer types.
-- [x] GREEN complete: 11 routed V2 regressions plus all 29 existing V1 transformer regressions pass.
-- [x] Current and Rust 1.85 tests/clippy, full workspace tests/clippy, fmt, deny, and diff checks pass.
-- [x] Clean commit complete.
+- [x] Initial GREEN complete: 11 routed V2 regressions plus all 29 existing V1 transformer regressions pass.
+- [x] Review-hardening focused GREEN: 18 routed V2 regressions and 11 routed adapter regressions pass.
+- [x] Re-run current and Rust 1.85 tests/clippy, full workspace tests/clippy, fmt, deny, and diff checks for the successor.
+- [x] Commit the clean review-hardening successor.
