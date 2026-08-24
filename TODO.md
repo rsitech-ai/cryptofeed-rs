@@ -14,3 +14,6 @@
 
 - [x] Close out
   DoD: Plan final notes and this checklist reflect the exact completed scope and remaining provenance blocker.
+
+- [x] Apply Sol review composition pins
+  DoD: Regenerated cross-crate JSONL exactly equals the frozen oracle; Snapshot V2 hashes and stable source cursor semantics are pinned; rehashed semantic failures assert exact wire errors without a stale-hash shortcut.

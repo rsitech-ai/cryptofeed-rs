@@ -13,7 +13,7 @@ use marketfeed_event_pulse::{
     ReplayInputError, SnapshotProcessorV2,
     wire::{
         InstrumentIdentityV1, OpenInterestEncodingV1, ReplayCatalogV1, ReplayEpochEntryV1,
-        Rfc3339Time, SnapshotAuthoringV1, SystemSourceV1, VenueCatalogEntryV1,
+        Rfc3339Time, SnapshotAuthoringV1, SystemSourceV1, VenueCatalogEntryV1, WireError,
     },
 };
 use marketfeed_event_pulse_capture::{FixtureV4Assembler, FixtureV4Request};
@@ -41,6 +41,12 @@ const FIXTURE_V4_CONTRACT: &[u8] = include_bytes!(
 const FIXTURE_V4_SIDECARS: &[u8] = include_bytes!(
     "../../event-pulse-capture/tests/fixtures/event-pulse-e2-fixture-v4-rust-writer.jsonl"
 );
+const FIXTURE_V4_ORACLE_SHA256: &str =
+    "fe9a7de25a34a57ff3565bd039929a47891ef69b5ffa147b19555c71eaac20d1";
+const SNAPSHOT_V2_CONTENT_HASH: &str =
+    "9f3dc811de9d84b6c5b37f05bcfb898cdab1268323007f451b765b5d7c3471ec";
+const SNAPSHOT_V2_CANONICAL_BYTES_SHA256: &str =
+    "11605320291ea5906e0e1c92c4ab540ccdf253183f70805d0e7eb926ee2a7e1b";
 
 fn admission() -> ProspectiveCaptureAdmissionV2 {
     let contract: Value = serde_json::from_slice(FIXTURE_V4_CONTRACT).unwrap();
@@ -233,7 +239,7 @@ fn mfr(route: BinanceMfr1RouteV2, start: i64, records: &[(u64, FrameOpcode, Vec<
         .write_metadata(&MetadataRecord::Session(session_metadata(route)), start)
         .unwrap();
     for (ordinal, (frame_seq, opcode, payload)) in records.iter().enumerate() {
-        let received_at = start + (i64::try_from(ordinal).unwrap() + 1) * 1_000_000;
+        let received_at = start + (i64::try_from(ordinal).unwrap() + 2) * 1_000_000;
         writer
             .write_record(
                 SessionId(session),
@@ -255,6 +261,7 @@ fn transformed_binance_inputs(
 ) -> (Vec<MechanicsInputV2>, Vec<MechanicsInputV2>) {
     let start = admission.capture_starts_at().utc_micros() * 1_000;
     let source_ms = u64::try_from(start.div_euclid(1_000_000)).unwrap();
+    let event_ms = source_ms + 1;
     let snapshot = encode_http_response(
         1,
         &HttpResponse {
@@ -262,8 +269,8 @@ fn transformed_binance_inputs(
             headers: vec![],
             body: format!(
                 r#"{{"lastUpdateId":100,"E":{},"T":{},"bids":[["650.0","1"]],"asks":[["651.0","2"]]}}"#,
-                source_ms + 2,
-                source_ms + 2
+                event_ms + 2,
+                event_ms + 2
             )
             .into_bytes()
             .into(),
@@ -271,10 +278,10 @@ fn transformed_binance_inputs(
     )
     .unwrap();
     let public_records = vec![
-        (1, FrameOpcode::Text, format!(r#"{{"e":"bookTicker","E":{source_ms},"T":{source_ms},"u":99,"s":"BNBUSDT","b":"650.0","B":"1","a":"651.0","A":"2"}}"#).into_bytes()),
-        (2, FrameOpcode::Text, format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":99,"u":101,"pu":98,"b":[["650.0","1.5"]],"a":[["651.0","1.5"]]}}"#, source_ms + 1, source_ms + 1).into_bytes()),
+        (1, FrameOpcode::Text, format!(r#"{{"e":"bookTicker","E":{event_ms},"T":{event_ms},"u":99,"s":"BNBUSDT","b":"650.0","B":"1","a":"651.0","A":"2"}}"#).into_bytes()),
+        (2, FrameOpcode::Text, format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":99,"u":101,"pu":98,"b":[["650.0","1.5"]],"a":[["651.0","1.5"]]}}"#, event_ms + 1, event_ms + 1).into_bytes()),
         (3, FrameOpcode::HttpResponse, snapshot),
-        (4, FrameOpcode::Text, format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":102,"u":102,"pu":101,"b":[["650.0","2"]],"a":[]}}"#, source_ms + 3, source_ms + 3).into_bytes()),
+        (4, FrameOpcode::Text, format!(r#"{{"e":"depthUpdate","E":{},"T":{},"s":"BNBUSDT","U":102,"u":102,"pu":101,"b":[["650.0","2"]],"a":[]}}"#, event_ms + 3, event_ms + 3).into_bytes()),
     ];
     let open_interest = encode_http_response(
         1,
@@ -283,7 +290,7 @@ fn transformed_binance_inputs(
             headers: vec![],
             body: format!(
                 r#"{{"symbol":"BNBUSDT","openInterest":"10659.509","time":{}}}"#,
-                source_ms + 2
+                event_ms + 2
             )
             .into_bytes()
             .into(),
@@ -291,8 +298,8 @@ fn transformed_binance_inputs(
     )
     .unwrap();
     let market_records = vec![
-        (51, FrameOpcode::Text, format!(r#"{{"e":"aggTrade","E":{source_ms},"s":"BNBUSDT","a":42,"p":"650.1","q":"0.01","T":{source_ms},"m":false}}"#).into_bytes()),
-        (52, FrameOpcode::Text, format!(r#"{{"e":"forceOrder","E":{},"o":{{"s":"BNBUSDT","S":"SELL","ap":"649","l":"0.5","T":{}}}}}"#, source_ms + 1, source_ms + 1).into_bytes()),
+        (51, FrameOpcode::Text, format!(r#"{{"e":"aggTrade","E":{event_ms},"s":"BNBUSDT","a":42,"p":"650.1","q":"0.01","T":{event_ms},"m":false}}"#).into_bytes()),
+        (52, FrameOpcode::Text, format!(r#"{{"e":"forceOrder","E":{},"o":{{"s":"BNBUSDT","S":"SELL","ap":"649","l":"0.5","T":{}}}}}"#, event_ms + 1, event_ms + 1).into_bytes()),
         (53, FrameOpcode::HttpResponse, open_interest),
     ];
     let (public_machine, market_machine) = routed_machines();
@@ -353,6 +360,27 @@ fn complete_jsonl(
     writer.finish()
 }
 
+fn fixture_v4_oracle_jsonl(
+    public: &[MechanicsInputV2],
+    market: &[MechanicsInputV2],
+    sidecars: &[MechanicsInputV2],
+) -> Vec<u8> {
+    assert_eq!(public.len(), 4);
+    assert_eq!(market.len(), 3);
+    assert_eq!(sidecars.len(), 10);
+    public
+        .iter()
+        .chain(market)
+        .chain(sidecars)
+        .flat_map(|input| {
+            input.validate_static().unwrap();
+            let mut line = serde_json::to_vec(input).unwrap();
+            line.push(b'\n');
+            line
+        })
+        .collect()
+}
+
 fn authoring(admission: &ProspectiveCaptureAdmissionV2) -> SnapshotAuthoringV1 {
     SnapshotAuthoringV1::new(
         "event_pulse_mechanics_synthetic_v4",
@@ -379,6 +407,22 @@ fn rehash(mut value: Value) -> Vec<u8> {
     serde_json::to_vec(&value).unwrap()
 }
 
+fn assert_rehashed_payload_hash(bytes: &[u8]) {
+    let mut value: Value = serde_json::from_slice(bytes).unwrap();
+    let payload_hash = value
+        .as_object_mut()
+        .unwrap()
+        .remove("payload_hash")
+        .unwrap();
+    assert_eq!(
+        payload_hash,
+        json!(format!(
+            "{:x}",
+            Sha256::digest(serde_json::to_vec(&value).unwrap())
+        ))
+    );
+}
+
 #[test]
 fn synthetic_routed_v4_pipeline_is_strict_deterministic_and_non_authoritative() {
     let admission = admission();
@@ -391,6 +435,13 @@ fn synthetic_routed_v4_pipeline_is_strict_deterministic_and_non_authoritative() 
     let (public, market) = transformed_binance_inputs(&admission);
     let sidecars = oracle_sidecars();
     let jsonl = complete_jsonl(&public, &market, &sidecars);
+    let frozen_fixture_jsonl = fixture_v4_oracle_jsonl(&public, &market, &sidecars);
+    assert_eq!(frozen_fixture_jsonl, FIXTURE_V4_SIDECARS);
+    assert_eq!(frozen_fixture_jsonl.len(), 17_189);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(&frozen_fixture_jsonl)),
+        FIXTURE_V4_ORACLE_SHA256
+    );
     let strict_readback = MechanicsInputV2JsonlReader::new(Cursor::new(&jsonl), decision.clone())
         .read_all()
         .unwrap();
@@ -471,10 +522,44 @@ fn synthetic_routed_v4_pipeline_is_strict_deterministic_and_non_authoritative() 
         first_snapshot.content_hash(),
         second_snapshot.content_hash()
     );
+    assert_eq!(first_snapshot.content_hash(), SNAPSHOT_V2_CONTENT_HASH);
+    assert_eq!(
+        format!("{:x}", Sha256::digest(first_bytes)),
+        SNAPSHOT_V2_CANONICAL_BYTES_SHA256
+    );
+    let snapshot: Value = serde_json::from_str(&first_json).unwrap();
+    assert_eq!(snapshot["source_qualification"], "UNVERIFIED");
+    assert_eq!(
+        snapshot["source_cursors"][0],
+        json!({
+            "available_at": "2026-08-24T00:00:00.002000Z",
+            "connection_epoch": "epoch_market",
+            "sequence_end": 42,
+            "sequence_start": 42,
+            "source_id": "binance_primary_market_trade",
+            "source_payload_hash": "bacd7bfde05b9d21bf99022bec4d079576faf120cadd3dbb3569e5e6015918cf",
+        })
+    );
+    assert_eq!(
+        snapshot["source_cursors"][1],
+        json!({
+            "available_at": "2026-08-24T00:00:00.002000Z",
+            "connection_epoch": "epoch_public",
+            "sequence_end": 4_294_967_296_u64,
+            "sequence_start": 4_294_967_296_u64,
+            "source_id": "binance_primary_public_quote",
+            "source_payload_hash": "9990ffcaf48ab381d1b2a25349bf7db0f87b577599557aa4d28d4c3add77723f",
+        })
+    );
 
     let mut wrong_source = serde_json::to_value(&public[0]).unwrap();
     wrong_source["catalog"]["venue_sources"]["3"]["source_id"] = json!("binance_primary_market");
-    assert!(MechanicsInputV2::from_json_line(&rehash(wrong_source)).is_err());
+    let wrong_source = rehash(wrong_source);
+    assert_rehashed_payload_hash(&wrong_source);
+    assert_eq!(
+        MechanicsInputV2::from_json_line(&wrong_source),
+        Err(WireError::Identity)
+    );
 
     let mut wrong_family = serde_json::to_value(&public[0]).unwrap();
     let trade = serde_json::to_value(&market[0]).unwrap();
@@ -482,11 +567,21 @@ fn synthetic_routed_v4_pipeline_is_strict_deterministic_and_non_authoritative() 
     wrong_family["envelope"]["source_sequence"] = trade["envelope"]["source_sequence"].clone();
     wrong_family["market_cursor"] = trade["market_cursor"].clone();
     wrong_family["source_provenance"] = trade["source_provenance"].clone();
-    assert!(MechanicsInputV2::from_json_line(&rehash(wrong_family)).is_err());
+    let wrong_family = rehash(wrong_family);
+    assert_rehashed_payload_hash(&wrong_family);
+    assert_eq!(
+        MechanicsInputV2::from_json_line(&wrong_family),
+        Err(WireError::Identity)
+    );
 
     let mut wrong_cursor = serde_json::to_value(&public[0]).unwrap();
     wrong_cursor["market_cursor"]["raw_frame_seq"] = json!(999_u64);
-    assert!(MechanicsInputV2::from_json_line(&rehash(wrong_cursor)).is_err());
+    let wrong_cursor = rehash(wrong_cursor);
+    assert_rehashed_payload_hash(&wrong_cursor);
+    assert_eq!(
+        MechanicsInputV2::from_json_line(&wrong_cursor),
+        Err(WireError::Cursor)
+    );
 
     let mut wrong_available_at = serde_json::to_value(&sidecars[1]).unwrap();
     wrong_available_at["available_at"] = json!("2026-08-24T00:00:00.018000Z");

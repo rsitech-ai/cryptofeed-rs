@@ -54,3 +54,11 @@
 - Tamper coverage: rehashed wrong source, family, and cursor fail strict V2 input construction; rehashed future `available_at` fails as `ReplayInputError::FutureInput` before preflight or snapshot mutation.
 - Authority/result ceiling: synthetic output remains `STRUCTURAL_V4_CANDIDATE`, `UNVERIFIED`, all-false authority, and `blocked:fixture-provenance`. E2 remains IN_PROGRESS.
 - Rollback: revert the test, its dev dependency, and lockfile entry together.
+
+## Review Follow-up
+
+- What changed: Regenerated the routed PUBLIC/MARKET inputs with the frozen fixture's event and receive-time offsets, then bound their role-ordered complete JSONL bytes directly to `event-pulse-e2-fixture-v4-rust-writer.jsonl` (17,189 bytes; SHA-256 `fe9a7de25a34a57ff3565bd039929a47891ef69b5ffa147b19555c71eaac20d1`). The regression now pins the Snapshot V2 content hash `9f3dc811de9d84b6c5b37f05bcfb898cdab1268323007f451b765b5d7c3471ec` and canonical-output SHA-256 `11605320291ea5906e0e1c92c4ab540ccdf253183f70805d0e7eb926ee2a7e1b`, plus externally visible `UNVERIFIED` qualification and representative source cursor/provenance fields.
+- RED/GREEN: the direct fixture-byte pin initially failed due to synthetic timestamp offsets; after matching the frozen capture offsets it reached the deliberately pending Snapshot V2 byte-hash assertion, which reported the captured canonical SHA-256 above. The focused regression is green after replacing that RED pin and asserting exact `WireError::Identity`, `WireError::Identity`, and `WireError::Cursor` for rehashed source, family, and cursor tampering respectively.
+- Semantic/hash decision: each malformed wire record is rehashed and independently checked before strict parsing, so the exact semantic errors cannot be stale-hash shortcuts.
+- Authority/result ceiling: unchanged. This is offline synthetic regression evidence only; E2 remains `IN_PROGRESS` and `blocked:fixture-provenance`, with no evidence, capture, paper, canary, live, or execution authority.
+- Rollback: revert this test-only successor commit; it changes no production code, dependencies, fixtures, or authority policy.
