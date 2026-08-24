@@ -232,15 +232,15 @@ fn root_validator_accepts(validator: &PathBuf, owned: &[(String, Vec<u8>)], labe
 
 #[test]
 fn published_root_fixture_v4_contract_and_oracle_bytes_are_exact() {
-    assert_eq!(CONTRACT.len(), 5_527);
+    assert_eq!(CONTRACT.len(), 5_625);
     assert_eq!(
         format!("{:x}", Sha256::digest(CONTRACT)),
-        "cb899211245fe039f30d9f0d595133365f36d28fff5b508c20e1bf52363a9f47"
+        "62dd6298cce3cc9390fc0996e085fa0dff795d5eedf22fd65f21403b1fccc1a7"
     );
-    assert_eq!(AMENDMENT.len(), 10_647);
+    assert_eq!(AMENDMENT.len(), 11_180);
     assert_eq!(
         format!("{:x}", Sha256::digest(AMENDMENT)),
-        "2c19540bcc953700318a09738dfdbcf167c591827e8825adcad8003889fff965"
+        "39771adec792dabd38e4f1de1994b0b2f46c9b8207338af3946534b1ab6d34ad"
     );
     assert_eq!(ORACLE.len(), 17_189);
     assert_eq!(
@@ -274,6 +274,83 @@ fn published_root_fixture_v4_contract_and_oracle_bytes_are_exact() {
                     .ends_with(": eol: lf\n")
             );
         }
+    }
+}
+
+#[test]
+fn carried_v1_timestamp_wire_accepts_offsets_and_rejects_aliases() {
+    for (label, path, mutate, accepted) in [
+        (
+            "clock-short",
+            "inputs/clock.jsonl",
+            (|value: &mut Value| {
+                value["observed_at"] = json!("2026-08-24T00:00:00.007Z");
+            }) as fn(&mut Value),
+            false,
+        ),
+        (
+            "clock-offset",
+            "inputs/clock.jsonl",
+            |value: &mut Value| {
+                value["observed_at"] = json!("2026-08-24T05:30:00.007000+05:30");
+                value["available_at"] = json!("2026-08-24T05:30:00.007000+05:30");
+            },
+            true,
+        ),
+        (
+            "clock-positive-zero",
+            "inputs/clock.jsonl",
+            |value: &mut Value| {
+                value["observed_at"] = json!("2026-08-24T00:00:00.007000+00:00");
+            },
+            false,
+        ),
+        (
+            "clock-negative-zero",
+            "inputs/clock.jsonl",
+            |value: &mut Value| {
+                value["observed_at"] = json!("2026-08-24T00:00:00.007000-00:00");
+            },
+            false,
+        ),
+        (
+            "coverage-short",
+            "inputs/coverage.jsonl",
+            |value: &mut Value| {
+                value["covered_through"] = json!("2026-08-24T00:00:00.010Z");
+            },
+            false,
+        ),
+        (
+            "coverage-offset-boundaries",
+            "inputs/coverage.jsonl",
+            |value: &mut Value| {
+                value["covered_from"] = json!("2026-08-24T23:59:00+23:59");
+                value["covered_through"] = json!("2026-08-23T00:01:00.010000-23:59");
+                value["available_at"] = json!("2026-08-23T00:01:00.010000-23:59");
+            },
+            true,
+        ),
+        (
+            "coverage-positive-zero",
+            "inputs/coverage.jsonl",
+            |value: &mut Value| {
+                value["covered_through"] = json!("2026-08-24T00:00:00.010000+00:00");
+            },
+            false,
+        ),
+        (
+            "coverage-negative-zero",
+            "inputs/coverage.jsonl",
+            |value: &mut Value| {
+                value["covered_through"] = json!("2026-08-24T00:00:00.010000-00:00");
+            },
+            false,
+        ),
+    ] {
+        let mut owned = owned_package();
+        mutate_package_record(&mut owned, path, 0, mutate);
+        assert_eq!(rust_readback_accepts(&owned), accepted, "{label}");
     }
 }
 
@@ -875,6 +952,19 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
     fn clock_observed(value: &mut Value) {
         value["observed_at"] = json!("2026-08-24T00:00:00.007001Z");
     }
+    fn clock_short_fraction(value: &mut Value) {
+        value["observed_at"] = json!("2026-08-24T00:00:00.007Z");
+    }
+    fn clock_nonzero_offset(value: &mut Value) {
+        value["observed_at"] = json!("2026-08-24T05:30:00.007000+05:30");
+        value["available_at"] = json!("2026-08-24T05:30:00.007000+05:30");
+    }
+    fn clock_positive_zero_offset(value: &mut Value) {
+        value["observed_at"] = json!("2026-08-24T00:00:00.007000+00:00");
+    }
+    fn clock_negative_zero_offset(value: &mut Value) {
+        value["observed_at"] = json!("2026-08-24T00:00:00.007000-00:00");
+    }
     fn clock_freshness(value: &mut Value) {
         value["freshness_limit_ms"] = json!(0);
     }
@@ -886,6 +976,20 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
     }
     fn coverage_interval(value: &mut Value) {
         value["covered_from"] = json!("2026-08-24T00:00:00.011000Z");
+    }
+    fn coverage_short_fraction(value: &mut Value) {
+        value["covered_through"] = json!("2026-08-24T00:00:00.010Z");
+    }
+    fn coverage_boundary_offsets(value: &mut Value) {
+        value["covered_from"] = json!("2026-08-24T23:59:00+23:59");
+        value["covered_through"] = json!("2026-08-23T00:01:00.010000-23:59");
+        value["available_at"] = json!("2026-08-23T00:01:00.010000-23:59");
+    }
+    fn coverage_positive_zero_offset(value: &mut Value) {
+        value["covered_through"] = json!("2026-08-24T00:00:00.010000+00:00");
+    }
+    fn coverage_negative_zero_offset(value: &mut Value) {
+        value["covered_through"] = json!("2026-08-24T00:00:00.010000-00:00");
     }
     fn coverage_generation(value: &mut Value) {
         value["coverage_source"]["epoch_generation"] = json!(1);
@@ -1099,6 +1203,34 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
             accepted: false,
         },
         Case {
+            label: "clock-short-fraction",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_short_fraction,
+            accepted: false,
+        },
+        Case {
+            label: "clock-nonzero-offset",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_nonzero_offset,
+            accepted: true,
+        },
+        Case {
+            label: "clock-positive-zero-offset",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_positive_zero_offset,
+            accepted: false,
+        },
+        Case {
+            label: "clock-negative-zero-offset",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_negative_zero_offset,
+            accepted: false,
+        },
+        Case {
             label: "clock-freshness",
             path: "inputs/clock.jsonl",
             line: 0,
@@ -1124,6 +1256,34 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
             path: "inputs/coverage.jsonl",
             line: 0,
             mutate: coverage_interval,
+            accepted: false,
+        },
+        Case {
+            label: "coverage-short-fraction",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: coverage_short_fraction,
+            accepted: false,
+        },
+        Case {
+            label: "coverage-boundary-offsets",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: coverage_boundary_offsets,
+            accepted: true,
+        },
+        Case {
+            label: "coverage-positive-zero-offset",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: coverage_positive_zero_offset,
+            accepted: false,
+        },
+        Case {
+            label: "coverage-negative-zero-offset",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: coverage_negative_zero_offset,
             accepted: false,
         },
         Case {

@@ -19,13 +19,13 @@ unchanged.
 **Tech Stack:** Rust 1.85+, serde/serde_json, SHA-256, existing EventPulse V2
 wire/replay/preflight types.
 
-**Spec:** Embedded byte-exact copies of root merge
-`0a993f9e9e2a79be4afa0fe6037f5ee98fb6ec70`, tree
-`9e2f40507d4522e4176c894470dcbce02d0d63f5`:
-`event-pulse-e2-fixture-v4-contract.json` (5,527 bytes, SHA-256
-`cb899211245fe039f30d9f0d595133365f36d28fff5b508c20e1bf52363a9f47`)
-and its amendment (10,647 bytes, SHA-256
-`2c19540bcc953700318a09738dfdbcf167c591827e8825adcad8003889fff965`).
+**Spec:** Embedded byte-exact copies of published root PR101/default merge
+`0163090e086717ab2649189a90c18a804b615f40`, tree
+`f239ee9532fe88f5811f329593fcf635ecb8f78d`:
+`event-pulse-e2-fixture-v4-contract.json` (5,625 bytes, SHA-256
+`62dd6298cce3cc9390fc0996e085fa0dff795d5eedf22fd65f21403b1fccc1a7`)
+and its amendment (11,180 bytes, SHA-256
+`39771adec792dabd38e4f1de1994b0b2f46c9b8207338af3946534b1ab6d34ad`).
 
 ## Global constraints
 
@@ -61,7 +61,7 @@ and its amendment (10,647 bytes, SHA-256
 length/SHA/LF and the 17-record structural oracle.
 
 - [x] Add byte-binding RED assertions before the embedded files exist.
-- [x] Copy only the exact Git-object bytes from root merge `0a993f9e...`.
+- [x] Copy only the exact Git-object bytes from root merge `0163090e...`.
 - [x] Verify lengths, SHA-256 values, LF policy, and Git diff scope.
 
 ### Task 2: Strict partitioned V4 readback
@@ -174,3 +174,13 @@ validation, and requires exact artifact equality.
   remains unavailable.
 - Authority ceiling: `STRUCTURAL_V4_CANDIDATE`; completion remains
   `blocked:fixture-provenance`.
+- Root PR101 carried-V1 timestamp successor: the embedded contract/amendment
+  now bind merge `0163090e...` / tree `f239ee95...` byte-for-byte. Rust and the
+  pinned root validator agree that Clock/Coverage timestamps reject shortened
+  fractions, accept canonical nonzero offsets including `+05:30` and `+23:59`
+  / `-23:59`, and reject the `+00:00` / `-00:00` aliases. Manifest/adoption
+  timestamp behavior and every assembler API remain unchanged.
+- Successor gates: ordinary assembler 13 passed / 3 pinned-root tests ignored;
+  explicit pinned-root parity 3 passed with 86 registered differential cases;
+  complete EventPulse/capture all-target tests and clippy passed on current and
+  Rust 1.85.0. Format, offline locked deny, docs, and diff checks passed.

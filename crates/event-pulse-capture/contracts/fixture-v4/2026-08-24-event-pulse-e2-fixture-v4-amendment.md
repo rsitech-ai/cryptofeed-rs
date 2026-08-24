@@ -59,6 +59,13 @@ CLOCK and COVERAGE lines remain exact non-market V1 wire inputs carried by V2.
 They bind their own admitted SourceKey, source epoch/generation, native cursor,
 top-level `available_at`, and exact payload hash. The package contains each of
 the three admitted Clock sources and six admitted Coverage source/family pairs.
+Their carried-V1 timestamps preserve exact Rust `Rfc3339Time` wire spelling:
+Clock `observed_at` and `available_at`, plus Coverage `covered_from`,
+`covered_through`, and `available_at`, use `Z` or a canonical nonzero `+HH:MM` /
+`-HH:MM` offset, no fractional component when microseconds are zero, and exactly
+six fractional digits otherwise. Equivalent 1..5-digit, `.000000`, `+00:00`,
+and `-00:00` aliases reject; offset comparisons use their UTC instants. This
+does not tighten the separate V4 manifest/adoption timestamp grammar.
 MARKET contains every one of the six admitted contributor/family pairs. Repeated
 records are permitted, but records within an artifact must be strictly ordered
 without conflating time and cursor state: availability is nondecreasing, and the

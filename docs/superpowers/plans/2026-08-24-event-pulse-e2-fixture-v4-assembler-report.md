@@ -26,10 +26,12 @@ was implemented before this RED was captured.
 
 ## Implemented boundary
 
-- Exact embedded root contract: 5,527 bytes, SHA-256
-  `cb899211245fe039f30d9f0d595133365f36d28fff5b508c20e1bf52363a9f47`.
-- Exact embedded amendment: 10,647 bytes, SHA-256
-  `2c19540bcc953700318a09738dfdbcf167c591827e8825adcad8003889fff965`.
+- Exact embedded root contract from published root PR101/default merge
+  `0163090e086717ab2649189a90c18a804b615f40`, tree
+  `f239ee9532fe88f5811f329593fcf635ecb8f78d`: 5,625 bytes, SHA-256
+  `62dd6298cce3cc9390fc0996e085fa0dff795d5eedf22fd65f21403b1fccc1a7`.
+- Exact embedded amendment: 11,180 bytes, SHA-256
+  `39771adec792dabd38e4f1de1994b0b2f46c9b8207338af3946534b1ab6d34ad`.
 - Exact 17-record Rust oracle: 17,189 bytes, SHA-256
   `fe9a7de25a34a57ff3565bd039929a47891ef69b5ffa147b19555c71eaac20d1`.
 - Crate-local Git attributes preserve LF contract/oracle bytes on Windows.
@@ -215,3 +217,34 @@ as parsed instants to record-derived extrema, so a separate differential case
 retains acceptance for a different-but-equivalent max/artifact spelling.
 Published bindings, identities, paths, hashes, roles, and admission descriptor
 values are already compared as exact typed values and are never normalized.
+
+## Published carried-V1 timestamp parity successor
+
+The root PR101 successor corrected carried MechanicsInputV1 timestamp spelling
+without tightening V4 manifest timestamps. This Rust successor embeds its exact
+contract/amendment bytes and keeps the existing strict V1 wire parser as the
+enforcement boundary. A focused ordinary regression and the expanded pinned
+root differential matrix prove:
+
+- Clock and Coverage shortened 1..5-digit fractions reject after canonical
+  record rehashing;
+- canonical nonzero offsets pass, including Clock `+05:30` and Coverage UTC-
+  equivalent `+23:59` / `-23:59` boundary values;
+- `+00:00` and `-00:00` aliases reject in both implementations.
+
+The first byte-binding RED expected 5,625 contract bytes but observed the old
+5,527-byte embedded contract. The initial build attempt was interrupted by
+ENOSPC; recovery removed only this worktree's 1.5 GiB disposable Cargo target,
+then the exact assertion failed behaviorally as intended. No source, fixture,
+user data, or other worktree was removed.
+
+Successor GREEN evidence:
+
+- ordinary assembler suite: 13 passed, 3 explicit pinned-root tests ignored;
+- explicit published-root parity: 3 passed, including the expanded 86-case
+  differential matrix;
+- focused EventPulse V4 readback/admission: 11 + 3 passed;
+- full EventPulse and capture all-target suites: green on current and exact
+  Rust 1.85.0;
+- current and Rust 1.85.0 clippy with `-D warnings`: green;
+- formatting, offline locked cargo-deny, documentation, and diff checks: green.

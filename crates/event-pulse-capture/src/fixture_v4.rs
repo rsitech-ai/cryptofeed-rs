@@ -16,8 +16,8 @@ const CONTRACT_BYTES: &[u8] =
     include_bytes!("../contracts/fixture-v4/event-pulse-e2-fixture-v4-contract.json");
 const AMENDMENT_BYTES: &[u8] =
     include_bytes!("../contracts/fixture-v4/2026-08-24-event-pulse-e2-fixture-v4-amendment.md");
-const CONTRACT_SHA256: &str = "cb899211245fe039f30d9f0d595133365f36d28fff5b508c20e1bf52363a9f47";
-const AMENDMENT_SHA256: &str = "2c19540bcc953700318a09738dfdbcf167c591827e8825adcad8003889fff965";
+const CONTRACT_SHA256: &str = "62dd6298cce3cc9390fc0996e085fa0dff795d5eedf22fd65f21403b1fccc1a7";
+const AMENDMENT_SHA256: &str = "39771adec792dabd38e4f1de1994b0b2f46c9b8207338af3946534b1ab6d34ad";
 #[derive(Debug, Clone)]
 pub struct FixtureV4Assembler {
     admission: ProspectiveCaptureAdmissionV2,
@@ -346,8 +346,8 @@ pub enum FixtureV4Error {
 }
 
 fn verify_contracts() -> Result<(), FixtureV4Error> {
-    if CONTRACT_BYTES.len() != 5_527
-        || AMENDMENT_BYTES.len() != 10_647
+    if CONTRACT_BYTES.len() != 5_625
+        || AMENDMENT_BYTES.len() != 11_180
         || sha256(CONTRACT_BYTES) != CONTRACT_SHA256
         || sha256(AMENDMENT_BYTES) != AMENDMENT_SHA256
     {
