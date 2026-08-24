@@ -151,7 +151,7 @@ fn mutate_package_record(
     owned[0].1 = canonical_line(&manifest);
 }
 
-fn mutate_manifest(owned: &mut [(String, Vec<u8>)], mutate: fn(&mut Value)) {
+fn mutate_manifest(owned: &mut [(String, Vec<u8>)], mutate: impl FnOnce(&mut Value)) {
     let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
     mutate(&mut manifest);
     owned[0].1 = canonical_line(&manifest);
@@ -175,12 +175,20 @@ fn rust_readback_accepts(owned: &[(String, Vec<u8>)]) -> bool {
 }
 
 fn rust_readback_accepts_at(owned: &[(String, Vec<u8>)], capture_start: &str) -> bool {
+    rust_readback_accepts_at_with_decision(owned, capture_start, "2026-08-24T00:00:17Z")
+}
+
+fn rust_readback_accepts_at_with_decision(
+    owned: &[(String, Vec<u8>)],
+    capture_start: &str,
+    decision_time: &str,
+) -> bool {
     let views = owned
         .iter()
         .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
         .collect::<Vec<_>>();
     assembler_at(capture_start)
-        .readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap())
+        .readback(&views, Rfc3339Time::parse(decision_time).unwrap())
         .is_ok()
 }
 
@@ -623,6 +631,56 @@ fn capture_start_strictly_postdates_the_latest_embedded_publication_binding() {
                 .readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap(),),
             Err(FixtureV4Error::Contract("capture publication floor"))
         ));
+    }
+}
+
+#[test]
+fn adopted_manifest_timestamps_follow_their_published_field_specific_lexical_rules() {
+    for capture_end in [
+        "2026-08-24T00:00:16.1Z",
+        "2026-08-24T00:00:16.10Z",
+        "2026-08-24T00:00:16.000001Z",
+    ] {
+        let mut owned = owned_package();
+        mutate_manifest(&mut owned, |manifest| {
+            manifest["capture"]["ended_at"] = json!(capture_end);
+        });
+        assert!(rust_readback_accepts(&owned));
+    }
+    for capture_end in ["2026-08-24T00:00:16.0000001Z", "2026-08-24T00:00:16+00:00"] {
+        let mut owned = owned_package();
+        mutate_manifest(&mut owned, |manifest| {
+            manifest["capture"]["ended_at"] = json!(capture_end);
+        });
+        assert!(!rust_readback_accepts(&owned));
+    }
+
+    for (reachable_at, accepted) in [
+        ("2026-08-22T07:35:52.1Z", true),
+        ("2026-08-22T07:35:52.000001Z", true),
+        ("2026-08-22T07:35:52.10Z", false),
+        ("2026-08-22T07:35:52.0000001Z", false),
+        ("2026-08-22T07:35:52+00:00", false),
+    ] {
+        let mut owned = owned_package();
+        mutate_manifest(&mut owned, |manifest| {
+            manifest["amendment_binding"]["default_reachable_at"] = json!(reachable_at);
+        });
+        assert_eq!(rust_readback_accepts(&owned), accepted);
+    }
+
+    for (bound, accepted) in [
+        ("2026-08-24T00:00:00.002Z", true),
+        ("2026-08-24T00:00:00.0020Z", true),
+        ("2026-08-24T00:00:00.0020000Z", false),
+        ("2026-08-24T00:00:00.002+00:00", false),
+    ] {
+        let mut owned = owned_package();
+        mutate_manifest(&mut owned, |manifest| {
+            manifest["artifacts"][1]["first_available_at"] = json!(bound);
+            manifest["artifacts"][1]["last_available_at"] = json!(bound);
+        });
+        assert_eq!(rust_readback_accepts(&owned), accepted);
     }
 }
 
@@ -1114,6 +1172,95 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
         let mut owned = owned_package();
         set_package_capture_start(&mut owned, capture_start);
         let rust = rust_readback_accepts_at(&owned, capture_start);
+        let root = root_validator_accepts(&validator, &owned, label);
+        assert_eq!(rust, root, "Rust/root mismatch for {label}");
+        assert_eq!(rust, accepted, "unexpected result for {label}");
+    }
+
+    for (label, capture_end, accepted) in [
+        ("capture-end-tenth", "2026-08-24T00:00:16.1Z", true),
+        ("capture-end-trailing-zero", "2026-08-24T00:00:16.10Z", true),
+        (
+            "capture-end-microsecond",
+            "2026-08-24T00:00:16.000001Z",
+            true,
+        ),
+        (
+            "capture-end-overprecision",
+            "2026-08-24T00:00:16.0000001Z",
+            false,
+        ),
+        ("capture-end-offset", "2026-08-24T00:00:16+00:00", false),
+    ] {
+        let mut owned = owned_package();
+        let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+        manifest["capture"]["ended_at"] = json!(capture_end);
+        owned[0].1 = canonical_line(&manifest);
+        let rust = rust_readback_accepts(&owned);
+        let root = root_validator_accepts(&validator, &owned, label);
+        assert_eq!(rust, root, "Rust/root mismatch for {label}");
+        assert_eq!(rust, accepted, "unexpected result for {label}");
+    }
+
+    for (label, decision_time, accepted) in [
+        ("decision-tenth", "2026-08-24T00:00:17.1Z", true),
+        ("decision-trailing-zero", "2026-08-24T00:00:17.10Z", true),
+        ("decision-microsecond", "2026-08-24T00:00:17.000001Z", true),
+        (
+            "decision-overprecision",
+            "2026-08-24T00:00:17.0000001Z",
+            false,
+        ),
+        ("decision-offset", "2026-08-24T00:00:17+00:00", false),
+    ] {
+        let mut owned = owned_package();
+        let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+        manifest["causality"]["decision_time"] = json!(decision_time);
+        owned[0].1 = canonical_line(&manifest);
+        let rust = Rfc3339Time::parse(decision_time).is_ok()
+            && rust_readback_accepts_at_with_decision(
+                &owned,
+                "2026-08-24T00:00:00Z",
+                decision_time,
+            );
+        let root = root_validator_accepts(&validator, &owned, label);
+        assert_eq!(rust, root, "Rust/root mismatch for {label}");
+        assert_eq!(rust, accepted, "unexpected result for {label}");
+    }
+
+    for (label, bound, accepted) in [
+        ("bound-short", "2026-08-24T00:00:00.002Z", true),
+        ("bound-trailing-zero", "2026-08-24T00:00:00.0020Z", true),
+        ("bound-overprecision", "2026-08-24T00:00:00.0020000Z", false),
+        ("bound-offset", "2026-08-24T00:00:00.002+00:00", false),
+    ] {
+        let mut owned = owned_package();
+        let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+        manifest["artifacts"][1]["first_available_at"] = json!(bound);
+        manifest["artifacts"][1]["last_available_at"] = json!(bound);
+        owned[0].1 = canonical_line(&manifest);
+        let rust = rust_readback_accepts(&owned);
+        let root = root_validator_accepts(&validator, &owned, label);
+        assert_eq!(rust, root, "Rust/root mismatch for {label}");
+        assert_eq!(rust, accepted, "unexpected result for {label}");
+    }
+
+    for (label, reachable_at, accepted) in [
+        ("amendment-tenth", "2026-08-22T07:35:52.1Z", true),
+        ("amendment-microsecond", "2026-08-22T07:35:52.000001Z", true),
+        ("amendment-trailing-zero", "2026-08-22T07:35:52.10Z", false),
+        (
+            "amendment-overprecision",
+            "2026-08-22T07:35:52.0000001Z",
+            false,
+        ),
+        ("amendment-offset", "2026-08-22T07:35:52+00:00", false),
+    ] {
+        let mut owned = owned_package();
+        let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+        manifest["amendment_binding"]["default_reachable_at"] = json!(reachable_at);
+        owned[0].1 = canonical_line(&manifest);
+        let rust = rust_readback_accepts(&owned);
         let root = root_validator_accepts(&validator, &owned, label);
         assert_eq!(rust, root, "Rust/root mismatch for {label}");
         assert_eq!(rust, accepted, "unexpected result for {label}");

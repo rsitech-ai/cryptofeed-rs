@@ -233,7 +233,14 @@ impl InMemoryFixtureV4 {
         let contract: Value =
             serde_json::from_slice(CONTRACT_BYTES).map_err(|_| FixtureV4Error::EmbeddedContract)?;
         let expected_admission = admission_bytes(admission, &contract)?;
-        if expected_admission != self.files[1].bytes {
+        let mut normalized_admission = admission_value.clone();
+        normalize_time_at_pointer(
+            &mut normalized_admission,
+            "/capture_starts_at",
+            admission.capture_starts_at(),
+        )?;
+        let expected_admission_value = strict_canonical_line(&expected_admission)?;
+        if normalized_admission != expected_admission_value {
             return Err(FixtureV4Error::ReadbackMismatch);
         }
         let fixture_id = manifest
@@ -243,7 +250,7 @@ impl InMemoryFixtureV4 {
         let capture_end = manifest
             .pointer("/capture/ended_at")
             .and_then(Value::as_str)
-            .and_then(|value| Rfc3339Time::parse(value).ok())
+            .and_then(|value| parse_root_manifest_time(value).ok())
             .ok_or(FixtureV4Error::ReadbackMismatch)?;
         let source_terms = manifest
             .pointer("/retention/source_terms")
@@ -280,19 +287,21 @@ impl InMemoryFixtureV4 {
             &capture_end,
             &decision_time,
         )?;
-        let mut expected_manifest = manifest_value(
+        let expected_manifest = manifest_value(
             admission,
             &contract,
             fixture_id,
             &capture_end,
             &decision_time,
             source_terms,
-            &expected_admission,
+            &self.files[1].bytes,
             preflight.artifacts(),
             max_available_at,
         )?;
-        expected_manifest["amendment_binding"] = manifest["amendment_binding"].clone();
-        if manifest != expected_manifest {
+        let mut normalized_manifest = manifest.clone();
+        normalize_manifest_times(&mut normalized_manifest, &expected_manifest)?;
+        normalized_manifest["amendment_binding"] = expected_manifest["amendment_binding"].clone();
+        if normalized_manifest != expected_manifest {
             return Err(FixtureV4Error::ReadbackMismatch);
         }
         Ok(())
@@ -388,10 +397,104 @@ fn validate_amendment_binding(
     let reachable_text = value["default_reachable_at"]
         .as_str()
         .ok_or(FixtureV4Error::Contract("amendment binding"))?;
-    let reachable = Rfc3339Time::parse(reachable_text)
+    let reachable = parse_root_canonical_time(reachable_text)
         .map_err(|_| FixtureV4Error::Contract("amendment binding"))?;
-    if reachable.canonical() != reachable_text || capture_start <= &reachable {
+    if capture_start <= &reachable {
         return Err(FixtureV4Error::Contract("amendment binding"));
+    }
+    Ok(())
+}
+
+fn parse_root_manifest_time(value: &str) -> Result<Rfc3339Time, FixtureV4Error> {
+    let bytes = value.as_bytes();
+    let base_shape = bytes.len() >= 20
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes[10] == b'T'
+        && bytes[13] == b':'
+        && bytes[16] == b':'
+        && bytes.last() == Some(&b'Z')
+        && bytes[..19]
+            .iter()
+            .enumerate()
+            .all(|(index, byte)| matches!(index, 4 | 7 | 10 | 13 | 16) || byte.is_ascii_digit());
+    if !base_shape {
+        return Err(FixtureV4Error::Contract("manifest timestamp"));
+    }
+    match bytes.len() {
+        20 => {}
+        22..=27 => {
+            let fraction = &bytes[20..bytes.len() - 1];
+            if bytes[19] != b'.'
+                || fraction.is_empty()
+                || fraction.len() > 6
+                || !fraction.iter().all(u8::is_ascii_digit)
+            {
+                return Err(FixtureV4Error::Contract("manifest timestamp"));
+            }
+        }
+        _ => return Err(FixtureV4Error::Contract("manifest timestamp")),
+    }
+    Rfc3339Time::parse(value).map_err(|_| FixtureV4Error::Contract("manifest timestamp"))
+}
+
+fn parse_root_canonical_time(value: &str) -> Result<Rfc3339Time, FixtureV4Error> {
+    let parsed = parse_root_manifest_time(value)?;
+    if value
+        .strip_suffix('Z')
+        .and_then(|value| value.rsplit_once('.'))
+        .is_some_and(|(_, fraction)| fraction.ends_with('0'))
+    {
+        return Err(FixtureV4Error::Contract("manifest timestamp"));
+    }
+    Ok(parsed)
+}
+
+fn normalize_time_at_pointer(
+    value: &mut Value,
+    pointer: &str,
+    expected: &Rfc3339Time,
+) -> Result<(), FixtureV4Error> {
+    let text = value
+        .pointer(pointer)
+        .and_then(Value::as_str)
+        .ok_or(FixtureV4Error::ReadbackMismatch)?;
+    if parse_root_manifest_time(text)? != *expected {
+        return Err(FixtureV4Error::ReadbackMismatch);
+    }
+    *value
+        .pointer_mut(pointer)
+        .ok_or(FixtureV4Error::ReadbackMismatch)? = Value::String(expected.canonical().to_owned());
+    Ok(())
+}
+
+fn normalize_manifest_times(manifest: &mut Value, expected: &Value) -> Result<(), FixtureV4Error> {
+    for pointer in [
+        "/capture/started_at",
+        "/capture/ended_at",
+        "/causality/decision_time",
+        "/causality/max_available_at",
+    ] {
+        let expected_time = expected
+            .pointer(pointer)
+            .and_then(Value::as_str)
+            .and_then(|text| Rfc3339Time::parse(text).ok())
+            .ok_or(FixtureV4Error::ReadbackMismatch)?;
+        normalize_time_at_pointer(manifest, pointer, &expected_time)?;
+    }
+    for index in 0..ArtifactRoleV1::ALL.len() {
+        for field in ["first_available_at", "last_available_at"] {
+            let pointer = format!("/artifacts/{index}/{field}");
+            match expected.pointer(&pointer) {
+                Some(Value::String(text)) => {
+                    let expected_time =
+                        Rfc3339Time::parse(text).map_err(|_| FixtureV4Error::ReadbackMismatch)?;
+                    normalize_time_at_pointer(manifest, &pointer, &expected_time)?;
+                }
+                Some(Value::Null) if manifest.pointer(&pointer) == Some(&Value::Null) => {}
+                _ => return Err(FixtureV4Error::ReadbackMismatch),
+            }
+        }
     }
     Ok(())
 }

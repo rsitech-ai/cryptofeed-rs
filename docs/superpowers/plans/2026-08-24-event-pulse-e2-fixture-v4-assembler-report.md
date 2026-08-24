@@ -124,13 +124,13 @@ the invented family equality and retains strict integer/not-Boolean and u32
 bounds. The same maximum now passes Rust assembly, strict readback, and the
 pinned root validator; Boolean and `u32::MAX + 1` fail in both implementations.
 
-An independent 45-case, canonically rehashed differential matrix now compares
+An independent 64-case, canonically rehashed differential matrix now compares
 Rust strict readback with the exact pinned root validator. It spans envelope
 identity, catalogs, cursor/item coordinates, causal time, all six MARKET
 payload families, Clock quality/freshness/reason rules, Coverage
 family/interval/generation rules, the flags boundaries, publication floor, and
-manifest capture/decision/retention/authority/binding invariants. All 45 cases agree
-with the registered expected disposition. The existing Rust suite separately
+manifest capture/decision/retention/authority/binding invariants. All 64 cases
+agree with the registered expected disposition. The existing Rust suite separately
 covers replay/frame grammar, Trade/Book/sidecar continuity, truthful-empty
 System, canonical encoding, aggregate bounds, manifest coordination, and
 atomic failure.
@@ -141,8 +141,8 @@ No source, fixture, user file, or other worktree was removed.
 
 Final successor focused evidence:
 
-- ordinary Fixture V4 Rust suite: 11 passed, 3 pinned-root tests ignored;
-- explicit pinned-root parity suite: 3 passed, including the 28-case matrix;
+- ordinary Fixture V4 Rust suite: 12 passed, 3 pinned-root tests ignored;
+- explicit pinned-root parity suite: 3 passed, including the 64-case matrix;
 - EventPulse admission/preflight V4 regression suites: 9 + 3 + 11 passed.
 
 ## Publication-floor parity repair
@@ -167,3 +167,23 @@ The first Rust 1.85 link attempt reached ENOSPC with 118 MiB available. The
 authorized recovery again removed only this worktree's disposable Cargo target
 (1.9 GiB); the exact Rust 1.85 full suite then passed with incremental output
 and debug info disabled. No source or user data was removed.
+
+## Timestamp lexical parity repair
+
+Strict adoption now mirrors the two timestamp parsers actually published by
+the root validator instead of requiring every accepted string to equal
+`Rfc3339Time`'s six-digit rendering. Amendment `default_reachable_at` uses the
+canonical parser: UTC `Z`, zero or 1..6 fractional digits, and no trailing zero
+when a fraction is present. V4 capture, decision, max/bounds, and admission
+capture strings use the V4 parser: UTC `Z` and zero or 1..6 fractional digits,
+including trailing-zero forms such as `.10Z` and the assembler's existing
+six-digit output. Both classes reject offsets and fractions longer than six
+digits.
+
+Adoption compares parsed instants, then normalizes only a temporary comparison
+image; it does not rewrite caller bytes. Assembly output remains deterministic.
+Published binding timestamps remain byte-exact because their complete binding
+objects are independently pinned. The ordinary Rust regression and expanded
+64-case pinned-root matrix cover `.1Z`, `.000001Z`, class-specific `.10Z`,
+overprecision, and offsets across capture, decision, artifact-bound, and
+amendment fields.
