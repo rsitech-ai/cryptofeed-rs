@@ -217,6 +217,17 @@ impl InMemoryFixtureV4 {
         {
             return Err(FixtureV4Error::ReadbackMismatch);
         }
+        let raw_admission_capture_start = admission_value
+            .get("capture_starts_at")
+            .and_then(Value::as_str)
+            .ok_or(FixtureV4Error::ReadbackMismatch)?;
+        let raw_manifest_capture_start = manifest
+            .pointer("/capture/started_at")
+            .and_then(Value::as_str)
+            .ok_or(FixtureV4Error::ReadbackMismatch)?;
+        if raw_admission_capture_start != raw_manifest_capture_start {
+            return Err(FixtureV4Error::Contract("admission capture start"));
+        }
         let mut partitions = Vec::with_capacity(9);
         for (file, role) in self.files[2..].iter().zip(ArtifactRoleV1::ALL) {
             if file.path != role_path(role) {

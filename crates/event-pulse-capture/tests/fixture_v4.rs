@@ -170,6 +170,17 @@ fn set_package_capture_start(owned: &mut [(String, Vec<u8>)], capture_start: &st
     owned[0].1 = canonical_line(&manifest);
 }
 
+fn set_admission_capture_start(owned: &mut [(String, Vec<u8>)], capture_start: &str) {
+    let mut admission: Value = serde_json::from_slice(&owned[1].1).unwrap();
+    admission["capture_starts_at"] = json!(capture_start);
+    owned[1].1 = canonical_line(&admission);
+    let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+    manifest["admission_binding"]["byte_length"] = json!(owned[1].1.len());
+    manifest["admission_binding"]["sha256"] =
+        Value::String(format!("{:x}", Sha256::digest(&owned[1].1)));
+    owned[0].1 = canonical_line(&manifest);
+}
+
 fn rust_readback_accepts(owned: &[(String, Vec<u8>)]) -> bool {
     rust_readback_accepts_at(owned, "2026-08-24T00:00:00Z")
 }
@@ -636,6 +647,14 @@ fn capture_start_strictly_postdates_the_latest_embedded_publication_binding() {
 
 #[test]
 fn adopted_manifest_timestamps_follow_their_published_field_specific_lexical_rules() {
+    let mut matching_capture_spelling = owned_package();
+    set_package_capture_start(&mut matching_capture_spelling, "2026-08-24T00:00:00.0Z");
+    assert!(rust_readback_accepts(&matching_capture_spelling));
+
+    let mut mismatched_capture_spelling = owned_package();
+    set_admission_capture_start(&mut mismatched_capture_spelling, "2026-08-24T00:00:00.0Z");
+    assert!(!rust_readback_accepts(&mismatched_capture_spelling));
+
     for capture_end in [
         "2026-08-24T00:00:16.1Z",
         "2026-08-24T00:00:16.10Z",
@@ -1176,6 +1195,35 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
         assert_eq!(rust, root, "Rust/root mismatch for {label}");
         assert_eq!(rust, accepted, "unexpected result for {label}");
     }
+
+    let mut owned = owned_package();
+    set_package_capture_start(&mut owned, "2026-08-24T00:00:00.0Z");
+    let rust = rust_readback_accepts(&owned);
+    let root = root_validator_accepts(&validator, &owned, "capture-spelling-identical");
+    assert_eq!(
+        rust, root,
+        "Rust/root mismatch for identical capture spelling"
+    );
+    assert!(rust);
+
+    let mut owned = owned_package();
+    set_admission_capture_start(&mut owned, "2026-08-24T00:00:00.0Z");
+    let rust = rust_readback_accepts(&owned);
+    let root = root_validator_accepts(&validator, &owned, "capture-spelling-mismatch");
+    assert_eq!(
+        rust, root,
+        "Rust/root mismatch for capture spelling mismatch"
+    );
+    assert!(!rust);
+
+    let mut owned = owned_package();
+    mutate_manifest(&mut owned, |manifest| {
+        manifest["causality"]["max_available_at"] = json!("2026-08-24T00:00:00.0150Z");
+    });
+    let rust = rust_readback_accepts(&owned);
+    let root = root_validator_accepts(&validator, &owned, "max-artifact-spelling-differs");
+    assert_eq!(rust, root, "Rust/root mismatch for max/artifact spelling");
+    assert!(rust);
 
     for (label, capture_end, accepted) in [
         ("capture-end-tenth", "2026-08-24T00:00:16.1Z", true),

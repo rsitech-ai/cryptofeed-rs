@@ -124,12 +124,12 @@ the invented family equality and retains strict integer/not-Boolean and u32
 bounds. The same maximum now passes Rust assembly, strict readback, and the
 pinned root validator; Boolean and `u32::MAX + 1` fail in both implementations.
 
-An independent 75-case, canonically rehashed differential matrix now compares
+An independent 78-case, canonically rehashed differential matrix now compares
 Rust strict readback with the exact pinned root validator. It spans envelope
 identity, catalogs, cursor/item coordinates, causal time, all six MARKET
 payload families, Clock quality/freshness/reason rules, Coverage
 family/interval/generation rules, the flags boundaries, publication floor, and
-manifest capture/decision/retention/authority/binding invariants. All 75 cases
+manifest capture/decision/retention/authority/binding invariants. All 78 cases
 agree with the registered expected disposition. The existing Rust suite separately
 covers replay/frame grammar, Trade/Book/sidecar continuity, truthful-empty
 System, canonical encoding, aggregate bounds, manifest coordination, and
@@ -142,7 +142,7 @@ No source, fixture, user file, or other worktree was removed.
 Final successor focused evidence:
 
 - ordinary Fixture V4 Rust suite: 12 passed, 3 pinned-root tests ignored;
-- explicit pinned-root parity suite: 3 passed, including the 75-case matrix;
+- explicit pinned-root parity suite: 3 passed, including the 78-case matrix;
 - EventPulse admission/preflight V4 regression suites: 9 + 3 + 11 passed.
 
 ## Publication-floor parity repair
@@ -184,7 +184,7 @@ Adoption compares parsed instants, then normalizes only a temporary comparison
 image; it does not rewrite caller bytes. Assembly output remains deterministic.
 Published binding timestamps remain byte-exact because their complete binding
 objects are independently pinned. The ordinary Rust regression and expanded
-75-case pinned-root matrix cover `.1Z`, `.000001Z`, class-specific `.10Z`,
+78-case pinned-root matrix cover `.1Z`, `.000001Z`, class-specific `.10Z`,
 overprecision, and offsets across capture, decision, artifact-bound, and
 amendment fields.
 
@@ -200,3 +200,18 @@ The first year-domain Rust 1.85 run reached ENOSPC with 406 MiB free. The
 authorized recovery removed only this worktree's disposable Cargo target (1.8
 GiB); the complete MSRV suite then passed with incremental output and debug
 info disabled. No source or user data was removed.
+
+## Raw duplicated-string relation repair
+
+Strict adoption now compares the raw admission `capture_starts_at` string with
+manifest `capture.started_at` before normalizing either parsed instant. An
+identical alternate V4 spelling in both files remains valid; a same-instant
+different spelling rejects in both Rust and the pinned root validator after
+the admission byte binding is recomputed.
+
+The duplicate-field audit found no other normalized field that root compares
+as a raw string. Artifact bounds and causality `max_available_at` are compared
+as parsed instants to record-derived extrema, so a separate differential case
+retains acceptance for a different-but-equivalent max/artifact spelling.
+Published bindings, identities, paths, hashes, roles, and admission descriptor
+values are already compared as exact typed values and are never normalized.

@@ -146,7 +146,7 @@ validation, and requires exact artifact equality.
 - Final flags/parity repair: MARKET flags retain the published full-u32
   contract without invented family-specific equality. A non-oracle maximum
   value passes assembly/readback and the pinned root validator, while Boolean
-  and one-over inputs reject. A 75-case canonically rehashed differential
+  and one-over inputs reject. A 78-case canonically rehashed differential
   matrix covers every semantic rule group alongside the focused continuity,
   frame, System, canonical-byte, manifest, and bound regressions.
 - Publication-floor repair: assembly and strict adoption independently compute
@@ -165,6 +165,11 @@ validation, and requires exact artifact equality.
   year `0000` and accept the supported four-digit range beginning at `0001`.
   Rehashed root/Rust cases also cover malformed year width and representative
   invalid month, day, leap-day, hour, and second components.
+- Raw duplicate-field repair: adoption requires the raw admission
+  `capture_starts_at` string to equal manifest `capture.started_at` before
+  parsed-instant normalization, matching the root validator. Identical
+  alternate V4 spellings remain admissible. Other repeated timestamp
+  relations intentionally remain instant comparisons where root does so.
 - Status: repo-ready pure/offline implementation; external fixture provenance
   remains unavailable.
 - Authority ceiling: `STRUCTURAL_V4_CANDIDATE`; completion remains
