@@ -200,6 +200,11 @@ impl ProspectiveSystemArtifactPolicyV2 {
     pub(crate) fn matches(&self, admission: &ProspectiveCaptureAdmissionV2) -> bool {
         self.admission_fingerprint == admission.binding_fingerprint
     }
+
+    /// Returns whether this non-forgeable policy was minted for `admission`.
+    pub fn matches_admission(&self, admission: &ProspectiveCaptureAdmissionV2) -> bool {
+        self.matches(admission)
+    }
 }
 
 fn verify_embedded_contracts() -> Result<(), ProspectiveAdmissionErrorV2> {

@@ -1,0 +1,3 @@
+# Fixture V4 contract and oracle hashes cover exact LF bytes on every checkout.
+contracts/** text eol=lf
+tests/fixtures/*.jsonl text eol=lf
