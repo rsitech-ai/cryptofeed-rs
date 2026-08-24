@@ -184,3 +184,11 @@ validation, and requires exact artifact equality.
   explicit pinned-root parity 3 passed with 86 registered differential cases;
   complete EventPulse/capture all-target tests and clippy passed on current and
   Rust 1.85.0. Format, offline locked deny, docs, and diff checks passed.
+- Offset-projection successor: carried Clock/Coverage records retain their
+  canonical nonzero offset spelling byte-for-byte, but every assembler-owned
+  manifest timestamp (capture end, decision, causality maximum, and artifact
+  bounds) is projected by instant to canonical UTC `Z`. Admission V2 already
+  requires a canonical `Z` capture start; emitted admission and manifest start
+  therefore remain raw-string identical. Strict adoption grammar is unchanged.
+  The actual assembly/readback regression includes `+05:30`, `+23:59`, and
+  `-23:59` records and passes the pinned published root validator.

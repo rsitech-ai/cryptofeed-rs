@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 const CONTRACT_BYTES: &[u8] =
     include_bytes!("../contracts/fixture-v4/event-pulse-e2-fixture-v4-contract.json");
@@ -478,8 +479,19 @@ fn normalize_time_at_pointer(
     }
     *value
         .pointer_mut(pointer)
-        .ok_or(FixtureV4Error::ReadbackMismatch)? = Value::String(expected.canonical().to_owned());
+        .ok_or(FixtureV4Error::ReadbackMismatch)? = Value::String(canonical_utc_time(expected)?);
     Ok(())
+}
+
+fn canonical_utc_time(value: &Rfc3339Time) -> Result<String, FixtureV4Error> {
+    let instant = OffsetDateTime::from_unix_timestamp_nanos(i128::from(value.utc_micros()) * 1_000)
+        .map_err(|_| FixtureV4Error::CanonicalJson)?;
+    let rendered = instant
+        .format(&Rfc3339)
+        .map_err(|_| FixtureV4Error::CanonicalJson)?;
+    Rfc3339Time::parse(&rendered)
+        .map(|value| value.canonical().to_owned())
+        .map_err(|_| FixtureV4Error::CanonicalJson)
 }
 
 fn normalize_manifest_times(manifest: &mut Value, expected: &Value) -> Result<(), FixtureV4Error> {
@@ -584,19 +596,25 @@ fn manifest_value(
 ) -> Result<Value, FixtureV4Error> {
     let artifact_rows = artifacts
         .iter()
-        .map(|artifact| {
-            json!({
+        .map(|artifact| -> Result<Value, FixtureV4Error> {
+            Ok(json!({
                 "role": role_name(artifact.role()),
                 "path": role_path(artifact.role()),
                 "sha256": artifact.sha256(),
                 "byte_length": artifact.byte_len(),
                 "record_count": artifact.record_count(),
-                "first_available_at": artifact.first_available_at().map(Rfc3339Time::canonical),
-                "last_available_at": artifact.last_available_at().map(Rfc3339Time::canonical),
+                "first_available_at": artifact
+                    .first_available_at()
+                    .map(canonical_utc_time)
+                    .transpose()?,
+                "last_available_at": artifact
+                    .last_available_at()
+                    .map(canonical_utc_time)
+                    .transpose()?,
                 "record_identities": Vec::<String>::new(),
-            })
+            }))
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     let bindings = contract
         .get("bindings")
         .cloned()
@@ -630,14 +648,14 @@ fn manifest_value(
             "mode": "PROSPECTIVE",
             "source_kind": "REAL_PUBLIC_READ_ONLY_CAPTURE",
             "capture_host_clock": "INDEPENDENT_DISCIPLINED_CLOCK",
-            "started_at": admission.capture_starts_at().canonical(),
-            "ended_at": capture_end.canonical(),
+            "started_at": canonical_utc_time(admission.capture_starts_at())?,
+            "ended_at": canonical_utc_time(capture_end)?,
         },
         "artifacts": artifact_rows,
         "causality": {
             "availability_authority": "available_at",
-            "decision_time": decision_time.canonical(),
-            "max_available_at": max_available_at.canonical(),
+            "decision_time": canonical_utc_time(decision_time)?,
+            "max_available_at": canonical_utc_time(max_available_at)?,
             "future_rows_allowed": false,
         },
         "transformation": transformation,

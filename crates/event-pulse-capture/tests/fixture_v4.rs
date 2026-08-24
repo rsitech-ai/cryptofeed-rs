@@ -56,6 +56,19 @@ fn minimum_complete_oracle() -> Vec<u8> {
     bytes
 }
 
+fn offset_sidecar_oracle() -> Vec<u8> {
+    let jsonl = globally_ordered_oracle();
+    let jsonl = mutate_line(&jsonl, 8, |clock| {
+        clock["observed_at"] = json!("2026-08-24T05:30:00.007000+05:30");
+        clock["available_at"] = json!("2026-08-24T05:30:00.007000+05:30");
+    });
+    mutate_line(&jsonl, 16, |coverage| {
+        coverage["covered_from"] = json!("2026-08-24T23:59:00+23:59");
+        coverage["covered_through"] = json!("2026-08-23T00:01:00.015000-23:59");
+        coverage["available_at"] = json!("2026-08-23T00:01:00.015000-23:59");
+    })
+}
+
 fn canonical_line(value: &Value) -> Vec<u8> {
     let mut bytes = serde_json::to_vec(value).unwrap();
     bytes.push(b'\n');
@@ -352,6 +365,108 @@ fn carried_v1_timestamp_wire_accepts_offsets_and_rejects_aliases() {
         mutate_package_record(&mut owned, path, 0, mutate);
         assert_eq!(rust_readback_accepts(&owned), accepted, "{label}");
     }
+}
+
+#[test]
+fn assemble_projects_manifest_owned_times_to_utc_z_without_rewriting_sidecars() {
+    let jsonl = offset_sidecar_oracle();
+    let assembler = assembler_at("2026-08-24T00:00:00Z");
+    let package = assembler
+        .assemble(FixtureV4Request {
+            fixture_id: "bnb-usdt-offset-v4",
+            capture_ends_at: Rfc3339Time::parse("2026-08-24T05:30:16+05:30").unwrap(),
+            decision_time: Rfc3339Time::parse("2026-08-23T00:01:17-23:59").unwrap(),
+            source_terms: "test-only synthetic offset package",
+            complete_jsonl: &jsonl,
+        })
+        .unwrap();
+
+    let manifest: Value = serde_json::from_slice(package.file("manifest.json").unwrap()).unwrap();
+    let admission: Value = serde_json::from_slice(package.file("admission.json").unwrap()).unwrap();
+    assert_eq!(admission["capture_starts_at"], "2026-08-24T00:00:00Z");
+    assert_eq!(
+        manifest["capture"]["started_at"],
+        admission["capture_starts_at"]
+    );
+    assert_eq!(manifest["capture"]["ended_at"], "2026-08-24T00:00:16Z");
+    assert_eq!(
+        manifest["causality"]["decision_time"],
+        "2026-08-24T00:00:17Z"
+    );
+    assert_eq!(
+        manifest["causality"]["max_available_at"],
+        "2026-08-24T00:00:00.015000Z"
+    );
+    let coverage = manifest["artifacts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|artifact| artifact["role"] == "COVERAGE")
+        .unwrap();
+    assert_eq!(coverage["last_available_at"], "2026-08-24T00:00:00.015000Z");
+    for artifact in manifest["artifacts"].as_array().unwrap() {
+        for field in ["first_available_at", "last_available_at"] {
+            if let Some(value) = artifact[field].as_str() {
+                assert!(value.ends_with('Z'), "{field} was not UTC-Z: {value}");
+            }
+        }
+    }
+    assert!(
+        package
+            .file("inputs/clock.jsonl")
+            .unwrap()
+            .windows(b"+05:30".len())
+            .any(|window| window == b"+05:30")
+    );
+    let coverage_bytes = package.file("inputs/coverage.jsonl").unwrap();
+    assert!(coverage_bytes.windows(6).any(|window| window == b"+23:59"));
+    assert!(coverage_bytes.windows(6).any(|window| window == b"-23:59"));
+}
+
+#[test]
+fn admission_capture_start_remains_in_its_existing_canonical_z_domain() {
+    let contract: Value = serde_json::from_slice(CONTRACT).unwrap();
+    let descriptor = json!({
+        "schema": "event-pulse-e2-prospective-admission/2.0",
+        "topology_binding": contract["bindings"]["topology"],
+        "wire_contract_binding": contract["bindings"]["wire"],
+        "capture_starts_at": "2026-08-24T05:30:00+05:30",
+        "evidence_claim": "PROSPECTIVE_CAUSAL_CAPTURE",
+        "source_qualification": "UNVERIFIED",
+        "authority": contract["authority"],
+    });
+    assert!(
+        ProspectiveCaptureAdmissionV2::from_json(&serde_json::to_vec(&descriptor).unwrap())
+            .is_err()
+    );
+}
+
+#[test]
+#[ignore = "requires the exact published root Fixture V4 validator checkout"]
+fn assembled_offset_sidecars_pass_published_root_validator() {
+    let validator = std::env::var_os("EVENT_PULSE_ROOT_V4_VALIDATOR")
+        .map(PathBuf::from)
+        .expect("EVENT_PULSE_ROOT_V4_VALIDATOR must name the pinned root validator");
+    let jsonl = offset_sidecar_oracle();
+    let package = assembler_at("2026-08-24T00:00:00Z")
+        .assemble(FixtureV4Request {
+            fixture_id: "bnb-usdt-offset-v4",
+            capture_ends_at: Rfc3339Time::parse("2026-08-24T05:30:16+05:30").unwrap(),
+            decision_time: Rfc3339Time::parse("2026-08-23T00:01:17-23:59").unwrap(),
+            source_terms: "test-only synthetic offset package",
+            complete_jsonl: &jsonl,
+        })
+        .unwrap();
+    let owned = package
+        .files()
+        .iter()
+        .map(|file| (file.path().to_owned(), file.bytes().to_vec()))
+        .collect::<Vec<_>>();
+    assert!(root_validator_accepts(
+        &validator,
+        &owned,
+        "offset-sidecars"
+    ));
 }
 
 #[test]

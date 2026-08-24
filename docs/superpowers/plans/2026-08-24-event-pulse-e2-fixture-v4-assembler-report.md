@@ -248,3 +248,29 @@ Successor GREEN evidence:
   Rust 1.85.0;
 - current and Rust 1.85.0 clippy with `-D warnings`: green;
 - formatting, offline locked cargo-deny, documentation, and diff checks: green.
+
+## Assembler-owned UTC projection repair
+
+The new assembly regression first failed with typed `CaptureTiming` when its
+admission start used `+05:30`. That RED confirmed the existing Admission V2
+boundary is deliberately canonical-`Z` only; it must not be widened in this
+assembler repair. The corrected regression keeps the admitted raw start in
+that domain and exercises nonzero offsets where the public assembler API and
+carried V1 records actually permit them.
+
+Assembly now projects capture end, decision time, artifact first/last bounds,
+and causality maximum by instant into canonical UTC `Z`. The same helper is
+used by temporary strict-readback normalization. The assembler does not
+rewrite Clock/Coverage JSONL: test records retain `+05:30`, `+23:59`, and
+`-23:59` byte spellings. Emitted admission `capture_starts_at` and manifest
+`capture.started_at` remain the same raw canonical-`Z` string, while adopted
+package grammar and its field-specific lexical rules remain unchanged.
+
+Successor evidence:
+
+- ordinary assembler suite: 15 passed, 4 explicit pinned-root tests ignored;
+- explicit published-root parity: 4 passed, including actual offset-bearing
+  assembly, mandatory self-readback, and root-validator adoption;
+- full EventPulse/capture all-target suite: green on current and exact Rust
+  1.85.0;
+- current and Rust 1.85.0 clippy with `-D warnings`: green.
