@@ -143,6 +143,12 @@ validation, and requires exact artifact equality.
   frame grammar, Trade/Book/Clock/Coverage continuity, truthful-empty SYSTEM,
   and closed numeric/type bounds. Canonically rehashed adversarial packages
   fail in Rust without relying on the Python smoke.
+- Final flags/parity repair: MARKET flags retain the published full-u32
+  contract without invented family-specific equality. A non-oracle maximum
+  value passes assembly/readback and the pinned root validator, while Boolean
+  and one-over inputs reject. A 28-case canonically rehashed differential
+  matrix covers every semantic rule group alongside the focused continuity,
+  frame, System, canonical-byte, manifest, and bound regressions.
 - Status: repo-ready pure/offline implementation; external fixture provenance
   remains unavailable.
 - Authority ceiling: `STRUCTURAL_V4_CANDIDATE`; completion remains

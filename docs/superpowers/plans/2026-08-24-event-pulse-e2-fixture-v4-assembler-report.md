@@ -79,8 +79,8 @@ The successor invokes a pure Rust contract validator from both `assemble` and
 strict `readback`. It additionally checks:
 
 - exact PUBLIC, MARKET, and confirmation source-specific catalogs and routes;
-- routed Quote/Trade/Book/OpenInterest/Liquidation payload domains, flags, and
-  provenance correlations;
+- routed Quote/Trade/Book/OpenInterest/Liquidation payload domains, full-u32
+  envelope flags, and provenance correlations;
 - exact per-artifact and cross-role contributor raw-coordinate and nanosecond
   receive-time progression;
 - Binance zero-based action, item-zero, homogeneous-role, and
@@ -113,3 +113,33 @@ Successor GREEN evidence:
 - current and Rust 1.85.0 clippy all targets with `-D warnings`: green;
 - formatting, offline locked cargo-deny, documentation, and diff checks:
   green.
+
+## Flags parity and differential repair
+
+The first semantic successor overconstrained `EventEnvelope.flags` to
+family-specific values. The published root Fixture V4 contract instead accepts
+every integer in `0..=u32::MAX`. A direct RED proved that a canonically rehashed
+non-oracle Quote with `flags = u32::MAX` failed in Rust. The repair removes only
+the invented family equality and retains strict integer/not-Boolean and u32
+bounds. The same maximum now passes Rust assembly, strict readback, and the
+pinned root validator; Boolean and `u32::MAX + 1` fail in both implementations.
+
+An independent 28-case, canonically rehashed differential matrix now compares
+Rust strict readback with the exact pinned root validator. It spans envelope
+identity, catalogs, cursor/item coordinates, causal time, all six MARKET
+payload families, Clock quality/freshness/reason rules, Coverage
+family/interval/generation rules, and the flags boundaries. All 28 cases agree
+with the registered expected disposition. The existing Rust suite separately
+covers replay/frame grammar, Trade/Book/sidecar continuity, truthful-empty
+System, canonical encoding, aggregate bounds, manifest coordination, and
+atomic failure.
+
+During this repair, only this worktree's disposable Cargo target was cleaned a
+second time after available disk space fell to 101 MiB; it recovered 1.9 GiB.
+No source, fixture, user file, or other worktree was removed.
+
+Final successor focused evidence:
+
+- ordinary Fixture V4 Rust suite: 10 passed, 3 pinned-root tests ignored;
+- explicit pinned-root parity suite: 3 passed, including the 28-case matrix;
+- EventPulse admission/preflight V4 regression suites: 9 + 3 + 11 passed.

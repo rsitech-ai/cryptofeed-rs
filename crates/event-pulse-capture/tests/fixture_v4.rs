@@ -105,6 +105,85 @@ fn request(jsonl: &[u8]) -> FixtureV4Request<'_> {
     }
 }
 
+fn owned_package() -> Vec<(String, Vec<u8>)> {
+    assembler()
+        .assemble(request(&globally_ordered_oracle()))
+        .unwrap()
+        .files()
+        .iter()
+        .map(|file| (file.path().to_owned(), file.bytes().to_vec()))
+        .collect()
+}
+
+fn mutate_package_record(
+    owned: &mut [(String, Vec<u8>)],
+    path: &str,
+    line_index: usize,
+    mutate: fn(&mut Value),
+) {
+    let artifact_index = owned
+        .iter()
+        .position(|(candidate, _)| candidate == path)
+        .unwrap();
+    let line = owned[artifact_index]
+        .1
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .nth(line_index)
+        .unwrap();
+    let mut value: Value = serde_json::from_slice(line).unwrap();
+    mutate(&mut value);
+    owned[artifact_index].1 = replace_line(&owned[artifact_index].1, line_index, &rehash(value));
+
+    let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+    let report = manifest["artifacts"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|report| report["path"] == path)
+        .unwrap();
+    report["byte_length"] = json!(owned[artifact_index].1.len());
+    report["sha256"] = Value::String(format!("{:x}", Sha256::digest(&owned[artifact_index].1)));
+    owned[0].1 = canonical_line(&manifest);
+}
+
+fn rust_readback_accepts(owned: &[(String, Vec<u8>)]) -> bool {
+    let views = owned
+        .iter()
+        .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+        .collect::<Vec<_>>();
+    assembler()
+        .readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap())
+        .is_ok()
+}
+
+fn root_validator_accepts(validator: &PathBuf, owned: &[(String, Vec<u8>)], label: &str) -> bool {
+    let root = std::env::temp_dir().join(format!(
+        "event-pulse-fixture-v4-parity-{}-{label}",
+        std::process::id()
+    ));
+    if root.exists() {
+        fs::remove_dir_all(&root).unwrap();
+    }
+    for (path, bytes) in owned {
+        let target = root.join(path);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(target, bytes).unwrap();
+    }
+    let accepted = Command::new("python3")
+        .arg(validator)
+        .arg("--package")
+        .arg(&root)
+        .output()
+        .unwrap()
+        .status
+        .success();
+    fs::remove_dir_all(root).unwrap();
+    accepted
+}
+
 #[test]
 fn published_root_fixture_v4_contract_and_oracle_bytes_are_exact() {
     assert_eq!(CONTRACT.len(), 5_527);
@@ -458,6 +537,31 @@ fn contract_and_wire_reject_sidecar_domains_continuity_and_json_type_aliases() {
 }
 
 #[test]
+fn full_u32_market_flags_are_valid_but_type_alias_and_one_over_are_rejected() {
+    let jsonl = globally_ordered_oracle();
+    let maximum = mutate_line(&jsonl, 1, |quote| {
+        quote["envelope"]["flags"] = json!(u32::MAX);
+    });
+    let assembler = assembler();
+    let package = assembler.assemble(request(&maximum)).unwrap();
+    let views = package
+        .files()
+        .iter()
+        .map(|file| (file.path(), file.bytes()))
+        .collect::<Vec<_>>();
+    assembler
+        .readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap())
+        .unwrap();
+
+    for invalid in [Value::Bool(false), json!(u64::from(u32::MAX) + 1)] {
+        let mutated = mutate_line(&jsonl, 1, |quote| {
+            quote["envelope"]["flags"] = invalid;
+        });
+        assert!(assembler.assemble(request(&mutated)).is_err());
+    }
+}
+
+#[test]
 #[ignore = "requires the exact published root Fixture V4 validator checkout"]
 fn assembled_package_passes_published_root_cross_language_validator() {
     let validator = std::env::var_os("EVENT_PULSE_ROOT_V4_VALIDATOR")
@@ -556,4 +660,313 @@ fn rust_and_published_root_both_reject_coordinated_quote_domain_drift() {
     fs::remove_dir_all(&root).unwrap();
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("Quote bid_quantity"));
+}
+
+#[test]
+#[ignore = "requires the exact published root Fixture V4 validator checkout"]
+fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
+    fn flags_max(value: &mut Value) {
+        value["envelope"]["flags"] = json!(u32::MAX);
+    }
+    fn flags_bool(value: &mut Value) {
+        value["envelope"]["flags"] = Value::Bool(false);
+    }
+    fn flags_over(value: &mut Value) {
+        value["envelope"]["flags"] = json!(u64::from(u32::MAX) + 1);
+    }
+    fn schema(value: &mut Value) {
+        value["envelope"]["schema_version"] = json!(2);
+    }
+    fn venue(value: &mut Value) {
+        value["envelope"]["venue"] = json!(4);
+    }
+    fn connection(value: &mut Value) {
+        value["envelope"]["connection"] = json!(12);
+    }
+    fn source(value: &mut Value) {
+        value["catalog"]["venue_sources"]["3"]["source_id"] = json!("wrong");
+    }
+    fn quote_quantity(value: &mut Value) {
+        value["envelope"]["payload"]["Quote"]["bid_quantity"] = Value::Null;
+    }
+    fn quote_price(value: &mut Value) {
+        value["envelope"]["payload"]["Quote"]["ask_price"]["coefficient"] = json!(0);
+    }
+    fn event_item(value: &mut Value) {
+        value["envelope"]["event_index"] = json!(1);
+        value["market_cursor"]["item_index"] = json!(1);
+    }
+    fn book_depth(value: &mut Value) {
+        value["envelope"]["payload"]["BookSnapshot"]["depth"] = json!(999);
+    }
+    fn book_checksum(value: &mut Value) {
+        value["envelope"]["payload"]["BookSnapshot"]["checksum"] = json!("x");
+    }
+    fn book_delete_quantity(value: &mut Value) {
+        let change = &mut value["envelope"]["payload"]["BookDelta"]["changes"][0];
+        change["operation"] = json!("Delete");
+    }
+    fn trade_id(value: &mut Value) {
+        value["envelope"]["payload"]["Trade"]["trade_id"] = json!("51");
+    }
+    fn trade_aggressor(value: &mut Value) {
+        value["envelope"]["payload"]["Trade"]["aggressor"] = json!("Unknown");
+    }
+    fn open_interest(value: &mut Value) {
+        value["envelope"]["payload"]["OpenInterest"]["quantity"] = Value::Bool(false);
+    }
+    fn liquidation_side(value: &mut Value) {
+        value["envelope"]["payload"]["Liquidation"]["side"] = json!("Bid");
+    }
+    fn confirmation_price(value: &mut Value) {
+        value["envelope"]["payload"]["MarkPrice"]["price"] = Value::Null;
+    }
+    fn exchange_after_receive(value: &mut Value) {
+        value["envelope"]["exchange_ts"] = json!(1_787_529_600_003_000_001_u64);
+    }
+    fn clock_state(value: &mut Value) {
+        value["clock_state"] = json!("unsynchronized");
+    }
+    fn clock_quality(value: &mut Value) {
+        value["quality_state"] = json!("degraded");
+    }
+    fn clock_observed(value: &mut Value) {
+        value["observed_at"] = json!("2026-08-24T00:00:00.007001Z");
+    }
+    fn clock_freshness(value: &mut Value) {
+        value["freshness_limit_ms"] = json!(0);
+    }
+    fn clock_reason(value: &mut Value) {
+        value["reason_code"] = json!("normal");
+    }
+    fn coverage_family(value: &mut Value) {
+        value["family"] = json!("TRADE");
+    }
+    fn coverage_interval(value: &mut Value) {
+        value["covered_from"] = json!("2026-08-24T00:00:00.011000Z");
+    }
+    fn coverage_generation(value: &mut Value) {
+        value["coverage_source"]["epoch_generation"] = json!(1);
+    }
+    fn cursor_kind(value: &mut Value) {
+        value["coverage_cursor"]["kind"] = json!("DERIVED");
+    }
+
+    struct Case {
+        label: &'static str,
+        path: &'static str,
+        line: usize,
+        mutate: fn(&mut Value),
+        accepted: bool,
+    }
+    let cases = [
+        Case {
+            label: "flags-max",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: flags_max,
+            accepted: true,
+        },
+        Case {
+            label: "flags-bool",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: flags_bool,
+            accepted: false,
+        },
+        Case {
+            label: "flags-over",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: flags_over,
+            accepted: false,
+        },
+        Case {
+            label: "schema",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: schema,
+            accepted: false,
+        },
+        Case {
+            label: "venue",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: venue,
+            accepted: false,
+        },
+        Case {
+            label: "connection",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: connection,
+            accepted: false,
+        },
+        Case {
+            label: "source",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: source,
+            accepted: false,
+        },
+        Case {
+            label: "quote-quantity",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: quote_quantity,
+            accepted: false,
+        },
+        Case {
+            label: "quote-price",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: quote_price,
+            accepted: false,
+        },
+        Case {
+            label: "event-item",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: event_item,
+            accepted: false,
+        },
+        Case {
+            label: "book-depth",
+            path: "inputs/book.jsonl",
+            line: 0,
+            mutate: book_depth,
+            accepted: false,
+        },
+        Case {
+            label: "book-checksum",
+            path: "inputs/book.jsonl",
+            line: 0,
+            mutate: book_checksum,
+            accepted: false,
+        },
+        Case {
+            label: "book-delete-quantity",
+            path: "inputs/book.jsonl",
+            line: 1,
+            mutate: book_delete_quantity,
+            accepted: false,
+        },
+        Case {
+            label: "trade-id",
+            path: "inputs/trade.jsonl",
+            line: 0,
+            mutate: trade_id,
+            accepted: false,
+        },
+        Case {
+            label: "trade-aggressor",
+            path: "inputs/trade.jsonl",
+            line: 0,
+            mutate: trade_aggressor,
+            accepted: false,
+        },
+        Case {
+            label: "open-interest",
+            path: "inputs/open_interest.jsonl",
+            line: 0,
+            mutate: open_interest,
+            accepted: false,
+        },
+        Case {
+            label: "liquidation-side",
+            path: "inputs/liquidation.jsonl",
+            line: 0,
+            mutate: liquidation_side,
+            accepted: false,
+        },
+        Case {
+            label: "confirmation-price",
+            path: "inputs/confirmation.jsonl",
+            line: 0,
+            mutate: confirmation_price,
+            accepted: false,
+        },
+        Case {
+            label: "exchange-after-receive",
+            path: "inputs/quote.jsonl",
+            line: 0,
+            mutate: exchange_after_receive,
+            accepted: false,
+        },
+        Case {
+            label: "clock-state",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_state,
+            accepted: false,
+        },
+        Case {
+            label: "clock-quality",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_quality,
+            accepted: false,
+        },
+        Case {
+            label: "clock-observed",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_observed,
+            accepted: false,
+        },
+        Case {
+            label: "clock-freshness",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_freshness,
+            accepted: false,
+        },
+        Case {
+            label: "clock-reason",
+            path: "inputs/clock.jsonl",
+            line: 0,
+            mutate: clock_reason,
+            accepted: false,
+        },
+        Case {
+            label: "coverage-family",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: coverage_family,
+            accepted: false,
+        },
+        Case {
+            label: "coverage-interval",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: coverage_interval,
+            accepted: false,
+        },
+        Case {
+            label: "coverage-generation",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: coverage_generation,
+            accepted: false,
+        },
+        Case {
+            label: "cursor-kind",
+            path: "inputs/coverage.jsonl",
+            line: 0,
+            mutate: cursor_kind,
+            accepted: false,
+        },
+    ];
+
+    let validator = std::env::var_os("EVENT_PULSE_ROOT_V4_VALIDATOR")
+        .map(PathBuf::from)
+        .expect("EVENT_PULSE_ROOT_V4_VALIDATOR must name the pinned root validator");
+    for case in cases {
+        let mut owned = owned_package();
+        mutate_package_record(&mut owned, case.path, case.line, case.mutate);
+        let rust = rust_readback_accepts(&owned);
+        let root = root_validator_accepts(&validator, &owned, case.label);
+        assert_eq!(rust, root, "Rust/root mismatch for {}", case.label);
+        assert_eq!(rust, case.accepted, "unexpected result for {}", case.label);
+    }
 }

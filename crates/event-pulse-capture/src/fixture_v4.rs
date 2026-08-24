@@ -750,7 +750,7 @@ fn validate_payload_domain(
     payload_kind: &str,
 ) -> Result<(), FixtureV4Error> {
     let payload = &value["envelope"]["payload"][payload_kind];
-    let flags = value["envelope"]["flags"]
+    value["envelope"]["flags"]
         .as_u64()
         .filter(|flags| *flags <= u32::MAX.into())
         .ok_or(FixtureV4Error::Contract("envelope flags"))?;
@@ -763,7 +763,7 @@ fn validate_payload_domain(
             )?;
             positive_decimal(&payload["price"], "binance trade payload")?;
             positive_decimal(&payload["quantity"], "binance trade payload")?;
-            if !matches!(payload["aggressor"].as_str(), Some("Buy" | "Sell")) || flags != 0 {
+            if !matches!(payload["aggressor"].as_str(), Some("Buy" | "Sell")) {
                 return Err(FixtureV4Error::Contract("binance trade payload"));
             }
             let aggregate = u64_field(
@@ -784,9 +784,6 @@ fn validate_payload_domain(
             for field in ["ask_price", "ask_quantity", "bid_price", "bid_quantity"] {
                 positive_decimal(&payload[field], "binance quote payload")?;
             }
-            if flags != 0 {
-                return Err(FixtureV4Error::Contract("binance quote payload"));
-            }
         }
         ArtifactRoleV1::Book if payload_kind == "BookSnapshot" => {
             exact_keys(
@@ -794,7 +791,7 @@ fn validate_payload_domain(
                 &["asks", "bids", "checksum", "depth"],
                 "binance book payload",
             )?;
-            if payload["checksum"] != Value::Null || payload["depth"] != 1000 || flags != 1 {
+            if payload["checksum"] != Value::Null || payload["depth"] != 1000 {
                 return Err(FixtureV4Error::Contract("binance book payload"));
             }
             for side in ["asks", "bids"] {
@@ -810,7 +807,7 @@ fn validate_payload_domain(
         }
         ArtifactRoleV1::Book => {
             exact_keys(payload, &["changes", "checksum"], "binance book payload")?;
-            if payload["checksum"] != Value::Null || flags != 2 {
+            if payload["checksum"] != Value::Null {
                 return Err(FixtureV4Error::Contract("binance book payload"));
             }
             for change in payload["changes"]
@@ -838,9 +835,6 @@ fn validate_payload_domain(
         ArtifactRoleV1::OpenInterest => {
             exact_keys(payload, &["quantity"], "binance open interest payload")?;
             decimal(&payload["quantity"], "binance open interest payload")?;
-            if flags != 0 {
-                return Err(FixtureV4Error::Contract("binance open interest payload"));
-            }
         }
         ArtifactRoleV1::Liquidation => {
             exact_keys(
@@ -850,16 +844,13 @@ fn validate_payload_domain(
             )?;
             decimal(&payload["price"], "binance liquidation payload")?;
             decimal(&payload["quantity"], "binance liquidation payload")?;
-            if !matches!(payload["side"].as_str(), Some("Buy" | "Sell")) || flags != 0 {
+            if !matches!(payload["side"].as_str(), Some("Buy" | "Sell")) {
                 return Err(FixtureV4Error::Contract("binance liquidation payload"));
             }
         }
         ArtifactRoleV1::Confirmation => {
             exact_keys(payload, &["price"], "confirmation payload")?;
             decimal(&payload["price"], "confirmation payload")?;
-            if flags != 0 {
-                return Err(FixtureV4Error::Contract("confirmation payload"));
-            }
         }
         _ => return Err(FixtureV4Error::Contract("market payload family")),
     }
