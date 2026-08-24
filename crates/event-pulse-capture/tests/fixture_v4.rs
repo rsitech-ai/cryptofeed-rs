@@ -62,6 +62,33 @@ fn canonical_line(value: &Value) -> Vec<u8> {
     bytes
 }
 
+fn rehash(mut value: Value) -> Vec<u8> {
+    value.as_object_mut().unwrap().remove("payload_hash");
+    let hash = format!("{:x}", Sha256::digest(serde_json::to_vec(&value).unwrap()));
+    value["payload_hash"] = Value::String(hash);
+    canonical_line(&value)
+}
+
+fn replace_line(input: &[u8], index: usize, replacement: &[u8]) -> Vec<u8> {
+    let mut lines = input
+        .split_inclusive(|byte| *byte == b'\n')
+        .map(<[u8]>::to_vec)
+        .collect::<Vec<_>>();
+    lines[index] = replacement.to_vec();
+    lines.concat()
+}
+
+fn mutate_line(input: &[u8], index: usize, mutate: impl FnOnce(&mut Value)) -> Vec<u8> {
+    let line = input
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .nth(index)
+        .unwrap();
+    let mut value: Value = serde_json::from_slice(line).unwrap();
+    mutate(&mut value);
+    replace_line(input, index, &rehash(value))
+}
+
 fn assembler() -> FixtureV4Assembler {
     let admission = admission();
     let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
@@ -279,6 +306,158 @@ fn strict_readback_rejects_coordinated_manifest_authority_drift() {
 }
 
 #[test]
+fn contract_rejects_canonically_rehashed_null_binance_quote_quantity() {
+    let jsonl = globally_ordered_oracle();
+    let mut quote: Value = serde_json::from_slice(
+        jsonl
+            .split(|byte| *byte == b'\n')
+            .filter(|line| !line.is_empty())
+            .nth(1)
+            .unwrap(),
+    )
+    .unwrap();
+    quote["envelope"]["payload"]["Quote"]["bid_quantity"] = Value::Null;
+    let mutated = replace_line(&jsonl, 1, &rehash(quote));
+    assert!(matches!(
+        assembler().assemble(request(&mutated)),
+        Err(FixtureV4Error::Contract("binance quote payload"))
+    ));
+}
+
+#[test]
+fn contract_rejects_rehashed_catalog_payload_provenance_time_and_frame_drift() {
+    let jsonl = globally_ordered_oracle();
+    let cases = [
+        (
+            mutate_line(&jsonl, 0, |trade| {
+                trade["catalog"]["open_interest"] = json!({});
+            }),
+            "source-specific catalog",
+        ),
+        (
+            mutate_line(&jsonl, 0, |trade| {
+                trade["envelope"]["payload"]["Trade"]["trade_id"] = json!("999");
+            }),
+            "binance trade payload",
+        ),
+        (
+            mutate_line(&jsonl, 4, |book| {
+                book["envelope"]["payload"]["BookSnapshot"]["depth"] = json!(999);
+            }),
+            "binance book payload",
+        ),
+    ];
+    for (mutated, rule) in cases {
+        let result = assembler().assemble(request(&mutated));
+        assert!(
+            matches!(
+                &result,
+                Err(FixtureV4Error::Contract(observed)) if *observed == rule
+            ),
+            "rule={rule} result={result:?}"
+        );
+    }
+
+    let invalid_time = mutate_line(&jsonl, 0, |trade| {
+        let receive = trade["envelope"]["receive_ts"].as_i64().unwrap();
+        trade["envelope"]["exchange_ts"] = json!(receive + 1);
+    });
+    assert!(assembler().assemble(request(&invalid_time)).is_err());
+
+    let lines = jsonl
+        .split_inclusive(|byte| *byte == b'\n')
+        .map(<[u8]>::to_vec)
+        .collect::<Vec<_>>();
+    let mut second_quote: Value = serde_json::from_slice(&lines[1][..lines[1].len() - 1]).unwrap();
+    second_quote["action_index"] = json!(1);
+    second_quote["market_cursor"]["action_index"] = json!(1);
+    let mut duplicate_frame = Vec::new();
+    duplicate_frame.extend_from_slice(&lines[0]);
+    duplicate_frame.extend_from_slice(&lines[1]);
+    duplicate_frame.extend_from_slice(&rehash(second_quote));
+    for line in &lines[2..] {
+        duplicate_frame.extend_from_slice(line);
+    }
+    assert!(matches!(
+        assembler().assemble(request(&duplicate_frame)),
+        Err(FixtureV4Error::Contract("binance frame grammar"))
+    ));
+}
+
+#[test]
+fn strict_readback_rejects_coordinated_artifact_and_manifest_rehash() {
+    let jsonl = globally_ordered_oracle();
+    let assembler = assembler();
+    let package = assembler.assemble(request(&jsonl)).unwrap();
+    let mut owned = package
+        .files()
+        .iter()
+        .map(|file| (file.path().to_owned(), file.bytes().to_vec()))
+        .collect::<Vec<_>>();
+    let quote_index = owned
+        .iter()
+        .position(|(path, _)| path == "inputs/quote.jsonl")
+        .unwrap();
+    let mut quote: Value =
+        serde_json::from_slice(&owned[quote_index].1[..owned[quote_index].1.len() - 1]).unwrap();
+    quote["envelope"]["payload"]["Quote"]["ask_quantity"] = Value::Null;
+    owned[quote_index].1 = rehash(quote);
+    let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+    let report = manifest["artifacts"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|report| report["role"] == "QUOTE")
+        .unwrap();
+    report["byte_length"] = json!(owned[quote_index].1.len());
+    report["sha256"] = Value::String(format!("{:x}", Sha256::digest(&owned[quote_index].1)));
+    owned[0].1 = canonical_line(&manifest);
+    let views = owned
+        .iter()
+        .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        assembler.readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap(),),
+        Err(FixtureV4Error::Contract("binance quote payload"))
+    ));
+}
+
+#[test]
+fn contract_and_wire_reject_sidecar_domains_continuity_and_json_type_aliases() {
+    let jsonl = globally_ordered_oracle();
+    let invalid_clock = mutate_line(&jsonl, 8, |clock| {
+        clock["freshness_limit_ms"] = json!(0);
+    });
+    assert!(assembler().assemble(request(&invalid_clock)).is_err());
+
+    let invalid_coverage = mutate_line(&jsonl, 11, |coverage| {
+        coverage["family"] = json!("BOOK");
+    });
+    assert!(assembler().assemble(request(&invalid_coverage)).is_err());
+
+    let invalid_type = mutate_line(&jsonl, 1, |quote| {
+        quote["action_index"] = Value::Bool(false);
+    });
+    assert!(assembler().assemble(request(&invalid_type)).is_err());
+
+    let mut clock: Value = serde_json::from_slice(
+        jsonl
+            .split(|byte| *byte == b'\n')
+            .filter(|line| !line.is_empty())
+            .nth(8)
+            .unwrap(),
+    )
+    .unwrap();
+    clock["available_at"] = json!("2026-08-24T00:00:00.016000Z");
+    clock["observed_at"] = json!("2026-08-24T00:00:00.016000Z");
+    clock["clock_cursor"]["start"] = json!(3);
+    clock["clock_cursor"]["end"] = json!(3);
+    let mut sidecar_gap = jsonl.clone();
+    sidecar_gap.extend_from_slice(&rehash(clock));
+    assert!(assembler().assemble(request(&sidecar_gap)).is_err());
+}
+
+#[test]
 #[ignore = "requires the exact published root Fixture V4 validator checkout"]
 fn assembled_package_passes_published_root_cross_language_validator() {
     let validator = std::env::var_os("EVENT_PULSE_ROOT_V4_VALIDATOR")
@@ -311,4 +490,70 @@ fn assembled_package_passes_published_root_cross_language_validator() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("STRUCTURAL_V4_CANDIDATE"));
+}
+
+#[test]
+#[ignore = "requires the exact published root Fixture V4 validator checkout"]
+fn rust_and_published_root_both_reject_coordinated_quote_domain_drift() {
+    let validator = std::env::var_os("EVENT_PULSE_ROOT_V4_VALIDATOR")
+        .map(PathBuf::from)
+        .expect("EVENT_PULSE_ROOT_V4_VALIDATOR must name the pinned root validator");
+    let jsonl = globally_ordered_oracle();
+    let assembler = assembler();
+    let package = assembler.assemble(request(&jsonl)).unwrap();
+    let mut owned = package
+        .files()
+        .iter()
+        .map(|file| (file.path().to_owned(), file.bytes().to_vec()))
+        .collect::<Vec<_>>();
+    let quote_index = owned
+        .iter()
+        .position(|(path, _)| path == "inputs/quote.jsonl")
+        .unwrap();
+    let mut quote: Value =
+        serde_json::from_slice(&owned[quote_index].1[..owned[quote_index].1.len() - 1]).unwrap();
+    quote["envelope"]["payload"]["Quote"]["bid_quantity"] = Value::Null;
+    owned[quote_index].1 = rehash(quote);
+    let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+    let report = manifest["artifacts"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|report| report["role"] == "QUOTE")
+        .unwrap();
+    report["byte_length"] = json!(owned[quote_index].1.len());
+    report["sha256"] = Value::String(format!("{:x}", Sha256::digest(&owned[quote_index].1)));
+    owned[0].1 = canonical_line(&manifest);
+    let views = owned
+        .iter()
+        .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+        .collect::<Vec<_>>();
+    assert!(matches!(
+        assembler.readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap(),),
+        Err(FixtureV4Error::Contract("binance quote payload"))
+    ));
+
+    let root = std::env::temp_dir().join(format!(
+        "event-pulse-fixture-v4-negative-{}",
+        std::process::id()
+    ));
+    if root.exists() {
+        fs::remove_dir_all(&root).unwrap();
+    }
+    for (path, bytes) in &owned {
+        let target = root.join(path);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(target, bytes).unwrap();
+    }
+    let output = Command::new("python3")
+        .arg(validator)
+        .arg("--package")
+        .arg(&root)
+        .output()
+        .unwrap();
+    fs::remove_dir_all(&root).unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Quote bid_quantity"));
 }

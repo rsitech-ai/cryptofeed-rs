@@ -67,3 +67,49 @@ No real prospective fixture was captured or authored, no source was qualified,
 and no completion, snapshot, runtime, paper, canary, live, risk, order, or trade
 authority was granted. Rollback is the single additive implementation commit;
 historical public APIs and wire bytes remain intact.
+
+## Successor semantic hardening
+
+The initial candidate delegated strict wire/topology/state validation to
+EventPulse and used the root Python validator only as an independent smoke. A
+review correctly identified that this did not independently enforce every
+Fixture V4 contract-specific semantic in Rust.
+
+The successor invokes a pure Rust contract validator from both `assemble` and
+strict `readback`. It additionally checks:
+
+- exact PUBLIC, MARKET, and confirmation source-specific catalogs and routes;
+- routed Quote/Trade/Book/OpenInterest/Liquidation payload domains, flags, and
+  provenance correlations;
+- exact per-artifact and cross-role contributor raw-coordinate and nanosecond
+  receive-time progression;
+- Binance zero-based action, item-zero, homogeneous-role, and
+  snapshot-then-deltas frame grammar;
+- strict Trade and Book continuity plus source-local Clock/Coverage cursor
+  continuity and domain relations;
+- truthful-empty SYSTEM and closed JSON types/numeric bounds.
+
+RED was a canonically rehashed Quote with `bid_quantity: null`; the initial
+candidate accepted it, while the successor rejects it at the Rust
+`binance quote payload` rule. Additional rehashed regressions cover catalog,
+Trade provenance, Book payload, causal time, frame grammar, sidecar domains,
+continuity, type aliases, and a coordinated manifest+artifact rehash. The
+pinned Python validator remains an independent happy/negative parity smoke,
+not an enforcement dependency.
+
+During this repair, the first source patch failed with ENOSPC. Recovery used
+only `cargo clean` inside this isolated worktree, removing 1.7 GiB of
+disposable build output. No source, fixture, user file, or other worktree was
+removed.
+
+Successor GREEN evidence:
+
+- focused Rust assembler contract suite: 9 passed, 2 explicitly external
+  parity smokes ignored by the ordinary command;
+- explicit pinned Python happy/negative parity: 2 passed;
+- focused EventPulse V4 preflight/readback: 11 passed;
+- full EventPulse + capture all-target suites: green on current Rust and exact
+  Rust 1.85;
+- current and Rust 1.85.0 clippy all targets with `-D warnings`: green;
+- formatting, offline locked cargo-deny, documentation, and diff checks:
+  green.

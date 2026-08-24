@@ -136,6 +136,13 @@ validation, and requires exact artifact equality.
 
 ## Final notes
 
+- Successor hardening: assembly and strict readback now run a pure Rust
+  contract-specific validator for every embedded Fixture V4 record-contract
+  rule group. The validator enforces exact source-specific catalogs, routed
+  payload/provenance domains, per-contributor nanosecond replay and Binance
+  frame grammar, Trade/Book/Clock/Coverage continuity, truthful-empty SYSTEM,
+  and closed numeric/type bounds. Canonically rehashed adversarial packages
+  fail in Rust without relying on the Python smoke.
 - Status: repo-ready pure/offline implementation; external fixture provenance
   remains unavailable.
 - Authority ceiling: `STRUCTURAL_V4_CANDIDATE`; completion remains
