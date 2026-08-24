@@ -974,6 +974,7 @@ dependencies = [
  "marketfeed-adapter-binance",
  "marketfeed-dispatch",
  "marketfeed-event-pulse",
+ "marketfeed-event-pulse-capture",
  "marketfeed-model",
  "marketfeed-recording",
  "marketfeed-replay",
