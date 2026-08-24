@@ -114,7 +114,7 @@ tracing = "0.1"
 # Private WS auth (OKX/Bybit HMAC); feature-gated on marketfeed-private `live`.
 hmac = { version = "0.12", default-features = false }
 sha2 = { version = "0.10", default-features = false }
-time = { version = "=0.3.41", default-features = false, features = ["formatting", "parsing"] }
+time = { version = "=0.3.47", default-features = false, features = ["formatting", "parsing"] }
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 
 [profile.release]
