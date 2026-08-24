@@ -9,6 +9,8 @@ use crate::{
     ArtifactRoleV1, CursorError, IngestOutcome, MechanicsInputRefV2, MechanicsInputV2,
     MechanicsInputV2JsonlReader, MechanicsInputV2JsonlWriter, ProspectiveCaptureAdmissionV2,
     ProspectiveSystemArtifactPolicyV2, ReplayInputError, SourceStateMachineV2,
+    replay_v2::replay_order_v2,
+    window::PROCESSOR_RECORD_CAPACITY,
     wire::{MAX_INPUT_BYTES, MechanicsInputRefV1, Rfc3339Time},
 };
 
@@ -126,6 +128,68 @@ impl OfflineArtifactPreflightV4 {
     pub fn artifacts(&self) -> &[InMemoryArtifactV4] {
         &self.artifacts
     }
+
+    /// Reconstruct a complete prefix from canonical role partitions and
+    /// require byte-identical repartitioning through the accepted V2 state.
+    pub fn readback(
+        admission: &ProspectiveCaptureAdmissionV2,
+        policy: &ProspectiveSystemArtifactPolicyV2,
+        decision_time: Rfc3339Time,
+        partitions: &[(ArtifactRoleV1, &[u8])],
+    ) -> Result<Self, OfflineArtifactErrorV4> {
+        if partitions.len() != ArtifactRoleV1::ALL.len() {
+            return Err(OfflineArtifactErrorV4::PartitionCount);
+        }
+        let mut total_bytes = 0usize;
+        let mut inputs = Vec::new();
+        for ((role, bytes), expected_role) in partitions.iter().zip(ArtifactRoleV1::ALL) {
+            if *role != expected_role {
+                return Err(OfflineArtifactErrorV4::PartitionRole);
+            }
+            total_bytes = total_bytes
+                .checked_add(bytes.len())
+                .ok_or(OfflineArtifactErrorV4::ReportOverflow)?;
+            if total_bytes > MAX_INPUT_BYTES {
+                return Err(OfflineArtifactErrorV4::AggregateTooLarge);
+            }
+            if *role == ArtifactRoleV1::System {
+                if !bytes.is_empty() {
+                    return Err(OfflineArtifactErrorV4::NonEmptyTruthfulEmptySystem);
+                }
+                continue;
+            }
+            if bytes.is_empty() {
+                return Err(OfflineArtifactErrorV4::MissingRole(*role));
+            }
+            inputs.extend(
+                MechanicsInputV2JsonlReader::new(*bytes, decision_time.clone()).read_all()?,
+            );
+            if inputs.len() > PROCESSOR_RECORD_CAPACITY {
+                return Err(OfflineArtifactErrorV4::Replay(
+                    ReplayInputError::RecordCapacity,
+                ));
+            }
+        }
+        let mut ordered = inputs
+            .into_iter()
+            .map(|input| replay_order_v2(&input).map(|order| (order, input)))
+            .collect::<Result<Vec<_>, _>>()?;
+        ordered.sort_by(|left, right| left.0.cmp(&right.0));
+        let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
+        for (_, input) in ordered {
+            writer.write_input(&input)?;
+        }
+        let rebuilt = Self::build(admission, policy, decision_time, &writer.finish())?;
+        if rebuilt
+            .artifacts
+            .iter()
+            .zip(partitions)
+            .any(|(artifact, (role, bytes))| artifact.role != *role || artifact.bytes != *bytes)
+        {
+            return Err(OfflineArtifactErrorV4::PartitionMismatch);
+        }
+        Ok(rebuilt)
+    }
     pub const fn evidence_authoring_allowed(&self) -> bool {
         false
     }
@@ -160,6 +224,12 @@ pub enum OfflineArtifactErrorV4 {
     NonEmptyTruthfulEmptySystem,
     #[error("duplicate input record is not a complete fixture")]
     DuplicateRecord,
+    #[error("V4 readback requires exactly nine role partitions")]
+    PartitionCount,
+    #[error("V4 readback role partitions are not in canonical order")]
+    PartitionRole,
+    #[error("V4 readback bytes do not reproduce the supplied partitions")]
+    PartitionMismatch,
 }
 
 fn classify(

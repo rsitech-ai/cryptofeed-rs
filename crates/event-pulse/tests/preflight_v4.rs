@@ -496,6 +496,67 @@ fn fifteen_records_from_twelve_sources_build_nine_deterministic_artifacts() {
 }
 
 #[test]
+fn partitioned_readback_reconstructs_exact_complete_prefix() {
+    let admission = admission();
+    let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
+    let decision = Rfc3339Time::from_unix_nanos(
+        admission.capture_starts_at().utc_micros() * 1_000 + 20_000_000,
+    )
+    .unwrap();
+    let records = complete_inputs(&admission);
+    let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
+    for record in &records {
+        writer.write_input(record).unwrap();
+    }
+    let built =
+        OfflineArtifactPreflightV4::build(&admission, &policy, decision.clone(), &writer.finish())
+            .unwrap();
+    let partitions = built
+        .artifacts()
+        .iter()
+        .map(|artifact| (artifact.role(), artifact.bytes()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        OfflineArtifactPreflightV4::readback(&admission, &policy, decision, &partitions).unwrap(),
+        built
+    );
+}
+
+#[test]
+fn partitioned_readback_rejects_role_order_and_nonempty_system() {
+    let admission = admission();
+    let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
+    let decision = Rfc3339Time::from_unix_nanos(
+        admission.capture_starts_at().utc_micros() * 1_000 + 20_000_000,
+    )
+    .unwrap();
+    let records = complete_inputs(&admission);
+    let mut writer = MechanicsInputV2JsonlWriter::new(Vec::new());
+    for record in &records {
+        writer.write_input(record).unwrap();
+    }
+    let built =
+        OfflineArtifactPreflightV4::build(&admission, &policy, decision.clone(), &writer.finish())
+            .unwrap();
+    let mut partitions = built
+        .artifacts()
+        .iter()
+        .map(|artifact| (artifact.role(), artifact.bytes()))
+        .collect::<Vec<_>>();
+    partitions.swap(0, 1);
+    assert_eq!(
+        OfflineArtifactPreflightV4::readback(&admission, &policy, decision.clone(), &partitions,),
+        Err(OfflineArtifactErrorV4::PartitionRole)
+    );
+    partitions.swap(0, 1);
+    partitions[8] = (ArtifactRoleV1::System, b"{}\n");
+    assert_eq!(
+        OfflineArtifactPreflightV4::readback(&admission, &policy, decision, &partitions),
+        Err(OfflineArtifactErrorV4::NonEmptyTruthfulEmptySystem)
+    );
+}
+
+#[test]
 fn preflight_accepts_multi_record_binance_book_bootstrap_and_pu_continuity() {
     let admission = admission();
     let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();

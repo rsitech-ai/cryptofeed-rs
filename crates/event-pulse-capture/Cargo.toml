@@ -11,11 +11,14 @@ rust-version.workspace = true
 
 [dependencies]
 marketfeed-event-pulse = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
+time = { workspace = true }
 
 [dev-dependencies]
 marketfeed-model = { workspace = true }
-serde_json = { workspace = true }
 
 [lints]
 workspace = true

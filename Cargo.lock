@@ -959,8 +959,11 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "marketfeed-event-pulse",
  "marketfeed-model",
+ "serde",
  "serde_json",
+ "sha2",
  "thiserror",
+ "time",
 ]
 
 [[package]]
