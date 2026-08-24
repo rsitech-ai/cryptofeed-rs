@@ -124,12 +124,12 @@ the invented family equality and retains strict integer/not-Boolean and u32
 bounds. The same maximum now passes Rust assembly, strict readback, and the
 pinned root validator; Boolean and `u32::MAX + 1` fail in both implementations.
 
-An independent 64-case, canonically rehashed differential matrix now compares
+An independent 75-case, canonically rehashed differential matrix now compares
 Rust strict readback with the exact pinned root validator. It spans envelope
 identity, catalogs, cursor/item coordinates, causal time, all six MARKET
 payload families, Clock quality/freshness/reason rules, Coverage
 family/interval/generation rules, the flags boundaries, publication floor, and
-manifest capture/decision/retention/authority/binding invariants. All 64 cases
+manifest capture/decision/retention/authority/binding invariants. All 75 cases
 agree with the registered expected disposition. The existing Rust suite separately
 covers replay/frame grammar, Trade/Book/sidecar continuity, truthful-empty
 System, canonical encoding, aggregate bounds, manifest coordination, and
@@ -142,7 +142,7 @@ No source, fixture, user file, or other worktree was removed.
 Final successor focused evidence:
 
 - ordinary Fixture V4 Rust suite: 12 passed, 3 pinned-root tests ignored;
-- explicit pinned-root parity suite: 3 passed, including the 64-case matrix;
+- explicit pinned-root parity suite: 3 passed, including the 75-case matrix;
 - EventPulse admission/preflight V4 regression suites: 9 + 3 + 11 passed.
 
 ## Publication-floor parity repair
@@ -184,6 +184,19 @@ Adoption compares parsed instants, then normalizes only a temporary comparison
 image; it does not rewrite caller bytes. Assembly output remains deterministic.
 Published binding timestamps remain byte-exact because their complete binding
 objects are independently pinned. The ordinary Rust regression and expanded
-64-case pinned-root matrix cover `.1Z`, `.000001Z`, class-specific `.10Z`,
+75-case pinned-root matrix cover `.1Z`, `.000001Z`, class-specific `.10Z`,
 overprecision, and offsets across capture, decision, artifact-bound, and
 amendment fields.
+
+The year-domain successor explicitly rejects lexical year `0000` in both
+parser classes while retaining `0001..9999`. The differential matrix includes
+canonically rehashed year-zero cases for amendment and V4 package timestamps,
+plus malformed year widths and representative invalid month, day, non-leap
+February 29, hour, and second values. A direct Rust parser regression proves
+year `0001` and a valid leap day remain accepted without weakening the package
+publication-floor relation.
+
+The first year-domain Rust 1.85 run reached ENOSPC with 406 MiB free. The
+authorized recovery removed only this worktree's disposable Cargo target (1.8
+GiB); the complete MSRV suite then passed with incremental output and debug
+info disabled. No source or user data was removed.

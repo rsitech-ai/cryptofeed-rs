@@ -1191,6 +1191,18 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
             false,
         ),
         ("capture-end-offset", "2026-08-24T00:00:16+00:00", false),
+        ("capture-end-year-zero", "0000-08-24T00:00:16Z", false),
+        ("capture-end-three-digit-year", "026-08-24T00:00:16Z", false),
+        (
+            "capture-end-five-digit-year",
+            "02026-08-24T00:00:16Z",
+            false,
+        ),
+        ("capture-end-month", "2026-13-24T00:00:16Z", false),
+        ("capture-end-day", "2026-08-32T00:00:16Z", false),
+        ("capture-end-nonleap-day", "2026-02-29T00:00:16Z", false),
+        ("capture-end-hour", "2026-08-24T24:00:16Z", false),
+        ("capture-end-second", "2026-08-24T00:00:60Z", false),
     ] {
         let mut owned = owned_package();
         let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
@@ -1255,6 +1267,9 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
             false,
         ),
         ("amendment-offset", "2026-08-22T07:35:52+00:00", false),
+        ("amendment-year-zero", "0000-08-22T07:35:52Z", false),
+        ("amendment-month", "2026-13-22T07:35:52Z", false),
+        ("amendment-day", "2026-02-30T07:35:52Z", false),
     ] {
         let mut owned = owned_package();
         let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();

@@ -421,6 +421,9 @@ fn parse_root_manifest_time(value: &str) -> Result<Rfc3339Time, FixtureV4Error> 
     if !base_shape {
         return Err(FixtureV4Error::Contract("manifest timestamp"));
     }
+    if bytes[..4] == *b"0000" {
+        return Err(FixtureV4Error::Contract("manifest timestamp"));
+    }
     match bytes.len() {
         20 => {}
         22..=27 => {
@@ -1336,4 +1339,28 @@ fn valid_clock_skew(value: &str) -> bool {
     !(value.starts_with('-')
         && integer.bytes().all(|byte| byte == b'0')
         && fraction.is_none_or(|fraction| fraction.bytes().all(|byte| byte == b'0')))
+}
+
+#[cfg(test)]
+mod timestamp_tests {
+    use super::{parse_root_canonical_time, parse_root_manifest_time};
+
+    #[test]
+    fn root_timestamp_lexers_accept_the_minimum_supported_year() {
+        assert!(parse_root_manifest_time("0001-01-01T00:00:00Z").is_ok());
+        assert!(parse_root_manifest_time("0001-01-01T00:00:00.10Z").is_ok());
+        assert!(parse_root_canonical_time("0001-01-01T00:00:00.1Z").is_ok());
+        assert!(parse_root_manifest_time("9999-12-31T23:59:59Z").is_ok());
+        assert!(parse_root_manifest_time("2024-02-29T23:59:59Z").is_ok());
+        assert!(parse_root_manifest_time("0000-01-01T00:00:00Z").is_err());
+        assert!(parse_root_canonical_time("0000-01-01T00:00:00Z").is_err());
+        for invalid in [
+            "2026-13-01T00:00:00Z",
+            "2026-02-29T00:00:00Z",
+            "2026-01-01T24:00:00Z",
+            "2026-01-01T00:00:60Z",
+        ] {
+            assert!(parse_root_manifest_time(invalid).is_err(), "{invalid}");
+        }
+    }
 }
