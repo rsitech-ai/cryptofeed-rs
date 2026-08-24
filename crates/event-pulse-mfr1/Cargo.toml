@@ -19,6 +19,7 @@ marketfeed-recording = { workspace = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+marketfeed-event-pulse-capture = { path = "../event-pulse-capture" }
 marketfeed-replay = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
