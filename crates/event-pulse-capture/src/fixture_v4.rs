@@ -40,6 +40,7 @@ impl FixtureV4Assembler {
         &self,
         request: FixtureV4Request<'_>,
     ) -> Result<InMemoryFixtureV4, FixtureV4Error> {
+        validate_publication_floor(&self.admission)?;
         validate_request(&self.admission, &request)?;
         let preflight = OfflineArtifactPreflightV4::build(
             &self.admission,
@@ -196,6 +197,7 @@ impl InMemoryFixtureV4 {
         policy: &ProspectiveSystemArtifactPolicyV2,
         decision_time: Rfc3339Time,
     ) -> Result<(), FixtureV4Error> {
+        validate_publication_floor(admission)?;
         if self.files.len() != 11
             || self.files[0].path != "manifest.json"
             || self.files[1].path != "admission.json"
@@ -247,6 +249,12 @@ impl InMemoryFixtureV4 {
             .pointer("/retention/source_terms")
             .and_then(Value::as_str)
             .ok_or(FixtureV4Error::ReadbackMismatch)?;
+        validate_amendment_binding(
+            manifest
+                .get("amendment_binding")
+                .ok_or(FixtureV4Error::ReadbackMismatch)?,
+            admission.capture_starts_at(),
+        )?;
         validate_request(
             admission,
             &FixtureV4Request {
@@ -272,7 +280,7 @@ impl InMemoryFixtureV4 {
             &capture_end,
             &decision_time,
         )?;
-        let expected_manifest = manifest_value(
+        let mut expected_manifest = manifest_value(
             admission,
             &contract,
             fixture_id,
@@ -283,6 +291,7 @@ impl InMemoryFixtureV4 {
             preflight.artifacts(),
             max_available_at,
         )?;
+        expected_manifest["amendment_binding"] = manifest["amendment_binding"].clone();
         if manifest != expected_manifest {
             return Err(FixtureV4Error::ReadbackMismatch);
         }
@@ -323,6 +332,66 @@ fn verify_contracts() -> Result<(), FixtureV4Error> {
         || sha256(AMENDMENT_BYTES) != AMENDMENT_SHA256
     {
         return Err(FixtureV4Error::EmbeddedContract);
+    }
+    Ok(())
+}
+
+fn validate_publication_floor(
+    admission: &ProspectiveCaptureAdmissionV2,
+) -> Result<(), FixtureV4Error> {
+    let contract: Value =
+        serde_json::from_slice(CONTRACT_BYTES).map_err(|_| FixtureV4Error::EmbeddedContract)?;
+    let bindings = contract
+        .get("bindings")
+        .and_then(Value::as_object)
+        .ok_or(FixtureV4Error::EmbeddedContract)?;
+    let latest = bindings
+        .values()
+        .map(|binding| {
+            binding
+                .get("merged_at")
+                .and_then(Value::as_str)
+                .ok_or(FixtureV4Error::EmbeddedContract)
+                .and_then(|time| {
+                    Rfc3339Time::parse(time).map_err(|_| FixtureV4Error::EmbeddedContract)
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .max()
+        .ok_or(FixtureV4Error::EmbeddedContract)?;
+    if admission.capture_starts_at() <= &latest {
+        return Err(FixtureV4Error::Contract("capture publication floor"));
+    }
+    Ok(())
+}
+
+fn validate_amendment_binding(
+    value: &Value,
+    capture_start: &Rfc3339Time,
+) -> Result<(), FixtureV4Error> {
+    exact_keys(
+        value,
+        &["commit", "default_reachable_at", "repository_url"],
+        "amendment binding",
+    )?;
+    if value["repository_url"].as_str() != Some("https://github.com/s1korrrr/rsibot.git") {
+        return Err(FixtureV4Error::Contract("amendment binding"));
+    }
+    let commit = value["commit"]
+        .as_str()
+        .filter(|commit| commit.len() == 40 && commit.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        .ok_or(FixtureV4Error::Contract("amendment binding"))?;
+    if commit.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        return Err(FixtureV4Error::Contract("amendment binding"));
+    }
+    let reachable_text = value["default_reachable_at"]
+        .as_str()
+        .ok_or(FixtureV4Error::Contract("amendment binding"))?;
+    let reachable = Rfc3339Time::parse(reachable_text)
+        .map_err(|_| FixtureV4Error::Contract("amendment binding"))?;
+    if reachable.canonical() != reachable_text || capture_start <= &reachable {
+        return Err(FixtureV4Error::Contract("amendment binding"));
     }
     Ok(())
 }

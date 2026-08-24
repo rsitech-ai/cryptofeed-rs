@@ -124,11 +124,12 @@ the invented family equality and retains strict integer/not-Boolean and u32
 bounds. The same maximum now passes Rust assembly, strict readback, and the
 pinned root validator; Boolean and `u32::MAX + 1` fail in both implementations.
 
-An independent 28-case, canonically rehashed differential matrix now compares
+An independent 45-case, canonically rehashed differential matrix now compares
 Rust strict readback with the exact pinned root validator. It spans envelope
 identity, catalogs, cursor/item coordinates, causal time, all six MARKET
 payload families, Clock quality/freshness/reason rules, Coverage
-family/interval/generation rules, and the flags boundaries. All 28 cases agree
+family/interval/generation rules, the flags boundaries, publication floor, and
+manifest capture/decision/retention/authority/binding invariants. All 45 cases agree
 with the registered expected disposition. The existing Rust suite separately
 covers replay/frame grammar, Trade/Book/sidecar continuity, truthful-empty
 System, canonical encoding, aggregate bounds, manifest coordination, and
@@ -140,6 +141,29 @@ No source, fixture, user file, or other worktree was removed.
 
 Final successor focused evidence:
 
-- ordinary Fixture V4 Rust suite: 10 passed, 3 pinned-root tests ignored;
+- ordinary Fixture V4 Rust suite: 11 passed, 3 pinned-root tests ignored;
 - explicit pinned-root parity suite: 3 passed, including the 28-case matrix;
 - EventPulse admission/preflight V4 regression suites: 9 + 3 + 11 passed.
+
+## Publication-floor parity repair
+
+Assembly and strict adoption now independently decode every embedded
+`bindings.*.merged_at` timestamp, compute their maximum, and require the
+admitted `capture_starts_at` to be strictly later. Equality and one microsecond
+before fail with the typed `capture publication floor` contract error before
+preflight or adoption mutation; one microsecond after succeeds through
+assembly, strict readback, and the pinned root validator.
+
+The manifest parity audit also found one deliberate root behavior that strict
+readback had previously narrowed: a valid immutable amendment commit is not
+required to equal the assembler's emitted historical commit. Adoption now
+mirrors the root validator by accepting a lowercase 40-hex commit with the
+canonical repository and a canonical default-reachability time strictly before
+capture, while assembly continues to emit its fixed historical binding. All
+other manifest authority, published binding, admission binding,
+transformation, capture, causality, and retention literals remain exact.
+
+The first Rust 1.85 link attempt reached ENOSPC with 118 MiB available. The
+authorized recovery again removed only this worktree's disposable Cargo target
+(1.9 GiB); the exact Rust 1.85 full suite then passed with incremental output
+and debug info disabled. No source or user data was removed.

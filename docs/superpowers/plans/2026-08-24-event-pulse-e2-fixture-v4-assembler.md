@@ -146,9 +146,15 @@ validation, and requires exact artifact equality.
 - Final flags/parity repair: MARKET flags retain the published full-u32
   contract without invented family-specific equality. A non-oracle maximum
   value passes assembly/readback and the pinned root validator, while Boolean
-  and one-over inputs reject. A 28-case canonically rehashed differential
+  and one-over inputs reject. A 45-case canonically rehashed differential
   matrix covers every semantic rule group alongside the focused continuity,
   frame, System, canonical-byte, manifest, and bound regressions.
+- Publication-floor repair: assembly and strict adoption independently compute
+  the maximum embedded `bindings.*.merged_at` and require capture to start
+  strictly later. Equality and minus one microsecond reject before mutation;
+  plus one microsecond passes. The manifest audit also aligns amendment
+  adoption with the root validator's canonical immutable-binding rule while
+  retaining the assembler's fixed emitted amendment binding.
 - Status: repo-ready pure/offline implementation; external fixture provenance
   remains unavailable.
 - Authority ceiling: `STRUCTURAL_V4_CANDIDATE`; completion remains

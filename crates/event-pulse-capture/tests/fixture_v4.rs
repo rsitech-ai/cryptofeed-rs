@@ -13,13 +13,13 @@ const AMENDMENT: &[u8] =
     include_bytes!("../contracts/fixture-v4/2026-08-24-event-pulse-e2-fixture-v4-amendment.md");
 const ORACLE: &[u8] = include_bytes!("fixtures/event-pulse-e2-fixture-v4-rust-writer.jsonl");
 
-fn admission() -> ProspectiveCaptureAdmissionV2 {
+fn admission_at(capture_starts_at: &str) -> ProspectiveCaptureAdmissionV2 {
     let contract: Value = serde_json::from_slice(CONTRACT).unwrap();
     let descriptor = json!({
         "schema": "event-pulse-e2-prospective-admission/2.0",
         "topology_binding": contract["bindings"]["topology"],
         "wire_contract_binding": contract["bindings"]["wire"],
-        "capture_starts_at": "2026-08-24T00:00:00Z",
+        "capture_starts_at": capture_starts_at,
         "evidence_claim": "PROSPECTIVE_CAUSAL_CAPTURE",
         "source_qualification": "UNVERIFIED",
         "authority": contract["authority"],
@@ -90,7 +90,11 @@ fn mutate_line(input: &[u8], index: usize, mutate: impl FnOnce(&mut Value)) -> V
 }
 
 fn assembler() -> FixtureV4Assembler {
-    let admission = admission();
+    assembler_at("2026-08-24T00:00:00Z")
+}
+
+fn assembler_at(capture_starts_at: &str) -> FixtureV4Assembler {
+    let admission = admission_at(capture_starts_at);
     let policy = ProspectiveSystemArtifactPolicyV2::from_admission(&admission).unwrap();
     FixtureV4Assembler::new(admission, policy).unwrap()
 }
@@ -147,12 +151,35 @@ fn mutate_package_record(
     owned[0].1 = canonical_line(&manifest);
 }
 
+fn mutate_manifest(owned: &mut [(String, Vec<u8>)], mutate: fn(&mut Value)) {
+    let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+    mutate(&mut manifest);
+    owned[0].1 = canonical_line(&manifest);
+}
+
+fn set_package_capture_start(owned: &mut [(String, Vec<u8>)], capture_start: &str) {
+    let mut admission: Value = serde_json::from_slice(&owned[1].1).unwrap();
+    admission["capture_starts_at"] = json!(capture_start);
+    owned[1].1 = canonical_line(&admission);
+    let admission_length = owned[1].1.len();
+    let admission_sha = format!("{:x}", Sha256::digest(&owned[1].1));
+    let mut manifest: Value = serde_json::from_slice(&owned[0].1).unwrap();
+    manifest["capture"]["started_at"] = json!(capture_start);
+    manifest["admission_binding"]["byte_length"] = json!(admission_length);
+    manifest["admission_binding"]["sha256"] = json!(admission_sha);
+    owned[0].1 = canonical_line(&manifest);
+}
+
 fn rust_readback_accepts(owned: &[(String, Vec<u8>)]) -> bool {
+    rust_readback_accepts_at(owned, "2026-08-24T00:00:00Z")
+}
+
+fn rust_readback_accepts_at(owned: &[(String, Vec<u8>)], capture_start: &str) -> bool {
     let views = owned
         .iter()
         .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
         .collect::<Vec<_>>();
-    assembler()
+    assembler_at(capture_start)
         .readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap())
         .is_ok()
 }
@@ -562,6 +589,44 @@ fn full_u32_market_flags_are_valid_but_type_alias_and_one_over_are_rejected() {
 }
 
 #[test]
+fn capture_start_strictly_postdates_the_latest_embedded_publication_binding() {
+    let jsonl = globally_ordered_oracle();
+    let accepted_start = "2026-08-23T21:57:00.000001Z";
+    let accepted = assembler_at(accepted_start)
+        .assemble(request(&jsonl))
+        .unwrap();
+    let accepted_views = accepted
+        .files()
+        .iter()
+        .map(|file| (file.path(), file.bytes()))
+        .collect::<Vec<_>>();
+    assembler_at(accepted_start)
+        .readback(
+            &accepted_views,
+            Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap(),
+        )
+        .unwrap();
+
+    for rejected_start in ["2026-08-23T21:56:59.999999Z", "2026-08-23T21:57:00Z"] {
+        assert!(matches!(
+            assembler_at(rejected_start).assemble(request(&jsonl)),
+            Err(FixtureV4Error::Contract("capture publication floor"))
+        ));
+        let mut owned = owned_package();
+        set_package_capture_start(&mut owned, rejected_start);
+        let views = owned
+            .iter()
+            .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            assembler_at(rejected_start)
+                .readback(&views, Rfc3339Time::parse("2026-08-24T00:00:17Z").unwrap(),),
+            Err(FixtureV4Error::Contract("capture publication floor"))
+        ));
+    }
+}
+
+#[test]
 #[ignore = "requires the exact published root Fixture V4 validator checkout"]
 fn assembled_package_passes_published_root_cross_language_validator() {
     let validator = std::env::var_os("EVENT_PULSE_ROOT_V4_VALIDATOR")
@@ -750,6 +815,48 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
     }
     fn cursor_kind(value: &mut Value) {
         value["coverage_cursor"]["kind"] = json!("DERIVED");
+    }
+    fn capture_mode(value: &mut Value) {
+        value["capture"]["mode"] = json!("HISTORICAL");
+    }
+    fn capture_end(value: &mut Value) {
+        value["capture"]["ended_at"] = json!("2026-08-24T00:00:00.014000Z");
+    }
+    fn decision(value: &mut Value) {
+        value["causality"]["decision_time"] = json!("2026-08-24T00:00:15Z");
+    }
+    fn source_terms(value: &mut Value) {
+        value["retention"]["source_terms"] = json!("");
+    }
+    fn authority(value: &mut Value) {
+        value["authority"]["evidence_authoring_allowed"] = Value::Bool(true);
+    }
+    fn published_binding(value: &mut Value) {
+        value["published_bindings"]["topology"]["sha256"] = json!("0".repeat(64));
+    }
+    fn transformation(value: &mut Value) {
+        value["transformation"]["sha256"] = json!("0".repeat(64));
+    }
+    fn admission_binding(value: &mut Value) {
+        value["admission_binding"]["byte_length"] = json!(0);
+    }
+    fn evidence_claim(value: &mut Value) {
+        value["evidence_claim"] = json!("CAPTURED");
+    }
+    fn amendment_binding(value: &mut Value) {
+        value["amendment_binding"]["commit"] = json!("0".repeat(40));
+    }
+    fn contract_binding(value: &mut Value) {
+        value["fixture_v4_contract_binding"]["sha256"] = json!("0".repeat(64));
+    }
+    fn availability_authority(value: &mut Value) {
+        value["causality"]["availability_authority"] = json!("receive_ts");
+    }
+    fn max_available_at(value: &mut Value) {
+        value["causality"]["max_available_at"] = json!("2026-08-24T00:00:00.014000Z");
+    }
+    fn retention(value: &mut Value) {
+        value["retention"]["sanitized"] = Value::Bool(false);
     }
 
     struct Case {
@@ -968,5 +1075,47 @@ fn rust_contract_matches_published_root_over_semantic_mutation_matrix() {
         let root = root_validator_accepts(&validator, &owned, case.label);
         assert_eq!(rust, root, "Rust/root mismatch for {}", case.label);
         assert_eq!(rust, case.accepted, "unexpected result for {}", case.label);
+    }
+
+    let manifest_cases = [
+        ("capture-mode", capture_mode as fn(&mut Value), false),
+        ("capture-end", capture_end, false),
+        ("decision", decision, false),
+        ("source-terms", source_terms, false),
+        ("authority", authority, false),
+        ("published-binding", published_binding, false),
+        ("transformation", transformation, false),
+        ("admission-binding", admission_binding, false),
+        ("evidence-claim", evidence_claim, false),
+        ("amendment-binding", amendment_binding, true),
+        ("contract-binding", contract_binding, false),
+        ("availability-authority", availability_authority, false),
+        ("max-available-at", max_available_at, false),
+        ("retention", retention, false),
+    ];
+    for (label, mutate, accepted) in manifest_cases {
+        let mut owned = owned_package();
+        mutate_manifest(&mut owned, mutate);
+        let rust = rust_readback_accepts(&owned);
+        let root = root_validator_accepts(&validator, &owned, label);
+        assert_eq!(rust, root, "Rust/root mismatch for {label}");
+        assert_eq!(rust, accepted, "unexpected result for {label}");
+    }
+
+    for (label, capture_start, accepted) in [
+        (
+            "publication-minus-one",
+            "2026-08-23T21:56:59.999999Z",
+            false,
+        ),
+        ("publication-equal", "2026-08-23T21:57:00Z", false),
+        ("publication-plus-one", "2026-08-23T21:57:00.000001Z", true),
+    ] {
+        let mut owned = owned_package();
+        set_package_capture_start(&mut owned, capture_start);
+        let rust = rust_readback_accepts_at(&owned, capture_start);
+        let root = root_validator_accepts(&validator, &owned, label);
+        assert_eq!(rust, root, "Rust/root mismatch for {label}");
+        assert_eq!(rust, accepted, "unexpected result for {label}");
     }
 }
