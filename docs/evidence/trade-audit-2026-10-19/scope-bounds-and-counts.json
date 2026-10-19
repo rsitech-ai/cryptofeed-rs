@@ -1,0 +1,289 @@
+{
+  "normalized_bounds": {
+    "17": {
+      "trades": 48,
+      "receipt_min_ns": 1792431649977181000,
+      "receipt_max_ns": 1792431708937491000,
+      "event_min_ns": 1792431588621000000,
+      "event_max_ns": 1792431709021000000,
+      "candles": 0
+    },
+    "8": {
+      "trades": 184,
+      "receipt_min_ns": 1792431653954744000,
+      "receipt_max_ns": 1792431709500295000,
+      "event_min_ns": 1792431653710000000,
+      "event_max_ns": 1792431709563000000,
+      "candles": 0
+    },
+    "13": {
+      "trades": 100,
+      "receipt_min_ns": 1792431650283341000,
+      "receipt_max_ns": 1792431650283341000,
+      "event_min_ns": 1792410265387000000,
+      "event_max_ns": 1792431115947000000,
+      "candles": 0
+    },
+    "14": {
+      "trades": 10,
+      "receipt_min_ns": 1792431655468192000,
+      "receipt_max_ns": 1792431708915938000,
+      "event_min_ns": 1792431655525000000,
+      "event_max_ns": 1792431708979000000,
+      "candles": 0
+    },
+    "20": {
+      "trades": 43,
+      "receipt_min_ns": 1792431650402729000,
+      "receipt_max_ns": 1792431708950389000,
+      "event_min_ns": 1792431554090000000,
+      "event_max_ns": 1792431709005000000,
+      "candles": 0
+    },
+    "16": {
+      "trades": 347,
+      "receipt_min_ns": 1792431651159684000,
+      "receipt_max_ns": 1792431710207448000,
+      "event_min_ns": 1792431649993280000,
+      "event_max_ns": 1792431710248454000,
+      "candles": 0
+    },
+    "11": {
+      "trades": 7,
+      "receipt_min_ns": 1792431671593074000,
+      "receipt_max_ns": 1792431709461694000,
+      "event_min_ns": 1792431671596000000,
+      "event_max_ns": 1792431709465000000,
+      "candles": 0
+    },
+    "6": {
+      "trades": 518,
+      "receipt_min_ns": 1792431651368577000,
+      "receipt_max_ns": 1792431709526221000,
+      "event_min_ns": 1792431651359000000,
+      "event_max_ns": 1792431709531000000,
+      "candles": 26
+    },
+    "5": {
+      "trades": 327,
+      "receipt_min_ns": 1792431651951856000,
+      "receipt_max_ns": 1792431710050846000,
+      "event_min_ns": 1792431651956000000,
+      "event_max_ns": 1792431710056000000,
+      "candles": 0
+    },
+    "18": {
+      "trades": 448,
+      "receipt_min_ns": 1792431651361679000,
+      "receipt_max_ns": 1792431710271830000,
+      "event_min_ns": 1792431626054475000,
+      "event_max_ns": 1792431710292119000,
+      "candles": 0
+    },
+    "9": {
+      "trades": 375,
+      "receipt_min_ns": 1792431654473532000,
+      "receipt_max_ns": 1792431709529697000,
+      "event_min_ns": 1792431654445000000,
+      "event_max_ns": 1792431709502000000,
+      "candles": 0
+    },
+    "7": {
+      "trades": 90,
+      "receipt_min_ns": 1792431652743208000,
+      "receipt_max_ns": 1792431709232379000,
+      "event_min_ns": 1792431652819327000,
+      "event_max_ns": 1792431709279743000,
+      "candles": 0
+    },
+    "10": {
+      "trades": 0,
+      "receipt_min_ns": null,
+      "receipt_max_ns": null,
+      "event_min_ns": null,
+      "event_max_ns": null,
+      "candles": 0
+    },
+    "4": {
+      "trades": 70,
+      "receipt_min_ns": 1792431654483968000,
+      "receipt_max_ns": 1792431709539821000,
+      "event_min_ns": 1792431654445000000,
+      "event_max_ns": 1792431709502000000,
+      "candles": 29
+    },
+    "15": {
+      "trades": 6,
+      "receipt_min_ns": 1792431662490689000,
+      "receipt_max_ns": 1792431706414042000,
+      "event_min_ns": 1792431662526445726,
+      "event_max_ns": 1792431706451649283,
+      "candles": 0
+    },
+    "2": {
+      "trades": 1373,
+      "receipt_min_ns": 1792431652563516000,
+      "receipt_max_ns": 1792431709908766000,
+      "event_min_ns": 1792431652539000000,
+      "event_max_ns": 1792431709716000000,
+      "candles": 29
+    },
+    "3": {
+      "trades": 875,
+      "receipt_min_ns": 1792431652740612000,
+      "receipt_max_ns": 1792431710152873000,
+      "event_min_ns": 1792431652658000000,
+      "event_max_ns": 1792431692817000000,
+      "candles": 0
+    },
+    "12": {
+      "trades": 32,
+      "receipt_min_ns": 1792431670250043000,
+      "receipt_max_ns": 1792431710158731000,
+      "event_min_ns": 1792431670024000000,
+      "event_max_ns": 1792431708931000000,
+      "candles": 0
+    }
+  },
+  "aggregate_counts": {
+    "9": {
+      "rows": 375,
+      "known_constituents": 771,
+      "unknown_counts": 0
+    },
+    "4": {
+      "rows": 70,
+      "known_constituents": 130,
+      "unknown_counts": 0
+    }
+  },
+  "snapshot_counts": {
+    "kraken_futures_snapshot_rows": 100,
+    "coinbase_classic_history_rows": 1,
+    "coinbase_advanced_snapshot_rows": 100,
+    "coinbase_advanced_update_rows": 348
+  },
+  "raw_session_bounds": {
+    "1": {
+      "venue_id": 17,
+      "endpoint": "wss://api-pub.bitfinex.com/ws/2",
+      "min_receipt_ns": 1792431649935554000,
+      "max_receipt_ns": 1792431709978857000
+    },
+    "3": {
+      "venue_id": 8,
+      "endpoint": "wss://www.deribit.com/ws/api/v2",
+      "min_receipt_ns": 1792431650160355000,
+      "max_receipt_ns": 1792431710159458000
+    },
+    "6": {
+      "venue_id": 13,
+      "endpoint": "wss://futures.kraken.com/ws/v1",
+      "min_receipt_ns": 1792431650216017000,
+      "max_receipt_ns": 1792431709632707000
+    },
+    "5": {
+      "venue_id": 14,
+      "endpoint": "wss://ws.bitstamp.net",
+      "min_receipt_ns": 1792431650317534000,
+      "max_receipt_ns": 1792431710122117000
+    },
+    "8": {
+      "venue_id": 20,
+      "endpoint": "wss://api-pub.bitfinex.com/ws/2",
+      "min_receipt_ns": 1792431650402490000,
+      "max_receipt_ns": 1792431708981063000
+    },
+    "2": {
+      "venue_id": 16,
+      "endpoint": "wss://ws-feed.exchange.coinbase.com",
+      "min_receipt_ns": 1792431650501040000,
+      "max_receipt_ns": 1792431710207448000
+    },
+    "7": {
+      "venue_id": 11,
+      "endpoint": "wss://stream.bybit.com/v5/public/inverse",
+      "min_receipt_ns": 1792431650895455000,
+      "max_receipt_ns": 1792431709726028000
+    },
+    "9": {
+      "venue_id": 6,
+      "endpoint": "wss://stream.bybit.com/v5/public/spot",
+      "min_receipt_ns": 1792431650901600000,
+      "max_receipt_ns": 1792431710153780000
+    },
+    "13": {
+      "venue_id": 5,
+      "endpoint": "wss://stream.bybit.com/v5/public/linear",
+      "min_receipt_ns": 1792431651046772000,
+      "max_receipt_ns": 1792431710123159000
+    },
+    "14": {
+      "venue_id": 18,
+      "endpoint": "wss://advanced-trade-ws.coinbase.com",
+      "min_receipt_ns": 1792431651226312000,
+      "max_receipt_ns": 1792431710271830000
+    },
+    "12": {
+      "venue_id": 9,
+      "endpoint": "wss://ws.okx.com:8443/ws/v5/public",
+      "min_receipt_ns": 1792431651326243000,
+      "max_receipt_ns": 1792431710275352000
+    },
+    "4": {
+      "venue_id": 7,
+      "endpoint": "wss://ws.kraken.com/v2",
+      "min_receipt_ns": 1792431651368639000,
+      "max_receipt_ns": 1792431709581972000
+    },
+    "10": {
+      "venue_id": 10,
+      "endpoint": "wss://ws.okx.com:8443/ws/v5/public",
+      "min_receipt_ns": 1792431651446557000,
+      "max_receipt_ns": 1792431703595587000
+    },
+    "16": {
+      "venue_id": 4,
+      "endpoint": "wss://ws.okx.com:8443/ws/v5/business",
+      "min_receipt_ns": 1792431651475634000,
+      "max_receipt_ns": 1792431710215897000
+    },
+    "15": {
+      "venue_id": 4,
+      "endpoint": "wss://ws.okx.com:8443/ws/v5/public",
+      "min_receipt_ns": 1792431651536459000,
+      "max_receipt_ns": 1792431710228428000
+    },
+    "11": {
+      "venue_id": 15,
+      "endpoint": "wss://ws.gemini.com/?snapshot=-1",
+      "min_receipt_ns": 1792431651790473000,
+      "max_receipt_ns": 1792431706414042000
+    },
+    "19": {
+      "venue_id": 2,
+      "endpoint": "wss://stream.binance.com:9443/stream?streams=btcusdt@trade/btcusdt@bookTicker/btcusdt@ticker/btcusdt@kline_1m",
+      "min_receipt_ns": 1792431652563516000,
+      "max_receipt_ns": 1792431710048488000
+    },
+    "18": {
+      "venue_id": 3,
+      "endpoint": "wss://fstream.binance.com/stream?streams=btcusdt@trade/btcusdt@bookTicker/btcusdt@ticker/btcusdt@markPrice@1s/btcusdt@indexPrice@1s/btcusdt@forceOrder",
+      "min_receipt_ns": 1792431652739939000,
+      "max_receipt_ns": 1792431710153408000
+    },
+    "17": {
+      "venue_id": 12,
+      "endpoint": "wss://dstream.binance.com/stream?streams=btcusd_perp@trade/btcusd_perp@bookTicker/btcusd_perp@ticker/btcusd_perp@markPrice@1s/btcusd@indexPrice@1s/btcusd_perp@forceOrder",
+      "min_receipt_ns": 1792431653909466000,
+      "max_receipt_ns": 1792431710224356000
+    }
+  },
+  "normalized_identity_diagnostics": {
+    "events": 33634,
+    "mismatched_session_venue": 33519
+  },
+  "trade_session_counts": {
+    "1": 4853
+  }
+}

@@ -894,6 +894,7 @@ dependencies = [
  "marketfeed-model",
  "marketfeed-private",
  "marketfeed-recording",
+ "marketfeed-replay",
  "marketfeed-sinks",
  "marketfeed-transport",
  "serde",

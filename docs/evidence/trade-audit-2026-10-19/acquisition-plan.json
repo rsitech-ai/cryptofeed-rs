@@ -1,0 +1,122 @@
+{
+  "schema_version": 1,
+  "prepared_utc": "2026-10-19T17:40:44.057102+00:00",
+  "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+  "purpose": "bounded public forward evidence; no dataset qualification or economic evaluation",
+  "requested_interval": "[process launch UTC, launch + 60 seconds); actual bounds recorded in capture-manifest.json",
+  "sources": [
+    [
+      "binance",
+      "spot",
+      "BTCUSDT"
+    ],
+    [
+      "binance",
+      "usdm",
+      "BTCUSDT"
+    ],
+    [
+      "binance",
+      "coinm",
+      "BTCUSD_PERP"
+    ],
+    [
+      "okx",
+      "spot",
+      "BTC-USDT"
+    ],
+    [
+      "okx",
+      "swap",
+      "BTC-USDT-SWAP"
+    ],
+    [
+      "bybit",
+      "spot",
+      "BTCUSDT"
+    ],
+    [
+      "bybit",
+      "linear",
+      "BTCUSDT"
+    ],
+    [
+      "bybit",
+      "inverse",
+      "BTCUSD"
+    ],
+    [
+      "kraken",
+      "spot",
+      "BTC/USD"
+    ],
+    [
+      "kraken",
+      "futures",
+      "PI_XBTUSD"
+    ],
+    [
+      "deribit",
+      null,
+      "BTC-PERPETUAL"
+    ],
+    [
+      "bitstamp",
+      null,
+      "btcusd"
+    ],
+    [
+      "gemini",
+      null,
+      "BTCUSD"
+    ],
+    [
+      "coinbase",
+      "spot",
+      "BTC-USD"
+    ],
+    [
+      "coinbase",
+      "advanced",
+      "BTC-USD"
+    ],
+    [
+      "bitfinex",
+      "spot",
+      "tBTCUSD"
+    ],
+    [
+      "bitfinex",
+      "deriv",
+      "tBTCF0:USTF0"
+    ],
+    [
+      "okx",
+      "futures",
+      "BTC-USD_UM_XPERP-310404"
+    ]
+  ],
+  "destination": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/pilot-001",
+  "concurrency": 19,
+  "http_catalog_requests": "existing factory catalog only; fallback to stubs must be reported",
+  "retries": "existing bounded daemon reconnect policy within wall cap; no script restart",
+  "wall_cap_seconds": 60,
+  "shutdown_cap_seconds": 25,
+  "storage_cap_observed_bytes": 134217728,
+  "expected_size": "1\u201332 MiB estimate; observed cap can overshoot by one sampling interval",
+  "stop_conditions": [
+    "wall cap",
+    "storage cap",
+    "daemon exit",
+    "SIGTERM after observation cap; SIGKILL after shutdown cap"
+  ],
+  "resume": "no resume; fresh directory per attempt",
+  "qualification_gates": [
+    "all native trade rows accounted",
+    "exact values and side independent of decoder",
+    "same-source overlap reconciliation",
+    "durable manifest commit",
+    "actual consumer reader parity"
+  ],
+  "expected_verdict": "not-qualified pending missing implementation; positive raw capture may coexist with normalized defects"
+}

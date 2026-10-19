@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "aliases": [
+    "${QUANTS_ROOT}",
+    "${HUMMINGBOT_ROOT}",
+    "${RSIBOT_ROOT}",
+    "${WORKSPACE_ROOT}",
+    "${LEGACY_USER_ROOT}",
+    "${AUDIT_PYTHON}"
+  ],
+  "originals_local": ".local/evidence/trade-audit/original-report-exports",
+  "local_bindings": ".local/evidence/trade-audit/path-bindings.json",
+  "exports": [
+    {
+      "export_path": "docs/evidence/trade-audit-2026-10-19/build-provenance-addendum.json",
+      "original_local_report": "original-report-exports/build-provenance-addendum.json",
+      "original_report_sha256": "30c8cf4f14de347380d4199eacfb2931e51d1d8437b24fdff2faf7c28e960697",
+      "export_sha256": "bc4664c64f5243d6a2318a9a67f64dab566c07b4f3379cb056bffd3012877ea5",
+      "change": "workstation root aliases only; original raw-object and data-file hashes unchanged"
+    },
+    {
+      "export_path": "docs/evidence/trade-audit-2026-10-19/storage-probe.json",
+      "original_local_report": "original-report-exports/storage-probe.json",
+      "original_report_sha256": "3e772c4ac8f848466c77cc9416e29a2e0986c3ddef579038f892de7166cee1f5",
+      "export_sha256": "ea9c03cdf46917ef32d0a8dc33c4aadc479bfcae16f2be3597accb0f3d5e3e01",
+      "change": "workstation root aliases only; original raw-object and data-file hashes unchanged"
+    },
+    {
+      "export_path": "docs/evidence/trade-audit-2026-10-19/capture-manifest.json",
+      "original_local_report": "original-report-exports/capture-manifest.json",
+      "original_report_sha256": "05d5773c5390d5139ad1d924762220bbc58863747584c6c66b85b11a80ee57df",
+      "export_sha256": "e41cd230ee6490ead4902e394da8674a8ac9320551cd813ea7fa3d200e25f0d4",
+      "change": "workstation root aliases only; original raw-object and data-file hashes unchanged"
+    },
+    {
+      "export_path": "docs/evidence/trade-audit-2026-10-19/acquisition-plan.json",
+      "original_local_report": "original-report-exports/acquisition-plan.json",
+      "original_report_sha256": "0e3871e080ee67eca415f43c09f12edc12cc679f2b6c87c66316792cdf43ddde",
+      "export_sha256": "9a7886d74e7b7ba2cb8fde0d033fd5e83100f5a0cef696cd691ad58830bb25d9",
+      "change": "workstation root aliases only; original raw-object and data-file hashes unchanged"
+    },
+    {
+      "export_path": "docs/evidence/trade-audit-2026-10-19/pilot-config.toml",
+      "original_local_report": "original-report-exports/pilot-config.toml",
+      "original_report_sha256": "f2c40ba7d728184482b4caa845474bd7365b10b6319ab00aa7fca9fcc88e29af",
+      "export_sha256": "6708fd3426db7e2ba4b7fddf4133f1df36a6cd29ec73530a49d565c55072a121",
+      "change": "workstation root aliases only; original raw-object and data-file hashes unchanged"
+    },
+    {
+      "export_path": "docs/evidence/trade-audit-2026-10-19/gate-results.json",
+      "original_local_report": "original-report-exports/gate-results.json",
+      "original_report_sha256": "d0303e639bd5f7c6584c205d9c7480082821b47812ec787e338912aec5077a93",
+      "export_sha256": "7ae238e606b8af5928d33b352f7201d8e9917e205b69adc27d122319aeac7019",
+      "change": "workstation root aliases plus final staged OSS verification receipt; original data-file hashes unchanged"
+    },
+    {
+      "export_path": "docs/evidence/trade-audit-2026-10-19/consumer-cache.json",
+      "original_local_report": "original-report-exports/consumer-cache.json",
+      "original_report_sha256": "59a660da2cf6ce3670f6dc445c84ad768e193bcc4606e0969cfabaa99f35e51b",
+      "export_sha256": "d00046ff44f21d4980a30ba3668ce4073310fb414f6444629de83ffd0e946269",
+      "change": "workstation root aliases only; original raw-object and data-file hashes unchanged"
+    },
+    {
+      "export_path": "docs/ops/trade_data_validation_report.md",
+      "original_local_report": "original-report-exports/trade_data_validation_report.md",
+      "original_report_sha256": "8e191d4148270b3f1d76404dbe6fbf146bc61d765a4032e644111ab515e0e040",
+      "export_sha256": "c946d22da879ad3ca081612ac40fd60d3ae0b0a1d42c94937374a0d4fb7bc40a",
+      "change": "workstation root aliases plus portable reproduction/contract explanatory text; original native/data hashes unchanged"
+    }
+  ]
+}

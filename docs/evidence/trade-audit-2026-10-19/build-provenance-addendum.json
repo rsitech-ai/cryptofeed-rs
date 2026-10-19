@@ -1,0 +1,7 @@
+{
+  "measured_after_run": true,
+  "binary_path": "${WORKSPACE_ROOT}/target/debug/marketfeed",
+  "binary_sha256": "938dd5dd07f4eb42fb069e5ed05f2070fcf63adcaf85c33e3d2b972a3bb2a07c",
+  "baseline_source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+  "limits": "original pilot runner did not hash binary at launch; later runner now does; no production Rust source edits in this PR"
+}

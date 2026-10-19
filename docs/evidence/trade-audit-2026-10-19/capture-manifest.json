@@ -1,0 +1,637 @@
+{
+  "schema_version": 1,
+  "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+  "start_utc": "2026-10-19T17:40:49.657390+00:00",
+  "config_sha256": "f2c40ba7d728184482b4caa845474bd7365b10b6319ab00aa7fca9fcc88e29af",
+  "command": [
+    "${WORKSPACE_ROOT}/target/debug/marketfeed",
+    "run",
+    "--config",
+    "${WORKSPACE_ROOT}/.local/evidence/trade-audit/pilot-config.toml"
+  ],
+  "caps": {
+    "seconds": 60,
+    "bytes": 134217728,
+    "shutdown_seconds": 25
+  },
+  "qualification": "not-qualified",
+  "continuity": "unknown",
+  "snapshots": [
+    {
+      "utc": "2026-10-19T17:40:49.660023+00:00",
+      "bytes_observed": 3339,
+      "file": "metrics-000.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:50.686042+00:00",
+      "bytes_observed": 287816,
+      "file": "metrics-001.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:51.691935+00:00",
+      "bytes_observed": 1368581,
+      "file": "metrics-002.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:52.699489+00:00",
+      "bytes_observed": 1627702,
+      "file": "metrics-003.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:53.702088+00:00",
+      "bytes_observed": 1999682,
+      "file": "metrics-004.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:54.709626+00:00",
+      "bytes_observed": 2463809,
+      "file": "metrics-005.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:55.713003+00:00",
+      "bytes_observed": 2990090,
+      "file": "metrics-006.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:56.720447+00:00",
+      "bytes_observed": 3407761,
+      "file": "metrics-007.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:57.726958+00:00",
+      "bytes_observed": 3730545,
+      "file": "metrics-008.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:58.733237+00:00",
+      "bytes_observed": 4099577,
+      "file": "metrics-009.txt"
+    },
+    {
+      "utc": "2026-10-19T17:40:59.740518+00:00",
+      "bytes_observed": 4466869,
+      "file": "metrics-010.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:00.747488+00:00",
+      "bytes_observed": 4980899,
+      "file": "metrics-011.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:01.754728+00:00",
+      "bytes_observed": 5763548,
+      "file": "metrics-012.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:02.761896+00:00",
+      "bytes_observed": 7263834,
+      "file": "metrics-013.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:03.769470+00:00",
+      "bytes_observed": 7854832,
+      "file": "metrics-014.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:04.776743+00:00",
+      "bytes_observed": 8374449,
+      "file": "metrics-015.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:05.824690+00:00",
+      "bytes_observed": 8718133,
+      "error": "timed out"
+    },
+    {
+      "utc": "2026-10-19T17:41:07.330965+00:00",
+      "bytes_observed": 9828264,
+      "file": "metrics-017.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:08.576386+00:00",
+      "bytes_observed": 10826310,
+      "file": "metrics-018.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:09.633442+00:00",
+      "bytes_observed": 11751034,
+      "file": "metrics-019.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:10.786425+00:00",
+      "bytes_observed": 13062219,
+      "file": "metrics-020.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:11.905831+00:00",
+      "bytes_observed": 13980200,
+      "file": "metrics-021.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:12.919524+00:00",
+      "bytes_observed": 14948098,
+      "file": "metrics-022.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:13.934849+00:00",
+      "bytes_observed": 16789881,
+      "file": "metrics-023.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:14.947794+00:00",
+      "bytes_observed": 17723039,
+      "file": "metrics-024.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:15.963012+00:00",
+      "bytes_observed": 18792846,
+      "file": "metrics-025.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:16.970051+00:00",
+      "bytes_observed": 19479365,
+      "file": "metrics-026.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:17.982060+00:00",
+      "bytes_observed": 20098089,
+      "file": "metrics-027.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:18.986508+00:00",
+      "bytes_observed": 20586092,
+      "file": "metrics-028.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:19.994005+00:00",
+      "bytes_observed": 21179047,
+      "file": "metrics-029.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:21.000592+00:00",
+      "bytes_observed": 21770966,
+      "file": "metrics-030.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:22.004936+00:00",
+      "bytes_observed": 22500264,
+      "file": "metrics-031.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:23.009155+00:00",
+      "bytes_observed": 23069516,
+      "file": "metrics-032.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:24.014735+00:00",
+      "bytes_observed": 23609131,
+      "file": "metrics-033.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:25.019964+00:00",
+      "bytes_observed": 24607326,
+      "file": "metrics-034.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:26.026011+00:00",
+      "bytes_observed": 25425574,
+      "file": "metrics-035.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:27.033132+00:00",
+      "bytes_observed": 25898976,
+      "file": "metrics-036.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:28.038045+00:00",
+      "bytes_observed": 26594438,
+      "file": "metrics-037.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:29.045038+00:00",
+      "bytes_observed": 27147128,
+      "file": "metrics-038.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:30.052503+00:00",
+      "bytes_observed": 27571404,
+      "file": "metrics-039.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:31.059740+00:00",
+      "bytes_observed": 28172251,
+      "file": "metrics-040.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:32.066382+00:00",
+      "bytes_observed": 28723395,
+      "file": "metrics-041.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:33.072912+00:00",
+      "bytes_observed": 29257797,
+      "file": "metrics-042.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:34.081279+00:00",
+      "bytes_observed": 29626599,
+      "file": "metrics-043.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:35.085892+00:00",
+      "bytes_observed": 30095450,
+      "file": "metrics-044.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:36.089745+00:00",
+      "bytes_observed": 30866330,
+      "file": "metrics-045.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:37.096947+00:00",
+      "bytes_observed": 31372035,
+      "file": "metrics-046.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:38.104231+00:00",
+      "bytes_observed": 31998486,
+      "file": "metrics-047.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:39.109481+00:00",
+      "bytes_observed": 32631868,
+      "file": "metrics-048.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:40.116783+00:00",
+      "bytes_observed": 33173000,
+      "file": "metrics-049.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:41.124125+00:00",
+      "bytes_observed": 33784258,
+      "file": "metrics-050.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:42.129459+00:00",
+      "bytes_observed": 34369798,
+      "file": "metrics-051.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:43.136589+00:00",
+      "bytes_observed": 35005849,
+      "file": "metrics-052.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:44.143689+00:00",
+      "bytes_observed": 35479973,
+      "file": "metrics-053.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:45.151069+00:00",
+      "bytes_observed": 36026039,
+      "file": "metrics-054.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:46.158678+00:00",
+      "bytes_observed": 36483470,
+      "file": "metrics-055.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:47.166350+00:00",
+      "bytes_observed": 36948074,
+      "file": "metrics-056.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:48.173744+00:00",
+      "bytes_observed": 37563517,
+      "file": "metrics-057.txt"
+    },
+    {
+      "utc": "2026-10-19T17:41:49.179348+00:00",
+      "bytes_observed": 38500353,
+      "file": "metrics-058.txt"
+    }
+  ],
+  "stop_reason": "wall-time-cap",
+  "end_utc": "2026-10-19T17:41:50.479755+00:00",
+  "elapsed_seconds": 60.82183687528595,
+  "daemon_exit_code": 0,
+  "files": [
+    {
+      "path": "config.toml",
+      "bytes": 3339,
+      "sha256": "f2c40ba7d728184482b4caa845474bd7365b10b6319ab00aa7fca9fcc88e29af"
+    },
+    {
+      "path": "daemon.log",
+      "bytes": 26285,
+      "sha256": "07f039a1334e7ad37f68ddea8a4ff68995bc69a1f0333b8c1db897b39a4ed445"
+    },
+    {
+      "path": "events.jsonl",
+      "bytes": 20255861,
+      "sha256": "c2c31b167e566c66f39c5db18f63248611c8ee7c84061470acc2b9c387f6a791"
+    },
+    {
+      "path": "metrics-000.txt",
+      "bytes": 117414,
+      "sha256": "91117730123fb75d75ca3b01ae9daeae90e41e71c9a59c88c7e7cbbdb1289c03"
+    },
+    {
+      "path": "metrics-001.txt",
+      "bytes": 117842,
+      "sha256": "d5fde90e19f98befa855b849f11e611cedc314f4993f64f98303cc735302eb6e"
+    },
+    {
+      "path": "metrics-002.txt",
+      "bytes": 118431,
+      "sha256": "962cf2f9ef6a5e277b0b9877368cf7f04a0f3321ffd03cb86da89641902093cb"
+    },
+    {
+      "path": "metrics-003.txt",
+      "bytes": 118632,
+      "sha256": "b151b84d2649bb035f2c229146daf47e824409a2ec2e1d9b3d3c6a396fca2dbc"
+    },
+    {
+      "path": "metrics-004.txt",
+      "bytes": 118849,
+      "sha256": "4fb81a837f834374f73cb0a3858d1c9cc32392841c882917720bb7d89351e0a6"
+    },
+    {
+      "path": "metrics-005.txt",
+      "bytes": 119010,
+      "sha256": "a14ddb104ce5515e61a4c84893a228319bbe0d2257e923b3bc0489881c9d8792"
+    },
+    {
+      "path": "metrics-006.txt",
+      "bytes": 119089,
+      "sha256": "a347972ed2202e2e833fd8c56032bcf920c160beeafe1c9fd6581c9bd497f350"
+    },
+    {
+      "path": "metrics-007.txt",
+      "bytes": 119168,
+      "sha256": "d0814ab7876a157ca97586168f9283bacc2c15b7d869a37b241759ccacf76c85"
+    },
+    {
+      "path": "metrics-008.txt",
+      "bytes": 119187,
+      "sha256": "73848b51f2eb6d88abe84d0d6351742471fee9004a4f74833e2069f555f0c702"
+    },
+    {
+      "path": "metrics-009.txt",
+      "bytes": 119208,
+      "sha256": "2396c5f1c38e81b44516b2a2a7febd16ce06d2358fa8bbe6bd29d91bb388a122"
+    },
+    {
+      "path": "metrics-010.txt",
+      "bytes": 119236,
+      "sha256": "ccd3202bbd1c3977696b32d193ca8d9946f93e4f8c45150059803326286d034c"
+    },
+    {
+      "path": "metrics-011.txt",
+      "bytes": 119350,
+      "sha256": "a162371ddc9b93762879fd36b65aa35c0650c910ec581f5cc9e0f6ea8c302b2f"
+    },
+    {
+      "path": "metrics-012.txt",
+      "bytes": 119460,
+      "sha256": "a67ab644fad30a5578b491c402971bd5d133413704f9608702c632f46d278d30"
+    },
+    {
+      "path": "metrics-013.txt",
+      "bytes": 119487,
+      "sha256": "ed869796456497a2c3e8d3f0256611ceece62f9b36b9e51a7585f359a127de26"
+    },
+    {
+      "path": "metrics-014.txt",
+      "bytes": 119489,
+      "sha256": "5133d00417202296219bdd6d2fe104e09ff88d97989730b911ed45883808920f"
+    },
+    {
+      "path": "metrics-015.txt",
+      "bytes": 119490,
+      "sha256": "1429143a29d55f4bc650ac9bb1a5516b9d0a36a58a7f4b0157aded82c2a422fc"
+    },
+    {
+      "path": "metrics-017.txt",
+      "bytes": 119525,
+      "sha256": "e45465e6a7aa9045da04eea5eb66a4ff7601a3faa80fcba84c1bd60847402c4b"
+    },
+    {
+      "path": "metrics-018.txt",
+      "bytes": 119524,
+      "sha256": "634d43ab80a2f6d2af3496c7f899614e5f8abb8cc74670f6869993729eb41528"
+    },
+    {
+      "path": "metrics-019.txt",
+      "bytes": 119578,
+      "sha256": "0b776afa48388dd7f5b0c433dc9b93b4c1c5c5a4adaaee639f877c4bd8816454"
+    },
+    {
+      "path": "metrics-020.txt",
+      "bytes": 119583,
+      "sha256": "1817a02f6e87364df20812eebbce56c1a10ba029bee4ebcd30a18a904e6ac749"
+    },
+    {
+      "path": "metrics-021.txt",
+      "bytes": 119595,
+      "sha256": "a12047bd6104a83a3f55d518be042e2a0b44ebd4702f1aef806fe0921bcdb893"
+    },
+    {
+      "path": "metrics-022.txt",
+      "bytes": 119635,
+      "sha256": "573d53209b2a2559878acc961767627edc07d8118648b516e11697aafe9e2b88"
+    },
+    {
+      "path": "metrics-023.txt",
+      "bytes": 119646,
+      "sha256": "00004c86fc0ca1e407fb100efb4bc5a1a6827df569fe12133fd5cba07eb15b6f"
+    },
+    {
+      "path": "metrics-024.txt",
+      "bytes": 119689,
+      "sha256": "75e9800d4fba3cb034d55e2e9fad18cad389495b426b274e88fe35b0ba6a9b34"
+    },
+    {
+      "path": "metrics-025.txt",
+      "bytes": 119687,
+      "sha256": "c65914ac86445a97b2bb92ab26551b9c30102f46be1eec93f110026c0e4e67e4"
+    },
+    {
+      "path": "metrics-026.txt",
+      "bytes": 119726,
+      "sha256": "fee1fc971be641db9ff627292413adfc728178d1fcee599b83f9d03d2a0a7206"
+    },
+    {
+      "path": "metrics-027.txt",
+      "bytes": 119732,
+      "sha256": "21e56723296a16d7c73c7361343a34d5ca0580e385d227cf19263e99c3a705be"
+    },
+    {
+      "path": "metrics-028.txt",
+      "bytes": 119748,
+      "sha256": "2ea05e70211e7af4b5a36818d5fa733ef12a8ab1c6cb0ddddf43df7868c7663d"
+    },
+    {
+      "path": "metrics-029.txt",
+      "bytes": 119744,
+      "sha256": "a2a53d07b009dff48c62723122ea80ab8325d7dfafb9ed4105bcf243ac365666"
+    },
+    {
+      "path": "metrics-030.txt",
+      "bytes": 119749,
+      "sha256": "b889b3bba23baf3ade2379509b2e89404bd1bd4eebaaf64a73a82bc8ae39191d"
+    },
+    {
+      "path": "metrics-031.txt",
+      "bytes": 119742,
+      "sha256": "20604435177e3e5b26509aa806a5d8b913e2628b71156fd4276290722f23f48d"
+    },
+    {
+      "path": "metrics-032.txt",
+      "bytes": 119746,
+      "sha256": "9bb0b5b120664bebbbb6929089bb7f5ac735f7d17cb8067a4487d2f4fffbec78"
+    },
+    {
+      "path": "metrics-033.txt",
+      "bytes": 119745,
+      "sha256": "6a683bd76f8e6da98677acab8951115be263da18a30cb1af84b9e5a17b66eaeb"
+    },
+    {
+      "path": "metrics-034.txt",
+      "bytes": 119744,
+      "sha256": "c0a227dd64fe6b72482b508871d138f8e1840f18ce833659f8cda42503abf1bd"
+    },
+    {
+      "path": "metrics-035.txt",
+      "bytes": 119751,
+      "sha256": "586cbc59149c02d2d2c4725d77c2e34c47341a3711f4d1b4ed22343be5013102"
+    },
+    {
+      "path": "metrics-036.txt",
+      "bytes": 119812,
+      "sha256": "4c1042ad178049270dc122eda7659c437c251db52f1e9af9d587336d7d4c9d8d"
+    },
+    {
+      "path": "metrics-037.txt",
+      "bytes": 119813,
+      "sha256": "85ca68dcc3c68912faf48f08618739381557743cbaff922ead28ce25f1fc2237"
+    },
+    {
+      "path": "metrics-038.txt",
+      "bytes": 119813,
+      "sha256": "282876f3e8f0393a3c55b4f34807699d2eefad8e245ccd8eac244efdcb65fa4d"
+    },
+    {
+      "path": "metrics-039.txt",
+      "bytes": 119826,
+      "sha256": "81008e35d616c9366bc1021b62ebc26adc7f46089b3f343098095a58ca1eb489"
+    },
+    {
+      "path": "metrics-040.txt",
+      "bytes": 119861,
+      "sha256": "66dac26c318f17bbbcd284adb26a5a1386688ee64dec2f942344853396a62a70"
+    },
+    {
+      "path": "metrics-041.txt",
+      "bytes": 119891,
+      "sha256": "6dc680e42d6f4ab8fca0454fad9742cb120fc24b6e8ba371e16df8735613f106"
+    },
+    {
+      "path": "metrics-042.txt",
+      "bytes": 119889,
+      "sha256": "5f2c544e43510e009d69ff8388c8743b2812ed457112841a650d950440417621"
+    },
+    {
+      "path": "metrics-043.txt",
+      "bytes": 119889,
+      "sha256": "2bbf4a76357eeab72931e67a894d244cc830b592eccefa236a5589e553e15c82"
+    },
+    {
+      "path": "metrics-044.txt",
+      "bytes": 119895,
+      "sha256": "036690fae882d2a14792f6833d251a137bc500b29ca542783cc8e99f6eb31a55"
+    },
+    {
+      "path": "metrics-045.txt",
+      "bytes": 119892,
+      "sha256": "0b7c115fdc9e5ae255a5cc047579bbc93e3c528de6245f45b52bb08e0cb0ea70"
+    },
+    {
+      "path": "metrics-046.txt",
+      "bytes": 119892,
+      "sha256": "b686e29b77be262bf50b041e59076624b318971fff182b103477545a9d8a1fa7"
+    },
+    {
+      "path": "metrics-047.txt",
+      "bytes": 119896,
+      "sha256": "546f2c91cff8f03944a249ef797c8017738b201d388f0a4f4f69e81c8ae27ff6"
+    },
+    {
+      "path": "metrics-048.txt",
+      "bytes": 119891,
+      "sha256": "6c2544d43b01326fcd23324b3bb3d604c72f4735cf1c2485bb2be91a402a682d"
+    },
+    {
+      "path": "metrics-049.txt",
+      "bytes": 119897,
+      "sha256": "0520b83f1bcd9194bfaba1fab0d68d2c93012f196c8291fae4d773876f24bee9"
+    },
+    {
+      "path": "metrics-050.txt",
+      "bytes": 119932,
+      "sha256": "0c57fb5c3ada0f52e38521fa1fc3c3106924a90b5533f3f9c759ea814dce743e"
+    },
+    {
+      "path": "metrics-051.txt",
+      "bytes": 119929,
+      "sha256": "01afeb26e79589fc1158d835d1231c31717c79377bcbe7efc53f1cf9e910a579"
+    },
+    {
+      "path": "metrics-052.txt",
+      "bytes": 119929,
+      "sha256": "34067b9f0d72e92274ceceafb228d86f4ccdd0f6d89e06ee81529d0185199852"
+    },
+    {
+      "path": "metrics-053.txt",
+      "bytes": 119932,
+      "sha256": "4a04744177fdfd63cdf3c8d56cbabccd5854ca4e3ea13083f15e29c2e7d5d012"
+    },
+    {
+      "path": "metrics-054.txt",
+      "bytes": 119929,
+      "sha256": "4780ce8313c885e4f8cb33ae2b497897902891998377bc8472a2eeb7d9760582"
+    },
+    {
+      "path": "metrics-055.txt",
+      "bytes": 119933,
+      "sha256": "3f08027a7d13d7ab8b0618e858bfc6e6e7105af6b8dfe232bd350407f7db69da"
+    },
+    {
+      "path": "metrics-056.txt",
+      "bytes": 119939,
+      "sha256": "b7e517cb68003ad1ae8eac6d0c7f2b1b708468ae617ff778a12b7ed37f12d98b"
+    },
+    {
+      "path": "metrics-057.txt",
+      "bytes": 119937,
+      "sha256": "bf25118213efc17ad0452db6161e4c4a0d9c01669cd40b88ac93547d572fc753"
+    },
+    {
+      "path": "metrics-058.txt",
+      "bytes": 119939,
+      "sha256": "17f750ae421fe93af8e6e13dc438ff6932d98eb0203aad2be2fbec9b40af1280"
+    },
+    {
+      "path": "raw/seg-1792431649935378000-000000.mfr1",
+      "bytes": 12440343,
+      "sha256": "d138d030e7ad0cb1bb4be058bc25e38eef97ec2deb9bc1b2cfed291436ea24ae"
+    },
+    {
+      "path": "raw/seg-1792431709939833000-000001.mfr1",
+      "bytes": 62601,
+      "sha256": "fd2db6050b0080e7111df0d93ed3d04337d0a88677999bcfee6c9bba7f66b7a3"
+    }
+  ]
+}

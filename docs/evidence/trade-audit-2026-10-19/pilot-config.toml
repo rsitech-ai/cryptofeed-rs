@@ -1,0 +1,183 @@
+[engine]
+shutdown_deadline_secs = 20
+[telemetry]
+bind = "127.0.0.1:19348"
+log_level = "info"
+log_format = "json"
+[readiness]
+min_live_sessions = 1
+require_recording_healthy = true
+[recording.raw]
+enabled = true
+queue_capacity = 8192
+overflow = "fail_engine"
+segment_size = "16MiB"
+segment_duration = "60s"
+min_free_space = "1GiB"
+directory = "${WORKSPACE_ROOT}/.local/evidence/trade-audit/pilot-001/raw"
+[[sinks]]
+id = "audit-file"
+type = "file"
+required = true
+capacity = 8192
+overflow = "fail_engine"
+path = "${WORKSPACE_ROOT}/.local/evidence/trade-audit/pilot-001/events.jsonl"
+
+[[venues]]
+id = "binance-spot"
+adapter = "binance"
+transport = "live"
+required = false
+symbols = ["BTCUSDT"]
+channels = ["trades", "candles"]
+segment = "spot"
+
+[[venues]]
+id = "binance-usdm"
+adapter = "binance"
+transport = "live"
+required = false
+symbols = ["BTCUSDT"]
+channels = ["trades"]
+segment = "usdm"
+
+[[venues]]
+id = "binance-coinm"
+adapter = "binance"
+transport = "live"
+required = false
+symbols = ["BTCUSD_PERP"]
+channels = ["trades"]
+segment = "coinm"
+
+[[venues]]
+id = "okx-spot"
+adapter = "okx"
+transport = "live"
+required = false
+symbols = ["BTC-USDT"]
+channels = ["trades", "candles"]
+segment = "spot"
+
+[[venues]]
+id = "okx-swap"
+adapter = "okx"
+transport = "live"
+required = false
+symbols = ["BTC-USDT-SWAP"]
+channels = ["trades"]
+segment = "swap"
+
+[[venues]]
+id = "bybit-spot"
+adapter = "bybit"
+transport = "live"
+required = false
+symbols = ["BTCUSDT"]
+channels = ["trades", "candles"]
+segment = "spot"
+
+[[venues]]
+id = "bybit-linear"
+adapter = "bybit"
+transport = "live"
+required = false
+symbols = ["BTCUSDT"]
+channels = ["trades"]
+segment = "linear"
+
+[[venues]]
+id = "bybit-inverse"
+adapter = "bybit"
+transport = "live"
+required = false
+symbols = ["BTCUSD"]
+channels = ["trades"]
+segment = "inverse"
+
+[[venues]]
+id = "kraken-spot"
+adapter = "kraken"
+transport = "live"
+required = false
+symbols = ["BTC/USD"]
+channels = ["trades"]
+segment = "spot"
+
+[[venues]]
+id = "kraken-futures"
+adapter = "kraken"
+transport = "live"
+required = false
+symbols = ["PI_XBTUSD"]
+channels = ["trades"]
+segment = "futures"
+
+[[venues]]
+id = "deribit-default"
+adapter = "deribit"
+transport = "live"
+required = false
+symbols = ["BTC-PERPETUAL"]
+channels = ["trades"]
+
+[[venues]]
+id = "bitstamp-default"
+adapter = "bitstamp"
+transport = "live"
+required = false
+symbols = ["btcusd"]
+channels = ["trades"]
+
+[[venues]]
+id = "gemini-default"
+adapter = "gemini"
+transport = "live"
+required = false
+symbols = ["BTCUSD"]
+channels = ["trades"]
+
+[[venues]]
+id = "coinbase-spot"
+adapter = "coinbase"
+transport = "live"
+required = false
+symbols = ["BTC-USD"]
+channels = ["trades"]
+segment = "spot"
+
+[[venues]]
+id = "coinbase-advanced"
+adapter = "coinbase"
+transport = "live"
+required = false
+symbols = ["BTC-USD"]
+channels = ["trades"]
+segment = "advanced"
+
+[[venues]]
+id = "bitfinex-spot"
+adapter = "bitfinex"
+transport = "live"
+required = false
+symbols = ["tBTCUSD"]
+channels = ["trades"]
+segment = "spot"
+
+[[venues]]
+id = "bitfinex-deriv"
+adapter = "bitfinex"
+transport = "live"
+required = false
+symbols = ["tBTCF0:USTF0"]
+channels = ["trades"]
+segment = "deriv"
+
+[[venues]]
+id = "okx-futures"
+adapter = "okx"
+transport = "live"
+required = false
+symbols = ["BTC-USD_UM_XPERP-310404"]
+channels = ["trades"]
+segment = "futures"

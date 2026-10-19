@@ -1,5 +1,12 @@
 # Venue channel audit (VenueIds 1–20)
 
+> 2026-10-19 correction: historical **HAVE** / "no CODE gaps" below describes
+> typed channel surface. It does not establish faithful trades, durable delivery
+> or research admission. Current source has batching, identity, exact-number,
+> recording and replay defects; see the [current inventory](trade_venue_inventory.md)
+> and [validation report](../ops/trade_data_validation_report.md). Original
+> historical evidence is retained, including its original maturity vocabulary.
+
 **Role:** AUDITOR — per-exchange public channel surface vs Spec §2.1 + **full public MD available on each venue**  
 **Tip audited:** `origin/main` @ ≥ `e8e6a0c` (#218 tip; #215 env-auth MD; **W7-P0** closed)  
 **Date:** 2026-07-22  

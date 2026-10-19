@@ -65,6 +65,7 @@ tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
 [dev-dependencies]
+marketfeed-replay = { workspace = true }
 tokio = { workspace = true, features = [
     "rt-multi-thread",
     "macros",

@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "status": "specified-not-executed",
+  "purpose": "post-repair qualification pilot; no frozen corpus writes",
+  "instruments": [
+    {
+      "venue": "okx",
+      "region": "EU/EEA",
+      "product": "SPOT",
+      "symbols": [
+        "BTC-USDC",
+        "BNB-USDC"
+      ],
+      "channel": "trades-all",
+      "gate": "verify regional endpoint/access/metadata first; never substitute USDT"
+    },
+    {
+      "venue": "okx",
+      "product": "SWAP",
+      "family": "linear and inverse",
+      "symbols": "choose active metadata-filtered instruments; pin before run"
+    },
+    {
+      "venue": "kraken",
+      "product": "spot-v2",
+      "symbols": [
+        "BTC/USD"
+      ]
+    },
+    {
+      "venue": "bitfinex",
+      "product": "spot",
+      "symbols": [
+        "tBTCUSD"
+      ]
+    }
+  ],
+  "requested_utc_bounds": null,
+  "bounds_gate": "operator/run preparer pins exact future [start,end) before any acquisition; unset bounds reject execution",
+  "duration_seconds": 120,
+  "max_storage_bytes": 268435456,
+  "max_http_requests_total": 24,
+  "request_concurrency": 1,
+  "max_requests_per_second": 0.2,
+  "max_response_bytes": 1048576,
+  "timeout_seconds_per_request": 8,
+  "retry_budget_total": 2,
+  "backoff_seconds": [
+    2,
+    5
+  ],
+  "destination": "fresh .local/evidence/trade-audit/qualified-pilot-<UTC>-<UUID>; never existing frozen paths",
+  "resume": "only pinned metadata/source/config and committed watermark with overlap; incompatible partials quarantine",
+  "stop_conditions": [
+    "time/storage/request caps",
+    "required ack rejected",
+    "disk/queue/sink error",
+    "no-progress cursor",
+    "second recovery failure"
+  ],
+  "qualification_gates": [
+    "source semantics independent goldens",
+    "native and normalized stage balances",
+    "aligned overlapping history reference",
+    "durable transactional publication",
+    "actual pinned OKX reader roundtrip",
+    "use-specific coverage/admission"
+  ],
+  "expansion": "one product/precision/parser family per passing scope, no universal exchange claim"
+}

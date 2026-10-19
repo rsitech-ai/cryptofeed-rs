@@ -1,0 +1,3547 @@
+{
+  "schema_version": "trade-venue-inventory/1",
+  "purpose": "Audit/specification evidence; not a production coverage or dataset admission claim",
+  "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+  "accessed_date": "2026-10-19",
+  "real_venue_count": 19,
+  "family_count": 9,
+  "source_inspection_method": "Read adapter specifications, factories, instruments, decoders and sessions; official documentation fetched through web tool. No live run or tests by source reviewer.",
+  "pilot_evidence": {
+    "path": ".local/evidence/trade-audit/pilot-001",
+    "status": "bounded-live-observed-unqualified",
+    "rule": "Do not assign observed/reconciled/qualified statuses until scope-specific analyzer output exists.",
+    "capture_manifest": "../evidence/trade-audit-2026-10-19/capture-manifest.json",
+    "native_accounting": "../evidence/trade-audit-2026-10-19/native-audit.json",
+    "interval": [
+      "2026-10-19T17:40:49.657390+00:00",
+      "2026-10-19T17:41:50.479755+00:00"
+    ],
+    "all_datasets_qualified": false
+  },
+  "evidence_vocabulary": {
+    "specified": "reference reviewed, subject to explicit failures and contradictions",
+    "implemented": "source exists and inspected; never equivalent to live evidence",
+    "fixture": "test source paths present, execution separate",
+    "offline": "execution report must identify command/SHA/result",
+    "live": "bounded observed endpoint/instrument/time scope only",
+    "independently_reconciled": "independent source key/count/value comparison within exact bounds",
+    "storage_dataset_qualified": "immutable manifest and use-specific quality contract passed",
+    "consumer_compatible": "actual target reader and representative data verified",
+    "operational_promotion": "calendar canaries and multi-day requirements unchanged"
+  },
+  "synthetic": {
+    "venue_id": 1,
+    "code": "synthetic",
+    "separate_from_real_venues": true,
+    "purpose": "test harness only",
+    "adapter_paths": [
+      "crates/adapters/synthetic/src/session.rs",
+      "crates/adapters/synthetic/src/factory.rs"
+    ],
+    "live_exchange_evidence": "not_applicable"
+  },
+  "sources": {
+    "okx": {
+      "url": "https://app.okx.com/docs-v5/en/",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "V5 trades aggregates per taker/price/source; count and last constituent tradeId; repeated seqId allowed; trades-all on business emits individual trades; spot size base, derivatives contracts; public history three months, max100 rows, 20req/2s. Regional eligibility/access not tested."
+    },
+    "binance_spot": {
+      "url": "https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Spot raw trade differs from taker-aggregated aggTrade; IDs and first/last constituent IDs differ; m is buyer-maker."
+    },
+    "binance_routes": {
+      "url": "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Connect",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Current USD-M public/market/private routing; aggregate trades use market; unrouted connections only receive public-class streams; 24-hour connection lifetime; no live route inference."
+    },
+    "binance_notice": {
+      "url": "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/websocket-market-streams/Important-WebSocket-Change-Notice",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Maps bookTicker/depth to public and aggTrade/mark/kline/ticker/liquidations to market. Legacy migration deadline stated 2026-04-23. Verify actual runtime instead of assuming legacy comments remain true."
+    },
+    "binance_archive": {
+      "url": "https://github.com/binance/binance-public-data",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Official spot/USD-M/Coin-M daily/monthly archive schemas, per-file checksums and possible later replacements. Spot archive times since 2025-01-01 are microseconds; futures schemas distinguish quoteQty and baseQty."
+    },
+    "binance_coinm": {
+      "url": "https://developers.binance.com/en/docs/products/derivatives-trading-coin-futures/websocket-market-streams/Connect",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Coin-M dstream connection reference; shared-looking protocol is not evidence of USD-M routing parity or current contract migration completion."
+    },
+    "kraken_spot": {
+      "url": "https://docs.kraken.com/api/docs/websocket-v2/trade/",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "v2 trade rows may batch unrelated takers; taker side; trade_id unique sequence per book; RFC3339 time; snapshot latest50."
+    },
+    "kraken_history": {
+      "url": "https://docs.kraken.com/api/docs/rest-api/get-recent-trades/",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Public Trades since/count<=1000; example cursor last; no universal retention established. Current API includes tokenized_asset parameter outside reviewed crypto catalog."
+    },
+    "kraken_futures": {
+      "url": "https://docs.kraken.com/api/docs/futures-api/websocket/trade/",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Futures WS uid, taker side, subscription seq, millisecond trade time, fill/liquidation/termination/block classification."
+    },
+    "bybit": {
+      "url": "https://bybit-exchange.github.io/docs/v5/websocket/public/trade",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "V5 publicTrade taker side, fill milliseconds, opaque ID, block/RPI flags; up to1024 rows, multiple messages can share seq; option subscription differs."
+    },
+    "bybit_history": {
+      "url": "https://bybit-exchange.github.io/docs/v5/market/recent-trade",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Recent REST spot max60, other categories1000, links official archive website; not proof arbitrary missing intervals are recoverable."
+    },
+    "deribit": {
+      "url": "https://docs.deribit.com/subscriptions/trades/tradesinstrument_nameinterval",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Instrument trade channel has interval raw/100ms/agg2 and arrays of trades; raw access requires authorization; notification batching does not justify inventing constituent executions."
+    },
+    "deribit_history": {
+      "url": "https://docs.deribit.com/api-reference/market-data/public-get_last_trades_by_instrument",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "REST per-currency trade_id, per-instrument trade_seq, taker direction, ms timestamp, amount and optional contracts; seq/time filters, explicit sorting, count max1000. Optional Starbase causal ns, liquidation/block/combo fields; no public universal retention proven."
+    },
+    "deribit_collection": {
+      "url": "https://docs.deribit.com/articles/market-data-collection-best-practices",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Raw auth, batching, per-instrument ordering, instrument lifecycle feed and public trade backfill methods. Private historical-retention statements must not be applied to public data."
+    },
+    "intx_migration": {
+      "url": "https://docs.deribit.com/articles/intx-api-migration",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "States INTX consolidated into Deribit 2026-10-01, new endpoints/keys/runtime USDC discovery, linear amount base versus inverse USD; legacy historical APIs about12 months. No account, strategy or state migration authorized here."
+    },
+    "gemini": {
+      "url": "https://developer.gemini.com/websocket/streams",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Current multiplexed @trade: E ns, t numeric ID, p/q decimal strings, m buyer-maker; @bookTicker and depth snapshot parameter."
+    },
+    "gemini_history": {
+      "url": "https://developer.gemini.com/trading/rest-api/market-data/list-trades",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Max500; since_tid; newest-first; taker side; broken-trade option. Contradiction: headline seven calendar days versus timestamp description90-day hard limit; effective retention unresolved."
+    },
+    "bitstamp": {
+      "url": "https://www.bitstamp.net/api/",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Transactions time=minute/hour/day. Current page includes derivatives surfaces beyond implemented spot. Commercial usage terms and endpoint limits require acquisition-specific review; no universal history established."
+    },
+    "bitstamp_ws": {
+      "url": "https://www.bitstamp.net/websocket/v2/",
+      "accessed_date": "2026-10-19",
+      "status": "fetched_empty",
+      "reviewed_claims": "Accessible response but parsed content empty; cannot independently confirm current WS field/side claims from this fetch."
+    },
+    "bitfinex": {
+      "url": "https://docs.bitfinex.com/reference/ws-public-trades",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "WSv2 signed AMOUNT is taker buy/sell, MTS ms, ID; snapshot plus te/tu updates. Funding trades are a different tuple/schema."
+    },
+    "bitfinex_history": {
+      "url": "https://docs.bitfinex.com/reference/rest-public-trades",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Public hist: max10000, inclusive ms start/end, MTS sort, 15req/min; retention not guaranteed by reviewed page."
+    },
+    "coinbase_classic": {
+      "url": "https://docs.cdp.coinbase.com/exchange/websocket-feed/channels",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Exchange matches may drop; heartbeat last trade ID plus REST recovery documented; initial last_match is historical context. Ticker batching not a full tape."
+    },
+    "coinbase_adv": {
+      "url": "https://docs.cdp.coinbase.com/api-reference/advanced-trade-api/websocket/market-trades",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Advanced market_trades batches250ms; batch is transport delivery, preserve rows."
+    },
+    "coinbase_endpoints": {
+      "url": "https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/websocket/websocket-endpoints",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Current spot/US derivatives and separate global derivatives endpoints; heartbeats needed for idle subscriptions; documented USD/USDC aliases. Catalog implementation remains spot only."
+    },
+    "coinbase_intl": {
+      "url": "https://docs.cdp.coinbase.com/international-exchange/websocket-feed/channels",
+      "accessed_date": "2026-10-19",
+      "status": "fetched",
+      "reviewed_claims": "Legacy INTX MATCH no snapshot, aggressor_side includes OPENING_FILL; additional FUNDING/RISK/CANDLES exist in docs. Published legacy docs do not prove post-migration service viability."
+    }
+  },
+  "documentation_failures_and_contradictions": [
+    {
+      "url": "https://www.okx.com/docs-v5/en/",
+      "failure": "web fetch exceeded4MiB; official app.okx.com/docs-v5/en/ fetched instead; no regional equivalence asserted"
+    },
+    {
+      "url": "https://docs.deribit.com/subscriptions/market-data/tradesinstrument_nameinterval",
+      "failure": "obsolete path inaccessible; resolved official /subscriptions/trades/tradesinstrument_nameinterval"
+    },
+    {
+      "url": "https://docs.deribit.com/_llms/production.txt",
+      "failure": "index inaccessible; navigate rendered official pages"
+    },
+    {
+      "url": "https://docs.gemini.com/websocket/overview",
+      "failure": "old path inaccessible; current developer.gemini.com/websocket/streams fetched"
+    },
+    {
+      "url": "https://www.bitstamp.net/websocket/v2/",
+      "failure": "empty parsed document; current WS side claims not freshly source-verified"
+    },
+    {
+      "url": "https://developer.gemini.com/trading/rest-api/market-data/list-trades",
+      "failure": "7-day headline vs90-day timestamp limit; unresolved"
+    },
+    {
+      "url": "https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/Aggregate-Trade-Streams",
+      "failure": "redirect currently resolves generic documentation landing; route contract verified using Connect and Important-WebSocket-Change-Notice instead"
+    },
+    {
+      "url": "https://developers.binance.info/docs/derivatives/usds-margined-futures/websocket-market-streams/All-Market-Mini-Tickers-Stream",
+      "failure": "search returned combined stream material under misleading mini-ticker URL; not used as authoritative aggregate semantics in this inventory"
+    },
+    {
+      "url": "https://docs.deribit.com/articles/intx-api-migration",
+      "failure": "new migration guide conflicts with apparent currency of still-published legacy INTX docs; current service remains migration-blocked"
+    }
+  ],
+  "venues": [
+    {
+      "venue_id": 2,
+      "code": "binance-spot",
+      "family": "binance",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/binance/src/specification.rs",
+        "crates/adapters/binance/src/factory.rs",
+        "crates/adapters/binance/src/messages.rs",
+        "crates/adapters/binance/src/session.rs",
+        "crates/adapters/binance/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "product_scopes": [
+        {
+          "scope": "binance-spot/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/0/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTCUSDT",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 1373,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 1373,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "options",
+        "private account/trading",
+        "margin-account economics"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://stream.binance.com:9443/stream"
+        ],
+        "rest": [
+          "https://api.binance.com"
+        ]
+      },
+      "trade_channel": "<symbol>@trade",
+      "trade_granularity": "native individual trade; aggTrade separate unimplemented live alternative",
+      "identity_ordering": "native t; m buyer-maker inverted to aggressor; trade identity scoped by venue/instrument/channel; gaps require reference",
+      "timestamp_semantics": "T trade ms; E event ms; archives since2025 spot us, never guess by magnitude",
+      "quantity_semantics": "Native q spot base quantity; preserve quoteQty when acquired from history",
+      "discovery_metadata": "exchangeInfo: symbol/assets/status/PRICE_FILTER/LOT_SIZE and notional; metadata snapshot required",
+      "other_implemented_channels": [
+        "bookTicker",
+        "depth + REST snapshot",
+        "kline",
+        "ticker statistics"
+      ],
+      "official_source_keys": [
+        "binance_spot",
+        "binance_archive"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "binance_archive"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "No evidence here of complete historical coverage or durable recording"
+      ],
+      "next_actions": [
+        "Bounded raw-vs-archive reconciliation; calendar canaries remain required"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/binance/tests/coinm_fixtures.rs",
+            "crates/adapters/binance/tests/coinm_l2_buffer.rs",
+            "crates/adapters/binance/tests/corpus_replay.rs",
+            "crates/adapters/binance/tests/decode_fuzz_smoke.rs",
+            "crates/adapters/binance/tests/decode_simd_parity.rs",
+            "crates/adapters/binance/tests/fixtures.rs",
+            "crates/adapters/binance/tests/l2_buffer.rs",
+            "crates/adapters/binance/tests/live_ignored.rs",
+            "crates/adapters/binance/tests/usdm_fixtures.rs",
+            "crates/adapters/binance/tests/usdm_l2_buffer.rs",
+            "crates/adapters/binance/tests/usdm_routed_v4.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTCUSDT",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 1373,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 1373,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 3,
+      "code": "binance-usdm",
+      "family": "binance",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/binance/src/usdm_specification.rs",
+        "crates/adapters/binance/src/usdm_factory.rs",
+        "crates/adapters/binance/src/usdm_messages.rs",
+        "crates/adapters/binance/src/usdm_session.rs",
+        "crates/adapters/binance/src/usdm_instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "product_scopes": [
+        {
+          "scope": "binance-usdm/linear_perpetual",
+          "product_subfamily": "linear_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/1/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTCUSDT",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 875,
+              "native_administrative_rows": 4,
+              "normalized_trade_rows": 875,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "binance-usdm/linear_dated_future",
+          "product_subfamily": "linear_dated_future",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/1/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "options",
+        "private account/trading",
+        "margin-account economics"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://fstream.binance.com/stream (legacy)",
+          "wss://fstream.binance.com/public/ws (routed-v4)",
+          "wss://fstream.binance.com/market/ws (routed-v4)"
+        ],
+        "rest": [
+          "https://fapi.binance.com"
+        ]
+      },
+      "trade_channel": "legacy @trade; aggTrade decoder; routed-v4 market @aggTrade",
+      "trade_granularity": "individual and aggregate variants normalize into same Trade model; must retain native channel and aggregation bounds",
+      "identity_ordering": "t vs a distinct namespaces; aggTrade f/l discarded by legacy struct; m buyer-maker; no universal sequence promise",
+      "timestamp_semantics": "T trade ms; routed-v4 source-time metadata differs from legacy; native E retained only where implemented",
+      "quantity_semantics": "Native q; do not label aggTrade constituent count or assume common quote/base contract conversion without catalog",
+      "discovery_metadata": "exchangeInfo contractType classifies perpetual/dated; increments, contract metadata; filter exclusions must be recorded",
+      "other_implemented_channels": [
+        "bookTicker",
+        "depth + REST snapshot pu",
+        "kline",
+        "ticker",
+        "mark/index/funding",
+        "REST open interest",
+        "forceOrder"
+      ],
+      "official_source_keys": [
+        "binance_routes",
+        "binance_notice",
+        "binance_archive"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "binance_archive"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "Legacy silence comments are endpoint/time-specific, not current evidence",
+        "Aggregate first/last IDs and granularity not represented in canonical Trade"
+      ],
+      "next_actions": [
+        "Verify exact configured endpoint; preserve f/l/a/nq/st when present; acquire each product subfamily separately"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/binance/tests/coinm_fixtures.rs",
+            "crates/adapters/binance/tests/coinm_l2_buffer.rs",
+            "crates/adapters/binance/tests/corpus_replay.rs",
+            "crates/adapters/binance/tests/decode_fuzz_smoke.rs",
+            "crates/adapters/binance/tests/decode_simd_parity.rs",
+            "crates/adapters/binance/tests/fixtures.rs",
+            "crates/adapters/binance/tests/l2_buffer.rs",
+            "crates/adapters/binance/tests/live_ignored.rs",
+            "crates/adapters/binance/tests/usdm_fixtures.rs",
+            "crates/adapters/binance/tests/usdm_l2_buffer.rs",
+            "crates/adapters/binance/tests/usdm_routed_v4.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTCUSDT",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 875,
+        "native_administrative_rows": 4,
+        "normalized_trade_rows": 875,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 4,
+      "code": "okx-spot",
+      "family": "okx",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/okx/src/specification.rs",
+        "crates/adapters/okx/src/factory.rs",
+        "crates/adapters/okx/src/messages.rs",
+        "crates/adapters/okx/src/session.rs",
+        "crates/adapters/okx/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "OKX V5",
+      "product_scopes": [
+        {
+          "scope": "okx-spot/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/2/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTC-USDT",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 70,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 70,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "OPTION",
+        "MARGIN economics",
+        "EVENTS",
+        "spread/block/private channels"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws.okx.com:8443/ws/v5/public",
+          "wss://ws.okx.com:8443/ws/v5/business"
+        ],
+        "rest": [
+          "https://www.okx.com"
+        ]
+      },
+      "trade_channel": "trades on public; trades-all not accepted or subscribed",
+      "trade_granularity": "trades aggregated by taker/price/source; cannot expand to executions",
+      "identity_ordering": "tradeId last constituent ID; count/source dropped; seqId may repeat; session fallback conflates seqId/tradeId",
+      "timestamp_semantics": "ts filled ms; canonical ns conversion; no source exchange-send time",
+      "quantity_semantics": "sz base on SPOT, contracts on derivatives; ctVal/ctValCcy/ctMult necessary for derived units",
+      "discovery_metadata": "public/instruments?instType=SPOT; ctType linear/inverse share VenueId; OPTION/MARGIN excluded",
+      "other_implemented_channels": [
+        "tickers Quote/Statistics24h",
+        "books",
+        "business candle*"
+      ],
+      "official_source_keys": [
+        "okx"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "okx"
+        ],
+        "constraints": "Public trades/history; three-month history max100/page20req/2s, recent max500. EEA endpoint/eligibility must be verified separately; preserve EU spot1x cash/inventory context.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "decode_trades keeps first row only (messages.rs:370)",
+        "count/source absent in TradeRow; trades-all unknown",
+        "source_sequence falls back from seqId to tradeId (session.rs:278)",
+        "Neither recording semantics nor frozen consumer compatibility proven by channel availability"
+      ],
+      "next_actions": [
+        "Specify native provenance sidecar; full-row batches and explicit granularity; bounded trades vs trades-all/reference reconciliation"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/okx/tests/corpus_replay.rs",
+            "crates/adapters/okx/tests/decode_fuzz_smoke.rs",
+            "crates/adapters/okx/tests/decode_simd_parity.rs",
+            "crates/adapters/okx/tests/fixtures.rs",
+            "crates/adapters/okx/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTC-USDT",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 70,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 70,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 5,
+      "code": "bybit-linear",
+      "family": "bybit",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/bybit/src/specification.rs",
+        "crates/adapters/bybit/src/factory.rs",
+        "crates/adapters/bybit/src/messages.rs",
+        "crates/adapters/bybit/src/session.rs",
+        "crates/adapters/bybit/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Bybit V5",
+      "product_scopes": [
+        {
+          "scope": "bybit-linear/linear_perpetual",
+          "product_subfamily": "linear_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/3/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTCUSDT",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 327,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 327,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "bybit-linear/linear_dated_future",
+          "product_subfamily": "linear_dated_future",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/3/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "option",
+        "private",
+        "RPI-specific depth and other unimplemented channel variants"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://stream.bybit.com/v5/public/linear"
+        ],
+        "rest": [
+          "https://api.bybit.com"
+        ]
+      },
+      "trade_channel": "publicTrade.{symbol}",
+      "trade_granularity": "individual rows in batch; <=1024rows and seq may span messages",
+      "identity_ordering": "i opaque native ID; seq cross sequence not unique trade key; taker S",
+      "timestamp_semantics": "T fill ms; outer ts generation ms dropped from trade rows",
+      "quantity_semantics": "Native v preserved; spot base; derivative denomination needs instrument-specific contract qualification before unit conversion",
+      "discovery_metadata": "instruments-info category=linear limit1000; nextPageCursor completeness requires separate check; contractType split; options excluded",
+      "other_implemented_channels": [
+        "orderbook",
+        "tickers",
+        "kline",
+        "mark/index/funding/OI ticker fields",
+        "allLiquidation"
+      ],
+      "official_source_keys": [
+        "bybit",
+        "bybit_history"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "bybit_history"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "BT/RPI classification dropped by TradeRow",
+        "No arbitrary-gap recovery demonstrated; discovery pagination not qualified"
+      ],
+      "next_actions": [
+        "Retain trade classifications and outer time; reconcile exact native IDs; verify cursor exhaustion"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/bybit/tests/corpus_replay.rs",
+            "crates/adapters/bybit/tests/decode_simd_parity.rs",
+            "crates/adapters/bybit/tests/fixtures.rs",
+            "crates/adapters/bybit/tests/l2_sync.rs",
+            "crates/adapters/bybit/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTCUSDT",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 327,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 327,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 6,
+      "code": "bybit-spot",
+      "family": "bybit",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/bybit/src/specification.rs",
+        "crates/adapters/bybit/src/factory.rs",
+        "crates/adapters/bybit/src/messages.rs",
+        "crates/adapters/bybit/src/session.rs",
+        "crates/adapters/bybit/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Bybit V5",
+      "product_scopes": [
+        {
+          "scope": "bybit-spot/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/4/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTCUSDT",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 518,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 518,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "option",
+        "private",
+        "RPI-specific depth and other unimplemented channel variants"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://stream.bybit.com/v5/public/spot"
+        ],
+        "rest": [
+          "https://api.bybit.com"
+        ]
+      },
+      "trade_channel": "publicTrade.{symbol}",
+      "trade_granularity": "individual rows in batch; <=1024rows and seq may span messages",
+      "identity_ordering": "i opaque native ID; seq cross sequence not unique trade key; taker S",
+      "timestamp_semantics": "T fill ms; outer ts generation ms dropped from trade rows",
+      "quantity_semantics": "Native v preserved; spot base; derivative denomination needs instrument-specific contract qualification before unit conversion",
+      "discovery_metadata": "instruments-info category=spot limit1000; nextPageCursor completeness requires separate check; contractType split; options excluded",
+      "other_implemented_channels": [
+        "orderbook",
+        "tickers",
+        "kline"
+      ],
+      "official_source_keys": [
+        "bybit",
+        "bybit_history"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "bybit_history"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "BT/RPI classification dropped by TradeRow",
+        "No arbitrary-gap recovery demonstrated; discovery pagination not qualified"
+      ],
+      "next_actions": [
+        "Retain trade classifications and outer time; reconcile exact native IDs; verify cursor exhaustion"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/bybit/tests/corpus_replay.rs",
+            "crates/adapters/bybit/tests/decode_simd_parity.rs",
+            "crates/adapters/bybit/tests/fixtures.rs",
+            "crates/adapters/bybit/tests/l2_sync.rs",
+            "crates/adapters/bybit/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTCUSDT",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 518,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 518,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 7,
+      "code": "kraken-spot",
+      "family": "kraken",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/kraken/src/specification.rs",
+        "crates/adapters/kraken/src/factory.rs",
+        "crates/adapters/kraken/src/messages.rs",
+        "crates/adapters/kraken/src/session.rs",
+        "crates/adapters/kraken/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Kraken Spot WSv2",
+      "product_scopes": [
+        {
+          "scope": "kraken-spot/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/5/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTC/USD",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 90,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 90,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "tokenized/xStocks",
+        "margin economics",
+        "WSv1",
+        "private"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws.kraken.com/v2"
+        ],
+        "rest": [
+          "https://api.kraken.com"
+        ]
+      },
+      "trade_channel": "trade",
+      "trade_granularity": "distinct trade rows batched; batching not one taker",
+      "identity_ordering": "trade_id sequence unique per book; taker side; do not infer continuous +1 from examples",
+      "timestamp_semantics": "RFC3339 timestamp into ns; absent timestamp handling must be qualified",
+      "quantity_semantics": "Native qty; preserve raw decimal token; spot base denomination requires catalog association",
+      "discovery_metadata": "AssetPairs; wsname/altname/asset aliases; increments and status; no tokenized_asset claim",
+      "other_implemented_channels": [
+        "ticker",
+        "book CRC32",
+        "ohlc"
+      ],
+      "official_source_keys": [
+        "kraken_spot",
+        "kraken_history"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "kraken_history"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "Snapshot recent50 is context, not complete history",
+        "No historical retention guarantee reviewed"
+      ],
+      "next_actions": [
+        "Snapshot/live dedup and REST last-cursor overlap reconciliation"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/kraken/tests/corpus_replay.rs",
+            "crates/adapters/kraken/tests/decode_simd_parity.rs",
+            "crates/adapters/kraken/tests/fixtures.rs",
+            "crates/adapters/kraken/tests/futures_fixtures.rs",
+            "crates/adapters/kraken/tests/l2_sync.rs",
+            "crates/adapters/kraken/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTC/USD",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 90,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 90,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 8,
+      "code": "deribit",
+      "family": "deribit",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/deribit/src/specification.rs",
+        "crates/adapters/deribit/src/factory.rs",
+        "crates/adapters/deribit/src/messages.rs",
+        "crates/adapters/deribit/src/session.rs",
+        "crates/adapters/deribit/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "JSON-RPC2 WS/APIv2",
+      "product_scopes": [
+        {
+          "scope": "deribit/inverse_perpetual_BTC_ETH",
+          "product_subfamily": "inverse_perpetual_BTC_ETH",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/6/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTC-PERPETUAL",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 184,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 184,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "deribit/inverse_dated_future_BTC_ETH",
+          "product_subfamily": "inverse_dated_future_BTC_ETH",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/6/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "deribit/linear_perpetual_parser_only",
+          "product_subfamily": "linear_perpetual_parser_only",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/6/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "deribit/linear_dated_future_parser_only",
+          "product_subfamily": "linear_dated_future_parser_only",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/6/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "options",
+        "spot",
+        "combos",
+        "USDC live discovery until implemented",
+        "Starbase SBE/private raw"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://www.deribit.com/ws/api/v2"
+        ],
+        "rest": [
+          "https://www.deribit.com/api/v2"
+        ]
+      },
+      "trade_channel": "trades.{instrument}.100ms",
+      "trade_granularity": "array of native trades at100ms delivery; raw auth separate",
+      "identity_ordering": "trade_id unique per currency; trade_seq per instrument; taker direction; snapshots/recovery not inferred",
+      "timestamp_semantics": "timestamp ms; optional Starbase causal ns and match ID not retained",
+      "quantity_semantics": "amount differs from contracts; inverse USD and linear base coin per migration guide; never universally treat amount as contracts",
+      "discovery_metadata": "Factory requests only BTC/ETH kind=future; parser can classify is_inverse=false but missing defaults true; USDC/other currencies not discovered; options filtered",
+      "other_implemented_channels": [
+        "ticker Q/mark/index/funding/OI/statistics",
+        "book100ms",
+        "chart.trades",
+        "deribit_price_index",
+        "trade liquidation"
+      ],
+      "official_source_keys": [
+        "deribit",
+        "deribit_history",
+        "deribit_collection",
+        "intx_migration"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "deribit_history",
+          "intx_migration"
+        ],
+        "constraints": "Public100ms; raw authenticated. REST count<=1000 with explicit seq/time filters/sort. Public historical retention unverified; private historical guide cannot establish public retention.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "USDC migrated products omitted",
+        "Optional contracts/Starbase/block/combo provenance dropped",
+        "Catalog settlement derived from quote; explicit settlement_currency not parsed",
+        "Public-stream host evolution needs exact endpoint check"
+      ],
+      "next_actions": [
+        "Expand bounded discovery design by currency/version; preserve raw numeric tokens and native amount/contract fields; separately qualify each subfamily"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/deribit/tests/corpus_replay.rs",
+            "crates/adapters/deribit/tests/decode_simd_parity.rs",
+            "crates/adapters/deribit/tests/fixtures.rs",
+            "crates/adapters/deribit/tests/l2_sync.rs",
+            "crates/adapters/deribit/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTC-PERPETUAL",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 184,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 184,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 9,
+      "code": "okx-swap",
+      "family": "okx",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/okx/src/specification.rs",
+        "crates/adapters/okx/src/factory.rs",
+        "crates/adapters/okx/src/messages.rs",
+        "crates/adapters/okx/src/session.rs",
+        "crates/adapters/okx/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "OKX V5",
+      "product_scopes": [
+        {
+          "scope": "okx-swap/linear_perpetual",
+          "product_subfamily": "linear_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/7/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTC-USDT-SWAP",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 375,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 375,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "okx-swap/inverse_perpetual",
+          "product_subfamily": "inverse_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/7/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "OPTION",
+        "MARGIN economics",
+        "EVENTS",
+        "spread/block/private channels"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws.okx.com:8443/ws/v5/public",
+          "wss://ws.okx.com:8443/ws/v5/business"
+        ],
+        "rest": [
+          "https://www.okx.com"
+        ]
+      },
+      "trade_channel": "trades on public; trades-all not accepted or subscribed",
+      "trade_granularity": "trades aggregated by taker/price/source; cannot expand to executions",
+      "identity_ordering": "tradeId last constituent ID; count/source dropped; seqId may repeat; session fallback conflates seqId/tradeId",
+      "timestamp_semantics": "ts filled ms; canonical ns conversion; no source exchange-send time",
+      "quantity_semantics": "sz base on SPOT, contracts on derivatives; ctVal/ctValCcy/ctMult necessary for derived units",
+      "discovery_metadata": "public/instruments?instType=SWAP; ctType linear/inverse share VenueId; OPTION/MARGIN excluded",
+      "other_implemented_channels": [
+        "tickers Quote/Statistics24h",
+        "books",
+        "business candle*",
+        "mark-price",
+        "index-tickers",
+        "funding-rate (perpetual applicable only)",
+        "open-interest",
+        "liquidation-orders"
+      ],
+      "official_source_keys": [
+        "okx"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "okx"
+        ],
+        "constraints": "Public trades/history; three-month history max100/page20req/2s, recent max500. EEA endpoint/eligibility must be verified separately; preserve EU spot1x cash/inventory context.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "decode_trades keeps first row only (messages.rs:370)",
+        "count/source absent in TradeRow; trades-all unknown",
+        "source_sequence falls back from seqId to tradeId (session.rs:278)",
+        "Neither recording semantics nor frozen consumer compatibility proven by channel availability"
+      ],
+      "next_actions": [
+        "Specify native provenance sidecar; full-row batches and explicit granularity; bounded trades vs trades-all/reference reconciliation"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/okx/tests/corpus_replay.rs",
+            "crates/adapters/okx/tests/decode_fuzz_smoke.rs",
+            "crates/adapters/okx/tests/decode_simd_parity.rs",
+            "crates/adapters/okx/tests/fixtures.rs",
+            "crates/adapters/okx/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTC-USDT-SWAP",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 375,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 375,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 10,
+      "code": "okx-futures",
+      "family": "okx",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/okx/src/specification.rs",
+        "crates/adapters/okx/src/factory.rs",
+        "crates/adapters/okx/src/messages.rs",
+        "crates/adapters/okx/src/session.rs",
+        "crates/adapters/okx/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "OKX V5",
+      "product_scopes": [
+        {
+          "scope": "okx-futures/linear_dated_future",
+          "product_subfamily": "linear_dated_future",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/8/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "failed",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTC-USD_UM_XPERP-310404",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 0,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 0,
+              "value_multiset": "not-observed",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "okx-futures/inverse_dated_future",
+          "product_subfamily": "inverse_dated_future",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/8/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "OPTION",
+        "MARGIN economics",
+        "EVENTS",
+        "spread/block/private channels"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws.okx.com:8443/ws/v5/public",
+          "wss://ws.okx.com:8443/ws/v5/business"
+        ],
+        "rest": [
+          "https://www.okx.com"
+        ]
+      },
+      "trade_channel": "trades on public; trades-all not accepted or subscribed",
+      "trade_granularity": "trades aggregated by taker/price/source; cannot expand to executions",
+      "identity_ordering": "tradeId last constituent ID; count/source dropped; seqId may repeat; session fallback conflates seqId/tradeId",
+      "timestamp_semantics": "ts filled ms; canonical ns conversion; no source exchange-send time",
+      "quantity_semantics": "sz base on SPOT, contracts on derivatives; ctVal/ctValCcy/ctMult necessary for derived units",
+      "discovery_metadata": "public/instruments?instType=FUTURES; ctType linear/inverse share VenueId; OPTION/MARGIN excluded",
+      "other_implemented_channels": [
+        "tickers Quote/Statistics24h",
+        "books",
+        "business candle*",
+        "mark-price",
+        "index-tickers",
+        "funding-rate (perpetual applicable only)",
+        "open-interest",
+        "liquidation-orders"
+      ],
+      "official_source_keys": [
+        "okx"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "okx"
+        ],
+        "constraints": "Public trades/history; three-month history max100/page20req/2s, recent max500. EEA endpoint/eligibility must be verified separately; preserve EU spot1x cash/inventory context.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "decode_trades keeps first row only (messages.rs:370)",
+        "count/source absent in TradeRow; trades-all unknown",
+        "source_sequence falls back from seqId to tradeId (session.rs:278)",
+        "Neither recording semantics nor frozen consumer compatibility proven by channel availability"
+      ],
+      "next_actions": [
+        "Specify native provenance sidecar; full-row batches and explicit granularity; bounded trades vs trades-all/reference reconciliation"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/okx/tests/corpus_replay.rs",
+            "crates/adapters/okx/tests/decode_fuzz_smoke.rs",
+            "crates/adapters/okx/tests/decode_simd_parity.rs",
+            "crates/adapters/okx/tests/fixtures.rs",
+            "crates/adapters/okx/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "failed:selected futures subscription rejected",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTC-USD_UM_XPERP-310404",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 0,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 0,
+        "value_multiset": "not-observed",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 11,
+      "code": "bybit-inverse",
+      "family": "bybit",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/bybit/src/specification.rs",
+        "crates/adapters/bybit/src/factory.rs",
+        "crates/adapters/bybit/src/messages.rs",
+        "crates/adapters/bybit/src/session.rs",
+        "crates/adapters/bybit/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Bybit V5",
+      "product_scopes": [
+        {
+          "scope": "bybit-inverse/inverse_perpetual",
+          "product_subfamily": "inverse_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/9/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTCUSD",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 7,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 7,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "bybit-inverse/inverse_dated_future",
+          "product_subfamily": "inverse_dated_future",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/9/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "option",
+        "private",
+        "RPI-specific depth and other unimplemented channel variants"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://stream.bybit.com/v5/public/inverse"
+        ],
+        "rest": [
+          "https://api.bybit.com"
+        ]
+      },
+      "trade_channel": "publicTrade.{symbol}",
+      "trade_granularity": "individual rows in batch; <=1024rows and seq may span messages",
+      "identity_ordering": "i opaque native ID; seq cross sequence not unique trade key; taker S",
+      "timestamp_semantics": "T fill ms; outer ts generation ms dropped from trade rows",
+      "quantity_semantics": "Native v preserved; spot base; derivative denomination needs instrument-specific contract qualification before unit conversion",
+      "discovery_metadata": "instruments-info category=inverse limit1000; nextPageCursor completeness requires separate check; contractType split; options excluded",
+      "other_implemented_channels": [
+        "orderbook",
+        "tickers",
+        "kline",
+        "mark/index/funding/OI ticker fields",
+        "allLiquidation"
+      ],
+      "official_source_keys": [
+        "bybit",
+        "bybit_history"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "bybit_history"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "BT/RPI classification dropped by TradeRow",
+        "No arbitrary-gap recovery demonstrated; discovery pagination not qualified"
+      ],
+      "next_actions": [
+        "Retain trade classifications and outer time; reconcile exact native IDs; verify cursor exhaustion"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/bybit/tests/corpus_replay.rs",
+            "crates/adapters/bybit/tests/decode_simd_parity.rs",
+            "crates/adapters/bybit/tests/fixtures.rs",
+            "crates/adapters/bybit/tests/l2_sync.rs",
+            "crates/adapters/bybit/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTCUSD",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 7,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 7,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 12,
+      "code": "binance-coinm",
+      "family": "binance",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/binance/src/coinm_specification.rs",
+        "crates/adapters/binance/src/coinm_factory.rs",
+        "crates/adapters/binance/src/coinm_messages.rs",
+        "crates/adapters/binance/src/coinm_session.rs",
+        "crates/adapters/binance/src/coinm_instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "product_scopes": [
+        {
+          "scope": "binance-coinm/inverse_perpetual",
+          "product_subfamily": "inverse_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/10/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTCUSD_PERP",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 32,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 32,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "binance-coinm/inverse_dated_future",
+          "product_subfamily": "inverse_dated_future",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/10/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "options",
+        "private account/trading",
+        "margin-account economics"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://dstream.binance.com/stream"
+        ],
+        "rest": [
+          "https://dapi.binance.com"
+        ]
+      },
+      "trade_channel": "legacy @trade; aggTrade decoder",
+      "trade_granularity": "individual and aggregate variants normalize into same Trade model; must retain native channel and aggregation bounds",
+      "identity_ordering": "t vs a distinct namespaces; aggTrade f/l discarded by legacy struct; m buyer-maker; no universal sequence promise",
+      "timestamp_semantics": "T trade ms; routed-v4 source-time metadata differs from legacy; native E retained only where implemented",
+      "quantity_semantics": "Native q contract quantity; contractSize needed; archive baseQty differs from USD-M quoteQty",
+      "discovery_metadata": "exchangeInfo contractType classifies perpetual/dated; increments, contract metadata; filter exclusions must be recorded",
+      "other_implemented_channels": [
+        "bookTicker",
+        "depth + REST snapshot pu",
+        "kline",
+        "ticker",
+        "mark/index/funding",
+        "REST open interest",
+        "forceOrder"
+      ],
+      "official_source_keys": [
+        "binance_coinm",
+        "binance_archive"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "binance_archive"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "Legacy silence comments are endpoint/time-specific, not current evidence",
+        "Aggregate first/last IDs and granularity not represented in canonical Trade"
+      ],
+      "next_actions": [
+        "Verify exact configured endpoint; preserve f/l/a/nq/st when present; acquire each product subfamily separately"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/binance/tests/coinm_fixtures.rs",
+            "crates/adapters/binance/tests/coinm_l2_buffer.rs",
+            "crates/adapters/binance/tests/corpus_replay.rs",
+            "crates/adapters/binance/tests/decode_fuzz_smoke.rs",
+            "crates/adapters/binance/tests/decode_simd_parity.rs",
+            "crates/adapters/binance/tests/fixtures.rs",
+            "crates/adapters/binance/tests/l2_buffer.rs",
+            "crates/adapters/binance/tests/live_ignored.rs",
+            "crates/adapters/binance/tests/usdm_fixtures.rs",
+            "crates/adapters/binance/tests/usdm_l2_buffer.rs",
+            "crates/adapters/binance/tests/usdm_routed_v4.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTCUSD_PERP",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 32,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 32,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 13,
+      "code": "kraken-futures",
+      "family": "kraken",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/kraken/src/futures_specification.rs",
+        "crates/adapters/kraken/src/futures_factory.rs",
+        "crates/adapters/kraken/src/futures_messages.rs",
+        "crates/adapters/kraken/src/futures_session.rs",
+        "crates/adapters/kraken/src/futures_instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Kraken Futures WSv1/RESTv3",
+      "product_scopes": [
+        {
+          "scope": "kraken-futures/linear_perpetual_PF",
+          "product_subfamily": "linear_perpetual_PF",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/11/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "kraken-futures/inverse_perpetual_PI",
+          "product_subfamily": "inverse_perpetual_PI",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/11/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "PI_XBTUSD",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 100,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 100,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "kraken-futures/inverse_dated_future_FI",
+          "product_subfamily": "inverse_dated_future_FI",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/11/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "linear dated futures not supported by parser",
+        "options",
+        "private"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://futures.kraken.com/ws/v1"
+        ],
+        "rest": [
+          "https://futures.kraken.com/derivatives/api/v3",
+          "https://futures.kraken.com/api/charts/v1"
+        ]
+      },
+      "trade_channel": "trade",
+      "trade_granularity": "native matched trade rows and snapshot",
+      "identity_ordering": "uid opaque; seq subscription message sequence; taker side; type fill/liquidation/termination/block",
+      "timestamp_semantics": "time trade ms",
+      "quantity_semantics": "Native qty product units; metadata contract_size; unit conversion not validated",
+      "discovery_metadata": "instruments parser PF/PI/FI; quantity_scale0 and prefix fallback; FI expiry_ns absent",
+      "other_implemented_channels": [
+        "ticker Q/mark/index/funding/OI/statistics",
+        "book",
+        "REST charts candles",
+        "trade liquidation"
+      ],
+      "official_source_keys": [
+        "kraken_futures"
+      ],
+      "history_and_access": {
+        "source_keys": [],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "Dated FI metadata lacks expiry in parsed definition",
+        "Type/classification fidelity beyond Liquidation not demonstrated",
+        "Native product unit and fractional PF precision need independent validation"
+      ],
+      "next_actions": [
+        "Audit qty increment, contract unit and expiry per instrument; recover overlapping snapshot/live IDs"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/kraken/tests/corpus_replay.rs",
+            "crates/adapters/kraken/tests/decode_simd_parity.rs",
+            "crates/adapters/kraken/tests/fixtures.rs",
+            "crates/adapters/kraken/tests/futures_fixtures.rs",
+            "crates/adapters/kraken/tests/l2_sync.rs",
+            "crates/adapters/kraken/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "PI_XBTUSD",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 100,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 100,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 14,
+      "code": "bitstamp",
+      "family": "bitstamp",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/bitstamp/src/specification.rs",
+        "crates/adapters/bitstamp/src/factory.rs",
+        "crates/adapters/bitstamp/src/messages.rs",
+        "crates/adapters/bitstamp/src/session.rs",
+        "crates/adapters/bitstamp/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Bitstamp WSv2/RESTv2",
+      "product_scopes": [
+        {
+          "scope": "bitstamp/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/12/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "btcusd",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 10,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 10,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "derivatives",
+        "L3/live_orders",
+        "private"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws.bitstamp.net"
+        ],
+        "rest": [
+          "https://www.bitstamp.net/api/v2"
+        ]
+      },
+      "trade_channel": "live_trades_{pair}",
+      "trade_granularity": "native trade callback; present protocol claims source-inspected only",
+      "identity_ordering": "id/id_str; type0/1 decoded as buy/sell but current official WS parsed page empty",
+      "timestamp_semantics": "microtimestamp us preferred by parser; preserve second timestamp when present",
+      "quantity_semantics": "amount_str/price_str preferred; native spot quantity; no derivative unit claim",
+      "discovery_metadata": "trading-pairs-info base/counter decimals only; parsed Spot; min_notional etc absent",
+      "other_implemented_channels": [
+        "continuous full order_book live L2/BBO",
+        "diff_order_book decode/replay only",
+        "REST OHLC",
+        "REST ticker statistics"
+      ],
+      "official_source_keys": [
+        "bitstamp",
+        "bitstamp_ws"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "bitstamp"
+        ],
+        "constraints": "Public endpoints; transactions minute/hour/day windows. No full-history retention verified. Commercial usage terms require acquisition-specific review.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "Fresh official WS side semantic confirmation blocked by empty document",
+        "Spot catalog precision fields do not fully specify tick/minimum trading rules"
+      ],
+      "next_actions": [
+        "Obtain official render/reference field confirmation; bounded transactions overlap; retain precise timestamp/strings"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/bitstamp/tests/corpus_replay.rs",
+            "crates/adapters/bitstamp/tests/fixtures.rs",
+            "crates/adapters/bitstamp/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "btcusd",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 10,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 10,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 15,
+      "code": "gemini",
+      "family": "gemini",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/gemini/src/specification.rs",
+        "crates/adapters/gemini/src/factory.rs",
+        "crates/adapters/gemini/src/messages.rs",
+        "crates/adapters/gemini/src/session.rs",
+        "crates/adapters/gemini/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Current multiplexed JSON WS + RESTv1/v2",
+      "product_scopes": [
+        {
+          "scope": "gemini/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/13/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTCUSD",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 6,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 6,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "perpetuals",
+        "prediction markets",
+        "stocks",
+        "private",
+        "legacy market-data-v1/v2 WS"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws.gemini.com/?snapshot=-1"
+        ],
+        "rest": [
+          "https://api.gemini.com/v1",
+          "https://api.gemini.com/v2"
+        ]
+      },
+      "trade_channel": "{symbol}@trade",
+      "trade_granularity": "current multiplexed native trade event",
+      "identity_ordering": "t exact numeric ID; m buyer-maker inverted; no proven global-contiguous IDs",
+      "timestamp_semantics": "E event ns; no distinct execution time field in reviewed WS schema",
+      "quantity_semantics": "p/q decimal strings; native spot base; raw lexical retention distinct from Fixed model",
+      "discovery_metadata": "symbols classified Spot Active with default scales; optional capped symbol details default0; incomplete metadata cannot qualify execution precision",
+      "other_implemented_channels": [
+        "@bookTicker",
+        "@depth@100ms snapshot=-1",
+        "REST candles",
+        "REST ticker statistics"
+      ],
+      "official_source_keys": [
+        "gemini",
+        "gemini_history"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "gemini_history"
+        ],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "REST retention docs conflict:7 calendar days versus timestamp90-day hard limit",
+        "Default scales/status insufficient exact instrument metadata",
+        "Broken/corrected trade handling not demonstrated"
+      ],
+      "next_actions": [
+        "Resolve retention by bounded query and source correspondence; request capped representative metadata; compare exact WS/REST IDs"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/gemini/tests/corpus_replay.rs",
+            "crates/adapters/gemini/tests/fixtures.rs",
+            "crates/adapters/gemini/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTCUSD",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 6,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 6,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 16,
+      "code": "coinbase-spot",
+      "family": "coinbase",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/coinbase/src/specification.rs",
+        "crates/adapters/coinbase/src/factory.rs",
+        "crates/adapters/coinbase/src/messages.rs",
+        "crates/adapters/coinbase/src/session.rs",
+        "crates/adapters/coinbase/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Exchange Classic JSON WS/REST",
+      "product_scopes": [
+        {
+          "scope": "coinbase-spot/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/14/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTC-USD",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 347,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 347,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "Advanced Trade protocol",
+        "INTX/global derivatives",
+        "private"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws-feed.exchange.coinbase.com"
+        ],
+        "rest": [
+          "https://api.exchange.coinbase.com"
+        ]
+      },
+      "trade_channel": "matches",
+      "trade_granularity": "native match; initial last_match context",
+      "identity_ordering": "native trade_id; sequence channel/product context; maker side inverted by decoder; REST needed to recover documented drops",
+      "timestamp_semantics": "RFC3339 time into ns",
+      "quantity_semantics": "native size spot base; precision metadata required",
+      "discovery_metadata": "/products Spot; increments/status; native asset identifiers",
+      "other_implemented_channels": [
+        "ticker Quote/statistics",
+        "authenticated level2",
+        "status instruments",
+        "REST candles"
+      ],
+      "official_source_keys": [
+        "coinbase_classic"
+      ],
+      "history_and_access": {
+        "source_keys": [],
+        "constraints": "Public trades/ticker; repository Exchange L2 authentication is separate. Retention/rate/access not independently qualified.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "Documented possible silent match loss requires heartbeat/REST recovery",
+        "L2 auth availability independent of trade quality"
+      ],
+      "next_actions": [
+        "Audit heartbeat last_trade_id watchdog and overlap REST recovery; mark last_match context"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/coinbase/tests/adv_fixtures.rs",
+            "crates/adapters/coinbase/tests/corpus_replay.rs",
+            "crates/adapters/coinbase/tests/exchange_auth_l2.rs",
+            "crates/adapters/coinbase/tests/exchange_credentials.rs",
+            "crates/adapters/coinbase/tests/fixtures.rs",
+            "crates/adapters/coinbase/tests/intl_fixtures.rs",
+            "crates/adapters/coinbase/tests/l2_sync.rs",
+            "crates/adapters/coinbase/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTC-USD",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 347,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 347,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 17,
+      "code": "bitfinex",
+      "family": "bitfinex",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/bitfinex/src/specification.rs",
+        "crates/adapters/bitfinex/src/factory.rs",
+        "crates/adapters/bitfinex/src/messages.rs",
+        "crates/adapters/bitfinex/src/session.rs",
+        "crates/adapters/bitfinex/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Bitfinex WSv2/RESTv2",
+      "product_scopes": [
+        {
+          "scope": "bitfinex/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/15/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "tBTCUSD",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 48,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 48,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "funding-market trades f*",
+        "dated futures not cataloged",
+        "options",
+        "private"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://api-pub.bitfinex.com/ws/2"
+        ],
+        "rest": [
+          "https://api-pub.bitfinex.com/v2"
+        ]
+      },
+      "trade_channel": "trades",
+      "trade_granularity": "snapshot recent rows plus te; tu deliberately discarded",
+      "identity_ordering": "native ID; signed amount taker side; per-connection chanId mapping; te/tu same-trade policy",
+      "timestamp_semantics": "MTS execution ms",
+      "quantity_semantics": "signed amount absolute quantity plus aggressor; derivative unit/contract interpretation unqualified",
+      "discovery_metadata": "conf pair-list only; hardcoded price scale2 qty8; derivative kind inferred from quote suffix; contract_size/settlement absent",
+      "other_implemented_channels": [
+        "ticker",
+        "book",
+        "candles"
+      ],
+      "official_source_keys": [
+        "bitfinex",
+        "bitfinex_history"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "bitfinex_history"
+        ],
+        "constraints": "Public hist max10000, inclusive start/end in ms, MTS sort,15req/min. Same-millisecond page boundaries need ID coverage proof; universal retention unknown.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "tu correction policy absent (all skipped)",
+        "Snapshots emitted without explicit historical-context provenance in Trade",
+        "Catalog precision and derivative units not authoritative"
+      ],
+      "next_actions": [
+        "Specify correction/dedup and snapshot flags; obtain exact contract/increment metadata; REST hist overlap at equal MTS"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/bitfinex/tests/corpus_replay.rs",
+            "crates/adapters/bitfinex/tests/deriv_fixtures.rs",
+            "crates/adapters/bitfinex/tests/fixtures.rs",
+            "crates/adapters/bitfinex/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "tBTCUSD",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 48,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 48,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 18,
+      "code": "coinbase-adv",
+      "family": "coinbase",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/coinbase/src/advanced/specification.rs",
+        "crates/adapters/coinbase/src/advanced/factory.rs",
+        "crates/adapters/coinbase/src/advanced/messages.rs",
+        "crates/adapters/coinbase/src/advanced/session.rs",
+        "crates/adapters/coinbase/src/advanced/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Advanced Trade JSON WS/brokerage RESTv3",
+      "product_scopes": [
+        {
+          "scope": "coinbase-adv/spot_cash",
+          "product_subfamily": "spot_cash",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/16/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "BTC-USD",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 448,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 448,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "US derivatives",
+        "global derivatives",
+        "INTX",
+        "private"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://advanced-trade-ws.coinbase.com"
+        ],
+        "rest": [
+          "https://api.coinbase.com/api/v3/brokerage/market"
+        ]
+      },
+      "trade_channel": "market_trades",
+      "trade_granularity": "rows collected over250ms, not one economic execution",
+      "identity_ordering": "trade_id strings; maker side inverted; sequence_num envelope distinct from native identity; USD/USDC aliases need explicit instrument lineage",
+      "timestamp_semantics": "trade time RFC3339; outer timestamp source distinct",
+      "quantity_semantics": "native size spot base; derivative denomination out of scope",
+      "discovery_metadata": "/market/products SPOT filter; non-SPOT skipped; fallback increments require qualification",
+      "other_implemented_channels": [
+        "ticker",
+        "level2 l2_data",
+        "status",
+        "heartbeats",
+        "REST candles preferred; WS5m only when received"
+      ],
+      "official_source_keys": [
+        "coinbase_adv",
+        "coinbase_endpoints"
+      ],
+      "history_and_access": {
+        "source_keys": [],
+        "constraints": "Anonymous public market data; regional/network access and usage rights not independently established.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "Full discovery pagination and alias behavior unqualified",
+        "Current docs cover US/global derivatives beyond code boundary"
+      ],
+      "next_actions": [
+        "Verify heartbeats plus exact product/channel lifecycle, aliases and pagination; batch cardinality fixture"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/coinbase/tests/adv_fixtures.rs",
+            "crates/adapters/coinbase/tests/corpus_replay.rs",
+            "crates/adapters/coinbase/tests/exchange_auth_l2.rs",
+            "crates/adapters/coinbase/tests/exchange_credentials.rs",
+            "crates/adapters/coinbase/tests/fixtures.rs",
+            "crates/adapters/coinbase/tests/intl_fixtures.rs",
+            "crates/adapters/coinbase/tests/l2_sync.rs",
+            "crates/adapters/coinbase/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "BTC-USD",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 448,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 448,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    },
+    {
+      "venue_id": 19,
+      "code": "coinbase-intl",
+      "family": "coinbase",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/coinbase/src/intl/specification.rs",
+        "crates/adapters/coinbase/src/intl/factory.rs",
+        "crates/adapters/coinbase/src/intl/messages.rs",
+        "crates/adapters/coinbase/src/intl/session.rs",
+        "crates/adapters/coinbase/src/intl/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Legacy INTX JSON WS/APIv1",
+      "product_scopes": [
+        {
+          "scope": "coinbase-intl/legacy_linear_perpetual",
+          "product_subfamily": "legacy_linear_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/17/evidence/fixture/paths"
+            },
+            "offline": "not_run_by_source_review",
+            "live": "migration_blocked_not_run",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "INTX spot",
+        "funding/risk/candles/index available in legacy docs but not implemented",
+        "trading/private state migration"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://ws-md.international.coinbase.com"
+        ],
+        "rest": [
+          "https://api.international.coinbase.com/api/v1"
+        ]
+      },
+      "trade_channel": "MATCH (legacy env-auth)",
+      "trade_granularity": "native MATCH no initial snapshot; current service migration blocked",
+      "identity_ordering": "match_id opaque; sequence; aggressor OPENING_FILL is mapped Buy by current decoder although native field is not a BUY/SELL value; retain original and qualify policy",
+      "timestamp_semantics": "RFC3339 gateway time; no independently proven execution vs gateway equivalence",
+      "quantity_semantics": "trade_qty native; base_asset_multiplier absent in parsed metadata; unit conversion unqualified",
+      "discovery_metadata": "/instruments filters PERP; hardcoded fallback increments; contract multiplier/settlement absent",
+      "other_implemented_channels": [
+        "LEVEL1",
+        "LEVEL2 top20",
+        "engine status; REST catalog"
+      ],
+      "official_source_keys": [
+        "coinbase_intl",
+        "intx_migration"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "intx_migration"
+        ],
+        "constraints": "Legacy WS requires env-only HMAC credentials. Official migration guide states new Deribit endpoint/keys and legacy history about12months; no credentials or live auth attempted.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "MIGRATION_BLOCKED: official consolidation into Deribit2026-10-01",
+        "Legacy docs still accessible do not prove live operation",
+        "No automatic replacement VenueId or historical source substitution allowed",
+        "intl/messages.rs:136 maps OPENING_FILL to Buy, collapsing native auction/opening semantic; correctness unproven"
+      ],
+      "next_actions": [
+        "Preserve historical Venue19 identity; document dated source transition; separately authorize/implement market-data migration only after scope review"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/coinbase/tests/adv_fixtures.rs",
+            "crates/adapters/coinbase/tests/corpus_replay.rs",
+            "crates/adapters/coinbase/tests/exchange_auth_l2.rs",
+            "crates/adapters/coinbase/tests/exchange_credentials.rs",
+            "crates/adapters/coinbase/tests/fixtures.rs",
+            "crates/adapters/coinbase/tests/intl_fixtures.rs",
+            "crates/adapters/coinbase/tests/l2_sync.rs",
+            "crates/adapters/coinbase/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "blocked:legacy INTX current service/migration access unresolved; no credentials used",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      }
+    },
+    {
+      "venue_id": 20,
+      "code": "bitfinex-deriv",
+      "family": "bitfinex",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "adapter_paths": [
+        "crates/adapters/bitfinex/src/specification.rs",
+        "crates/adapters/bitfinex/src/factory.rs",
+        "crates/adapters/bitfinex/src/messages.rs",
+        "crates/adapters/bitfinex/src/session.rs",
+        "crates/adapters/bitfinex/src/instruments.rs"
+      ],
+      "shared_runtime_paths": [
+        "crates/daemon/src/config.rs",
+        "crates/daemon/src/run.rs",
+        "crates/daemon/src/catalog_discover.rs",
+        "crates/engine/src/runner.rs",
+        "crates/engine/src/live.rs"
+      ],
+      "protocol": "Bitfinex WSv2/RESTv2",
+      "product_scopes": [
+        {
+          "scope": "bitfinex-deriv/linear_perpetual",
+          "product_subfamily": "linear_perpetual",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/18/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": {
+              "status": "verified-for-stated-scope",
+              "assurance": "subscription/sample receipt only; not full trade fidelity",
+              "instrument": "tBTCF0:USTF0",
+              "requested_receipt_window": [
+                "2026-10-19T17:40:49.657390+00:00",
+                "2026-10-19T17:41:50.479755+00:00"
+              ],
+              "native_trade_rows": 43,
+              "native_administrative_rows": 0,
+              "normalized_trade_rows": 43,
+              "value_multiset": "pass",
+              "continuity": "unknown",
+              "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+              "qualification": "not-qualified"
+            },
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        },
+        {
+          "scope": "bitfinex-deriv/inverse_perpetual_inferred_unqualified",
+          "product_subfamily": "inverse_perpetual_inferred_unqualified",
+          "evidence": {
+            "specified": "primary_reference_reviewed_with_listed_limits",
+            "implemented": "source_inspected_not_a_completeness_assertion",
+            "fixture": {
+              "status": "test_sources_present_not_executed_by_this_review",
+              "paths_ref": "#/venues/18/evidence/fixture/paths"
+            },
+            "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+            "live": "not-run:unsampled product subfamily; no sibling extrapolation",
+            "independently_reconciled": "not_run",
+            "storage_dataset_qualified": "not_qualified",
+            "consumer_compatible": "not_demonstrated",
+            "operational_promotion": "not_qualified"
+          },
+          "next_verification": "Separate bounded run with instrument metadata, endpoint/channel lineage and independent reference; do not transfer another subfamily result."
+        }
+      ],
+      "out_of_scope": [
+        "funding-market trades f*",
+        "dated futures not cataloged",
+        "options",
+        "private"
+      ],
+      "configured_endpoints": {
+        "ws": [
+          "wss://api-pub.bitfinex.com/ws/2"
+        ],
+        "rest": [
+          "https://api-pub.bitfinex.com/v2"
+        ]
+      },
+      "trade_channel": "trades",
+      "trade_granularity": "snapshot recent rows plus te; tu deliberately discarded",
+      "identity_ordering": "native ID; signed amount taker side; per-connection chanId mapping; te/tu same-trade policy",
+      "timestamp_semantics": "MTS execution ms",
+      "quantity_semantics": "signed amount absolute quantity plus aggressor; derivative unit/contract interpretation unqualified",
+      "discovery_metadata": "conf pair-list only; hardcoded price scale2 qty8; derivative kind inferred from quote suffix; contract_size/settlement absent",
+      "other_implemented_channels": [
+        "ticker",
+        "book",
+        "candles",
+        "REST status/deriv mark/index/funding/OI",
+        "WS status liq:global"
+      ],
+      "official_source_keys": [
+        "bitfinex",
+        "bitfinex_history"
+      ],
+      "history_and_access": {
+        "source_keys": [
+          "bitfinex_history"
+        ],
+        "constraints": "Public hist max10000, inclusive start/end in ms, MTS sort,15req/min. Same-millisecond page boundaries need ID coverage proof; universal retention unknown.",
+        "retention": "Only specifically cited bounds apply; unverified outside those bounds."
+      },
+      "blockers_and_defects": [
+        "tu correction policy absent (all skipped)",
+        "Snapshots emitted without explicit historical-context provenance in Trade",
+        "Catalog precision and derivative units not authoritative"
+      ],
+      "next_actions": [
+        "Specify correction/dedup and snapshot flags; obtain exact contract/increment metadata; REST hist overlap at equal MTS"
+      ],
+      "evidence": {
+        "specified": "primary_reference_reviewed_with_listed_limits",
+        "implemented": "source_inspected_not_a_completeness_assertion",
+        "fixture": {
+          "status": "test_sources_present_not_executed_by_this_review",
+          "paths": [
+            "crates/adapters/bitfinex/tests/corpus_replay.rs",
+            "crates/adapters/bitfinex/tests/deriv_fixtures.rs",
+            "crates/adapters/bitfinex/tests/fixtures.rs",
+            "crates/adapters/bitfinex/tests/live_ignored.rs"
+          ]
+        },
+        "offline": "workspace-all-targets-all-features:1123 passed,56 ignored at baseline; no universal semantic qualification",
+        "live": "verified-for-stated-scope:sample receipt/value accounting; snapshots included; coverage unknown",
+        "independently_reconciled": "see reference-reconciliation.json; price/quantity/ID intersections only; no full completeness proof",
+        "storage_dataset_qualified": "not-qualified:session/lineage,durability,coverage,reader blockers",
+        "consumer_compatible": "blocked for OKX strict reader; not demonstrated for other venues",
+        "operational_promotion": "not_qualified"
+      },
+      "pilot_measurement": {
+        "instrument": "tBTCF0:USTF0",
+        "requested_receipt_window": [
+          "2026-10-19T17:40:49.657390+00:00",
+          "2026-10-19T17:41:50.479755+00:00"
+        ],
+        "native_trade_rows": 43,
+        "native_administrative_rows": 0,
+        "normalized_trade_rows": 43,
+        "value_multiset": "pass",
+        "continuity": "unknown",
+        "raw_lineage": "failed:normalized session defaults and unrelated ordinals",
+        "qualification": "not-qualified"
+      }
+    }
+  ],
+  "global_next_actions": [
+    "Root analyzer integrates exact pilot scopes/counts/hashes and offline gates without promoting untested products",
+    "Maintain use-specific admission independently from adapter channel availability",
+    "No frozen corpus replacement, source substitution or economic rerun",
+    "No production migration, indefinite collection, paid acquisition or trade authority"
+  ],
+  "trade_protocol_scopes": [
+    {
+      "venue_id": 2,
+      "product_subfamily": "spot_cash",
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "channel": "<symbol>@trade",
+      "endpoints": [
+        "wss://stream.binance.com:9443/stream"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/0/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 3,
+      "product_subfamily": "linear_perpetual",
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "channel": "legacy @trade",
+      "endpoints": [
+        "wss://fstream.binance.com/stream"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "runtime_path": "daemon factory/legacy session",
+      "granularity": "individual",
+      "evidence_ref": "#/venues/1/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 3,
+      "product_subfamily": "linear_dated_future",
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "channel": "legacy @trade",
+      "endpoints": [
+        "wss://fstream.binance.com/stream"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "runtime_path": "daemon factory/legacy session",
+      "granularity": "individual",
+      "evidence_ref": "#/venues/1/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 4,
+      "product_subfamily": "spot_cash",
+      "protocol": "OKX V5",
+      "channel": "trades on public; trades-all not accepted or subscribed",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/public",
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/2/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 4,
+      "product_subfamily": "spot_cash",
+      "protocol": "OKX V5",
+      "channel": "trades-all",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "granularity": "individual",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "evidence": {
+        "implemented": "unsupported",
+        "offline": "not-run",
+        "live": "not-run",
+        "independently_reconciled": "not-run",
+        "dataset_qualified": "not-qualified"
+      },
+      "reason_or_limit": "native alternative documented; current factory never subscribes and decoder does not accept channel; explicit regional/access validation required"
+    },
+    {
+      "venue_id": 5,
+      "product_subfamily": "linear_perpetual",
+      "protocol": "Bybit V5",
+      "channel": "publicTrade.{symbol}",
+      "endpoints": [
+        "wss://stream.bybit.com/v5/public/linear"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/3/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 5,
+      "product_subfamily": "linear_dated_future",
+      "protocol": "Bybit V5",
+      "channel": "publicTrade.{symbol}",
+      "endpoints": [
+        "wss://stream.bybit.com/v5/public/linear"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/3/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 6,
+      "product_subfamily": "spot_cash",
+      "protocol": "Bybit V5",
+      "channel": "publicTrade.{symbol}",
+      "endpoints": [
+        "wss://stream.bybit.com/v5/public/spot"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/4/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 7,
+      "product_subfamily": "spot_cash",
+      "protocol": "Kraken Spot WSv2",
+      "channel": "trade",
+      "endpoints": [
+        "wss://ws.kraken.com/v2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/5/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 8,
+      "product_subfamily": "inverse_perpetual_BTC_ETH",
+      "protocol": "JSON-RPC2 WS/APIv2",
+      "channel": "trades.{instrument}.100ms",
+      "endpoints": [
+        "wss://www.deribit.com/ws/api/v2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/6/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 8,
+      "product_subfamily": "inverse_dated_future_BTC_ETH",
+      "protocol": "JSON-RPC2 WS/APIv2",
+      "channel": "trades.{instrument}.100ms",
+      "endpoints": [
+        "wss://www.deribit.com/ws/api/v2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/6/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 8,
+      "product_subfamily": "linear_perpetual_parser_only",
+      "protocol": "JSON-RPC2 WS/APIv2",
+      "channel": "trades.{instrument}.100ms",
+      "endpoints": [
+        "wss://www.deribit.com/ws/api/v2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/6/product_scopes/2/evidence"
+    },
+    {
+      "venue_id": 8,
+      "product_subfamily": "linear_dated_future_parser_only",
+      "protocol": "JSON-RPC2 WS/APIv2",
+      "channel": "trades.{instrument}.100ms",
+      "endpoints": [
+        "wss://www.deribit.com/ws/api/v2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/6/product_scopes/3/evidence"
+    },
+    {
+      "venue_id": 9,
+      "product_subfamily": "linear_perpetual",
+      "protocol": "OKX V5",
+      "channel": "trades on public; trades-all not accepted or subscribed",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/public",
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/7/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 9,
+      "product_subfamily": "linear_perpetual",
+      "protocol": "OKX V5",
+      "channel": "trades-all",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "granularity": "individual",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "evidence": {
+        "implemented": "unsupported",
+        "offline": "not-run",
+        "live": "not-run",
+        "independently_reconciled": "not-run",
+        "dataset_qualified": "not-qualified"
+      },
+      "reason_or_limit": "native alternative documented; current factory never subscribes and decoder does not accept channel; explicit regional/access validation required"
+    },
+    {
+      "venue_id": 9,
+      "product_subfamily": "inverse_perpetual",
+      "protocol": "OKX V5",
+      "channel": "trades on public; trades-all not accepted or subscribed",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/public",
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/7/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 9,
+      "product_subfamily": "inverse_perpetual",
+      "protocol": "OKX V5",
+      "channel": "trades-all",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "granularity": "individual",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "evidence": {
+        "implemented": "unsupported",
+        "offline": "not-run",
+        "live": "not-run",
+        "independently_reconciled": "not-run",
+        "dataset_qualified": "not-qualified"
+      },
+      "reason_or_limit": "native alternative documented; current factory never subscribes and decoder does not accept channel; explicit regional/access validation required"
+    },
+    {
+      "venue_id": 10,
+      "product_subfamily": "linear_dated_future",
+      "protocol": "OKX V5",
+      "channel": "trades on public; trades-all not accepted or subscribed",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/public",
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/8/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 10,
+      "product_subfamily": "linear_dated_future",
+      "protocol": "OKX V5",
+      "channel": "trades-all",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "granularity": "individual",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "evidence": {
+        "implemented": "unsupported",
+        "offline": "not-run",
+        "live": "not-run",
+        "independently_reconciled": "not-run",
+        "dataset_qualified": "not-qualified"
+      },
+      "reason_or_limit": "native alternative documented; current factory never subscribes and decoder does not accept channel; explicit regional/access validation required"
+    },
+    {
+      "venue_id": 10,
+      "product_subfamily": "inverse_dated_future",
+      "protocol": "OKX V5",
+      "channel": "trades on public; trades-all not accepted or subscribed",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/public",
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/8/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 10,
+      "product_subfamily": "inverse_dated_future",
+      "protocol": "OKX V5",
+      "channel": "trades-all",
+      "endpoints": [
+        "wss://ws.okx.com:8443/ws/v5/business"
+      ],
+      "granularity": "individual",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "evidence": {
+        "implemented": "unsupported",
+        "offline": "not-run",
+        "live": "not-run",
+        "independently_reconciled": "not-run",
+        "dataset_qualified": "not-qualified"
+      },
+      "reason_or_limit": "native alternative documented; current factory never subscribes and decoder does not accept channel; explicit regional/access validation required"
+    },
+    {
+      "venue_id": 11,
+      "product_subfamily": "inverse_perpetual",
+      "protocol": "Bybit V5",
+      "channel": "publicTrade.{symbol}",
+      "endpoints": [
+        "wss://stream.bybit.com/v5/public/inverse"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/9/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 11,
+      "product_subfamily": "inverse_dated_future",
+      "protocol": "Bybit V5",
+      "channel": "publicTrade.{symbol}",
+      "endpoints": [
+        "wss://stream.bybit.com/v5/public/inverse"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/9/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 12,
+      "product_subfamily": "inverse_perpetual",
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "channel": "legacy @trade; aggTrade decoder",
+      "endpoints": [
+        "wss://dstream.binance.com/stream"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/10/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 12,
+      "product_subfamily": "inverse_dated_future",
+      "protocol": "Binance JSON WS; segment REST APIs",
+      "channel": "legacy @trade; aggTrade decoder",
+      "endpoints": [
+        "wss://dstream.binance.com/stream"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/10/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 13,
+      "product_subfamily": "linear_perpetual_PF",
+      "protocol": "Kraken Futures WSv1/RESTv3",
+      "channel": "trade",
+      "endpoints": [
+        "wss://futures.kraken.com/ws/v1"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/11/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 13,
+      "product_subfamily": "inverse_perpetual_PI",
+      "protocol": "Kraken Futures WSv1/RESTv3",
+      "channel": "trade",
+      "endpoints": [
+        "wss://futures.kraken.com/ws/v1"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/11/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 13,
+      "product_subfamily": "inverse_dated_future_FI",
+      "protocol": "Kraken Futures WSv1/RESTv3",
+      "channel": "trade",
+      "endpoints": [
+        "wss://futures.kraken.com/ws/v1"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/11/product_scopes/2/evidence"
+    },
+    {
+      "venue_id": 14,
+      "product_subfamily": "spot_cash",
+      "protocol": "Bitstamp WSv2/RESTv2",
+      "channel": "live_trades_{pair}",
+      "endpoints": [
+        "wss://ws.bitstamp.net"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/12/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 15,
+      "product_subfamily": "spot_cash",
+      "protocol": "Current multiplexed JSON WS + RESTv1/v2",
+      "channel": "{symbol}@trade",
+      "endpoints": [
+        "wss://ws.gemini.com/?snapshot=-1"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/13/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 16,
+      "product_subfamily": "spot_cash",
+      "protocol": "Exchange Classic JSON WS/REST",
+      "channel": "matches",
+      "endpoints": [
+        "wss://ws-feed.exchange.coinbase.com"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/14/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 17,
+      "product_subfamily": "spot_cash",
+      "protocol": "Bitfinex WSv2/RESTv2",
+      "channel": "trades",
+      "endpoints": [
+        "wss://api-pub.bitfinex.com/ws/2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/15/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 18,
+      "product_subfamily": "spot_cash",
+      "protocol": "Advanced Trade JSON WS/brokerage RESTv3",
+      "channel": "market_trades",
+      "endpoints": [
+        "wss://advanced-trade-ws.coinbase.com"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/16/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 19,
+      "product_subfamily": "legacy_linear_perpetual",
+      "protocol": "Legacy INTX JSON WS/APIv1",
+      "channel": "MATCH (legacy env-auth)",
+      "endpoints": [
+        "wss://ws-md.international.coinbase.com"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/17/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 20,
+      "product_subfamily": "linear_perpetual",
+      "protocol": "Bitfinex WSv2/RESTv2",
+      "channel": "trades",
+      "endpoints": [
+        "wss://api-pub.bitfinex.com/ws/2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/18/product_scopes/0/evidence"
+    },
+    {
+      "venue_id": 20,
+      "product_subfamily": "inverse_perpetual_inferred_unqualified",
+      "protocol": "Bitfinex WSv2/RESTv2",
+      "channel": "trades",
+      "endpoints": [
+        "wss://api-pub.bitfinex.com/ws/2"
+      ],
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "reason_or_limit": "source-inspected; all strict dataset/consumer/operational qualifications remain non-passing",
+      "evidence_ref": "#/venues/18/product_scopes/1/evidence"
+    },
+    {
+      "venue_id": 3,
+      "product_subfamily": "linear_perpetual_BNBUSDT_only",
+      "protocol": "Binance USD-M routed-v4",
+      "channel": "@aggTrade",
+      "endpoints": [
+        "wss://fstream.binance.com/market/ws"
+      ],
+      "paired_public_endpoint": "wss://fstream.binance.com/public/ws",
+      "runtime_path": "crates/adapters/binance/src/usdm_session.rs::try_new_routed_pair_v4; crates/event-pulse-mfr1/src/v2.rs",
+      "source_sha": "1c668981ee2d5b456dfa6d085fbd558b1998937d",
+      "granularity": "aggregate",
+      "evidence": {
+        "implemented": "implemented-specialized-library-path",
+        "offline": "routed-v4 and composition fixtures passed in workspace-all-targets gate",
+        "live": "not-run",
+        "independently_reconciled": "not-run",
+        "dataset_qualified": "not-qualified"
+      },
+      "reason_or_limit": "strict BNBUSDT routed context; BTC legacy live observations do not transfer; prospective E2 package admission not performed"
+    }
+  ],
+  "trade_protocol_scope_count": 37
+}
