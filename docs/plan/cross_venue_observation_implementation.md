@@ -107,3 +107,25 @@ packages and contracts. No strategy-specific context engine will be added to
 cryptofeed-rs. Finish feed-integrity prerequisites here and inspect the existing
 owner source/pins/dirty state before an additive rsibot change. Generic exact
 market-data primitives may remain here when they have no strategy ownership.
+
+The concrete implementation boundary is:
+
+| Repository | Implementation |
+|---|---|
+| cryptofeed-rs | Exchange acquisition, exact native values and instrument identity, receipt/source timestamps, quality events, authoritative live publication, raw/canonical storage and replay |
+| rsibot | Shared-feed and immutable-dataset readers; cross-venue alignment, availability, feature combination, models and strategy decision traces in existing owner packages |
+| hlscreen | Shared-feed reader and presentation |
+
+rsibot reads cryptofeed directly rather than using hlscreen as a data source.
+Consumers advance independently over versioned schemas and durable cursors;
+research inputs also pin immutable dataset manifests. Shared identity/provenance
+and explicit freshness/quality checks keep consumers consistent without requiring
+them to process every event simultaneously. An unavailable required input remains
+unavailable in rsibot. Collection recovery and exact replay remain feed concerns;
+entry-context admission and legacy inventory/exit behavior remain owner concerns.
+
+The first Quants Lab change is a local read-only manifest inspector and admission
+boundary. It does not yet implement a live context consumer or strategy features.
+The next owner implementation must inspect the existing cross-venue contracts,
+add one opt-in reader and deterministic availability tests, and demonstrate
+unchanged legacy behavior before introducing a predefined research hypothesis.
