@@ -204,7 +204,7 @@ remaining venue failures are still open work under the active goal.
 
 ## Dataset and consumer review checkpoint (goal remains active)
 
-The offline `marketfeed-datasets` crate (Rust1.88; collector/core remain1.85)
+The offline `marketfeed-datasets` crate (Rust 1.88; collector/core remain1.85)
 implements bounded sealed Hyperliquid trade export. Original MFR1 bytes and
 metadata are reconciled with accepted MFSF1 inputs, exact canonical rows and
 connection generations. Publication uses immutable content hashes, parent CAS,
@@ -269,7 +269,7 @@ profiles are denied. Decision remains validated-not-qualified. Development
 artifacts live only in ignored evidence; old failed/partial artifacts are intact.
 
 Final checkpoint gates: cryptofeed1175 passed/56 ignored; hlscreen542 passed;
-core Rust1.85 library437 passed; dataset Rust1.88 thirteen tests passed. Clippy,
+core Rust1.85 library437 passed; dataset Rust 1.88 thirteen tests passed. Clippy,
 source scan and cryptofeed dependency gates pass. Hlscreen dependency gate needed
 an explicit shared repository allowlist plus required immutable rev, now passing;
 its generated licenses/notices were refreshed. The old binary soak report cannot
@@ -503,7 +503,7 @@ never creates files/locks, syncs, recovers or acquires the writer lock. CLI insp
 admit and backup/restore sources use this path; mutation methods reject a reader.
 Fifteen dataset tests pass, including reads under an existing writer lock and
 missing/incomplete-store CLI failure without resource creation. Clippy and
-Rust1.88 package checks passed.
+Rust 1.88 package checks passed.
 
 A separate read-only copy of the existing saved capture passed real consumer
 inspection (2666 rows), all five strict profiles denied, unchanged complete store
@@ -899,11 +899,37 @@ seams, not filesystem-publication fault injection. The exploratory 1257-test run
 started before the independent six-test engine file existed; its source changed
 while compiling and is not substituted for the final-source run.
 
-Hlscreen source d40d4136a53ad130c4374d2e34ccb9778f1c8748 pins both direct and
-all four transitive marketfeed packages to 410c3ca, with unchanged registry versions.
+Hlscreen source d40d4136a53ad130c4374d2e34ccb9778f1c8748 pins both direct dependencies and
+the complete four-package marketfeed graph to 410c3ca, with unchanged registry versions.
 Its 542 Rust 1.88 all-target tests and Clippy/MSRV/pin/license/source checks pass.
 Independent saved-prefix replay reproduces all 1,055 events, exact summary/cursor/
 archive clock and unchanged feed hashes. The migration receipt is retained in
 hlscreen docs/evidence/shared-feed-pin-20261019; earlier live/soak measurements
 retain their original pins. Windows durability, rsibot live context and all other
 open goal gates remain unfinished.
+
+### Remote advisory and PTY follow-up
+
+Hlscreen remote RustSec job 118361654247 exposed five Quinn advisories, an LRU
+unsoundness warning and a yanked ChaCha version on the earlier lock. Source
+82b715b now updates only quinn-proto 0.11.18 / lru 0.18.2 / chacha20 0.10.2 registry
+version/checksum records, preserving producer pin 410c3ca, all dependency vectors
+and other records. Full-lock cargo-audit 0.22.2 passes with zero vulnerabilities
+or warnings on database 999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b; no ignore policy
+was added. Generated licenses/notices and source/license checks pass.
+
+The test rerun found an orphaned test-owned sleep after one-shot PTY group kill.
+A separate engineer repaired bounded repeated escalation under the original
+absolute deadline/watchdog, with a fixed three-session challenge requiring every
+case to pass. The exact kernel fork/delivery race is inferred rather than traced.
+Original CI/test failures remain retained. All 543 final-source Rust 1.88 all-target
+tests, Clippy/formatting and the complete 6-test PTY file pass; the 1,055-event
+saved Hyperliquid summary remains identical. The current remote matrix is pending.
+Hlscreen docs/evidence/security-lock-20261019 binds exact lock/tool/source/log hashes.
+
+A separate full-lock scan of cryptofeed itself is still FAILED: five Quinn
+advisories and yanked ChaCha need compatible lock repair, alongside the existing
+explicit time/MSRV/RFC2822 exception. Five npm UI alerts also remain open. Passing
+cargo-deny's configured active-graph policy is not full-lock advisory clearance.
+The inventory is under docs/evidence/dependency-advisories-2026-10-19.json.
+These repairs and Windows publication remain required goal work, not waived gates.

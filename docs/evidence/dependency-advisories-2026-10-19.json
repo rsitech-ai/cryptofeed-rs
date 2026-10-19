@@ -91,5 +91,77 @@
       "disposition": "existing explicit RUSTSEC-2026-0009 exception: RFC2822 parser excluded; patched time needs1.88 above frozen1.85 MSRV; reachability boundary must remain verified"
     }
   ],
-  "next_action": "Verify exact patched npm package availability, apply minimal compatible lockfile repair, run UI tests/build/embedded-asset checks; preserve documented Rust MSRV/reachability constraints. No advisory is dismissed or called fixed by cargo-deny passing."
+  "next_action": "Verify exact patched npm package availability, apply minimal compatible lockfile repair, run UI tests/build/embedded-asset checks; preserve documented Rust MSRV/reachability constraints. No advisory is dismissed or called fixed by cargo-deny passing.",
+  "full_lock_scan": {
+    "command": "cargo audit --deny warnings --json",
+    "tool": "cargo-audit0.22.2",
+    "source_head": "7b12ea7dbb408fa3508d62f51885768830dd2159",
+    "exit": 1,
+    "log_path": ".local/evidence/hyperliquid-integration-review/cryptofeed-full-lock-audit-01.json",
+    "result_sha256": "bf5f61ba193499e2403cfc0a597ba018fe471603738475e28a76fde090bee9ab",
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    },
+    "vulnerabilities": [
+      {
+        "id": "RUSTSEC-2026-0342",
+        "package": "quinn-proto",
+        "version": "0.11.16",
+        "patched": [
+          ">=0.11.17"
+        ]
+      },
+      {
+        "id": "RUSTSEC-2026-0339",
+        "package": "quinn-proto",
+        "version": "0.11.16",
+        "patched": [
+          ">=0.11.17"
+        ]
+      },
+      {
+        "id": "RUSTSEC-2026-0338",
+        "package": "quinn-proto",
+        "version": "0.11.16",
+        "patched": [
+          ">=0.11.18"
+        ]
+      },
+      {
+        "id": "RUSTSEC-2026-0340",
+        "package": "quinn-proto",
+        "version": "0.11.16",
+        "patched": [
+          ">=0.11.18"
+        ]
+      },
+      {
+        "id": "RUSTSEC-2026-0341",
+        "package": "quinn-proto",
+        "version": "0.11.16",
+        "patched": [
+          ">=0.11.17"
+        ]
+      },
+      {
+        "id": "RUSTSEC-2026-0009",
+        "package": "time",
+        "version": "0.3.41",
+        "patched": [
+          ">=0.3.47"
+        ]
+      }
+    ],
+    "warnings": {
+      "yanked": [
+        {
+          "package": "chacha20",
+          "version": "0.10.1"
+        }
+      ]
+    },
+    "disposition": "open; five quinn advisories and yanked chacha require compatible lock repair. time remains existing explicit MSRV/RFC2822 reachability exception. cargo-deny active-graph policy acceptance is not full-lock advisory clearance."
+  }
 }
