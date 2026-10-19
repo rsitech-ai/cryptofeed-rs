@@ -567,3 +567,55 @@ Metadata discovery also currently requests only the first1000 derivative rows
 and does not follow nextPageCursor; whole-catalog coverage cannot be claimed.
 Liquidation bankruptcy-price/position metadata and channel-specific readiness
 remain open. No original/frozen corpus, strategy owner or rsibot pointer changed.
+
+
+## Bybit bounded live and durable parity checkpoint
+
+Source57ae5a91cc12e0bba329c664cc79768bfed0049c, clean at launch, immutable
+executable SHA f9e751c2229bcda80e393b260913debb220c04040502778747d706714b739cf0.
+The planned30s public spot BTCUSDT/linear BTCUSDT/inverse BTCUSD probe ran
+2026-10-19T21:31:53.344753Z–21:32:23.898330Z and exited0 with all venue sessions,
+recorder and sink workers joined cleanly. No credentials or orders were used.
+Observed76 native trades (spot59,linear16,inverse1) and31 candle updates
+(spot13,linear15,inverse3), all exactly reconciled to committed canonical rows,
+with no unaccepted inbound text, native/canonical differences or reported source
+parse/drop/gap/unknown error. Inverse coverage is one observed trade, not a
+product-wide verification. The nominal ready endpoint returned200 after startup
+but Bybit channel-specific ACK readiness is not audited or qualified here.
+
+Independent-format parity compares all original MFR1 application payloads and
+metadata against the MFSF1 prefix, including session/ordinal, receipt/monotonic
+times, direction/opcode and duplicate multiplicity:727 frames and4 metadata
+records match. One original raw object193317bytes has SHA
+2053d5c3c2662ba8e7e9b02f78b5d291ea5c90bb2abb2a28a75b7df4c0634de3.
+Committed cursor eda0f8b2588691e9735774d635a9a4a0f91e4ee0 /2113 /2469004
+has prefix SHA345f96eeaba43094e37721981e5acfbac3a0f8706e75922fe16e37456b6a3c5e.
+Compact launch/audit/parity receipts, config and observed flags/finality counts
+are in docs/evidence/bybit-native-2026-10-19; originals stay in ignored evidence.
+
+The full workspace all-targets/all-features gate completed1206passed/0failed/
+56deliberately ignored. Relevant104 Rust1.85 library checks, workspace Clippy/
+rustdoc and source/secret checks pass. Python tools now pass48 tests, including
+real-framing duplicate-multiplicity, coordinate/type, metadata and corruption
+challenges. The raw/shared parity tool is separately under final review.
+No mixed HTTP/timer causal replay, gap-free source delivery, WS quantity-unit
+qualification, strict Bybit dataset, actual OKX trade consumer or multi-day
+operational qualification follows from this finite public WS capture.
+
+
+The raw/shared parity review additionally exposed acceptance of truncated MFR1
+headers and pre-v2 metadata opcodes. The pure parser now requires the full22byte
+header, supported versions, version-specific opcodes and valid directions. The
+parity verdict requires nonempty application frames plus a single final shared
+seal with no following records. Raw process closure is explicitly an external
+caller assumption, supported for this probe by its launch/shutdown receipt.
+The real727-frame/four-metadata parity remains exact after this repair.50Python
+tests now pass; prior failed checks and reviewer disagreements remain in local
+evidence. The old fixture and frozen raw bytes were not modified.
+
+Final independent raw/shared review passed50 Python tests and independently
+rechecked the saved727 application frames/four metadata records and final seal.
+All findings in the native trade/candle and new verifier slices are closed.
+Exact validator source hashes are retained in final-validation.json. Remaining
+Bybit L2/update-ID, metadata pagination, liquidation semantics, channel readiness
+and continuity findings remain open; the overall goal is still active.

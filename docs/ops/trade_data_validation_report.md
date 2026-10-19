@@ -413,3 +413,15 @@ discard, first-page-only derivative catalog, missing liquidation bankruptcy-pric
 provenance, exact per-channel ACK readiness, source continuity and WS quantity
 unit qualification. These repairs do not admit a dataset or verify every product.
 See adapter README and active implementation ledger for source contracts/evidence.
+
+
+Followup observed source57ae5a9:30s public spot/linear/inverse probe cleanexit0,
+76 trades and31 candle updates reconciled exactly. All727 application frames
+and4 metadata records match original raw storage vs committed shared prefix.
+The inverse sample contains only1 trade. Full workspace1206passed/56ignored;
+48Python audits pass. Compact receipts and exact bounds/hashes are under
+docs/evidence/bybit-native-2026-10-19. Bybit readiness/continuity, units, L2 and
+liquidation limitations above remain unchanged. This is not a strict dataset.
+
+Raw/shared verifier followup:50Python tests pass after strict full MFR1 header,
+version/opcode/direction, nonempty evidence and final shared-seal checks.

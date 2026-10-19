@@ -1,0 +1,69 @@
+{
+  "start_utc": "2026-10-19T21:31:53.344753+00:00",
+  "source": "57ae5a91cc12e0bba329c664cc79768bfed0049c",
+  "source_clean": true,
+  "binary_sha256": "f9e751c2229bcda80e393b260913debb220c04040502778747d706714b739cf0",
+  "config_sha256": "afdaafb9c21fa4453303f9a5fcfaac6048dbb20059bb0160fbfcea872ac5162d",
+  "health": [
+    {
+      "error": "<urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "error": "HTTP Error 503: "
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    }
+  ],
+  "exit": 0,
+  "end_utc": "2026-10-19T21:32:23.898330+00:00"
+}

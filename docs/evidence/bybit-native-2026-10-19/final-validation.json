@@ -1,0 +1,33 @@
+{
+  "schema": "marketfeed.bybit_validation.v1",
+  "checks": {
+    "full_workspace_all_targets_all_features": {
+      "passed": 1206,
+      "failed": 0,
+      "ignored": 56
+    },
+    "python_audit_suite": {
+      "passed": 50
+    },
+    "rust185_libraries": {
+      "passed": 104
+    },
+    "workspace_clippy": "passed",
+    "workspace_rustdoc": "passed",
+    "source_secret_scan": "passed",
+    "independent_review": "closed for native semantics, Bybit oracle and raw/shared parity public WS slices"
+  },
+  "live_native_audit": "native-audit.json",
+  "raw_shared_parity": "raw-shared-parity.json",
+  "dataset_admitted": false,
+  "goal_complete": false,
+  "collector_source": "57ae5a91cc12e0bba329c664cc79768bfed0049c",
+  "rust_validation_source": "57ae5a91cc12e0bba329c664cc79768bfed0049c",
+  "python_validator_sources_sha256": {
+    "scripts/audit_bybit_shared_feed.py": "f1707b9cd9f421e31a00a8ef77fe83a28ce239585564c3dbfafe4e30d01f2395",
+    "scripts/audit_shared_feed.py": "bc57600e09faeaa80c2f121e126f04cec01718c2e7e0ffcd21cd0e5f3c5a494e",
+    "scripts/audit_raw_shared_frames.py": "7fe7144019e41f7e85a95675b5695c6db161e06951225ef7dd0587c94a87cb49",
+    "scripts/audit_trade_capture.py": "8b6b942dac7839cf66238a3974163b1b6b35932038aac26444a847f1f3096dd8"
+  },
+  "acquisition_plan_execution": "completed as described; original prepared plan retained with source57ae5a9 and separate observed receipts"
+}

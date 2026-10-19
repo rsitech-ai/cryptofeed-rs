@@ -1,0 +1,7 @@
+{
+  "schema": "marketfeed.exact_config.v1",
+  "original_sha256": "afdaafb9c21fa4453303f9a5fcfaac6048dbb20059bb0160fbfcea872ac5162d",
+  "original_utf8": "[engine]\nshutdown_deadline_secs = 10\n[telemetry]\nbind = \"127.0.0.1:19140\"\n[readiness]\nmin_live_sessions = 3\nrequire_recording_healthy = true\n[recording]\nshared_directory = \".local/evidence/hyperliquid-integration-review/bybit-native-pilot-01-feed\"\nshared_max_bytes = 67108864\n[recording.raw]\nenabled = true\ndirectory = \".local/evidence/hyperliquid-integration-review/bybit-native-pilot-01-raw\"\nsegment_size = \"16MiB\"\nsegment_duration = \"60s\"\nqueue_capacity = 8192\noverflow = \"fail_engine\"\nmin_free_space = \"1GiB\"\n\n[[venues]]\nid = \"bybit-spot\"\nadapter = \"bybit\"\nsegment = \"spot\"\ntransport = \"live\"\nsymbols = [\"BTCUSDT\"]\nchannels = [\"trades\", \"candles\", \"quote\"]\n\n[[venues]]\nid = \"bybit-linear\"\nadapter = \"bybit\"\nsegment = \"linear\"\ntransport = \"live\"\nsymbols = [\"BTCUSDT\"]\nchannels = [\"trades\", \"candles\", \"quote\"]\n\n[[venues]]\nid = \"bybit-inverse\"\nadapter = \"bybit\"\nsegment = \"inverse\"\ntransport = \"live\"\nsymbols = [\"BTCUSD\"]\nchannels = [\"trades\", \"candles\", \"quote\"]\n\n",
+  "display_toml_sha256": "b6d3fb17ba5b86b8fbef6cd6d83dae6e6d7e93c893614442157b5b80612f4fb6",
+  "note": "pilot-config.toml removes only the trailing empty line to satisfy repository whitespace checks; original_utf8 is the exact launched configuration"
+}
