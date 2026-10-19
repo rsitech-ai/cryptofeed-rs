@@ -752,3 +752,40 @@ all-feature daemon. Exact commands and source/log hashes are retained in
 docs/evidence/bybit-catalog-2026-10-19/offline-validation.json. No dependency
 versions changed. Independent runtime and adapter findings are closed; new live
 catalog verification follows separately from these offline checks.
+
+## Checkpoint: real catalog admission on source d07f5c9
+
+Clean source d07f5c97e17fa24647527a33baa12258417e0f48 was rebuilt and captured
+for 30 seconds from 2026-10-19T22:13:49.373728Z, clean exit 0 at 22:14:19.654456Z.
+Actual spot requests omit pagination parameters. Returned pages contained
+527 spot / 906 linear / 26 inverse rows. Finite inspection checks their native
+category/product kinds and exact positive price/quantity increments, plus the
+three selected session catalog entries and full HTTP query provenance.
+Both derivative cursors were empty: no live multi-page continuation was observed.
+The separate scripted page-chain/failure tests remain its bounded evidence.
+
+All 984 native book/BBO rows reconcile (3 snapshots / 667 deltas / 314 quotes),
+and raw/shared storage matches 1179 application frames and 4 metadata records.
+All 114 observed trades and 12 candle updates match exactly, with no reported
+source errors or unaccepted text frames. However **no inverse trade arrived**,
+so the predeclared strict three-trade-venue audit exits 1 with missing venue 11.
+That result remains failed/unmet; it was not relaxed or replaced by another
+capture. The book, raw/shared and finite catalog checks pass within their scopes.
+Readiness reached 200 but exact channel ACK qualification is still open.
+
+Raw 349536 bytes SHA 93b427bdd8c1153195f27ce435f83f4495de54064801eee40a0649ddff720e11.
+Shared cursor 97fc91bac89f8d1fc31eedcc06f86e0620637cb8 /3478 /3507908 has prefix
+SHA a53a06f18c93e37a41473f88728d7880442d7801fc06c0b022d3f3bd332b74c0.
+Compact launch/config/plan/audit/disposition records are under
+docs/evidence/bybit-catalog-2026-10-19. Original raw/journal, failed gate logs
+and supplemental one-off inspection source remain in ignored evidence.
+The latter is a finite supplemental inspection, not a general qualified reader.
+Native settlement/expiry/contract units, source continuity, dataset admission,
+live continuation and sustained operational gates remain unqualified.
+
+Independent read-only checks confirm the scoped live catalog/book/raw results
+and the retained missing-inverse-trade failure. Returned products comprise
+866 linear perpetuals / 40 linear futures / 527 spot pairs / 22 inverse
+perpetuals / 4 inverse futures. Their kinds/increments are checked; native
+settlement, expiry and contract units are still not qualified. No capture was
+repeated or acceptance gate weakened to replace the sparse inverse sample.

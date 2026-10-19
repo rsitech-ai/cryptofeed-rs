@@ -1,0 +1,38 @@
+{
+  "schema": "marketfeed.bybit_catalog_finite_inspection.v1",
+  "checks_passed": true,
+  "source": "d07f5c97e17fa24647527a33baa12258417e0f48",
+  "venues": {
+    "5": {
+      "category": "linear",
+      "pages": 1,
+      "native_rows_checked": 906,
+      "selected_metadata_rows_checked": 1,
+      "continuation_observed": false
+    },
+    "6": {
+      "category": "spot",
+      "pages": 1,
+      "native_rows_checked": 527,
+      "selected_metadata_rows_checked": 1,
+      "continuation_observed": false
+    },
+    "11": {
+      "category": "inverse",
+      "pages": 1,
+      "native_rows_checked": 26,
+      "selected_metadata_rows_checked": 1,
+      "continuation_observed": false
+    }
+  },
+  "selected_metadata_rows": 3,
+  "claim_scope": "request shape, finite returned native product/increment rows and selected session metadata only; not atomic universe, settlement/expiry/contract-unit qualification or dataset admission",
+  "dataset_admitted": false,
+  "one_off_inspection": true,
+  "cursor": {
+    "feed_id": "97fc91bac89f8d1fc31eedcc06f86e0620637cb8",
+    "sequence": 3478,
+    "offset": 3507908
+  },
+  "committed_prefix_sha256": "a53a06f18c93e37a41473f88728d7880442d7801fc06c0b022d3f3bd332b74c0"
+}

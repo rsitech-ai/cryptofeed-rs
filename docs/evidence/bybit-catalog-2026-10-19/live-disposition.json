@@ -1,0 +1,27 @@
+{
+  "schema": "marketfeed.bybit_catalog_live_disposition.v1",
+  "collector_source": "d07f5c97e17fa24647527a33baa12258417e0f48",
+  "catalog_native_rows_checked": 1459,
+  "selected_metadata_rows_checked": 3,
+  "catalog_and_startup_inspection": "passed for returned pages and selected product/increment fields",
+  "native_book_bbo_rows": 984,
+  "raw_shared_application_frames": 1179,
+  "raw_shared_metadata_records": 4,
+  "native_trade_rows": 114,
+  "native_candle_rows": 12,
+  "observed_native_row_differences": 0,
+  "strict_all_three_trade_venue_gate": "not-satisfied; venue11 inverse had no observed trade; original auditor exit1 retained",
+  "live_multi_page_continuation": "not-observed; all derivative cursors empty",
+  "audit_scopes": "finite request/category/product/increment inspection and saved WS row/frame reconciliation; no general catalog validator qualification",
+  "supplemental_one_off_inspection_source_sha256": "76e3428efd1fb6933f102d6ae2d52654955a99b9258751b1f15c8ac46a59a652",
+  "dataset_admitted": false,
+  "goal_complete": false,
+  "independent_readonly_review": "passed scoped catalog/book/raw checks and independently confirmed the retained missing-inverse-trade failure; no capture/gate rerun",
+  "native_product_counts": {
+    "linear_perpetual": 866,
+    "linear_future": 40,
+    "spot": 527,
+    "inverse_perpetual": 22,
+    "inverse_future": 4
+  }
+}

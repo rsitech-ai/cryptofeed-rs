@@ -458,3 +458,30 @@ rsibot/Quants Lab, with Hummingbot retaining admitted execution and inventory
 ownership. cryptofeed supplies the authoritative data/storage/replay contracts;
 hlscreen consumes them. The local Quants handoff currently verifies manifests
 and admission, with continuous observations and strategy features still pending.
+
+## Bybit catalog continuation and native schema followup
+
+Derivative catalog discovery now follows bounded, percent-encoded native cursors
+until an explicit terminal page; spot omits unsupported pagination parameters.
+Page/cursor/byte/row/time bounds, duplicate identities, wrong categories/types,
+cycles and failed later requests refuse partial publication. Unknown/mismatched
+derivative contractType cannot become a perpetual by default. Quantity increment
+selection requires native spot basePrecision or derivative qtyStep, without
+cross-schema fallback. See ADR0014 and the adapter README for exact bounds and
+the distinction between page collection and existing optional detail requests.
+
+Independent reviews close the new adapter/runtime findings. All-feature Bybit
+68 tests / 4 ignored and daemon 149 tests pass. Workspace all-target/all-feature
+compilation, Clippy, rustdoc, affected Rust1.85 checks and source/secret checks
+pass. This is separate from the earlier 1219-test full workspace book gate.
+
+Clean-source d07f5c9 forward capture validates real startup, 1459 returned native
+catalog rows and three selected session metadata entries. All catalogs fit one
+page, so live continuation remains unobserved. Books/BBO reconcile 984 rows and
+raw/shared storage matches 1179 application frames / 4 metadata records. The
+114 observed trades / 12 candles match, but the strict all-three-trade-venue gate
+fails because no inverse trade arrived in 30 seconds. The original failed gate
+is retained. This sample provides no inverse-trade delivery, whole-source
+continuity, strict dataset or operational qualification. Compact evidence is in
+docs/evidence/bybit-catalog-2026-10-19; remaining metadata settlement/expiry/units,
+liquidation and exact readiness findings remain open.

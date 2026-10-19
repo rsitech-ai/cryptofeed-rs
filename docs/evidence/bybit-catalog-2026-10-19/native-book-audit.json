@@ -1,0 +1,41 @@
+{
+  "schema": "marketfeed.bybit_book_native_audit.v1",
+  "counts": {
+    "11:1:native": 91,
+    "11:Quote": 91,
+    "11:50:native": 244,
+    "11:BookSnapshot": 1,
+    "11:BookDelta": 243,
+    "6:1:native": 120,
+    "6:Quote": 120,
+    "5:1:native": 103,
+    "5:Quote": 103,
+    "6:50:native": 220,
+    "6:BookSnapshot": 1,
+    "5:50:native": 206,
+    "5:BookSnapshot": 1,
+    "6:BookDelta": 219,
+    "5:BookDelta": 205
+  },
+  "observed_update_id_steps": {
+    "11:50:1": 243,
+    "6:50:1": 219,
+    "5:50:1": 205
+  },
+  "native_book_quote_rows": 984,
+  "canonical_book_quote_rows": 984,
+  "difference_count": 0,
+  "difference_examples": [],
+  "required_venues_missing_snapshot_or_delta": [],
+  "unaccepted_text_frames": 0,
+  "errors": [],
+  "checks_passed": true,
+  "continuity": "unknown; observed ID steps are not missing-record counts",
+  "dataset_admitted": false,
+  "cursor": {
+    "feed_id": "97fc91bac89f8d1fc31eedcc06f86e0620637cb8",
+    "sequence": 3478,
+    "offset": 3507908
+  },
+  "committed_prefix_sha256": "a53a06f18c93e37a41473f88728d7880442d7801fc06c0b022d3f3bd332b74c0"
+}
