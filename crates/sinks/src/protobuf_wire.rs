@@ -241,6 +241,50 @@ fn encode_liquidation(l: &marketfeed_model::Liquidation) -> Vec<u8> {
     write_msg(&mut out, 1, &encode_price(l.price));
     write_msg(&mut out, 2, &encode_quantity(l.quantity));
     write_enum(&mut out, 3, aggressor_num(l.side));
+    if let Some(source) = &l.provenance {
+        use marketfeed_model::{
+            LiquidatedPositionSide as P, LiquidationPriceBasis as B, LiquidationQuantityUnit as U,
+        };
+        let mut fields = Vec::new();
+        write_string(&mut fields, 1, &source.source_channel);
+        write_enum(
+            &mut fields,
+            2,
+            match source.price_basis {
+                B::Execution => 1,
+                B::Bankruptcy => 2,
+                B::Unverified => 3,
+            },
+        );
+        write_enum(
+            &mut fields,
+            3,
+            match source.quantity_unit {
+                U::Base => 1,
+                U::Quote => 2,
+                U::Contracts => 3,
+                U::Unverified => 4,
+            },
+        );
+        if let Some(side) = source.position_side {
+            write_enum(
+                &mut fields,
+                4,
+                match side {
+                    P::Long => 1,
+                    P::Short => 2,
+                    P::Unknown => 3,
+                },
+            );
+        }
+        for (key, value) in &source.native_attributes {
+            let mut entry = Vec::new();
+            write_string(&mut entry, 1, key);
+            write_string(&mut entry, 2, value);
+            write_msg(&mut fields, 5, &entry);
+        }
+        write_msg(&mut out, 4, &fields);
+    }
     out
 }
 

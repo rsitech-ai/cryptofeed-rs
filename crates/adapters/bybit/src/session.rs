@@ -364,7 +364,22 @@ impl BybitSession {
                     events,
                 }));
             }
-            DecodedEvent::Liquidations(rows) => {
+            DecodedEvent::Liquidations(batch) => {
+                if matches!(self.cfg.category, BybitCategory::Spot)
+                    || self.instrument_for(&batch.symbol).is_none()
+                    || batch
+                        .rows
+                        .iter()
+                        .any(|row| self.instrument_for(&row.symbol).is_none())
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail:
+                            "liquidation product or symbol absent from derivative session catalog"
+                                .into(),
+                    }));
+                    return Ok(());
+                }
+                let rows = batch.rows;
                 if rows.is_empty() {
                     return Ok(());
                 }
@@ -381,6 +396,7 @@ impl BybitSession {
                         None,
                         EventFlags::empty(),
                         MarketEvent::Liquidation(Liquidation {
+                            provenance: Some(row.provenance),
                             price: row.price,
                             quantity: row.quantity,
                             side: row.side,

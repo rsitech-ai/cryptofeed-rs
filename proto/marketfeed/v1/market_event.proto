@@ -151,10 +151,41 @@ message OpenInterest {
   Quantity quantity = 1;
 }
 
+enum LiquidationPriceBasis {
+  LIQUIDATION_PRICE_BASIS_UNSPECIFIED = 0;
+  LIQUIDATION_PRICE_BASIS_EXECUTION = 1;
+  LIQUIDATION_PRICE_BASIS_BANKRUPTCY = 2;
+  LIQUIDATION_PRICE_BASIS_UNVERIFIED = 3;
+}
+
+enum LiquidationQuantityUnit {
+  LIQUIDATION_QUANTITY_UNIT_UNSPECIFIED = 0;
+  LIQUIDATION_QUANTITY_UNIT_BASE = 1;
+  LIQUIDATION_QUANTITY_UNIT_QUOTE = 2;
+  LIQUIDATION_QUANTITY_UNIT_CONTRACTS = 3;
+  LIQUIDATION_QUANTITY_UNIT_UNVERIFIED = 4;
+}
+
+enum LiquidatedPositionSide {
+  LIQUIDATED_POSITION_SIDE_UNSPECIFIED = 0;
+  LIQUIDATED_POSITION_SIDE_LONG = 1;
+  LIQUIDATED_POSITION_SIDE_SHORT = 2;
+  LIQUIDATED_POSITION_SIDE_UNKNOWN = 3;
+}
+
+message LiquidationProvenance {
+  string source_channel = 1;
+  LiquidationPriceBasis price_basis = 2;
+  LiquidationQuantityUnit quantity_unit = 3;
+  optional LiquidatedPositionSide position_side = 4;
+  map<string, string> native_attributes = 5;
+}
+
 message Liquidation {
   Price price = 1;
   Quantity quantity = 2;
   AggressorSide side = 3;
+  optional LiquidationProvenance provenance = 4;
 }
 
 message Statistics24h {

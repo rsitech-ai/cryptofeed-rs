@@ -880,6 +880,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
             "e_liq",
             4_000_000,
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: Price(Fixed::new(100 * SCALE, 8)),
                 quantity: Quantity(Fixed::new(SCALE, 8)),
                 side: AggressorSide::Buy,
@@ -953,6 +954,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
             2,
             60_050_000_000,
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: Price(Fixed::new(101 * SCALE, 8)),
                 quantity: Quantity(Fixed::new(SCALE, 8)),
                 side: AggressorSide::Buy,
@@ -1203,6 +1205,7 @@ fn split_primary_family_owners_author_their_own_feature_rows() {
             "e_liq",
             4_000_000,
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: Price(Fixed::new(99 * SCALE, 8)),
                 quantity: Quantity(Fixed::new(SCALE, 8)),
                 side: AggressorSide::Buy,
@@ -1283,6 +1286,7 @@ fn split_primary_family_owners_author_their_own_feature_rows() {
                 sequence,
                 ns,
                 MarketEvent::Liquidation(Liquidation {
+                    provenance: None,
                     price: Price(Fixed::new(100 * SCALE, 8)),
                     quantity: Quantity(Fixed::new(SCALE, 8)),
                     side: AggressorSide::Buy,
@@ -1414,6 +1418,7 @@ fn optional_liquidation_fault_degrades_without_invalidating_critical_phase() {
                 10,
                 decision,
                 MarketEvent::Liquidation(Liquidation {
+                    provenance: None,
                     price: Price(Fixed::new(101 * SCALE, 8)),
                     quantity: Quantity(Fixed::new(SCALE, 8)),
                     side: AggressorSide::Buy,
@@ -4385,4 +4390,281 @@ fn public_master_capacity_system_drop_is_exact_slot_scoped() {
     )
     .unwrap();
     processor.ingest(&recovered).unwrap();
+}
+
+fn liquidation_with_basis(
+    basis: marketfeed_model::LiquidationPriceBasis,
+    unit: marketfeed_model::LiquidationQuantityUnit,
+    huge: bool,
+) -> MarketEvent {
+    MarketEvent::Liquidation(Liquidation {
+        provenance: Some(Box::new(marketfeed_model::LiquidationProvenance {
+            source_channel: "synthetic-semantics-challenge".into(),
+            price_basis: basis,
+            quantity_unit: unit,
+            position_side: Some(marketfeed_model::LiquidatedPositionSide::Long),
+            native_attributes: BTreeMap::new(),
+        })),
+        price: Price(if huge {
+            Fixed::new(1, 255)
+        } else {
+            Fixed::new(100 * SCALE, 8)
+        }),
+        quantity: Quantity(if huge {
+            Fixed::new(1, 255)
+        } else {
+            Fixed::new(SCALE, 8)
+        }),
+        side: AggressorSide::Unknown,
+    })
+}
+fn liquidation_feature(
+    snapshot: &marketfeed_event_pulse::snapshot::AuthoredSnapshot,
+) -> serde_json::Value {
+    snapshot.value()["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["name"] == "liquidation_notional")
+        .unwrap()
+        .clone()
+}
+fn refresh_liquidation_context(
+    processor: &mut MechanicsProcessor,
+    fixture: &SplitFixture,
+    at: i64,
+    sequence: u64,
+) {
+    for (clock, contributor) in fixture.clocks.iter().zip(&fixture.contributors) {
+        processor
+            .ingest(
+                &MechanicsInputV1::clock(
+                    ContributorV1::new(contributor.clone(), "epoch_a", 0).unwrap(),
+                    ClockSourceV1::new(clock.clone(), "epoch_clock_a", 0).unwrap(),
+                    time_ns(at),
+                    time_ns(at),
+                    ClockCursorV1::native(sequence, sequence).unwrap(),
+                    ClockStateV1::Synchronized,
+                    CanonicalDecimal::parse("0.25", 18, 8).unwrap(),
+                    2000,
+                    ClockQualityV1::Validated,
+                    "SOURCE_CLOCK_WITHIN_TOLERANCE",
+                )
+                .unwrap(),
+            )
+            .unwrap();
+    }
+    refresh_split_coverage(processor, fixture, at, sequence + 5);
+}
+fn refresh_liquidation_critical(processor: &mut MechanicsProcessor, at: i64) {
+    for (source, seq, payload) in [
+        (
+            "a_trade",
+            10,
+            trade_with_side(100 * SCALE, AggressorSide::Buy),
+        ),
+        (
+            "b_quote",
+            9,
+            MarketEvent::Quote(Quote {
+                provenance: None,
+                bid_price: Price(Fixed::new(100 * SCALE, 8)),
+                ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
+                bid_quantity: None,
+                ask_quantity: None,
+            }),
+        ),
+        (
+            "c_book",
+            9,
+            MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
+                bids: vec![BookLevel {
+                    price: Price(Fixed::new(100 * SCALE, 8)),
+                    quantity: Quantity(Fixed::new(SCALE, 8)),
+                }],
+                asks: vec![BookLevel {
+                    price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
+                    quantity: Quantity(Fixed::new(SCALE, 8)),
+                }],
+                depth: None,
+                checksum: None,
+            }),
+        ),
+    ] {
+        processor
+            .ingest(&market_from_source(source, seq, at, payload))
+            .unwrap();
+    }
+}
+
+#[test]
+fn liquidation_semantic_marker_preserves_earlier_prefix_and_never_becomes_partial_or_zero() {
+    use marketfeed_model::{LiquidationPriceBasis as B, LiquidationQuantityUnit as U};
+    for (basis, unit) in [B::Execution, B::Bankruptcy, B::Unverified]
+        .into_iter()
+        .flat_map(|basis| {
+            [U::Base, U::Quote, U::Contracts, U::Unverified]
+                .into_iter()
+                .map(move |unit| (basis, unit))
+        })
+        .filter(|(basis, unit)| (*basis, *unit) != (B::Execution, U::Base))
+    {
+        let (mut processor, fixture) = warmed_split_processor();
+        let mut earlier = processor.clone();
+        let before = 61_090_000_000;
+        let marker = 61_100_000_000;
+        refresh_liquidation_context(&mut processor, &fixture, marker, 3);
+        processor
+            .ingest(&market_from_source(
+                "e_liq",
+                3,
+                marker,
+                liquidation_with_basis(basis, unit, true),
+            ))
+            .unwrap();
+        assert_eq!(
+            processor
+                .snapshot(time_ns(before))
+                .unwrap()
+                .canonical_json(),
+            earlier.snapshot(time_ns(before)).unwrap().canonical_json()
+        );
+        let row = liquidation_feature(&processor.snapshot(time_ns(marker)).unwrap());
+        assert!(
+            row["value"].is_null(),
+            "before an additional qualified row: {row}"
+        );
+        assert_eq!(row["quality_state"], "UNAVAILABLE");
+        assert_eq!(row["reason_code"], "OUT_OF_DOMAIN");
+        processor
+            .ingest(&market_from_source(
+                "e_liq",
+                4,
+                marker + 1_000_000,
+                liquidation_with_basis(B::Execution, U::Base, false),
+            ))
+            .unwrap();
+        refresh_liquidation_context(&mut processor, &fixture, marker + 2_000_000, 4);
+        let snapshot = processor.snapshot(time_ns(marker + 2_000_000)).unwrap();
+        let row = liquidation_feature(&snapshot);
+        assert!(row["value"].is_null(), "{row}");
+        assert_eq!(row["quality_state"], "UNAVAILABLE");
+        assert_eq!(row["reason_code"], "OUT_OF_DOMAIN");
+        let boundary = marker + 5_000_000_000;
+        refresh_liquidation_critical(&mut processor, boundary);
+        refresh_liquidation_context(&mut processor, &fixture, boundary, 5);
+        let row = liquidation_feature(&processor.snapshot(time_ns(boundary)).unwrap());
+        assert!(row["value"].is_null());
+        assert_eq!(row["reason_code"], "OUT_OF_DOMAIN");
+        let expired = boundary + 1_000;
+        let mut without_renewed_coverage = processor.clone();
+        let row =
+            liquidation_feature(&without_renewed_coverage.snapshot(time_ns(expired)).unwrap());
+        assert!(
+            row["value"].is_null(),
+            "expired marker without coverage: {row}"
+        );
+        assert_eq!(row["reason_code"], "INSUFFICIENT_COVERAGE");
+        refresh_liquidation_context(&mut processor, &fixture, expired, 6);
+        let row = liquidation_feature(&processor.snapshot(time_ns(expired)).unwrap());
+        assert_eq!(row["value"], "100");
+        assert_eq!(row["quality_state"], "VALIDATED");
+    }
+}
+
+#[test]
+fn liquidation_semantic_markers_share_numeric_capacity_and_preserve_earlier_prefix() {
+    use marketfeed_model::{LiquidationPriceBasis as B, LiquidationQuantityUnit as U};
+    let (mut processor, _) = warmed_split_processor();
+    let mut earlier = processor.clone();
+    let marker = 61_100_000_000;
+    let mut accepted = 0;
+    for seq in 3..=u64::try_from(PER_WINDOW_CAPACITY + 3).unwrap() {
+        let qualified = seq % 2 == 0;
+        let result = processor.ingest(&market_from_source(
+            "e_liq",
+            seq,
+            marker,
+            liquidation_with_basis(
+                if qualified {
+                    B::Execution
+                } else {
+                    B::Bankruptcy
+                },
+                U::Base,
+                !qualified,
+            ),
+        ));
+        if result == Err(SnapshotError::FeatureQueueDrop) {
+            break;
+        }
+        result.unwrap();
+        accepted += 1;
+    }
+    // The fixture has two retained liquidation records. No snapshot has yet
+    // reclaimed its old prefix, so both consume ordinary capacity.
+    assert_eq!(accepted, PER_WINDOW_CAPACITY - 2);
+    let before = 61_095_000_000;
+    assert_eq!(
+        processor
+            .snapshot(time_ns(before))
+            .unwrap()
+            .canonical_json(),
+        earlier.snapshot(time_ns(before)).unwrap().canonical_json()
+    );
+}
+
+#[test]
+fn liquidation_semantic_markers_cannot_enter_another_sources_family() {
+    use marketfeed_model::{LiquidationPriceBasis as B, LiquidationQuantityUnit as U};
+    for (source, scope_error) in [
+        ("unconfigured", "stable source identity is not configured"),
+        ("d_oi", "window key is not preconfigured"),
+    ] {
+        let (mut processor, fixture) = warmed_split_processor();
+        let mut baseline = processor.clone();
+        let at = 61_100_000_000;
+        refresh_liquidation_context(&mut processor, &fixture, at, 3);
+        refresh_liquidation_context(&mut baseline, &fixture, at, 3);
+        assert_eq!(
+            processor.ingest(&market_from_source(
+                source,
+                3,
+                at,
+                liquidation_with_basis(B::Bankruptcy, U::Unverified, false)
+            )),
+            Err(SnapshotError::InvalidInput(scope_error.into()))
+        );
+        let expected = baseline.snapshot(time_ns(at)).unwrap();
+        let expected_feature = liquidation_feature(&expected);
+        assert_eq!(expected_feature["quality_state"], "VALIDATED");
+        assert_eq!(expected_feature["value"], "101");
+        assert_eq!(
+            processor.snapshot(time_ns(at)).unwrap().canonical_json(),
+            expected.canonical_json()
+        );
+    }
+}
+
+#[test]
+fn liquidation_semantic_marker_without_any_eligible_numeric_rows_cannot_become_zero() {
+    use marketfeed_model::{LiquidationPriceBasis as B, LiquidationQuantityUnit as U};
+    let (mut processor, fixture) = warmed_split_processor();
+    // All numeric liquidation rows in the fixture are older than this window.
+    let at = 66_100_000_000;
+    refresh_liquidation_critical(&mut processor, at);
+    refresh_liquidation_context(&mut processor, &fixture, at, 3);
+    processor
+        .ingest(&market_from_source(
+            "e_liq",
+            3,
+            at,
+            liquidation_with_basis(B::Bankruptcy, U::Unverified, true),
+        ))
+        .unwrap();
+    let row = liquidation_feature(&processor.snapshot(time_ns(at)).unwrap());
+    assert!(row["value"].is_null(), "{row}");
+    assert_eq!(row["quality_state"], "UNAVAILABLE");
+    assert_eq!(row["reason_code"], "OUT_OF_DOMAIN");
 }

@@ -88,6 +88,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ask_price: Price(Fixed::new(101, 0)),
         ask_quantity: None,
     };
+    let liquidation = Liquidation {
+        provenance: Some(Box::new(LiquidationProvenance {
+            source_channel: "allLiquidation.BTCUSD".into(),
+            price_basis: LiquidationPriceBasis::Bankruptcy,
+            quantity_unit: LiquidationQuantityUnit::Unverified,
+            position_side: Some(LiquidatedPositionSide::Long),
+            native_attributes: std::collections::BTreeMap::from([
+                ("S".into(), "Buy".into()),
+                ("T".into(), "0".into()),
+                ("ts".into(), "1700000000000".into()),
+            ]),
+        })),
+        price: Price(Fixed::new(i128::MAX, 255)),
+        quantity: Quantity(Fixed::new(1, 18)),
+        side: AggressorSide::Unknown,
+    };
+    let mut unknown_liquidation = liquidation.clone();
+    let source = unknown_liquidation.provenance.as_mut().unwrap();
+    source.position_side = Some(LiquidatedPositionSide::Unknown);
+    source
+        .native_attributes
+        .insert("S".into(), "new-side".into());
+    let mut legacy_liquidation = liquidation.clone();
+    legacy_liquidation.provenance = None;
+    let mut execution = liquidation.clone();
+    let source = execution.provenance.as_mut().unwrap();
+    source.price_basis = LiquidationPriceBasis::Execution;
+    source.quantity_unit = LiquidationQuantityUnit::Base;
+    source.position_side = None;
     for (index, payload) in [
         MarketEvent::Trade(trade),
         MarketEvent::Candle(candle),
@@ -96,6 +125,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         MarketEvent::BookSnapshot(snapshot),
         MarketEvent::BookDelta(delta),
         MarketEvent::Quote(quote),
+        MarketEvent::Liquidation(liquidation),
+        MarketEvent::Liquidation(unknown_liquidation),
+        MarketEvent::Liquidation(legacy_liquidation),
+        MarketEvent::Liquidation(execution),
     ]
     .into_iter()
     .enumerate()

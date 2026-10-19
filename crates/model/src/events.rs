@@ -189,9 +189,44 @@ pub struct OpenInterest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Liquidation {
+    /// Absence is legacy/unverified, never evidence of execution price or units.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<LiquidationProvenance>>,
     pub price: Price,
     pub quantity: Quantity,
+    /// Observed execution aggressor only. Position side is separate provenance.
     pub side: AggressorSide,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LiquidationPriceBasis {
+    Execution,
+    Bankruptcy,
+    Unverified,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LiquidationQuantityUnit {
+    Base,
+    Quote,
+    Contracts,
+    Unverified,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LiquidatedPositionSide {
+    Long,
+    Short,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiquidationProvenance {
+    pub source_channel: String,
+    pub price_basis: LiquidationPriceBasis,
+    pub quantity_unit: LiquidationQuantityUnit,
+    pub position_side: Option<LiquidatedPositionSide>,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -12,7 +12,7 @@ if not __debug__:
     raise RuntimeError("verification requires Python assertions enabled")
 root = Path(sys.argv[1])
 records = []
-for index in range(7):
+for index in range(11):
     binary = pb.EventEnvelope.FromString((root / f'{index}.pb').read_bytes())
     projected = json_format.ParseDict(json.loads((root / f'{index}.json').read_text()), pb.EventEnvelope())
     if binary != projected:
@@ -49,4 +49,20 @@ for record, name in zip(records[4:], ('book_snapshot','book_delta','quote')):
 assert records[5].payload.book_delta.changes[0].operation == pb.BOOK_OPERATION_DELETE
 assert not records[5].payload.book_delta.changes[0].HasField('quantity')
 assert not records[6].payload.quote.HasField('ask_quantity')
-print(json.dumps({'checks_passed': True, 'records': 7, 'independent_reader': 'generated-google-protobuf', 'optional_false_and_unknown_distinct': True}))
+liquidation = records[7].payload.liquidation
+assert liquidation.side == pb.AGGRESSOR_SIDE_UNKNOWN
+assert liquidation.provenance.price_basis == pb.LIQUIDATION_PRICE_BASIS_BANKRUPTCY
+assert liquidation.provenance.quantity_unit == pb.LIQUIDATION_QUANTITY_UNIT_UNVERIFIED
+assert liquidation.provenance.position_side == pb.LIQUIDATED_POSITION_SIDE_LONG
+assert liquidation.provenance.native_attributes['S'] == 'Buy'
+assert liquidation.provenance.native_attributes['T'] == '0'
+assert liquidation.price.value.scale == 255
+assert ((liquidation.price.value.coefficient_hi << 64) | (liquidation.price.value.coefficient_lo & ((1 << 64)-1))) == (1 << 127)-1
+assert records[8].payload.liquidation.provenance.position_side == pb.LIQUIDATED_POSITION_SIDE_UNKNOWN
+assert records[8].payload.liquidation.provenance.HasField('position_side')
+assert records[8].payload.liquidation.provenance.native_attributes['S'] == 'new-side'
+assert not records[9].payload.liquidation.HasField('provenance')
+assert records[10].payload.liquidation.provenance.price_basis == pb.LIQUIDATION_PRICE_BASIS_EXECUTION
+assert records[10].payload.liquidation.provenance.quantity_unit == pb.LIQUIDATION_QUANTITY_UNIT_BASE
+assert not records[10].payload.liquidation.provenance.HasField('position_side')
+print(json.dumps({'checks_passed': True, 'records': 11, 'independent_reader': 'generated-google-protobuf', 'optional_false_and_unknown_distinct': True}))

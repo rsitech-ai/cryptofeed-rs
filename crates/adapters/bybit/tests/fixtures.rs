@@ -408,7 +408,7 @@ fn linear_all_liquidation_fixture() {
     assert!(matches!(
         &m[0],
         MarketEvent::Liquidation(l)
-            if l.side == AggressorSide::Buy
+            if l.side == AggressorSide::Unknown
                 && l.price.0 == Fixed::new(650005, 1)
                 && l.quantity.0 == Fixed::new(1, 2)
     ));

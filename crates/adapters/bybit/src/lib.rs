@@ -15,6 +15,14 @@
 //! Book structural validity is separate from unknown source continuity. Neither
 //! native ID establishes gap-free source delivery under the reviewed contract.
 //!
+//! # Native liquidation rules (`allLiquidation.{symbol}`)
+//!
+//! Native `p` is bankruptcy price and `S` is position side. Execution aggressor
+//! and WS quantity units remain unknown/unverified. Updated/publication times
+//! and exact native attributes are retained separately. Complete batches are
+//! checked before emission; even empty batches require derivative catalog scope.
+//! The decoded batch retains its symbol independently of its rows.
+//!
 //! # Live ping via engine timers
 //!
 //! [`BybitSession`] emits `SessionAction::ScheduleTimer` on connect and reacts to
@@ -41,8 +49,9 @@ pub use instruments::parse_instruments_info;
 #[cfg(feature = "simd-json")]
 pub use messages::decode_text_simd;
 pub use messages::{
-    BookDecoded, CandleDecoded, DecodedEvent, OrderbookKind, TradeDecoded, candle_interval_ns,
-    decode_text, decode_text_serde, kline_topic_interval,
+    BookDecoded, CandleDecoded, DecodedEvent, LiquidationBatchDecoded, LiquidationDecoded,
+    OrderbookKind, TradeDecoded, candle_interval_ns, decode_text, decode_text_serde,
+    kline_topic_interval,
 };
 pub use session::{BybitSession, BybitSessionConfig};
 pub use specification::{

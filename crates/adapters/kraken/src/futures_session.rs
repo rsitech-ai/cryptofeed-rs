@@ -305,6 +305,7 @@ impl KrakenFuturesSession {
                             seq,
                             EventFlags::empty(),
                             MarketEvent::Liquidation(Liquidation {
+                                provenance: None,
                                 price: t.price,
                                 quantity: t.quantity,
                                 side: t.aggressor,

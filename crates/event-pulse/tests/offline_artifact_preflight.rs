@@ -255,6 +255,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             5,
             start_ns + 4_000,
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: price(98),
                 quantity: quantity(1),
                 side: AggressorSide::Sell,

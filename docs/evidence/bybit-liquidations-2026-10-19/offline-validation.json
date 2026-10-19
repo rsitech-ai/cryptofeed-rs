@@ -1,0 +1,290 @@
+{
+  "schema": "marketfeed.bybit_liquidation_offline_validation.v1",
+  "recorded_utc": "2026-10-19T22:44:11.453151+00:00",
+  "source_base_commit": "ab55cc5a6771d27020f33432549ec15eab6f2ee1",
+  "source_identity": "content-pinned repair; checks preceded final repair commit",
+  "source_sha256": {
+    "crates/adapters/binance/src/coinm_session.rs": "151823ae2738b51e22cb3c8bb23148d22521d0a0264b790e42933587acffaf4f",
+    "crates/adapters/binance/src/usdm_session.rs": "c1b819402a226b7a3780058842f7819b3a180f5e80ceb7564d34b71c7e48809b",
+    "crates/adapters/bitfinex/src/session.rs": "2d20608ff2544003995ec5cc8497b913016396048642cced8c6a2db223ef8dff",
+    "crates/adapters/bybit/src/lib.rs": "2177088d3e3f6e4608417c080693093e4fb694dade63fdefa9bb030b12bdfbb1",
+    "crates/adapters/bybit/src/messages.rs": "6e338dc95248503f1ba6691776e4657c9505743d4cddb56631b86614a8e58a33",
+    "crates/adapters/bybit/src/session.rs": "f4488654b48aa208de643bf03a198b5ac1bad84bc937a9e2bc8533941146ec6b",
+    "crates/adapters/bybit/tests/fixtures.rs": "f086c3ac89b3bc584506ffbaca712731cd2b8ee079401e43a7d5044756968066",
+    "crates/adapters/bybit/tests/liquidation_semantics.rs": "7bb6d62411058fb50f8c1940fe5ba3c0d5ed9d01572cc2cf90ff18f8fb5a412c",
+    "crates/adapters/deribit/src/session.rs": "b30d1e160781fc7032194a13b2b05aac458439f85af478a637ed07c9c6fdc949",
+    "crates/adapters/kraken/src/futures_session.rs": "9f200bf739686068773de9ce03bee0a10a50475d106cdfd267587e1dde2e1592",
+    "crates/adapters/okx/src/session.rs": "1097e45a0707c298c960d9557d75d1c4b76bcf47a1ed26168467b71f07bbbc16",
+    "crates/daemon/src/view/plane.rs": "0015fe4e9153a90480d02743f2578662307700bb640350add365881496763982",
+    "crates/event-pulse-capture/tests/system.rs": "22a9900aac58b642a73d5b57d675609ea5ab44af98c3df511d5b693912fa501b",
+    "crates/event-pulse/src/snapshot.rs": "0a6cd81d725d21748fd1446de0b4e4564265453ffd42d5d207281c06c68471d1",
+    "crates/event-pulse/src/snapshot_v2.rs": "477ff315167fcb4249e706aa0498305941112d9e1e29e1c8f4faf7ff20ad4a2a",
+    "crates/event-pulse/tests/offline_artifact_preflight.rs": "3d5de0d81adedf4847a899195e2a03d78429413a1dc116b4ec90a5929f2e2a1e",
+    "crates/event-pulse/tests/preflight_v4.rs": "4a0abb7dd00912c482ecfd41b112fc33dd1d92abed5897151a6bc009198c0751",
+    "crates/event-pulse/tests/snapshot_mechanics.rs": "fc948e1622d9fce44cd5df90a608e7f030cb710c410383b08a8c06f2a48915cf",
+    "crates/event-pulse/tests/snapshot_v2.rs": "be05c977c2acab142c226317e2c99fcffdc3b586c737f967adf076d35370f5a0",
+    "crates/model/src/events.rs": "c7778d9a373b6308d854882924ae8511739a446c9c3d2c9384962a17015c709e",
+    "crates/recording/src/envelope_json.rs": "34bbeb625258eb20ec03a57740219c5e633475fb9c76e55cd3ff5be73fa7031f",
+    "crates/sinks/examples/native_provenance_fixture.rs": "c821efc839318bb5a10b1d2603b4c829ebb63b9582b49e50700477b5fcd918fa",
+    "crates/sinks/src/protobuf_wire.rs": "900e594450cacd0985691b3f673b0dcdfc202e9e6cbcc7014a368b1322ef6a2d",
+    "proto/marketfeed/v1/market_event.proto": "b0213e3332fca42540d29c8b6930e20997b994ee4aa167c71b7c144dd7d08992",
+    "scripts/verify_native_provenance_wire.py": "f6ad81249f524469593f1af72416a0a3801f38814e6f648d6de2d8594f73a84d",
+    "ui/dist/assets/app.js": "26fadf3cc030a68b3ee82b5b062a750e9cb6adb3e729b5bf53a075d41c10fa87",
+    "ui/src/components/DerivativesStats.svelte": "5e9ab4ceba434d73c93b831f8d98293db44e91530850146da88f5daecb4c9d1e",
+    "ui/src/lib/derivatives.js": "9471da1aab3e9fd83d24fbba85e044b5787fa2b19bc8f4948a4245bd7d11d38f",
+    "ui/src/lib/derivatives.test.js": "66993bf97c3bfdcb68527a0b3187ae4cd402a4ff106c6f1bae13b663b3293f40"
+  },
+  "checks": {
+    "final_test_only_strengthening": {
+      "workspace02_test_source_sha256": "29b62e2042fd3cea4b5a0e5809b9014c09d8ff4dd11520b000a9fb7d6e80f88e",
+      "change": "Final owner-isolation assertion strengthening only: ordinary representable values, exact source/family scope errors and entire canonical snapshot parity. Production source unchanged."
+    },
+    "workspace_all_targets_all_features": {
+      "passed": 1242,
+      "failed": 0,
+      "ignored": 56
+    },
+    "bybit_all_features": {
+      "passed": 74,
+      "failed": 0,
+      "ignored": 4
+    },
+    "marker_v1": {
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    "marker_v2": {
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0
+    },
+    "rust185_model_recording_sinks": {
+      "passed": 89,
+      "failed": 0,
+      "ignored": 0
+    },
+    "rust185_bybit_library": {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    "rust185_eventpulse_check": "passed",
+    "generated_google_protobuf": {
+      "checks_passed": true,
+      "records": 11,
+      "independent_reader": "generated-google-protobuf",
+      "optional_false_and_unknown_distinct": true
+    },
+    "wire_mutation_challenge": {
+      "schema": "marketfeed.liquidation_wire_oracle_challenge.v1",
+      "source_fixture": "synthetic Rust fixture; original files unchanged",
+      "mutations": [
+        {
+          "case": "bankruptcy_as_execution",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "unknown_units_as_base",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "long_as_short",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "inferred_execution_sell",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "zero_updated_replaced_by_publication",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "lost_i128_precision",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "lost_scale",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "lost_unknown_position_presence",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "legacy_absence_replaced_by_empty",
+          "returncode": 1,
+          "rejected": true
+        },
+        {
+          "case": "absent_position_replaced_by_unknown",
+          "returncode": 1,
+          "rejected": true
+        }
+      ],
+      "all_rejected": true,
+      "synchronized_binary_json_corruption": true
+    },
+    "wire_mutation_challenge_source": "docs/evidence/bybit-liquidations-2026-10-19/wire-oracle-challenge.py",
+    "wire_mutation_challenge_source_sha256": "08e45efdf58ec5330bd85fcfcd059f304c7dd6fb037513da5a6d6aa8aac3b940",
+    "ui_tests": {
+      "passed": 174,
+      "failed": 0
+    },
+    "python_audits": {
+      "passed": 59,
+      "failed": 0
+    },
+    "ui_production_build": "passed; checked-in app.js regenerated from unchanged npm lock",
+    "clippy": "passed",
+    "rustdoc": "passed",
+    "fmt": "passed",
+    "dependency_deny": "passed",
+    "oss_source_secret_scan": "passed"
+  },
+  "commands_and_retained_log_sha256": {
+    "bybit-liquidation-focused-04.log": {
+      "command": "cargo test -p marketfeed-adapter-bybit --all-features --offline",
+      "sha256": "195cf3ee8e47f940446134ff5fac25c1c3109492c9af61fb0757398d41e79d98"
+    },
+    "bybit-liquidation-marker-v1-11.log": {
+      "command": "cargo test -p marketfeed-event-pulse --test snapshot_mechanics liquidation_semantic_marker --offline",
+      "sha256": "b61293027085b14547c75915e82fb1169dbaaf63812bd5367fb9c5907c2d73e0"
+    },
+    "bybit-liquidation-marker-v2-01.log": {
+      "command": "cargo test -p marketfeed-event-pulse --test snapshot_v2 liquidation_semantic_marker --offline",
+      "sha256": "74beefe359cf252658008978d7ea05d2bebeb21e6afa1ea6c59e50b86cf21ca4"
+    },
+    "bybit-liquidation-workspace-tests-02.log": {
+      "command": "cargo test --locked --workspace --all-targets --all-features --offline",
+      "sha256": "b5c321620382a66432dcb67a161ab81f3819a8cbf325da5aad992835c6501445"
+    },
+    "bybit-liquidation-clippy-consumer-04.log": {
+      "command": "cargo clippy --locked -p marketfeed-event-pulse --all-targets --offline -- -D warnings (final scope assertion)",
+      "sha256": "9f8259bccdf5022c76a9c68e744863dae2aa2982e445d78ec9a9a7ba32fabc14"
+    },
+    "bybit-liquidation-clippy-02.log": {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features --offline -- -D warnings",
+      "sha256": "63c3a8d0c840f31d0747e143acd306415ee1c4f80f0fe13fba1f152fbae78412"
+    },
+    "bybit-liquidation-msrv-01.log": {
+      "command": "cargo +1.85.0 test --locked --offline -p marketfeed-model -p marketfeed-recording -p marketfeed-sinks --lib",
+      "sha256": "0b7905d36e593de8efc0913d0fea1e982693c68d3b64af1b42e8106d97d6b783"
+    },
+    "bybit-liquidation-msrv-bybit-01.log": {
+      "command": "cargo +1.85.0 test --locked --offline -p marketfeed-adapter-bybit --lib",
+      "sha256": "b2dc809c29cf163d04ae36b2a3d62a760cf1b3639c12b57ca90a828b0f0972a1"
+    },
+    "bybit-liquidation-msrv-consumer-01.log": {
+      "command": "cargo +1.85.0 check --locked --offline -p marketfeed-event-pulse",
+      "sha256": "f2193f532223768b34adb98f3e40870b86f49db2a0681d145dec8e8f7f2d2af7"
+    },
+    "bybit-liquidation-workspace-check-01.log": {
+      "command": "cargo check --workspace --all-targets --all-features --offline (before final empty-scope repair and added marker tests)",
+      "sha256": "6cefc171640bf82a2245bdf98a864cb4694718b5ceee1999b268840609f5e97c"
+    },
+    "bybit-liquidation-rustdoc-bybit-02.log": {
+      "command": "RUSTDOCFLAGS=-Dwarnings cargo doc --locked -p marketfeed-adapter-bybit --no-deps --all-features --offline (final crate API documentation)",
+      "sha256": "8c7236e50f4e6db201468568b35f5cb333fb4b9f731700b1e8618869c97f2ad9"
+    },
+    "bybit-liquidation-rustdoc-01.log": {
+      "command": "RUSTDOCFLAGS=-Dwarnings cargo doc --locked --workspace --no-deps --all-features --offline",
+      "sha256": "f4ac4d567ed7867dc64a5e80d02fee1fc6c013b8249c4eb8eb86bc1066cb88b6"
+    },
+    "bybit-liquidation-python-tests-01.log": {
+      "command": "python3.13 -m unittest discover -s scripts/tests",
+      "sha256": "c6595bbc846665ec9e1bce8f7e4e9c725d6fabf26d55822078d81f7538718221"
+    },
+    "bybit-liquidation-ui-build-02.log": {
+      "command": "cd ui && node node_modules/vite/bin/vite.js build",
+      "sha256": "86851089fab997853cd67646d47b941fd3c6fe8d53eac5879803f99502ef7bed"
+    },
+    "bybit-liquidation-ui-tests-02.log": {
+      "command": "cd ui && node --test src/lib/*.test.js",
+      "sha256": "462089270d07d75a8dd6dd17c0204fcc413eaa975c57f9b7c773d552fad7496d"
+    },
+    "bybit-liquidation-oss-02.log": {
+      "command": "PATH=<repo>/.tools/bin:$PATH bash scripts/check-oss-readiness.sh",
+      "sha256": "d240d64ab4943ec9ae423fb180d20933cbf8157f76fe26b2ebda7298ab939c8d"
+    },
+    "bybit-liquidation-deny-01.log": {
+      "command": ".tools/bin/cargo-deny check",
+      "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    "bybit-liquidation-fmt-03.log": {
+      "command": "cargo fmt --all -- --check",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "native-wire-liquidation-mutations-01.log": {
+      "command": "PYTHONPATH=<generated-proto> python3.13 <retained-independent-mutation-script>",
+      "sha256": "25b02818b5f667c1b1773f53081d14986b693870e3ceb2b2967f296ea222ca05"
+    },
+    "native-wire-liquidation-build-01.log": {
+      "command": "cargo run --offline -p marketfeed-sinks --example native_provenance_fixture -- <fresh-fixture-path>",
+      "sha256": "f91083bd2e24320ee8be0afb147850b80dccfe515eb21c5a37aff65d8279e833"
+    },
+    "native-wire-liquidation-verify-01.log": {
+      "command": "protoc --python_out=<fresh-generated-path> -I proto proto/marketfeed/v1/market_event.proto; PYTHONPATH=<fresh-generated-path> python3.13 scripts/verify_native_provenance_wire.py <fresh-fixture-path>",
+      "sha256": "3748d0243a17c6d5457898fc0a6ac352356494b7b463710bfd411741a3acd88f"
+    }
+  },
+  "native_source": {
+    "url": "https://bybit-exchange.github.io/docs/v5/websocket/public/all-liquidation",
+    "p": "bankruptcy price",
+    "S": "position side; Buy long liquidated, Sell short liquidated",
+    "v": "executed size; WS quantity unit remains unverified",
+    "T": "native updated milliseconds retained, including zero",
+    "ts": "native publication milliseconds retained"
+  },
+  "independent_review": {
+    "adapter": "row semantics/exactness/atomicity reviewed; initial six targeted tests passed; empty-topic scope finding repaired and independently rechecked with one targeted regression pass",
+    "consumer": "V1/V2 marker implementation and prefix/boundary tests passed; requested marker-only, capacity, ownership and missing-renewed-coverage cases added and independently source-reviewed; final scope-only assertion strengthening passed focused parent tests after workspace run, without production changes",
+    "wire_view_ui": "11 generated-protobuf fixtures, three UI tests plus semantic probes and one ui-api derivative projection test independently passed"
+  },
+  "retained_failed_checks": {
+    "bybit-liquidation-first-01.log": "old fixture expected inferred execution aggressor; expectation updated to unknown with position assertion",
+    "bybit-liquidation-marker-v1-06.log": "capacity challenge initially counted one retained fixture record; actual fixture retains two before snapshot reclamation. Corrected only test expectation/comment; source window capacity unchanged",
+    "bybit-liquidation-workspace-tests-01.log": "workspace run compiled preceding capacity-test expectation; retained failure, then complete rerun on corrected source",
+    "bybit-liquidation-marker-v1-08.log": "stronger ownership test established validated baseline101, while initial new expectation was100; corrected test expectation to exact existing fixture input, with no implementation change",
+    "bybit-liquidation-marker-v1-10.log": "new scope assertion initially used the unconfigured-source message for both cases; configured contributor with unowned family correctly rejects with unconfigured window key instead. Test now asserts each exact scope error and full canonical parity; production code unchanged",
+    "bybit-liquidation-ui-build-01.log": "Vite dependencies absent; installed exact npm lock and rebuilt",
+    "bybit-liquidation-ui-install-01.log": "bundled Node directory absent from subprocess PATH; corrected PATH and reran npm ci",
+    "bybit-liquidation-focused-03.log": "mistyped package selector; corrected to marketfeed-adapter-bybit"
+  },
+  "compatibility": {
+    "rust_source_migration": "Liquidation.provenance field; Bybit LiquidationBatchDecoded symbol/rows variant",
+    "legacy_absence": "omitted in model/recording JSON/protobuf; API view adds provenance:null",
+    "legacy_feature_path": "absent-provenance numeric behavior preserved for frozen contracts, not newly native-qualified",
+    "mechanics_i128_authoring_limit": "legacy V1 JSON authoring cannot encode arbitrary i128; scale255 marker-bypass and separate protobuf extrema tests do not repair that limit"
+  },
+  "ownership": {
+    "cryptofeed-rs": "native evidence, acquisition, quality, publication, storage/replay and existing generic consumer safety",
+    "rsibot": "live/dataset readers, cross-venue features, models and strategy decisions through existing owners",
+    "hlscreen": "shared-feed reader and presentation"
+  },
+  "new_live_liquidation_verification": "not-run",
+  "dataset_admitted": false,
+  "economic_run": "not-run",
+  "operational_promotion": "not-granted",
+  "goal_complete": false,
+  "remaining": [
+    "exact Bybit channel ACK readiness",
+    "settlement/expiry/contract units",
+    "source origin/continuity",
+    "live multi-page catalog continuation",
+    "general exact venue datasets/mixed causal replay",
+    "actual rsibot live context/features and owner integration",
+    "hlscreen final feed pin migration",
+    "calendar canaries and multi-day qualification",
+    "prior inverse-trade coverage gate remains unmet"
+  ]
+}

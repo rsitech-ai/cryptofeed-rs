@@ -207,6 +207,7 @@ impl DeribitSession {
                             seq,
                             EventFlags::empty(),
                             MarketEvent::Liquidation(Liquidation {
+                                provenance: None,
                                 price: row.price,
                                 quantity: row.quantity,
                                 side: row.aggressor,

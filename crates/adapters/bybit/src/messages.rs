@@ -3,6 +3,7 @@
 use marketfeed_adapter_api::CandleInterval;
 use marketfeed_model::{
     AggressorSide, BookLevel, BookOperation, BookProvenance, BookSide, CandleProvenance, Fixed,
+    LiquidatedPositionSide, LiquidationPriceBasis, LiquidationProvenance, LiquidationQuantityUnit,
     Price, Quantity, Rate, SourceId, TimestampNs, TradeGranularity, TradeProvenance,
 };
 use serde::Deserialize;
@@ -34,7 +35,7 @@ pub enum DecodedEvent {
         exchange_ts_ms: i64,
     },
     /// Linear/inverse `allLiquidation.{symbol}` — one frame may carry many rows.
-    Liquidations(Vec<LiquidationDecoded>),
+    Liquidations(LiquidationBatchDecoded),
     SubscribeAck {
         success: bool,
     },
@@ -56,13 +57,21 @@ pub struct BookDecoded {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiquidationBatchDecoded {
+    /// Retained even for an empty batch so session scope is always checked.
+    pub symbol: String,
+    pub rows: Vec<LiquidationDecoded>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LiquidationDecoded {
     pub symbol: String,
     pub price: Price,
     pub quantity: Quantity,
-    /// Aggressor of the forced order (not venue position side).
+    /// Actual execution aggressor, unknown on this position-side channel.
     pub side: AggressorSide,
     pub exchange_ts_ms: i64,
+    pub provenance: Box<LiquidationProvenance>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -147,6 +156,12 @@ fn decode_text_with(
     parse: fn(&[u8]) -> Result<Value, String>,
 ) -> Result<DecodedEvent, String> {
     let v = parse(bytes)?;
+    if v.get("topic")
+        .and_then(Value::as_str)
+        .is_some_and(|topic| topic.starts_with("allLiquidation."))
+    {
+        return decode_all_liquidation(bytes, &v);
+    }
     decode_value(&v)
 }
 
@@ -200,10 +215,6 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
 
     if topic.starts_with("tickers.") {
         return decode_tickers(topic, obj.get("data").unwrap_or(&Value::Null), ts);
-    }
-
-    if topic.starts_with("allLiquidation.") {
-        return decode_all_liquidation(obj.get("data").unwrap_or(&Value::Null), ts);
     }
 
     if topic.starts_with("orderbook.") {
@@ -592,7 +603,7 @@ fn decode_trades(
 #[derive(Debug, Deserialize)]
 struct AllLiquidationRow {
     #[serde(rename = "T")]
-    trade_time: i64,
+    updated_ms: i64,
     s: String,
     /// Position side: `Buy` = long liquidated, `Sell` = short liquidated.
     #[serde(rename = "S")]
@@ -601,35 +612,75 @@ struct AllLiquidationRow {
     p: String,
 }
 
-fn decode_all_liquidation(data: &Value, frame_ts: i64) -> Result<DecodedEvent, String> {
-    let rows: Vec<AllLiquidationRow> =
-        serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
-    if rows.is_empty() {
-        return Ok(DecodedEvent::Unknown);
+#[derive(Deserialize)]
+struct AllLiquidationFrame {
+    topic: String,
+    #[serde(rename = "type")]
+    kind: String,
+    ts: i64,
+    data: Vec<AllLiquidationRow>,
+}
+
+fn decode_all_liquidation(bytes: &[u8], value: &Value) -> Result<DecodedEvent, String> {
+    if value
+        .get("data")
+        .and_then(Value::as_array)
+        .is_none_or(|rows| rows.len() > 4096)
+        || value.get("op").is_some()
+    {
+        return Err("bounded liquidation array without control op required".into());
     }
-    let mut out = Vec::with_capacity(rows.len());
-    for m in rows {
-        // Venue `S` is position side; Liquidation.side is aggressor of the forced order.
-        // Long liquidated (`Buy`) → forced sell; short liquidated (`Sell`) → forced buy.
-        let side = match m.side.as_str() {
-            "Buy" => AggressorSide::Sell,
-            "Sell" => AggressorSide::Buy,
-            _ => AggressorSide::Unknown,
+    // The lexical DOM above bounds structure and rejects duplicate keys. Decode
+    // original bytes here so native string/control types cannot be coerced.
+    let frame: AllLiquidationFrame = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    checked_ms(frame.ts)?;
+    if frame.kind != "snapshot" {
+        return Err("unsupported liquidation message type".into());
+    }
+    let symbol = frame
+        .topic
+        .strip_prefix("allLiquidation.")
+        .filter(|symbol| !symbol.is_empty())
+        .ok_or("invalid liquidation topic")?;
+    let mut out = Vec::with_capacity(frame.data.len());
+    for m in frame.data {
+        if m.s != symbol {
+            return Err("liquidation topic/row symbol mismatch".into());
+        }
+        checked_ms(m.updated_ms)?;
+        let position_side = match m.side.as_str() {
+            "Buy" => LiquidatedPositionSide::Long,
+            "Sell" => LiquidatedPositionSide::Short,
+            _ => LiquidatedPositionSide::Unknown,
         };
-        let exchange_ts_ms = if m.trade_time != 0 {
-            m.trade_time
-        } else {
-            frame_ts
-        };
+        let native_attributes = std::collections::BTreeMap::from([
+            ("T".into(), m.updated_ms.to_string()),
+            ("ts".into(), frame.ts.to_string()),
+            ("s".into(), m.s.clone()),
+            ("S".into(), m.side),
+            ("p".into(), m.p.clone()),
+            ("v".into(), m.v.clone()),
+            ("type".into(), frame.kind.clone()),
+        ]);
         out.push(LiquidationDecoded {
             symbol: m.s,
-            price: Price(parse_fixed(&m.p)?),
-            quantity: Quantity(parse_fixed(&m.v)?),
-            side,
-            exchange_ts_ms,
+            price: Price(positive(&m.p)?),
+            quantity: Quantity(positive(&m.v)?),
+            side: AggressorSide::Unknown,
+            exchange_ts_ms: m.updated_ms,
+            provenance: Box::new(LiquidationProvenance {
+                source_channel: frame.topic.clone(),
+                price_basis: LiquidationPriceBasis::Bankruptcy,
+                quantity_unit: LiquidationQuantityUnit::Unverified,
+                position_side: Some(position_side),
+                native_attributes,
+            }),
         });
     }
-    Ok(DecodedEvent::Liquidations(out))
+    Ok(DecodedEvent::Liquidations(LiquidationBatchDecoded {
+        symbol: symbol.to_owned(),
+        rows: out,
+    }))
 }
 
 fn parse_book_levels(rows: &[[String; 2]]) -> Result<Vec<(Price, Quantity)>, String> {
@@ -847,17 +898,26 @@ mod tests {
     #[test]
     fn decode_all_liquidation_exact_fixed() {
         let raw = br#"{"topic":"allLiquidation.BTCUSDT","type":"snapshot","ts":1739502303204,"data":[{"T":1739502302929,"s":"BTCUSDT","S":"Sell","v":"0.01","p":"65000.5"},{"T":1739502302930,"s":"BTCUSDT","S":"Buy","v":"1.5","p":"64999.0"}]}"#;
-        let DecodedEvent::Liquidations(rows) = decode_text(raw).unwrap() else {
+        let DecodedEvent::Liquidations(batch) = decode_text(raw).unwrap() else {
             panic!("allLiquidation");
         };
+        assert_eq!(batch.symbol, "BTCUSDT");
+        let rows = batch.rows;
         assert_eq!(rows.len(), 2);
-        // Sell position liquidated → forced buy aggressor.
-        assert_eq!(rows[0].side, AggressorSide::Buy);
+        // Position direction does not establish the actual execution aggressor.
+        assert_eq!(rows[0].side, AggressorSide::Unknown);
+        assert_eq!(
+            rows[0].provenance.position_side,
+            Some(LiquidatedPositionSide::Short)
+        );
         assert_eq!(rows[0].price.0, Fixed::new(650005, 1));
         assert_eq!(rows[0].quantity.0, Fixed::new(1, 2));
         assert_eq!(rows[0].exchange_ts_ms, 1_739_502_302_929);
-        // Buy position liquidated → forced sell aggressor.
-        assert_eq!(rows[1].side, AggressorSide::Sell);
+        assert_eq!(rows[1].side, AggressorSide::Unknown);
+        assert_eq!(
+            rows[1].provenance.position_side,
+            Some(LiquidatedPositionSide::Long)
+        );
         assert_eq!(rows[1].price.0, Fixed::new(649990, 1));
         assert_eq!(rows[1].quantity.0, Fixed::new(15, 1));
     }

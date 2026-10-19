@@ -1,5 +1,5 @@
 <script>
-  import { emptyDerivatives } from '../lib/derivatives.js';
+  import { emptyDerivatives, liquidationLabel } from '../lib/derivatives.js';
   let { data = emptyDerivatives() } = $props();
   let latestLiq = $derived(data.liquidations?.[0] || null);
 
@@ -37,7 +37,7 @@
   <div class="metric" title="Latest exchange-reported liquidation; never inferred from trades">
     <span>Liquidations</span>
     <strong>{data.liquidations?.length ?? 0} retained</strong>
-    <small>{latestLiq ? `${latestLiq.side} ${latestLiq.quantity} @ ${latestLiq.price}` : 'none reported'}</small>
+    <small title={liquidationLabel(latestLiq)}>{liquidationLabel(latestLiq)}</small>
   </div>
 </section>
 

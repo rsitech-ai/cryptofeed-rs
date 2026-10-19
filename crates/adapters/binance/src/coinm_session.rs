@@ -579,6 +579,7 @@ impl BinanceCoinmSession {
                         None,
                         EventFlags::empty(),
                         MarketEvent::Liquidation(Liquidation {
+                            provenance: None,
                             price,
                             quantity,
                             side,

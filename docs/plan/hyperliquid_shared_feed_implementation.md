@@ -789,3 +789,45 @@ and the retained missing-inverse-trade failure. Returned products comprise
 perpetuals / 4 inverse futures. Their kinds/increments are checked; native
 settlement, expiry and contract units are still not qualified. No capture was
 repeated or acceptance gate weakened to replace the sparse inverse sample.
+
+## Checkpoint: explicit Bybit liquidation semantics and causal unavailability
+
+The allLiquidation repair preserves bankruptcy price, native position direction,
+unverified WS size units, exact native fields and both updated/publication times.
+Actual execution aggressor remains unknown; `T=0` is retained. Typed original-byte
+decoding rejects financial/type/time/topic/catalog/product errors atomically,
+including foreign empty batches, with at most 4,096 rows per batch. Optional typed provenance
+propagates through recording JSON, protobuf, API view and UI labels.
+
+Existing EventPulse V1/V2 execution-notional consumers retain incompatible native
+records as causal markers in their existing bounded five-second windows. Active
+markers make the feature explicitly unavailable before arithmetic, empty-zero
+or partial summation. Qualification expiry still requires renewed coverage.
+Source ownership, earlier-prefix equality, capacity and exact boundary semantics
+are checked without changing public feature contracts or frozen corpora.
+
+The companion evidence note documents native source, alpha Rust constructor and
+decoded-batch migration, API null-field addition, legacy compatibility and
+unrepaired mechanics i128-authoring limits. Validation receipts are recorded under
+docs/evidence/bybit-liquidations-2026-10-19. No new live liquidation delivery or
+strict research qualification follows from this offline slice. Strategy context
+remains rsibot-owned; the goal is active.
+
+Final liquidation-slice validation passes 1,242 workspace all-target/all-feature
+tests with 56 live tests ignored, 74 Bybit tests with 4 ignored, 174 UI tests,
+59 Python audit tests and 11 generated-Google-protobuf fixtures. Ten synchronized
+binary/JSON corruptions are rejected by the retained finite oracle challenge.
+Rust1.85 model/recording/sinks library tests pass89 and Bybit library tests13;
+the EventPulse consumer also checks on1.85. Workspace Clippy/rustdoc, final Bybit
+API rustdoc, production UI build, formatting, dependency and source checks pass.
+The receipt records a final test-only scope assertion strengthening separately
+from the workspace run, including the earlier test-source hash and focused
+rerun. Production behavior did not change after that workspace run.
+
+Independent review closed the foreign-empty scope finding with a targeted pass,
+and reviewed all eleven incompatible price/unit combinations, marker-only and
+mixed windows, inclusive boundary/expiry, missing renewed coverage, shared
+capacity, ownership and earlier-prefix behavior. Two initially mistaken fixture
+expectations and the failed original workspace run remain retained rather than
+being represented as native/runtime failures. These checks do not qualify live
+liquidation delivery or alter the unmet inverse-trade gate.

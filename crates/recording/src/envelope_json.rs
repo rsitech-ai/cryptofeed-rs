@@ -199,13 +199,42 @@ fn market_event_json(ev: &MarketEvent) -> Value {
         MarketEvent::OpenInterest(o) => {
             json!({ "open_interest": { "quantity": { "value": fixed_json(o.quantity.0) } } })
         }
-        MarketEvent::Liquidation(l) => json!({
-            "liquidation": {
-                "price": { "value": fixed_json(l.price.0) },
-                "quantity": { "value": fixed_json(l.quantity.0) },
-                "side": aggressor_json(l.side),
+        MarketEvent::Liquidation(l) => {
+            let mut payload = json!({
+              "liquidation": {
+                  "price": { "value": fixed_json(l.price.0) },
+                  "quantity": { "value": fixed_json(l.quantity.0) },
+                  "side": aggressor_json(l.side),
+              }
+            });
+            if let Some(source) = &l.provenance {
+                use marketfeed_model::{
+                    LiquidatedPositionSide as P, LiquidationPriceBasis as B,
+                    LiquidationQuantityUnit as U,
+                };
+                let price_basis = match source.price_basis {
+                    B::Execution => "LIQUIDATION_PRICE_BASIS_EXECUTION",
+                    B::Bankruptcy => "LIQUIDATION_PRICE_BASIS_BANKRUPTCY",
+                    B::Unverified => "LIQUIDATION_PRICE_BASIS_UNVERIFIED",
+                };
+                let quantity_unit = match source.quantity_unit {
+                    U::Base => "LIQUIDATION_QUANTITY_UNIT_BASE",
+                    U::Quote => "LIQUIDATION_QUANTITY_UNIT_QUOTE",
+                    U::Contracts => "LIQUIDATION_QUANTITY_UNIT_CONTRACTS",
+                    U::Unverified => "LIQUIDATION_QUANTITY_UNIT_UNVERIFIED",
+                };
+                let mut fields = json!({"source_channel":source.source_channel,"price_basis":price_basis,"quantity_unit":quantity_unit,"native_attributes":source.native_attributes});
+                if let Some(side) = source.position_side {
+                    fields["position_side"] = json!(match side {
+                        P::Long => "LIQUIDATED_POSITION_SIDE_LONG",
+                        P::Short => "LIQUIDATED_POSITION_SIDE_SHORT",
+                        P::Unknown => "LIQUIDATED_POSITION_SIDE_UNKNOWN",
+                    });
+                }
+                payload["liquidation"]["provenance"] = fields;
             }
-        }),
+            payload
+        }
         MarketEvent::Statistics24h(s) => {
             let mut st = serde_json::Map::new();
             if let Some(p) = s.open {

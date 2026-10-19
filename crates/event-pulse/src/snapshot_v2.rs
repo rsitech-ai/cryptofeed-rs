@@ -1365,13 +1365,7 @@ impl FeatureRuntime {
                 5_000_000_000,
                 WindowKind::Liquidation,
                 at_ns,
-                FeatureSample::Liquidation {
-                    price: rescale(value.price.0)
-                        .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                    quantity: rescale(value.quantity.0)
-                        .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                    side: value.side,
-                },
+                liquidation_feature_sample(value)?,
             )?,
             MarketEvent::MarkPrice(value) | MarketEvent::IndexPrice(value) => self.push(
                 &contributor,

@@ -250,6 +250,7 @@ fn complete_epin_without_system(admission: &ProspectiveCaptureAdmissionV1) -> Ve
             5,
             start_ns + 4_000,
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: price(98),
                 quantity: quantity(1),
                 side: AggressorSide::Sell,
