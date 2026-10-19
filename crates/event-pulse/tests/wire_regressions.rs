@@ -7,15 +7,26 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 #[test]
-fn time_advisory_exception_stays_rfc3339_only_in_event_pulse_source() {
-    let source_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let mut pending = vec![source_root];
+fn time_advisory_exception_forbids_rfc2822_in_workspace_source() {
+    // The deny exception applies to the entire workspace, including the direct
+    // time consumers in datasets and event-pulse-capture. Scan every crate's
+    // source so a new consumer cannot silently escape this regression guard.
+    let crates_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let mut pending = vec![crates_root.to_path_buf()];
+    let mut inspected = std::collections::BTreeSet::new();
     while let Some(path) = pending.pop() {
         for entry in std::fs::read_dir(path).unwrap() {
             let path = entry.unwrap().path();
             if path.is_dir() {
                 pending.push(path);
-            } else if path.extension().is_some_and(|extension| extension == "rs") {
+            } else if path.extension().is_some_and(|extension| extension == "rs")
+                && path
+                    .components()
+                    .any(|component| component.as_os_str() == "src")
+            {
+                inspected.insert(path.clone());
                 let source = std::fs::read_to_string(&path).unwrap();
                 assert!(
                     !source.contains("Rfc2822"),
@@ -24,6 +35,13 @@ fn time_advisory_exception_stays_rfc3339_only_in_event_pulse_source() {
                 );
             }
         }
+    }
+    for consumer in [
+        "event-pulse/src/wire.rs",
+        "event-pulse-capture/src/fixture_v4.rs",
+        "datasets/src/export.rs",
+    ] {
+        assert!(inspected.contains(&crates_root.join(consumer)));
     }
 }
 

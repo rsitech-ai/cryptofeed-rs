@@ -9,7 +9,7 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Bybit scoped ACK/L1/L2 readiness and engine error settlement verified: finalsource410c3ca workspace1263/0failed/56ignored; clean bounded capture972nativebook/BBO rows and1123raw/shared frames match,3ACK pairs beforelive, stricttrade gate fails withoutinverse trade. Hlscreen 82b715b6d7bcc7161baea753d04c996a925d1148 retains producerpin410c3ca, patches3 advisory packages and boundedPTYcleanup;543Rust1.88 tests, full-lock audit0findings and unchanged1055-event saved projection pass. New remoteCI pending. Root full-lock/UI advisory repairs, Windows durability, settlement/units, rsibot live context, strict dataset/mixed replay and operational gates remain open.",
+  "current_slice": "Compatible Rust/UI lock patches and workspace RFC2822 guard verified locally (174UI tests,23Rust1.85 guard tests,Clippy/deny); full local workspace test running. Root RustSec remains1known time exception. Dedicated Windows API probe prepared; original Windows persistence failure and newly observed hlscreen historical-soak/current-binary binding CI failure remain open. Prior exact capture evidence retained; rsibot ownership unchanged.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)",
   "implementation_owners": {
     "cryptofeed-rs": "Exchange adapters, exact native semantics, instrument metadata, acquisition timestamps, quality events, authoritative live feed, durable raw/canonical storage and deterministic replay",
@@ -17,5 +17,5 @@
     "hlscreen": "Shared-feed consumer and presentation"
   },
   "handoff": "One authoritative cryptofeed source with independently progressing consumers; versioned schemas, instrument identity, provenance, cursors and dataset manifests. Each consumer checks freshness/quality and reports unavailable inputs. No second collector or strategy engine.",
-  "known_dependency_advisories": "Open root inventory: five npm UI alerts across devalue/source-map-js; full-lock cargo-audit also fails on5quinn advisories and yankedchacha20, plus existing documentedtime MSRV/RFC2822 exception. Minimal lock/UI patches and verification remain required. Hlscreen compatible3package repair and boundedPTYcleanup pass543tests/audit0findings locally; new remote CI pending. See docs/evidence/dependency-advisories-2026-10-19.json."
+  "known_dependency_advisories": "Minimal compatible lock repairs verified: devalue5.9.4/source-map-js1.2.2 (full npm audit0findings,174tests/build pass), quinn-proto0.11.18/chacha200.10.2 (full-lock Rust scan only existing time0.3.41 exception remains). Workspace-wide RFC2822 source guard passes23Rust1.85 regression tests. Original failed scans retained; default-branch alerts await reviewed integration. See docs/evidence/dependency-advisories-2026-10-19.json."
 }

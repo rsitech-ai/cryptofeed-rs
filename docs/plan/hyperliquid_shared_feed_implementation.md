@@ -933,3 +933,57 @@ explicit time/MSRV/RFC2822 exception. Five npm UI alerts also remain open. Passi
 cargo-deny's configured active-graph policy is not full-lock advisory clearance.
 The inventory is under docs/evidence/dependency-advisories-2026-10-19.json.
 These repairs and Windows publication remain required goal work, not waived gates.
+
+
+## Compatible dependency repair and Windows compatibility probe (2026-10-20)
+
+Relative to6ef70d6, Cargo.lock changes only quinn-proto0.11.16→0.11.18 and
+chacha200.10.1→0.10.2 version/checksum records; all dependency vectors remain
+unchanged. Cargo metadata --locked before/after has identical edges/features
+when the2version IDs are normalized. UI lock changes only devalue5.8.2→5.9.4
+and source-map-js1.2.1→1.2.2 package version/resolved/integrity fields.
+Independent consumer review confirmed primary patched versions and Rust1.85
+compatibility. No manifest constraints or advisory exceptions changed.
+
+Measured local checks: clean npm ci, full npm audit0findings,174UI tests
+(0failed/0skipped), production build (checked-in dist unchanged), Clippy across
+workspace/alltargets/allfeatures and cargo-deny pass. The expanded RFC2822
+regression guard scans workspace source, including all3direct time consumers;
+23wire regression tests pass onRust1.85. Full workspace tests are running against
+this source snapshot; their result will be recorded separately. Text scanning is
+a regression guard, not a general call-graph reachability proof.
+
+cargo-audit0.22.2 --deny warnings still exits1: only RUSTSEC-2026-0009/time0.3.41
+remains, with zero warnings. This is the existing explicit exception under the
+core1.85 MSRV; no clean RustSec clearance is claimed. Patched time needs1.88.
+Original six-advisory/yanked-package failure remains in the advisory inventory.
+See docs/evidence/dependency-advisories-2026-10-19.json and local receipts
+root-security-{metadata,audit,clippy,deny,rfc3339-guard,workspace}-* and
+root-ui-security-{install,audit,tests,build}-01 under the existing evidence root.
+
+The independent storage review confirmed that merely adding Windows
+BACKUP_SEMANTICS does not establish a namespace durability barrier. A dedicated
+Windows CI job now runs scripts/probe_windows_directory_flush.ps1: the exact
+GENERIC_WRITE directory open/FlushFileBuffers must succeed on handle-identified
+local NTFS. Separate READ|WRITE and READ diagnostics cannot substitute for that
+required case. Native return codes are preserved, including failure artifacts.
+The script has not been executed locally (no Windows/PowerShell runtime).
+Passing would establish API/permission compatibility only, not power-loss
+qualification or a working production backend. The original Windows writer
+failure remains open; no sync is skipped, ignored or downgraded.
+
+Source justification: Microsoft FlushFileBuffers requires GENERIC_WRITE;
+MS-FSA2.1.5.7 describes directory-structure flushing, while product note80 limits
+that guarantee to NTFS. Connecting those contracts to a production Win32
+backend still needs the real probe and storage integration tests:
+https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers
+https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fsa/0de7dc40-9627-437e-a4df-c4696cdc3d02
+https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-fsa/4e3695bd-7574-4f24-a223-b4679c065b63
+
+Remote checks on prior source: hlscreen82b715b RustSec/license/PTY jobs pass,
+but Rust workspace job118366958412/run39342436582 fails when a saved historical
+soak report is compared to the current rebuilt binary hash. This failure is
+retained for a tooling-contract investigation; no report or binary is relabelled.
+Cryptofeed6ef70d6 Windows job118367304888/run39342545062 also fails; other
+platform tests are still running at this observation. Neither result is green
+integration evidence.
