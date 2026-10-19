@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "baseline_test_totals": {
+    "passed": 1123,
+    "failed": 0,
+    "ignored": 56
+  },
+  "results": [
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "start_utc": "2026-10-19T17:38:41.902187+00:00",
+      "end_utc": "2026-10-19T17:38:44.922154+00:00",
+      "exit_code": 0,
+      "log": "gate-0.log",
+      "log_bytes": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/gate-0.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "start_utc": "2026-10-19T17:38:44.922591+00:00",
+      "end_utc": "2026-10-19T17:39:19.554032+00:00",
+      "exit_code": 0,
+      "log": "gate-1.log",
+      "log_bytes": 8699,
+      "log_sha256": "33404527ac25fc2ea5d1f2917c7abf3fbdde77f0153905569047998ca78b2286",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/gate-1.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "start_utc": "2026-10-19T17:39:19.554448+00:00",
+      "end_utc": "2026-10-19T17:42:55.651046+00:00",
+      "exit_code": 0,
+      "log": "gate-2.log",
+      "log_bytes": 117248,
+      "log_sha256": "09f70439e589b277565b9f9589bc992934f79b3e119056d28b94d02f4842edd0",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/gate-2.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "doc",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "start_utc": "2026-10-19T17:42:55.651729+00:00",
+      "end_utc": "2026-10-19T17:43:19.463187+00:00",
+      "exit_code": 0,
+      "log": "gate-3.log",
+      "log_bytes": 4483,
+      "log_sha256": "d1430ab0237d60ab0c621c218969c281d6599a4f9b8126bba6a95210c75dbd51",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/gate-3.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "start_utc": "2026-10-19T17:43:19.480513+00:00",
+      "end_utc": "2026-10-19T17:43:19.560077+00:00",
+      "exit_code": 101,
+      "log": "gate-4.log",
+      "log_bytes": 209,
+      "log_sha256": "52fc67bd2ca7f421818b08fb7eeb03a966240723433e256736a5f02422b7e783",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/gate-4.log"
+    },
+    {
+      "command": [
+        "./scripts/check-oss-readiness.sh"
+      ],
+      "exit_code": 0,
+      "log": "gate-5.log",
+      "limitations": [
+        "gitleaks unavailable; secret scan skipped",
+        "initial local orchestration wrapper stopped before this gate; command then run directly"
+      ],
+      "log_bytes": 77,
+      "log_sha256": "5b871a7b9f4a7e697c8466227c9ac8db803aa5a76b73f5ef9dd331762ea505e4",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/gate-5.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "log": "final-clippy.log",
+      "log_bytes": 175,
+      "log_sha256": "f51e50e048a6c385b55294b0fae8b4dbb5f385731e0f93d65fb9266ce6128633",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/final-clippy.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "marketfeed-daemon",
+        "--all-targets",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "log": "final-daemon-tests.log",
+      "log_bytes": 11649,
+      "log_sha256": "1b76809fa9e0de96c620041caae628e0f11627465001c4873b19ba85b22b9cb1",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/final-daemon-tests.log"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests",
+        "-p",
+        "test_trade_data_audit.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "log": "python-tests.log",
+      "log_bytes": 1443,
+      "log_sha256": "9d29a8159894c037379b99bbb61f7c3ff347c0097141256e25941cf13ae56b38",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/python-tests.log"
+    },
+    {
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "exit_code": 1,
+      "log": "final-deny-0.19.log",
+      "log_bytes": 22128,
+      "log_sha256": "4369467a176cfadad4449c30a8d5d20fc853ab4c20527c77545a54c73a893dd4",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/final-deny-0.19.log",
+      "tool_version": "cargo-deny 0.19.0",
+      "start_utc": "2026-10-19T18:00:03.714226+00:00",
+      "end_utc": "2026-10-19T18:00:05.153960+00:00",
+      "environment": {
+        "PATH_prefix": "${WORKSPACE_ROOT}/.tools/bin"
+      }
+    },
+    {
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "log": "final-fmt.log",
+      "start_utc": "2026-10-19T18:00:30.543934+00:00",
+      "end_utc": "2026-10-19T18:00:31.150413+00:00",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/final-fmt.log",
+      "log_bytes": 0,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "scripts/tests",
+        "-p",
+        "test_trade_data_audit.py",
+        "-v"
+      ],
+      "exit_code": 0,
+      "log": "python-tests.log",
+      "start_utc": "2026-10-19T18:00:31.150798+00:00",
+      "end_utc": "2026-10-19T18:00:31.224998+00:00",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/python-tests.log",
+      "log_bytes": 1443,
+      "log_sha256": "9d29a8159894c037379b99bbb61f7c3ff347c0097141256e25941cf13ae56b38"
+    },
+    {
+      "command": [
+        "./scripts/check-oss-readiness.sh"
+      ],
+      "exit_code": 0,
+      "log": "final-oss.log",
+      "start_utc": "2026-10-19T18:00:31.230127+00:00",
+      "end_utc": "2026-10-19T18:00:31.468435+00:00",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/final-oss.log",
+      "log_bytes": 77,
+      "log_sha256": "5b871a7b9f4a7e697c8466227c9ac8db803aa5a76b73f5ef9dd331762ea505e4"
+    },
+    {
+      "command": [
+        "./scripts/check-oss-readiness.sh"
+      ],
+      "exit_code": 0,
+      "log": "portable-oss.log",
+      "local_artifact": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/portable-oss.log",
+      "log_bytes": 77,
+      "log_sha256": "5b871a7b9f4a7e697c8466227c9ac8db803aa5a76b73f5ef9dd331762ea505e4",
+      "scope": "all staged audit files after portable path export; gitleaks absent scan skipped"
+    }
+  ],
+  "notes": [
+    "baseline entire-workspace checks before audit Rust examples; final daemon/Clippy rerun after example changes",
+    "cargo-deny initially missing,0.18.3 parser rejected CVSS4;0.19.0 installed in ignored .tools for actual final gate",
+    "final rustls0.23.42 gate reports public RUSTSEC-2026-0285,0346,0348,0349; no exploitability assertion",
+    "only dev-dependency edge changed; no dependency versions updated"
+  ]
+}

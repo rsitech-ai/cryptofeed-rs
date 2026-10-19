@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "original_plan": "acquisition-plan.json",
+  "requested_receipt_interval": [
+    "2026-10-19T17:40:49.657390+00:00",
+    "2026-10-19T17:41:49.657390+00:00"
+  ],
+  "actual_process_interval": [
+    "2026-10-19T17:40:49.657390+00:00",
+    "2026-10-19T17:41:50.479755+00:00"
+  ],
+  "boundary_policy": "forward start defined as process launch; original runner recorded launch and stop, not an advance fixed UTC schedule; no retrospective claim of preselected absolute bounds",
+  "tail_policy": "shutdown tail beyond target remains raw evidence; no qualified dataset publication occurred"
+}

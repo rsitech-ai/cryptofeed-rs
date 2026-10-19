@@ -1,0 +1,181 @@
+{
+  "schema_version": 1,
+  "results": [
+    {
+      "file": ".local/evidence/trade-audit/reference/binance-recent.json",
+      "sha256": "4465ddb2dca8c83ae261345c904d5e0341e6840daa95222ad67a933efa3a1a7d",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 2,
+      "reference_rows": 100,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/bitfinex-recent.json",
+      "sha256": "bf61a7edbc939cc75919e30e1d120855861e844580a04503635ab4afe7f5f11d",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 17,
+      "reference_rows": 100,
+      "overlapping_ids": 22,
+      "mismatched_ids": [],
+      "status": "verified-for-stated-scope"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/bitstamp-recent.json",
+      "sha256": "85a2e54d66a0486613c4c0b7fbeab10dd89ec302b50baa9588f3a20dd1016821",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 14,
+      "reference_rows": 17,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/bybit-recent.json",
+      "sha256": "cb783da7bd2df4f3342e770c96113c3ec4bed5ddc2706a3d9db885c725151e8e",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 6,
+      "reference_rows": 60,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/coinbase-recent.json",
+      "sha256": "28b3140d575d30ca24be59569391925afa108babe27189b9ef4b0ea30b4dc462",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 16,
+      "reference_rows": 100,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/deribit-recent.json",
+      "sha256": "b10d2b3cb901ad20bc99f7d8d8fdce945f7f479e751a7031492fa7c45c718472",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 8,
+      "reference_rows": 100,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/gemini-recent.json",
+      "sha256": "1f81fa265b3a2748b4fa8b743362af3595e67faa6f40bff72c1b19c68079657f",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 15,
+      "reference_rows": 100,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/kraken-recent.json",
+      "sha256": "1933d3520a24eb78a5e6d4d4f3da0fd73779fd444b41cf3ce1df6a980daea4d9",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 7,
+      "reference_rows": 100,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference/okx-recent.json",
+      "sha256": "bf34bb38ff31619a3dac71508167c3bdd8ce5a5e2786a93f5fd86ea19882730c",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "status": "blocked",
+      "reason": "WS trades aggregates cannot be equated to REST individual trades"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/binance-recent.json",
+      "sha256": "01fc5a02e412bd6ceda6e515925e3cac50939f56f85052f6375437963a1452e2",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 2,
+      "reference_rows": 100,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/bitfinex-recent.json",
+      "sha256": "a7625bc82b6f39d54812db933cc38b70038a1146f6b7d1ef9e386ad8e9d66e91",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 17,
+      "reference_rows": 100,
+      "overlapping_ids": 48,
+      "mismatched_ids": [],
+      "status": "verified-for-stated-scope"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/bitstamp-recent.json",
+      "sha256": "afb8cfebd63bcf4b7e2dac1a751fb27595324e2b6d2da5c0d44064ba36f50cd5",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 14,
+      "reference_rows": 11,
+      "overlapping_ids": 7,
+      "mismatched_ids": [],
+      "status": "verified-for-stated-scope"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/bybit-recent.json",
+      "sha256": "c42f0ea9d84a0665b07ea4120feb63a4ef350e773de7a5742426d629e73cd76e",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 6,
+      "reference_rows": 60,
+      "overlapping_ids": 0,
+      "mismatched_ids": [],
+      "status": "not-run-no-overlap"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/coinbase-recent.json",
+      "sha256": "f2017483f895a0b875fac6a33463b236bb0c84e93794684d850b6dc8a8e05f74",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 16,
+      "reference_rows": 100,
+      "overlapping_ids": 23,
+      "mismatched_ids": [],
+      "status": "verified-for-stated-scope"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/deribit-recent.json",
+      "sha256": "a7e15d4b09c0afcae95660f216d948dda78bbc4a82f1dd611ece202f654161e6",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 8,
+      "reference_rows": 100,
+      "overlapping_ids": 57,
+      "mismatched_ids": [],
+      "status": "verified-for-stated-scope"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/gemini-recent.json",
+      "sha256": "0f41e79944fbad14e6352418e298f26461f8fbb1e0b082cfdaaa684fa94b63dd",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 15,
+      "reference_rows": 100,
+      "overlapping_ids": 6,
+      "mismatched_ids": [],
+      "status": "verified-for-stated-scope"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/kraken-recent.json",
+      "sha256": "a6406c1517089c706083155b77203c2eabe535a78b16ec609a9876e223d523cd",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "venue_id": 7,
+      "reference_rows": 100,
+      "overlapping_ids": 67,
+      "mismatched_ids": [],
+      "status": "verified-for-stated-scope"
+    },
+    {
+      "file": ".local/evidence/trade-audit/reference-after/okx-recent.json",
+      "sha256": "d2027dbb2474ee6c611083921ad0a4220d03db22868f6e9e4dba2c4804f59a78",
+      "scope": "price/quantity/native-ID intersection; side/time/coverage not established",
+      "status": "blocked",
+      "reason": "WS trades aggregates cannot be equated to REST individual trades"
+    }
+  ],
+  "continuity": "unknown",
+  "qualified": false
+}

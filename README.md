@@ -48,6 +48,11 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
 Adapter coverage and operational gaps are recorded in
 [`docs/plan/maturity_matrix.md`](docs/plan/maturity_matrix.md) and
 [`docs/plan/venue_channel_audit.md`](docs/plan/venue_channel_audit.md).
+The [trade-integrity audit](docs/ops/trade_data_validation_report.md) separately
+records current trade semantics, raw lineage, durability and OKX reader blockers.
+Its [specification](docs/spec/trade_data_integrity_and_backtest_storage.md) and
+[implementation plan](docs/plan/trade_data_integrity_implementation_plan.md) define
+the remaining work before research dataset qualification.
 
 ## Install
 

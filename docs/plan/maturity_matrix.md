@@ -1,5 +1,11 @@
 # Adapter maturity matrix
 
+> 2026-10-19 trade-integrity audit: existing maturity/channel marks are not
+> dataset qualification. The [current inventory](trade_venue_inventory.md) and
+> [validation report](../ops/trade_data_validation_report.md) separately record
+> trade semantics, live scope, reconciliation, durability and consumer blockers.
+> No venue or dataset is operationally promoted by the audit/specification PR.
+
 **Maintainer:** RSI Tech ([`CODEOWNERS`](../../CODEOWNERS))
 **Canary checklist:** [`docs/ops/canary_checklist.md`](../ops/canary_checklist.md)  
 **Laptop live evidence:** [`docs/ops/canary_results.md`](../ops/canary_results.md) (laptop **10/10**; scheduled **0**; reconnect **PASS** laptop — **not beta**)<br>

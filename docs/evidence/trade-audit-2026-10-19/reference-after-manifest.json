@@ -1,0 +1,101 @@
+[
+  {
+    "url": "https://www.okx.com/api/v5/market/trades?instId=BTC-USDT&limit=100",
+    "name": "okx-recent",
+    "start_utc": "2026-10-19T17:42:09.026834+00:00",
+    "http_status": 200,
+    "bytes": 12454,
+    "sha256": "d2027dbb2474ee6c611083921ad0a4220d03db22868f6e9e4dba2c4804f59a78",
+    "file": "okx-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:09.380718+00:00"
+  },
+  {
+    "url": "https://api.binance.com/api/v3/trades?symbol=BTCUSDT&limit=100",
+    "name": "binance-recent",
+    "start_utc": "2026-10-19T17:42:09.381043+00:00",
+    "http_status": 200,
+    "bytes": 14753,
+    "sha256": "01fc5a02e412bd6ceda6e515925e3cac50939f56f85052f6375437963a1452e2",
+    "file": "binance-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:09.682053+00:00"
+  },
+  {
+    "url": "https://api.bybit.com/v5/market/recent-trade?category=spot&symbol=BTCUSDT&limit=100",
+    "name": "bybit-recent",
+    "start_utc": "2026-10-19T17:42:09.682395+00:00",
+    "http_status": 200,
+    "bytes": 11194,
+    "sha256": "c42f0ea9d84a0665b07ea4120feb63a4ef350e773de7a5742426d629e73cd76e",
+    "file": "bybit-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:10.020799+00:00"
+  },
+  {
+    "url": "https://api.kraken.com/0/public/Trades?pair=XBTUSD&count=100",
+    "name": "kraken-recent",
+    "start_utc": "2026-10-19T17:42:10.024976+00:00",
+    "http_status": 200,
+    "bytes": 6930,
+    "sha256": "a6406c1517089c706083155b77203c2eabe535a78b16ec609a9876e223d523cd",
+    "file": "kraken-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:10.134143+00:00"
+  },
+  {
+    "url": "https://www.bitstamp.net/api/v2/transactions/btcusd/?time=minute",
+    "name": "bitstamp-recent",
+    "start_utc": "2026-10-19T17:42:10.139681+00:00",
+    "http_status": 200,
+    "bytes": 1122,
+    "sha256": "afb8cfebd63bcf4b7e2dac1a751fb27595324e2b6d2da5c0d44064ba36f50cd5",
+    "file": "bitstamp-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:10.231885+00:00"
+  },
+  {
+    "url": "https://api.gemini.com/v1/trades/btcusd?limit_trades=100",
+    "name": "gemini-recent",
+    "start_utc": "2026-10-19T17:42:10.232182+00:00",
+    "http_status": 200,
+    "bytes": 14961,
+    "sha256": "0f41e79944fbad14e6352418e298f26461f8fbb1e0b082cfdaaa684fa94b63dd",
+    "file": "gemini-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:11.909563+00:00"
+  },
+  {
+    "url": "https://api.exchange.coinbase.com/products/BTC-USD/trades?limit=100",
+    "name": "coinbase-recent",
+    "start_utc": "2026-10-19T17:42:11.909952+00:00",
+    "http_status": 200,
+    "bytes": 11937,
+    "sha256": "f2017483f895a0b875fac6a33463b236bb0c84e93794684d850b6dc8a8e05f74",
+    "file": "coinbase-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:12.002990+00:00"
+  },
+  {
+    "url": "https://api-pub.bitfinex.com/v2/trades/tBTCUSD/hist?limit=100",
+    "name": "bitfinex-recent",
+    "start_utc": "2026-10-19T17:42:12.011222+00:00",
+    "http_status": 200,
+    "bytes": 4328,
+    "sha256": "a7625bc82b6f39d54812db933cc38b70038a1146f6b7d1ef9e386ad8e9d66e91",
+    "file": "bitfinex-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:12.117993+00:00"
+  },
+  {
+    "url": "https://www.deribit.com/api/v2/public/get_last_trades_by_instrument?instrument_name=BTC-PERPETUAL&count=100",
+    "name": "deribit-recent",
+    "start_utc": "2026-10-19T17:42:12.123660+00:00",
+    "http_status": 200,
+    "bytes": 31826,
+    "sha256": "a7e15d4b09c0afcae95660f216d948dda78bbc4a82f1dd611ece202f654161e6",
+    "file": "deribit-recent.json",
+    "status": "acquired-unqualified",
+    "end_utc": "2026-10-19T17:42:12.207992+00:00"
+  }
+]

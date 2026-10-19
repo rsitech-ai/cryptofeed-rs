@@ -1,0 +1,476 @@
+{
+  "authority": "READ_ONLY_VERIFICATION_NO_ECONOMIC_EXECUTION",
+  "bnb_raw_parity": {
+    "compared_raw_fields": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      7
+    ],
+    "confirmation_counts": {
+      "1": 177240
+    },
+    "conflicting_overlap_rows": 0,
+    "float_parity_mismatched_rows": 0,
+    "overlap_rows": 120,
+    "raw_grid_exact": true,
+    "row_field_counts": {
+      "9": 177240
+    },
+    "sources": [
+      {
+        "bytes": 4197055,
+        "month": "2026-05",
+        "pages": 447,
+        "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/bnbusdc/1m/raw/BNB-USDT-1m-2026-05.jsonl",
+        "receipt_matches": true,
+        "scoped_returned_rows": 44640,
+        "sha256": "246f6657c0c34333ef57ccff5beb10efae244463db5fa93e47ef4a5b41b0176e"
+      },
+      {
+        "bytes": 4058598,
+        "month": "2026-06",
+        "pages": 432,
+        "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/bnbusdc/1m/raw/BNB-USDT-1m-2026-06.jsonl",
+        "receipt_matches": true,
+        "scoped_returned_rows": 43200,
+        "sha256": "ec9de228227f25280876586cdef3ebdac87f4b88b54dc46e82f7e75a59fc2fb2"
+      },
+      {
+        "bytes": 4161987,
+        "month": "2026-07",
+        "pages": 447,
+        "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/bnbusdc/1m/raw/BNB-USDT-1m-2026-07.jsonl",
+        "receipt_matches": true,
+        "scoped_returned_rows": 44700,
+        "sha256": "f45c84317d3420c0ff183cb0587219f6cf306d057268c4d911f27f90e5f156d4"
+      },
+      {
+        "bytes": 4201996,
+        "month": "2026-08",
+        "pages": 447,
+        "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/bnbusdc/1m/raw/BNB-USDT-1m-2026-08.jsonl",
+        "receipt_matches": true,
+        "scoped_returned_rows": 44700,
+        "sha256": "fe32c4a1375647d461fd4b5fb0bf8e2d45d260d7da9c55aadfa11fa5547f2550"
+      }
+    ],
+    "unavailable_columns_all_nan": {
+      "n_trades": true,
+      "taker_buy_base_volume": true,
+      "taker_buy_quote_volume": true
+    },
+    "unique_scored_rows": 177120
+  },
+  "bundle": {
+    "complete_grid": true,
+    "dtypes": {
+      "close": "float64",
+      "high": "float64",
+      "low": "float64",
+      "n_trades": "float64",
+      "open": "float64",
+      "quote_asset_volume": "float64",
+      "taker_buy_base_volume": "float64",
+      "taker_buy_quote_volume": "float64",
+      "timestamp": "int64",
+      "volume": "float64"
+    },
+    "first": 1774569600,
+    "last": 1788220740,
+    "manifest": {
+      "bytes": 5032,
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/bundles/bnb_mayaug26_okx/bundle.json",
+      "sha256": "2a6d9351f3ddb24e2c0ac570e6710e79d7df363011153f226c7fb980709c5f7b"
+    },
+    "minutes": {
+      "bytes": 18204142,
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/bundles/bnb_mayaug26_okx/minutes.npz",
+      "receipt_matches": true,
+      "sha256": "52bc018b85fef6cd030969c1575dccdd2ec3455bca99753e15d4c4dd04485867"
+    },
+    "rows": 227520,
+    "scored_rows": 177120,
+    "scored_values_match_corpus": true,
+    "source_instrument": "BNB-USDT",
+    "trading_rules_source": "applied by the minute owner: lot step and tick equal the venue's public instrument lotSz/tickSz receipt; minimum order size is the lot step and the minimum notional is the owner's 1 quote constant (the venue's minSz is not applied)"
+  },
+  "datasets": [
+    {
+      "bytes": 16935794,
+      "codecs": [
+        "ZSTD"
+      ],
+      "declared_continuity": {
+        "complete": true,
+        "fill_rule": "missing minute = previous close flat, zero volume",
+        "filled_minutes": 0,
+        "first_timestamp": 1751328000,
+        "last_timestamp": 1788220740,
+        "longest_gap_minutes": 0,
+        "rows": 614880,
+        "step_seconds": 60
+      },
+      "evidence": "hash_and_actual_timestamp_grid",
+      "first": 1777593600,
+      "full_rows": 614880,
+      "last": 1788220740,
+      "pair": "BNB-USDC",
+      "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/bnbusdc/1m/okx|BNB-USDC|1m|2025-07_2026-08.parquet",
+      "receipt_matches": true,
+      "schema": {
+        "close": "double",
+        "high": "double",
+        "low": "double",
+        "n_trades": "double",
+        "open": "double",
+        "quote_asset_volume": "double",
+        "taker_buy_base_volume": "double",
+        "taker_buy_quote_volume": "double",
+        "timestamp": "int64",
+        "volume": "double"
+      },
+      "scored_grid_exact": true,
+      "scored_rows": 177120,
+      "sha256": "eec0ccac2a2e51c6aa5d76e95b31d70319470c755d236bbd210b8a7ecd81ce3b",
+      "source_instrument": "BNB-USDT"
+    },
+    {
+      "bytes": 22093308,
+      "codecs": [
+        "ZSTD"
+      ],
+      "declared_continuity": {
+        "complete": true,
+        "fill_rule": "missing minute = previous close flat, zero volume",
+        "filled_minutes": 0,
+        "first_timestamp": 1751328000,
+        "last_timestamp": 1788220740,
+        "longest_gap_minutes": 0,
+        "rows": 614880,
+        "step_seconds": 60
+      },
+      "evidence": "hash_and_actual_timestamp_grid",
+      "first": 1777593600,
+      "full_rows": 614880,
+      "last": 1788220740,
+      "pair": "ETH-USDC",
+      "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/ethusdc/1m/okx|ETH-USDC|1m|2025-07_2026-08.parquet",
+      "receipt_matches": true,
+      "schema": {
+        "close": "double",
+        "high": "double",
+        "low": "double",
+        "n_trades": "double",
+        "open": "double",
+        "quote_asset_volume": "double",
+        "taker_buy_base_volume": "double",
+        "taker_buy_quote_volume": "double",
+        "timestamp": "int64",
+        "volume": "double"
+      },
+      "scored_grid_exact": true,
+      "scored_rows": 177120,
+      "sha256": "efcb6003055dda3883d0f87c1b8358dfba4e6dda78d3651f4bae8a9306557ced",
+      "source_instrument": "ETH-USDT"
+    },
+    {
+      "bytes": 22911242,
+      "codecs": [
+        "ZSTD"
+      ],
+      "declared_continuity": {
+        "complete": true,
+        "fill_rule": "missing minute = previous close flat, zero volume",
+        "filled_minutes": 0,
+        "first_timestamp": 1751328000,
+        "last_timestamp": 1788220740,
+        "longest_gap_minutes": 0,
+        "rows": 614880,
+        "step_seconds": 60
+      },
+      "evidence": "hash_and_actual_timestamp_grid",
+      "first": 1777593600,
+      "full_rows": 614880,
+      "last": 1788220740,
+      "pair": "BTC-USDC",
+      "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/btcusdc/1m/okx|BTC-USDC|1m|2025-07_2026-08.parquet",
+      "receipt_matches": true,
+      "schema": {
+        "close": "double",
+        "high": "double",
+        "low": "double",
+        "n_trades": "double",
+        "open": "double",
+        "quote_asset_volume": "double",
+        "taker_buy_base_volume": "double",
+        "taker_buy_quote_volume": "double",
+        "timestamp": "int64",
+        "volume": "double"
+      },
+      "scored_grid_exact": true,
+      "scored_rows": 177120,
+      "sha256": "fe3175952c8cf3fba23c493f8421a782978d0502512991987ad06c04184c9ef6",
+      "source_instrument": "BTC-USDT"
+    },
+    {
+      "bytes": 17637262,
+      "codecs": [
+        "ZSTD"
+      ],
+      "declared_continuity": {
+        "complete": true,
+        "fill_rule": "missing minute = previous close flat, zero volume",
+        "filled_minutes": 0,
+        "first_timestamp": 1751328000,
+        "last_timestamp": 1788220740,
+        "longest_gap_minutes": 0,
+        "rows": 614880,
+        "step_seconds": 60
+      },
+      "evidence": "hash_and_actual_timestamp_grid",
+      "first": 1777593600,
+      "full_rows": 614880,
+      "last": 1788220740,
+      "pair": "SOL-USDC",
+      "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/solusdc/1m/okx|SOL-USDC|1m|2025-07_2026-08.parquet",
+      "receipt_matches": true,
+      "schema": {
+        "close": "double",
+        "high": "double",
+        "low": "double",
+        "n_trades": "double",
+        "open": "double",
+        "quote_asset_volume": "double",
+        "taker_buy_base_volume": "double",
+        "taker_buy_quote_volume": "double",
+        "timestamp": "int64",
+        "volume": "double"
+      },
+      "scored_grid_exact": true,
+      "scored_rows": 177120,
+      "sha256": "8d73d20eeaf65e9f26ca9b78cbf413c82934804f4f140d66af1d22715569bb14",
+      "source_instrument": "SOL-USDT"
+    },
+    {
+      "bytes": 18409386,
+      "codecs": [
+        "ZSTD"
+      ],
+      "declared_continuity": {
+        "complete": true,
+        "fill_rule": "missing minute = previous close flat, zero volume",
+        "filled_minutes": 0,
+        "first_timestamp": 1751328000,
+        "last_timestamp": 1788220740,
+        "longest_gap_minutes": 0,
+        "rows": 614880,
+        "step_seconds": 60
+      },
+      "evidence": "hash_and_actual_timestamp_grid",
+      "first": 1777593600,
+      "full_rows": 614880,
+      "last": 1788220740,
+      "pair": "XRP-USDC",
+      "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/xrpusdc/1m/okx|XRP-USDC|1m|2025-07_2026-08.parquet",
+      "receipt_matches": true,
+      "schema": {
+        "close": "double",
+        "high": "double",
+        "low": "double",
+        "n_trades": "double",
+        "open": "double",
+        "quote_asset_volume": "double",
+        "taker_buy_base_volume": "double",
+        "taker_buy_quote_volume": "double",
+        "timestamp": "int64",
+        "volume": "double"
+      },
+      "scored_grid_exact": true,
+      "scored_rows": 177120,
+      "sha256": "654dea4a360e107999ecf1718f28dd19fa49bd8425c1695049d4b966aa431125",
+      "source_instrument": "XRP-USDT"
+    }
+  ],
+  "generated_at_utc": "2026-10-19T17:45:16.226409+00:00",
+  "limitations": [
+    "USDT source instruments are logical USDC consumer proxies, not native USDC data",
+    "Candle values are float64; this is not exact-decimal evidence",
+    "Raw-to-derived parity is checked only for BNB",
+    "Cached API pages are not an independent trade/reference reconciliation",
+    "No live transport, economic evaluation, dataset admission or operational promotion is tested"
+  ],
+  "manifest": {
+    "bytes": 50567,
+    "path": "${QUANTS_ROOT}/output/data_backfills/spot_corpus_okx_usdt_2025_07_2026_08/manifest.json",
+    "sha256": "fe159bf4069198acc92280310f79fbdc578bf01bd7e753adf7caeee348d85133"
+  },
+  "quants_root": "${QUANTS_ROOT}",
+  "readers": [
+    {
+      "bytes": 11022,
+      "commit": "c811cb1bfae7525df87e7ba15436879f8605d526",
+      "functions": [
+        "BacktestingEngine._load_candles_cache",
+        "BacktestingEngine.load_candles_cache_by_connector_pair"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "current_checkout",
+      "matches_commit_blob": true,
+      "owner": "quants-lab",
+      "path": "${QUANTS_ROOT}/core/backtesting/engine.py",
+      "sha256": "f5ea93ce44e0a8ea837b9617d5a48c7214b4ef7edaebc6e38ff19a621c9aada6"
+    },
+    {
+      "bytes": 55459,
+      "commit": "c811cb1bfae7525df87e7ba15436879f8605d526",
+      "functions": [
+        "CLOBDataSource.load_candles_cache"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "current_checkout",
+      "matches_commit_blob": true,
+      "owner": "quants-lab",
+      "path": "${QUANTS_ROOT}/core/data_sources/clob.py",
+      "sha256": "7ece6731cd8ef289367a6b8b94d98fa25cd8b10c595fe4d7a0d963f749287ada"
+    },
+    {
+      "bytes": 4273,
+      "commit": "eb069054ff62aedaac52d2bb71fb8cb03738702b",
+      "functions": [
+        "OKXSpotCandles._parse_rest_candles",
+        "OKXSpotCandles._parse_websocket_message"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "current_checkout",
+      "matches_commit_blob": true,
+      "owner": "hummingbot",
+      "path": "${HUMMINGBOT_ROOT}/hummingbot/data_feed/candles_feed/okx_spot_candles/okx_spot_candles.py",
+      "sha256": "5432ed00bcc9314fa5d0ba413d1db0cd548621085483dcfe8e5efe8e4640c11b"
+    },
+    {
+      "bytes": 10272,
+      "commit": "6c4ed9a6feadd2c3a658ae7a8d4bde1f7deecb36",
+      "functions": [
+        "build"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "preserved_source_snapshot",
+      "matches_commit_blob": true,
+      "owner": "quants-lab",
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/src/q-6c4ed9a/scripts/research/build_corpus_minute_bundle.py",
+      "sha256": "b5f72604dd3a7cb2981403daf7ca21fa28c7be8e848ac6cf827907ae840f1ac8"
+    },
+    {
+      "bytes": 12801,
+      "commit": "79069cc47f2f39ecc1672fa04ba81c3bc8c78870",
+      "functions": [
+        "audit_trades",
+        "audit_seconds"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "preserved_source_snapshot",
+      "matches_commit_blob": true,
+      "owner": "quants-lab",
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/src/q-79069cc/scripts/data/ok_rsi_may_aug_spot_cache.py",
+      "sha256": "7bdf3c6c24f676b60c0a3c39d37aab957c7317907b3acde8dfdff457189efc0f"
+    },
+    {
+      "bytes": 31255,
+      "commit": "79069cc47f2f39ecc1672fa04ba81c3bc8c78870",
+      "functions": [
+        "prepare"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "preserved_source_snapshot",
+      "matches_commit_blob": true,
+      "owner": "quants-lab",
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/src/q-79069cc/scripts/research/ok_rsi_zero_fill_repair.py",
+      "sha256": "8de40235878646e334af155df04174eed3555032cf449a60f438134402f39b0a"
+    },
+    {
+      "bytes": 4374,
+      "commit": "356b3da6e35fff5b81dcbc7390e035f83267da22",
+      "functions": [
+        "parse_row",
+        "history_valid"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "preserved_source_snapshot",
+      "matches_commit_blob": true,
+      "owner": "hummingbot",
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/src/hb-356b3da/services/okx-candle-service/src/model.rs",
+      "sha256": "aa28095bef03bf81d90e47b7d71710c1ee5de2ec9c7f5432f9b6ac0d8f28c69d"
+    },
+    {
+      "bytes": 11054,
+      "commit": "356b3da6e35fff5b81dcbc7390e035f83267da22",
+      "functions": [
+        "CandleStreamClient._row",
+        "CandleStreamClient._apply"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "preserved_source_snapshot",
+      "matches_commit_blob": true,
+      "owner": "hummingbot",
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/src/hb-356b3da/hummingbot/strategy_v2/components/candle_stream.py",
+      "sha256": "cfaef6442285e80fddda8c83c8709b826350defd142cea7ce254f5b295b6c368"
+    },
+    {
+      "bytes": 16477,
+      "commit": "356b3da6e35fff5b81dcbc7390e035f83267da22",
+      "functions": [
+        "Candle",
+        "CandleSnapshot.continuity",
+        "CandleSnapshot.frame",
+        "Replica"
+      ],
+      "functions_executed_by_audit": false,
+      "kind": "preserved_source_snapshot",
+      "matches_commit_blob": true,
+      "owner": "hummingbot",
+      "path": "${QUANTS_ROOT}/output/backtests/meridian_v3/laptop2/src/hb-356b3da/hummingbot/strategy_v2/components/candle_data.py",
+      "sha256": "7b06850a88746ecc40f6bd56ba3e0fa58c6e550ad8dab29de759744ca79199ec"
+    }
+  ],
+  "repositories": {
+    "hummingbot": {
+      "branch": null,
+      "commit": "eb069054ff62aedaac52d2bb71fb8cb03738702b",
+      "path": "${HUMMINGBOT_ROOT}"
+    },
+    "quants-lab": {
+      "branch": "main",
+      "commit": "c811cb1bfae7525df87e7ba15436879f8605d526",
+      "path": "${QUANTS_ROOT}"
+    },
+    "rsibot": {
+      "branch": "feat/andrzej_regime_forecast_sizing",
+      "commit": "90bd12ce5a76ffa952ed7fc079b781b595cacf1b",
+      "path": "${RSIBOT_ROOT}"
+    }
+  },
+  "runtime": {
+    "executable": "${AUDIT_PYTHON}",
+    "numpy": "2.5.3",
+    "pyarrow": "25.0.1",
+    "python": "3.13.15"
+  },
+  "schema": "cryptofeed.okx_consumer_cache_audit.v1",
+  "script": {
+    "bytes": 16942,
+    "path": "${WORKSPACE_ROOT}/scripts/audit_okx_consumer_cache.py",
+    "sha256": "3e279768ec8a3c2e4694d0a71c48fa0004e82102add62761e413af562f6bcbd5"
+  },
+  "status": "PASS_BOUNDED_CACHE_CHECKS",
+  "window": {
+    "end_exclusive": 1788220800,
+    "end_exclusive_utc": "2026-09-01T00:00:00Z",
+    "expected_rows_per_pair": 177120,
+    "start": 1777593600,
+    "start_utc": "2026-05-01T00:00:00Z",
+    "step_seconds": 60
+  }
+}

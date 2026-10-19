@@ -1,0 +1,310 @@
+{
+  "exact_row_equality": true,
+  "files": [
+    {
+      "bytes": 35242,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=2/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 1373,
+      "sha256": "48c692806a18c21bd163076cfb90b46971364ebf70578097d33f0c8d498223e9"
+    },
+    {
+      "bytes": 25778,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=3/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 875,
+      "sha256": "5566e862690abccb91a626f109371a36adbcd578833f77ad95bda7135766c58c"
+    },
+    {
+      "bytes": 9451,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=4/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 70,
+      "sha256": "ca16e43f8d36274c9aeb519b89521826683c82e7fe4e58d7bc9d0dcd7a79a831"
+    },
+    {
+      "bytes": 19842,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=5/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 327,
+      "sha256": "d822e2fe4d48f1f620f624ba7f2e776eac721d2955315cfcca43b5c7e055b5b0"
+    },
+    {
+      "bytes": 15918,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=6/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 518,
+      "sha256": "c739743ca122138a21c97820ab49e00b40bd4a38715779a4a60177c33b9e017a"
+    },
+    {
+      "bytes": 9554,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=7/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 90,
+      "sha256": "57ac2efabd850d38868340149f9c2d4610d095fb8a0ec623b5dc051984e41e3a"
+    },
+    {
+      "bytes": 11012,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=8/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 184,
+      "sha256": "922ccdc446faf2e8b844c9b65784dbbc7bbdd724e33581a8e036a6150a3af85e"
+    },
+    {
+      "bytes": 16011,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=9/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 375,
+      "sha256": "3836c6aaa7756c5503cf89f0ea9c92b9197f0932f167e3bb87df39685217ce95"
+    },
+    {
+      "bytes": 7436,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=11/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 7,
+      "sha256": "2be0d156f4725abb0d96a50634f5a1a94814cc5bed5d1a2340bf56224aa46235"
+    },
+    {
+      "bytes": 8075,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=12/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 32,
+      "sha256": "1a67e02ba4856e6ea20c99583b321b000e57db7118c0354f5c5cabea3ae2f887"
+    },
+    {
+      "bytes": 11440,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=13/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 100,
+      "sha256": "075d0ef8ae8dbcfbdf682ee1b24432459c07765868b3ccc11d0e8fd3b00eaaa1"
+    },
+    {
+      "bytes": 7176,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=14/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 10,
+      "sha256": "40d3db9ba50beaace7593ba6b66c224c09b57cf56ae048b2caa7691fe2e6aa28"
+    },
+    {
+      "bytes": 7037,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=15/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 6,
+      "sha256": "1a4c82dd2cea39c5577d24ad0bf647ceb1cb434f67533645f4c7a8654f8de794"
+    },
+    {
+      "bytes": 17602,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=16/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 347,
+      "sha256": "1b497c5c5e5156315d0983dd6324735db86199068b28a5c9d0f498b20ec4727d"
+    },
+    {
+      "bytes": 8125,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=17/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 48,
+      "sha256": "749bfa3b397065d1983bb40cc0abe4a26e4790f3e80fe801fcd514f8acaf811e"
+    },
+    {
+      "bytes": 18590,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=18/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 448,
+      "sha256": "f364952d600cdf8b7a169d81941e48d1f83c5405c5c4fe08118c7269598ea687"
+    },
+    {
+      "bytes": 8125,
+      "codecs": [
+        "ZSTD"
+      ],
+      "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/venue_id=20/receive_date_utc=2026-10-19/part-00000.parquet",
+      "row_groups": 1,
+      "rows": 43,
+      "sha256": "fce835947ca0adca0af57c36430bef4e32276ea3d7d41cad4e296ee4c9332c7c"
+    }
+  ],
+  "generated_at_utc": "2026-10-19T17:53:31.021920+00:00",
+  "input": {
+    "bytes": 20255861,
+    "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/pilot-001/events.jsonl",
+    "sha256": "c2c31b167e566c66f39c5db18f63248611c8ee7c84061470acc2b9c387f6a791"
+  },
+  "input_batches": 30818,
+  "layout": {
+    "coefficient_encoding": "signed_i128_big_endian_binary16",
+    "compression": "ZSTD",
+    "format": "Parquet",
+    "level": 3,
+    "parquet_version": "2.6",
+    "partition_columns": [
+      "venue_id",
+      "receive_date_utc"
+    ],
+    "row_group_target": 65536,
+    "scale_type": "uint8",
+    "schema": "source_row: uint64 not null\ninput_line: uint64 not null\ninput_event_index: uint32 not null\nschema_version: uint16 not null\nvenue_id: uint32 not null\ninstrument_id: uint32\nconnection_id: uint64 not null\nsession_id: uint64 not null\nframe_seq: uint64 not null\nevent_index: uint16 not null\nexchange_ts_ns: int64\nreceive_ts_ns: int64 not null\nsource_sequence_first: uint64\nsource_sequence_last: uint64\nflags: uint32 not null\nprice: struct<coefficient_be_i128: fixed_size_binary[16] not null, scale: uint8 not null> not null\n  child 0, coefficient_be_i128: fixed_size_binary[16] not null\n  child 1, scale: uint8 not null\nquantity: struct<coefficient_be_i128: fixed_size_binary[16] not null, scale: uint8 not null> not null\n  child 0, coefficient_be_i128: fixed_size_binary[16] not null\n  child 1, scale: uint8 not null\naggressor: string not null\ntrade_id: string\n-- schema metadata --\nlayout_status: 'CANDIDATE_NOT_CANONICAL_NOT_QUALIFIED'\nfixed_encoding: 'signed_i128_twos_complement_big_endian_16_bytes_plus_u8_' + 5\nlineage: 'normalized_JSONL_positions_only_not_raw_frame_lineage'"
+  },
+  "layout_status": "CANDIDATE_NOT_CANONICAL_NOT_QUALIFIED",
+  "limitations": [
+    "Pilot session IDs collide across venues; storing them faithfully does not repair identity",
+    "Input positions refer to normalized JSONL, not raw MFR1 frame/record lineage",
+    "Small bounded sample includes source snapshots and does not prove independent executions or losslessness",
+    "No aggregation/unit/side semantics, exchange completeness or dataset admission is established",
+    "No production Rust writer, transactional durability/crash recovery, remote store or throughput qualification is implemented",
+    "Partition footer overhead and warm filesystem cache materially affect this small sample"
+  ],
+  "manifest": {
+    "bytes": 11209,
+    "path": "${WORKSPACE_ROOT}/.local/evidence/trade-audit/storage-probe/manifest.json",
+    "sha256": "b6afdd720f1960b19858a7ff7368bb083598ab45e9b9b05213fc05756f11fff3"
+  },
+  "max_rss_after": {
+    "bytes": 153780224,
+    "ru_maxrss": 153780224,
+    "scope": "whole_process_high_water_including_imports_and_self_test_not_phase_isolated",
+    "units": "bytes"
+  },
+  "max_rss_before": {
+    "bytes": 63946752,
+    "ru_maxrss": 63946752,
+    "scope": "whole_process_high_water_including_imports_and_self_test_not_phase_isolated",
+    "units": "bytes"
+  },
+  "nontrade_events_skipped": 28781,
+  "rows": 4853,
+  "runtime": {
+    "executable": "${AUDIT_PYTHON}",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "pyarrow": "25.0.1",
+    "python": "3.13.15"
+  },
+  "schema": "cryptofeed.trade_storage_layout_probe.v1",
+  "script": {
+    "bytes": 17543,
+    "path": "${WORKSPACE_ROOT}/scripts/benchmark_trade_storage.py",
+    "sha256": "659950ccbcb9b620e43057aed38b28355a8a2774f797c7f04316535ac85007bf"
+  },
+  "self_test": {
+    "coefficient_extrema": [
+      "-170141183460469231731687303715884105728",
+      "170141183460469231731687303715884105727"
+    ],
+    "rejected_invalid_cases": 4,
+    "roundtrip_cases": 18,
+    "scales": [
+      0,
+      38,
+      255
+    ],
+    "semantic_sha256_after": "a53545d6d23268fc2357dce6950ca48c53a8b7498460a0694f912c591e9e902f",
+    "semantic_sha256_before": "a53545d6d23268fc2357dce6950ca48c53a8b7498460a0694f912c591e9e902f",
+    "status": "PASS"
+  },
+  "semantic_sha256_after": "ecb31f923137082110799ec8efb8938ff5a7616d24beec59dd4c01f3faa0d6d1",
+  "semantic_sha256_before": "ecb31f923137082110799ec8efb8938ff5a7616d24beec59dd4c01f3faa0d6d1",
+  "session_venue_sets": {
+    "1": [
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      20
+    ]
+  },
+  "status": "PASS_EXACT_BOUNDED_ROUNDTRIP",
+  "storage": {
+    "input_jsonl_bytes_per_selected_trade_row": 4173.884401401195,
+    "input_ratio_caveat": "JSONL contains skipped nontrade/system events; not a comparable Trade-only compression ratio",
+    "parquet_bytes": 236414,
+    "parquet_bytes_per_trade_row": 48.71502163610138,
+    "parquet_files": 17
+  },
+  "timing": {
+    "parse_seconds": 0.12134062498807907,
+    "scan_rows_per_second_this_sample_only": 141835.0972695704,
+    "scan_seconds_including_python_materialization": 0.034215790685266256,
+    "scope": "single small warm local Python/Arrow sample; not Rust throughput or sustained capacity",
+    "write_rows_per_second_this_sample_only": 171076.5619146427,
+    "write_seconds": 0.028367416001856327
+  },
+  "venue_counts": {
+    "2": 1373,
+    "3": 875,
+    "4": 70,
+    "5": 327,
+    "6": 518,
+    "7": 90,
+    "8": 184,
+    "9": 375,
+    "11": 7,
+    "12": 32,
+    "13": 100,
+    "14": 10,
+    "15": 6,
+    "16": 347,
+    "17": 48,
+    "18": 448,
+    "20": 43
+  }
+}
