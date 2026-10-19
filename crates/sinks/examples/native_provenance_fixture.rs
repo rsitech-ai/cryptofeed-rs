@@ -50,11 +50,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     legacy.provenance = None;
     legacy.is_closed = None;
     legacy.quote_volume = None;
+    let native = Some(Box::new(BookProvenance {
+        source_channel: "orderbook.50.BTCUSDT".into(),
+        native_attributes: std::collections::BTreeMap::from([
+            ("u".into(), u64::MAX.to_string()),
+            ("seq".into(), "9007199254740993".into()),
+            ("type".into(), "snapshot".into()),
+        ]),
+    }));
+    let snapshot = BookSnapshot {
+        provenance: native.clone(),
+        bids: vec![BookLevel {
+            price: Price(Fixed::new(100, 0)),
+            quantity: Quantity(Fixed::new(1, 0)),
+        }],
+        asks: vec![BookLevel {
+            price: Price(Fixed::new(101, 0)),
+            quantity: Quantity(Fixed::new(2, 0)),
+        }],
+        depth: Some(50),
+        checksum: None,
+    };
+    let delta = BookDelta {
+        provenance: native.clone(),
+        changes: vec![BookChange {
+            side: BookSide::Bid,
+            operation: BookOperation::Delete,
+            price: Price(Fixed::new(100, 0)),
+            quantity: None,
+        }],
+        checksum: None,
+    };
+    let quote = Quote {
+        provenance: native,
+        bid_price: Price(Fixed::new(100, 0)),
+        bid_quantity: Some(Quantity(Fixed::new(1, 0))),
+        ask_price: Price(Fixed::new(101, 0)),
+        ask_quantity: None,
+    };
     for (index, payload) in [
         MarketEvent::Trade(trade),
         MarketEvent::Candle(candle),
         MarketEvent::Candle(legacy),
         MarketEvent::Trade(empty_id),
+        MarketEvent::BookSnapshot(snapshot),
+        MarketEvent::BookDelta(delta),
+        MarketEvent::Quote(quote),
     ]
     .into_iter()
     .enumerate()

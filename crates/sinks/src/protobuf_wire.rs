@@ -101,6 +101,18 @@ fn encode_trade(t: &marketfeed_model::Trade) -> Vec<u8> {
     out
 }
 
+fn encode_book_provenance(source: &marketfeed_model::BookProvenance) -> Vec<u8> {
+    let mut out = Vec::new();
+    write_string(&mut out, 1, &source.source_channel);
+    for (key, value) in &source.native_attributes {
+        let mut entry = Vec::new();
+        write_string(&mut entry, 1, key);
+        write_string(&mut entry, 2, value);
+        write_msg(&mut out, 2, &entry);
+    }
+    out
+}
+
 fn encode_quote(q: &marketfeed_model::Quote) -> Vec<u8> {
     let mut out = Vec::new();
     write_msg(&mut out, 1, &encode_price(q.bid_price));
@@ -110,6 +122,9 @@ fn encode_quote(q: &marketfeed_model::Quote) -> Vec<u8> {
     write_msg(&mut out, 3, &encode_price(q.ask_price));
     if let Some(qty) = q.ask_quantity {
         write_msg(&mut out, 4, &encode_quantity(qty));
+    }
+    if let Some(source) = &q.provenance {
+        write_msg(&mut out, 5, &encode_book_provenance(source));
     }
     out
 }
@@ -146,6 +161,9 @@ fn encode_book_snapshot(s: &marketfeed_model::BookSnapshot) -> Vec<u8> {
     if let Some(c) = &s.checksum {
         write_string(&mut out, 4, &c.0);
     }
+    if let Some(source) = &s.provenance {
+        write_msg(&mut out, 5, &encode_book_provenance(source));
+    }
     out
 }
 
@@ -156,6 +174,9 @@ fn encode_book_delta(d: &marketfeed_model::BookDelta) -> Vec<u8> {
     }
     if let Some(c) = &d.checksum {
         write_string(&mut out, 2, &c.0);
+    }
+    if let Some(source) = &d.provenance {
+        write_msg(&mut out, 3, &encode_book_provenance(source));
     }
     out
 }

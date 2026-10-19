@@ -1,4 +1,4 @@
-//! Offline L2: WS snapshot → contiguous delta → gap/control reconnect → fresh WS snapshot.
+//! Offline L2: snapshot → observed deltas → conservative anomaly/control resync.
 
 use marketfeed_adapter_api::{
     ActionBuffer, ConcreteSubscriptionSet, DisconnectReason, ReconnectReason, SessionAction,
@@ -199,7 +199,7 @@ fn spot_ws_snapshot_then_delta_goes_live() {
 }
 
 #[test]
-fn stale_u_delta_discarded_without_reconnect() {
+fn exact_repeat_does_not_mutate_and_conflicting_repeat_requests_snapshot() {
     let mut s = l2_session();
     let mut out = ActionBuffer::new();
     s.on_input(
@@ -221,10 +221,10 @@ fn stale_u_delta_discarded_without_reconnect() {
         3,
     );
 
-    // u == last_u (11): duplicate, must be silently discarded.
+    // Exact decoded repeat is a noop; original bytes remain durable.
     let out = drive(
         &mut s,
-        r#"{"topic":"orderbook.50.BTCUSDT","type":"delta","ts":3,"data":{"s":"BTCUSDT","b":[["100.00","9.9"]],"a":[],"u":11,"seq":101}}"#,
+        r#"{"topic":"orderbook.50.BTCUSDT","type":"delta","ts":2,"data":{"s":"BTCUSDT","b":[["100.00","1.2"]],"a":[],"u":11,"seq":101}}"#,
         4,
     );
     assert!(
@@ -232,15 +232,21 @@ fn stale_u_delta_discarded_without_reconnect() {
         "stale u==last_u must emit nothing"
     );
 
-    // u < last_u (5): also stale, must be silently discarded, no reconnect.
+    // A conflicting/regressing update invalidates instead of being called a duplicate.
     let out = drive(
         &mut s,
         r#"{"topic":"orderbook.50.BTCUSDT","type":"delta","ts":4,"data":{"s":"BTCUSDT","b":[["100.00","9.9"]],"a":[],"u":5,"seq":50}}"#,
         5,
     );
     assert!(
-        out.as_slice().is_empty(),
-        "stale u<last_u must emit nothing"
+        out.as_slice()
+            .iter()
+            .any(|a| matches!(a, SessionAction::Reconnect(ReconnectReason::Protocol)))
+    );
+    drive(
+        &mut s,
+        r#"{"topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":4,"data":{"s":"BTCUSDT","b":[["100.00","1.2"]],"a":[["101.00","1.0"]],"u":11,"seq":101}}"#,
+        5,
     );
 
     // Book must still accept the correct next delta (u=12) afterward — not invalidated.
@@ -258,7 +264,7 @@ fn stale_u_delta_discarded_without_reconnect() {
             })
             .flat_map(|b| &b.events)
             .any(|e| matches!(e.payload, MarketEvent::BookDelta(_))),
-        "book should still be live and accept u=last_u+1 after discarding stale updates"
+        "fresh snapshot restores eligibility for observed deltas"
     );
 }
 

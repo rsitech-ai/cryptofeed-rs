@@ -525,6 +525,7 @@ impl DeribitSession {
             }),
             EventFlags::SNAPSHOT,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: book_bids,
                 asks: book_asks,
                 depth: None,
@@ -628,6 +629,7 @@ impl DeribitSession {
             }),
             EventFlags::DELTA,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes,
                 checksum: None,
             }),

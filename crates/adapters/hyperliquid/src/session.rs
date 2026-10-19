@@ -247,6 +247,7 @@ impl HyperliquidSession {
                         Some(b.time),
                         stamp,
                         MarketEvent::Quote(Quote {
+                            provenance: None,
                             bid_price: Price(bid.px.0),
                             bid_quantity: Some(Quantity(bid.sz.0)),
                             ask_price: Price(ask.px.0),
@@ -290,6 +291,7 @@ impl HyperliquidSession {
                     Some(b.time),
                     stamp,
                     MarketEvent::BookSnapshot(BookSnapshot {
+                        provenance: None,
                         bids: levels(0),
                         asks: levels(1),
                         depth: Some(depth),

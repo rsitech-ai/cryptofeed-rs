@@ -928,6 +928,7 @@ impl LiveBook {
             None => self.book.snapshot_levels()?,
         };
         Some(BookSnapshot {
+            provenance: None,
             bids,
             asks,
             depth,
@@ -2957,6 +2958,7 @@ mod tests {
                 source_sequence: None,
                 flags: EventFlags::default(),
                 payload: MarketEvent::Quote(Quote {
+                    provenance: None,
                     bid_price: Price(Fixed::parse_str(bid).unwrap()),
                     bid_quantity: Some(Quantity(Fixed::parse_str("1").unwrap())),
                     ask_price: Price(Fixed::parse_str(ask).unwrap()),
@@ -3058,6 +3060,7 @@ mod tests {
             InstrumentId(1),
             now.saturating_sub(200_000_000),
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![marketfeed_model::BookLevel {
                     price: Price(Fixed::parse_str("100.00").unwrap()),
                     quantity: Quantity(Fixed::parse_str("2.000").unwrap()),
@@ -3076,6 +3079,7 @@ mod tests {
             InstrumentId(1),
             now,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: vec![marketfeed_model::BookChange {
                     side: marketfeed_model::BookSide::Bid,
                     price: Price(Fixed::parse_str("100.00").unwrap()),
@@ -3117,6 +3121,7 @@ mod tests {
 
     fn book_batch(venue: VenueId, instrument: InstrumentId, bid: &str, ask: &str) -> EventBatch {
         let snap = BookSnapshot {
+            provenance: None,
             bids: vec![BookLevel {
                 price: Price(Fixed::parse_str(bid).unwrap()),
                 quantity: Quantity(Fixed::parse_str("1.5").unwrap()),
@@ -3223,6 +3228,7 @@ mod tests {
     fn depth_ring_reuses_evicted_level_buffers() {
         let plane = ViewPlane::new(ViewPlaneConfig::default());
         let snapshot = BookSnapshot {
+            provenance: None,
             bids: vec![BookLevel {
                 price: Price(Fixed::parse_str("100.00").unwrap()),
                 quantity: Quantity(Fixed::parse_str("1.000").unwrap()),
@@ -3275,6 +3281,7 @@ mod tests {
     fn depth_ring_preallocates_its_bounded_buffers_on_first_sample() {
         let plane = ViewPlane::new(ViewPlaneConfig::default());
         let snapshot = BookSnapshot {
+            provenance: None,
             bids: vec![BookLevel {
                 price: Price(Fixed::parse_str("100.00").unwrap()),
                 quantity: Quantity(Fixed::parse_str("1.000").unwrap()),

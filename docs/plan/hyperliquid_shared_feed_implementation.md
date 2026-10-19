@@ -619,3 +619,57 @@ All findings in the native trade/candle and new verifier slices are closed.
 Exact validator source hashes are retained in final-validation.json. Remaining
 Bybit L2/update-ID, metadata pagination, liquidation semantics, channel readiness
 and continuity findings remain open; the overall goal is still active.
+
+## Checkpoint: Bybit native book policy and owner placement
+
+The strategy-context owner is explicitly rsibot/Quants Lab. cryptofeed keeps
+acquisition, native semantics, quality, storage and replay; hlscreen is a shared
+feed consumer. The local Quants manifest boundary is implemented, while its live
+observation reader and strategy features remain pending. See the ownership table
+in cross_venue_observation_implementation.md and active_goal_scope.json.
+
+Bybit no longer treats every nonunit `u` step as a confirmed missing interval.
+Snapshots and `u == 1` resets replace state atomically; increasing deltas apply.
+Only exact repeats of the last applied native message are suppressed. Conflicting
+or nonincreasing update IDs and regressing native cross-sequences invalidate
+state and reconnect as protocol anomalies. Malformed/unknown text, unexpected
+binary frames and failed atomic applications also invalidate active books/quotes;
+L2 deltas remain blocked until a fresh snapshot. The resynchronization lifecycle
+action precedes the replacement snapshot so downstream projections retain it.
+
+Book and BBO native channel, `u`, `seq`, `ts`, optional `cts` and original message
+type survive through optional BookProvenance in model/JSON/protobuf. Canonical
+source_sequence is absent. Factory requests honor depth 50/200/1000 and reject
+unsupported/mixed depth or explicit cadence. Snapshot depth/order/unique prices,
+positive sizes, topic scope and timestamp bounds are checked before emission.
+L1 repeated snapshots refresh BBO; missing sides invalidate the quote.
+
+The Rust alpha structs Quote/BookSnapshot/BookDelta and decoded Bybit book variant
+require constructor/pattern migration. Existing absent serialized provenance
+defaults to None. Other adapters receive None without inventing native semantics;
+hlscreen still pins the previously measured shared revision and needs its final
+dependency migration and checks before claiming synchronized source revisions.
+
+New regression coverage exercises resets, nonunit IDs through u64::MAX,
+conflicting repeats, malformed/binary-frame recovery, L1 absence and the real
+downstream BookProjection in action order. The new independent native book row
+verifier matches exact values, provenance, scope, ordinals and receipts. Review
+found and closed false greens for Decimal's permissive lexical syntax and extra
+L1 rows; it now validates bounded ASCII syntax, exact mantissa/exponent domains,
+snapshot depth including resets, sorting and unique prices. Original failed
+checks remain in local evidence. These are reconstruction/row checks, not source
+continuity or dataset admission. New L2 live capture is not yet run.
+
+Independent bounded reviews closed the book runtime and verifier findings.
+Current focused checks pass 60 Bybit tests (4 deliberately ignored), 59 Python
+audit tests, 102 relevant default-feature Rust 1.85 library tests and 7 generated
+Google protobuf fixtures. Final workspace verification is recorded below.
+Dependency, staged-source and secret checks pass. Metadata pagination,
+liquidation price/position/units, exact channel ACK readiness, source continuity,
+generic strict datasets, mixed causal replay and calendar qualification remain
+open. The overall goal remains active.
+
+Final post-binary-fix workspace gate passed 1219 tests / 0 failed / 56 ignored.
+Workspace all-targets/all-features Clippy and rustdoc with warnings denied pass.
+Locked offline dependency checks and the staged public-source/secret scan pass. Compact source/log hashes
+and commands are retained in docs/evidence/bybit-books-2026-10-19/offline-validation.json.

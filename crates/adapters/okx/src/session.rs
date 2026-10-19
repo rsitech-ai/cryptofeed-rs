@@ -462,6 +462,7 @@ impl OkxSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Quote(Quote {
+                        provenance: None,
                         bid_price,
                         bid_quantity: Some(bid_qty),
                         ask_price,
@@ -802,6 +803,7 @@ impl OkxSession {
             }),
             EventFlags::SNAPSHOT,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: to_book_levels(BookSide::Bid, bids),
                 asks: to_book_levels(BookSide::Ask, asks),
                 depth: Some(BOOKS_DEPTH),
@@ -898,6 +900,7 @@ impl OkxSession {
             }),
             EventFlags::DELTA,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes,
                 checksum: None,
             }),

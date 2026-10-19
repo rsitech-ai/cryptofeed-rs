@@ -971,6 +971,7 @@ dependencies = [
  "marketfeed-book",
  "marketfeed-dispatch",
  "marketfeed-engine",
+ "marketfeed-event-pulse",
  "marketfeed-model",
  "marketfeed-recording",
  "marketfeed-replay",

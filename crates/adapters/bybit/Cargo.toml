@@ -25,6 +25,7 @@ serde_json = { workspace = true }
 simd-json = { workspace = true, optional = true }
 
 [dev-dependencies]
+marketfeed-event-pulse = { workspace = true }
 marketfeed-recording = { workspace = true }
 marketfeed-dispatch = { workspace = true }
 marketfeed-engine = { path = "../../engine" }

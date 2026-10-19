@@ -80,8 +80,18 @@ pub struct TradeProvenance {
     pub native_attributes: std::collections::BTreeMap<String, String>,
 }
 
+/// Native book-message context, including messages used to derive a BBO.
+/// Update IDs/cross-sequences here are provenance, not a continuity guarantee.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BookProvenance {
+    pub source_channel: String,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Quote {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<BookProvenance>>,
     pub bid_price: Price,
     pub bid_quantity: Option<Quantity>,
     pub ask_price: Price,
@@ -116,6 +126,8 @@ pub struct BookChange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BookSnapshot {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<BookProvenance>>,
     pub bids: Vec<BookLevel>,
     pub asks: Vec<BookLevel>,
     pub depth: Option<u32>,
@@ -124,6 +136,8 @@ pub struct BookSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BookDelta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<BookProvenance>>,
     pub changes: Vec<BookChange>,
     pub checksum: Option<SourceId>,
 }

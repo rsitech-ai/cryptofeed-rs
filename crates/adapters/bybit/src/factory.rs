@@ -48,6 +48,24 @@ fn session_config_from_catalog(
     fallback_enable_l2: bool,
 ) -> Result<BybitSessionConfig, AdapterError> {
     let candle_intervals = candle_intervals_from(request);
+    let mut l2_depth = None;
+    for item in &request.items {
+        if let Channel::L2Book { depth, cadence } = &item.channel {
+            let depth = depth.unwrap_or(50);
+            if !matches!(depth, 50 | 200 | 1000) || cadence.is_some() {
+                return Err(AdapterError::UnsupportedCapability(
+                    "Bybit L2 requires depth50/200/1000 and native cadence".into(),
+                ));
+            }
+            if l2_depth.is_some_and(|prior| prior != depth) {
+                return Err(AdapterError::UnsupportedCapability(
+                    "mixed Bybit L2 depths require separate sessions".into(),
+                ));
+            }
+            l2_depth = Some(depth);
+        }
+    }
+
     if request.items.is_empty() {
         return Ok(BybitSessionConfig {
             category,
@@ -92,6 +110,7 @@ fn session_config_from_catalog(
         category,
         symbols,
         instrument_ids,
+        l2_depth: l2_depth.unwrap_or(50),
         enable_l2: request
             .items
             .iter()
@@ -292,5 +311,56 @@ mod tests {
         assert_eq!(cfg.book_scales.get("ETHUSDT"), Some(&(4, 6)));
         assert_eq!(cfg.book_scales.get("XRPUSDT"), Some(&(5, 1)));
         assert!(cfg.enable_l2);
+    }
+    #[test]
+    fn exact_l2_depth_is_honored_and_mixed_or_unsupported_shapes_fail() {
+        let request = |depths: &[u32]| ConcreteSubscriptionSet {
+            items: depths
+                .iter()
+                .map(|depth| ConcreteSubscription {
+                    instrument: InstrumentId(42),
+                    channel: Channel::L2Book {
+                        depth: Some(*depth),
+                        cadence: None,
+                    },
+                    delivery: DeliveryOptions::default(),
+                })
+                .collect(),
+        };
+        for depth in [50, 200, 1000] {
+            let cfg = session_config_from_catalog(
+                &catalog(vec![instrument()]),
+                &request(&[depth]),
+                BybitCategory::Linear,
+                true,
+            )
+            .unwrap();
+            assert_eq!(cfg.l2_depth, depth);
+        }
+        for depths in [vec![1], vec![37], vec![50, 200]] {
+            assert!(matches!(
+                session_config_from_catalog(
+                    &catalog(vec![instrument()]),
+                    &request(&depths),
+                    BybitCategory::Linear,
+                    true
+                ),
+                Err(AdapterError::UnsupportedCapability(_))
+            ));
+        }
+        let mut req = request(&[50]);
+        req.items[0].channel = Channel::L2Book {
+            depth: Some(50),
+            cadence: Some(std::time::Duration::from_millis(20)),
+        };
+        assert!(
+            session_config_from_catalog(
+                &catalog(vec![instrument()]),
+                &req,
+                BybitCategory::Linear,
+                true
+            )
+            .is_err()
+        );
     }
 }

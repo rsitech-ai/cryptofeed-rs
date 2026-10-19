@@ -12,7 +12,7 @@ if not __debug__:
     raise RuntimeError("verification requires Python assertions enabled")
 root = Path(sys.argv[1])
 records = []
-for index in range(4):
+for index in range(7):
     binary = pb.EventEnvelope.FromString((root / f'{index}.pb').read_bytes())
     projected = json_format.ParseDict(json.loads((root / f'{index}.json').read_text()), pb.EventEnvelope())
     if binary != projected:
@@ -40,4 +40,13 @@ assert empty.provenance.HasField('native_count') and empty.provenance.native_cou
 value = records[1].payload.candle.quote_volume.value
 assert ((value.coefficient_hi << 64) | (value.coefficient_lo & ((1 << 64)-1))) == (1 << 127)-1
 assert value.scale == 255
-print(json.dumps({'checks_passed': True, 'records': 4, 'independent_reader': 'generated-google-protobuf', 'optional_false_and_unknown_distinct': True}))
+for record, name in zip(records[4:], ('book_snapshot','book_delta','quote')):
+    source = getattr(record.payload,name).provenance
+    assert source.source_channel == 'orderbook.50.BTCUSDT'
+    assert source.native_attributes['u'] == str((1 << 64)-1)
+    assert source.native_attributes['seq'] == '9007199254740993'
+    assert 'cts' not in source.native_attributes
+assert records[5].payload.book_delta.changes[0].operation == pb.BOOK_OPERATION_DELETE
+assert not records[5].payload.book_delta.changes[0].HasField('quantity')
+assert not records[6].payload.quote.HasField('ask_quantity')
+print(json.dumps({'checks_passed': True, 'records': 7, 'independent_reader': 'generated-google-protobuf', 'optional_false_and_unknown_distinct': True}))

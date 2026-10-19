@@ -425,3 +425,36 @@ liquidation limitations above remain unchanged. This is not a strict dataset.
 
 Raw/shared verifier followup:50Python tests pass after strict full MFR1 header,
 version/opcode/direction, nonempty evidence and final shared-seal checks.
+
+## Bybit book reconstruction repair and rsibot ownership
+
+The unsupported consecutive-update-ID assumption and silent conflicting-repeat
+discard are repaired. Increasing native IDs may advance by more than one;
+conflicting/nonincreasing deltas or regressing cross-sequences cause visible
+protocol invalidation/reconnect. This is conservative reconstruction policy,
+not a missing-record count or source-continuity guarantee. Malformed/unknown
+text, unexpected binary frames and failed atomic book updates invalidate active
+books/quotes, and L2 deltas need a fresh snapshot before reuse. The replacement
+snapshot follows its resynchronization lifecycle action in downstream order.
+
+Native book/BBO `u`, `seq`, `ts`, optional `cts`, type and channel are retained in
+optional BookProvenance through JSON/protobuf; canonical source_sequence stays
+absent. Rust alpha struct literals/decoded patterns require migration. Factory
+depth/cadence requests are validated rather than silently changed. Existing
+serialized records without provenance retain absent semantics.
+
+Focused final checks pass 60 Bybit tests / 4 ignored, 59 Python audits, 102 default-feature
+Rust 1.85 library tests and 7 independently decoded protobuf fixtures. Independent runtime
+and oracle reviews are closed, including binary-frame recovery, malformed
+decimal syntax and native L1 row-loss mutations. The new L2 repair has not yet
+been observed in a forward live capture. Earlier native trade/candle receipts
+remain evidence only for their pinned earlier source. Readiness, pagination,
+liquidation semantics, WS units, source continuity and dataset admission remain
+unqualified. Workspace final verification is recorded in the implementation
+ledger; a passing fixture is not operational sign-off.
+
+Cross-venue features, models and strategy decision context belong in
+rsibot/Quants Lab, with Hummingbot retaining admitted execution and inventory
+ownership. cryptofeed supplies the authoritative data/storage/replay contracts;
+hlscreen consumes them. The local Quants handoff currently verifies manifests
+and admission, with continuous observations and strategy features still pending.

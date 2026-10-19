@@ -203,6 +203,7 @@ fn complete_epin_without_system(admission: &ProspectiveCaptureAdmissionV1) -> Ve
             2,
             start_ns + 1_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: price(99),
                 bid_quantity: Some(quantity(1)),
                 ask_price: price(101),
@@ -217,6 +218,7 @@ fn complete_epin_without_system(admission: &ProspectiveCaptureAdmissionV1) -> Ve
             3,
             start_ns + 2_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: price(99),
                     quantity: quantity(3),

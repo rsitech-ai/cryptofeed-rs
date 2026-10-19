@@ -182,7 +182,7 @@ fn inverse_trade_fixture() {
 }
 
 #[test]
-fn l2_snapshot_then_delta_and_gap_reconnect() {
+fn l2_snapshot_then_nonunit_increasing_update_remains_live() {
     let mut s = session(true);
     let mut out = ActionBuffer::new();
     s.on_input(
@@ -203,10 +203,16 @@ fn l2_snapshot_then_delta_and_gap_reconnect() {
 
     let gap = r#"{"topic":"orderbook.50.BTCUSDT","type":"delta","ts":3,"data":{"s":"BTCUSDT","b":[["100.00","2"]],"a":[],"u":200,"seq":1100}}"#;
     let buf = drive_text(&mut s, gap, 4);
-    assert!(buf.as_slice().iter().any(|a| matches!(
-        a,
-        SessionAction::Reconnect(marketfeed_adapter_api::ReconnectReason::SequenceGap)
-    )));
+    assert!(
+        !buf.as_slice()
+            .iter()
+            .any(|a| matches!(a, SessionAction::Reconnect(_)))
+    );
+    assert!(
+        markets(&buf)
+            .iter()
+            .any(|event| matches!(event, MarketEvent::BookDelta(_)))
+    );
 }
 
 #[test]

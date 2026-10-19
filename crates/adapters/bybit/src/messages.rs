@@ -2,8 +2,8 @@
 
 use marketfeed_adapter_api::CandleInterval;
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookOperation, BookSide, CandleProvenance, Fixed, Price, Quantity,
-    Rate, SourceId, TimestampNs, TradeGranularity, TradeProvenance,
+    AggressorSide, BookLevel, BookOperation, BookProvenance, BookSide, CandleProvenance, Fixed,
+    Price, Quantity, Rate, SourceId, TimestampNs, TradeGranularity, TradeProvenance,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,16 +14,7 @@ use serde_json::Value;
 pub enum DecodedEvent {
     /// One or more trades from a `publicTrade.*` frame.
     Trades(Vec<TradeDecoded>),
-    Orderbook {
-        symbol: String,
-        depth: u32,
-        kind: OrderbookKind,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: Vec<(Price, Quantity)>,
-        asks: Vec<(Price, Quantity)>,
-        exchange_ts_ms: i64,
-    },
+    Orderbook(BookDecoded),
     Candles(Vec<CandleDecoded>),
     /// `tickers.{symbol}` — fields optional on delta updates (spot + linear/inverse).
     Tickers {
@@ -49,6 +40,19 @@ pub enum DecodedEvent {
     },
     Pong,
     Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BookDecoded {
+    pub symbol: String,
+    pub depth: u32,
+    pub kind: OrderbookKind,
+    pub update_id: u64,
+    pub seq: Option<u64>,
+    pub bids: Vec<(Price, Quantity)>,
+    pub asks: Vec<(Price, Quantity)>,
+    pub exchange_ts_ms: i64,
+    pub provenance: Box<BookProvenance>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -202,30 +206,86 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
         return decode_all_liquidation(obj.get("data").unwrap_or(&Value::Null), ts);
     }
 
-    if let Some(depth) = parse_orderbook_depth(topic) {
+    if topic.starts_with("orderbook.") {
+        let mut parts = topic.split('.');
+        let _ = parts.next();
+        let depth = parts
+            .next()
+            .and_then(|v| v.parse::<u32>().ok())
+            .ok_or("invalid book depth")?;
+        let symbol = parts
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or("missing book symbol")?;
+        if parts.next().is_some() || !matches!(depth, 1 | 50 | 200 | 1000) {
+            return Err("unsupported book topic".into());
+        }
+        if !obj.contains_key("ts") {
+            return Err("native book ts required".into());
+        }
         let kind = match msg_type {
             "snapshot" => OrderbookKind::Snapshot,
             "delta" => OrderbookKind::Delta,
-            _ => return Ok(DecodedEvent::Unknown),
+            _ => return Err("unsupported book message type".into()),
         };
-        let data = obj
-            .get("data")
-            .ok_or_else(|| "orderbook missing data".to_string())?;
-        if data.get("s").is_none() {
-            return Ok(DecodedEvent::Unknown);
+        let data = obj.get("data").ok_or("book missing data")?;
+        for side in ["b", "a"] {
+            if data
+                .get(side)
+                .and_then(Value::as_array)
+                .is_none_or(|rows| rows.len() > 4096)
+            {
+                return Err("bounded native book side array required".into());
+            }
         }
         let book: OrderbookData =
             serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
-        return Ok(DecodedEvent::Orderbook {
+        if book.s != symbol || book.u == 0 {
+            return Err("book topic/row symbol mismatch or zero update ID".into());
+        }
+        let mut native_attributes = attributes(data, &["s", "u", "seq"])?;
+        native_attributes.insert("type".into(), msg_type.into());
+        native_attributes.insert("ts".into(), ts.to_string());
+        if let Some(cts) = obj.get("cts") {
+            let ms = cts.as_i64().ok_or("invalid native cts")?;
+            checked_ms(ms)?;
+            native_attributes.insert("cts".into(), ms.to_string());
+        }
+        let bids = parse_book_levels(&book.b)?;
+        let asks = parse_book_levels(&book.a)?;
+        let effective_snapshot = kind == OrderbookKind::Snapshot || book.u == 1;
+        if effective_snapshot {
+            if bids.len() > depth as usize || asks.len() > depth as usize {
+                return Err("snapshot exceeds native depth".into());
+            }
+            for (levels, bid) in [(&bids, true), (&asks, false)] {
+                if levels.iter().any(|(_, q)| q.0.coefficient <= 0)
+                    || levels.windows(2).any(|pair| {
+                        if bid {
+                            !pair[0].0.0.numeric_cmp(pair[1].0.0).is_gt()
+                        } else {
+                            !pair[0].0.0.numeric_cmp(pair[1].0.0).is_lt()
+                        }
+                    })
+                {
+                    return Err("invalid snapshot level order or size".into());
+                }
+            }
+        }
+        return Ok(DecodedEvent::Orderbook(BookDecoded {
             symbol: book.s,
             depth,
             kind,
             update_id: book.u,
             seq: book.seq,
-            bids: parse_levels(&book.b)?,
-            asks: parse_levels(&book.a)?,
+            bids,
+            asks,
             exchange_ts_ms: ts,
-        });
+            provenance: Box::new(BookProvenance {
+                source_channel: topic.into(),
+                native_attributes,
+            }),
+        }));
     }
 
     Ok(DecodedEvent::Unknown)
@@ -572,19 +632,25 @@ fn decode_all_liquidation(data: &Value, frame_ts: i64) -> Result<DecodedEvent, S
     Ok(DecodedEvent::Liquidations(out))
 }
 
-fn parse_orderbook_depth(topic: &str) -> Option<u32> {
-    let rest = topic.strip_prefix("orderbook.")?;
-    let depth_str = rest.split('.').next()?;
-    depth_str.parse().ok()
-}
-
-fn parse_levels(rows: &[[String; 2]]) -> Result<Vec<(Price, Quantity)>, String> {
-    let mut out = Vec::with_capacity(rows.len());
+fn parse_book_levels(rows: &[[String; 2]]) -> Result<Vec<(Price, Quantity)>, String> {
+    if rows.len() > 4096 {
+        return Err("book side exceeds local row capacity".into());
+    }
+    let mut out: Vec<(Price, Quantity)> = Vec::with_capacity(rows.len());
+    let mut seen = std::collections::BTreeSet::new();
     for row in rows {
-        out.push((
-            Price(parse_fixed(&row[0])?),
-            Quantity(parse_fixed(&row[1])?),
-        ));
+        let price = Price(positive(&row[0])?);
+        let quantity = Quantity(nonnegative(&row[1])?);
+        // Normalize only the lookup key; retain original coefficient/scale.
+        let mut key = (price.0.coefficient, price.0.scale);
+        while key.1 > 0 && key.0 % 10 == 0 {
+            key.0 /= 10;
+            key.1 -= 1;
+        }
+        if !seen.insert(key) {
+            return Err("duplicate native level price".into());
+        }
+        out.push((price, quantity));
     }
     Ok(out)
 }
@@ -644,12 +710,12 @@ mod tests {
           "topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":1,
           "data":{"s":"BTCUSDT","b":[["100.00","1"]],"a":[["101.00","2"]],"u":10,"seq":100}
         }"#;
-        let DecodedEvent::Orderbook {
+        let DecodedEvent::Orderbook(BookDecoded {
             kind,
             update_id,
             depth,
             ..
-        } = decode_text(snap).unwrap()
+        }) = decode_text(snap).unwrap()
         else {
             panic!("ob");
         };
@@ -661,9 +727,9 @@ mod tests {
           "topic":"orderbook.1.BTCUSDT","type":"delta","ts":2,
           "data":{"s":"BTCUSDT","b":[["100.00","0"]],"a":[["101.00","1.5"]],"u":11,"seq":101}
         }"#;
-        let DecodedEvent::Orderbook {
+        let DecodedEvent::Orderbook(BookDecoded {
             kind, bids, depth, ..
-        } = decode_text(delta).unwrap()
+        }) = decode_text(delta).unwrap()
         else {
             panic!("ob1");
         };

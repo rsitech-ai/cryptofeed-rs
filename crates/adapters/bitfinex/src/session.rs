@@ -368,6 +368,7 @@ impl BitfinexSession {
             None,
             EventFlags::empty(),
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: q.bid_price,
                 ask_price: q.ask_price,
                 bid_quantity: Some(q.bid_qty),
@@ -455,6 +456,7 @@ impl BitfinexSession {
                 None,
                 EventFlags::SNAPSHOT,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: book_bids,
                     asks: book_asks,
                     depth: None,
@@ -535,6 +537,7 @@ impl BitfinexSession {
                 None,
                 EventFlags::empty(),
                 MarketEvent::BookDelta(BookDelta {
+                    provenance: None,
                     changes: vec![change],
                     checksum: None,
                 }),

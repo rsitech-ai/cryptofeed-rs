@@ -1,4 +1,4 @@
-//! Bybit V5 SessionMachine with WS orderbook snapshot + contiguous `u` sync.
+//! Bybit V5 book reconstruction in observed order; source continuity is unknown.
 
 use std::collections::HashMap;
 
@@ -16,7 +16,8 @@ use marketfeed_model::{
 };
 
 use crate::messages::{
-    DecodedEvent, OrderbookKind, kline_topic_interval, level_op, to_book_levels, trade_id_source,
+    BookDecoded, DecodedEvent, OrderbookKind, kline_topic_interval, level_op, to_book_levels,
+    trade_id_source,
 };
 use crate::specification::{
     BYBIT_INVERSE_VENUE_ID, BYBIT_LINEAR_VENUE_ID, BYBIT_SPOT_VENUE_ID, BybitCategory,
@@ -67,7 +68,7 @@ impl Default for BybitSessionConfig {
 #[derive(Debug)]
 struct SymbolBook {
     sync: BookSynchronizer,
-    last_u: Option<u64>,
+    last_message: Option<BookDecoded>,
 }
 
 #[derive(Debug)]
@@ -96,7 +97,13 @@ impl BybitSession {
                 let book = OrderBook::new(price_scale, qty_scale, Some(cfg.l2_depth));
                 let mut sync = BookSynchronizer::new(*id, book, SyncLimits::default());
                 sync.request_snapshot();
-                books.insert(sym.clone(), SymbolBook { sync, last_u: None });
+                books.insert(
+                    sym.clone(),
+                    SymbolBook {
+                        sync,
+                        last_message: None,
+                    },
+                );
             }
         }
         Self {
@@ -223,40 +230,18 @@ impl BybitSession {
                     events,
                 }));
             }
-            DecodedEvent::Orderbook {
-                symbol,
-                depth,
-                kind,
-                update_id,
-                seq,
-                bids,
-                asks,
-                exchange_ts_ms,
-            } => {
-                if depth == 1 {
-                    self.on_quote_book(
-                        &symbol,
-                        kind,
-                        update_id,
-                        seq,
-                        &bids,
-                        &asks,
-                        exchange_ts_ms,
-                        received,
-                        output,
-                    )?;
-                } else if self.cfg.enable_l2 && depth == self.cfg.l2_depth {
-                    self.on_l2_book(
-                        &symbol,
-                        kind,
-                        update_id,
-                        seq,
-                        &bids,
-                        &asks,
-                        exchange_ts_ms,
-                        received,
-                        output,
-                    )?;
+            DecodedEvent::Orderbook(row) => {
+                if self.instrument_for(&row.symbol).is_none()
+                    || (row.depth != 1 && (!self.cfg.enable_l2 || row.depth != self.cfg.l2_depth))
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: "unrequested book scope".into(),
+                    }));
+                    self.invalidate_book_state("unrequested book scope", output);
+                } else if row.depth == 1 {
+                    self.on_quote_book(&row, received, output)?;
+                } else {
+                    self.on_l2_book(row, received, output)?;
                 }
             }
             DecodedEvent::Candles(rows) => {
@@ -427,69 +412,87 @@ impl BybitSession {
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "bybit".into(),
                 }));
+                if self.cfg.enable_l2 || !self.quotes.is_empty() {
+                    self.invalidate_book_state(
+                        "unknown native frame; book state uncertain",
+                        output,
+                    );
+                }
             }
         }
         Ok(())
     }
 
+    fn invalidate_book_state(&mut self, reason: &str, output: &mut ActionBuffer) {
+        self.live = false;
+        output.push(SessionAction::MarkDegraded);
+        for book in self.books.values_mut() {
+            book.sync.invalidate(reason);
+            book.last_message = None;
+            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
+                instrument: book.sync.instrument,
+                reason: reason.into(),
+            }));
+        }
+        let symbols: Vec<_> = self.quotes.keys().cloned().collect();
+        self.quotes.clear();
+        for symbol in symbols {
+            if let Some(instrument) = self.instrument_for(&symbol) {
+                output.push(SessionAction::EmitSystem(SystemEvent::QuoteInvalidated {
+                    venue: Some(self.venue_id()),
+                    session: Some(self.cfg.session),
+                    connection: Some(self.cfg.connection),
+                    instrument,
+                    reason: reason.into(),
+                }));
+            }
+        }
+        output.push(SessionAction::Reconnect(ReconnectReason::Protocol));
+    }
+
     fn on_quote_book(
         &mut self,
-        symbol: &str,
-        kind: OrderbookKind,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
+        row: &BookDecoded,
         received: FrameStamp,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
-        let entry = self.quotes.entry(symbol.to_string()).or_default();
-        match kind {
-            OrderbookKind::Snapshot => {
-                entry.0 = bids.first().copied();
-                entry.1 = asks.first().copied();
-            }
-            OrderbookKind::Delta => {
-                for (price, qty) in bids {
-                    if qty.0.coefficient == 0 {
-                        if entry.0.map(|(p, _)| p) == Some(*price) {
-                            entry.0 = None;
-                        }
-                    } else {
-                        // ponytail: top-of-book only; full L1 ladder if multi-level orderbook.1 needed
-                        entry.0 = Some((*price, *qty));
-                    }
-                }
-                for (price, qty) in asks {
-                    if qty.0.coefficient == 0 {
-                        if entry.1.map(|(p, _)| p) == Some(*price) {
-                            entry.1 = None;
-                        }
-                    } else {
-                        entry.1 = Some((*price, *qty));
-                    }
-                }
-            }
+        // This native channel is snapshot-only; an unknown partial form cannot
+        // refresh a BBO assembled from uncertain state.
+        if row.kind != OrderbookKind::Snapshot && row.update_id != 1 {
+            self.invalidate_book_state("unexpected level1 delta", output);
+            return Ok(());
         }
-        let (Some((bid_price, bid_qty)), Some((ask_price, ask_qty))) = *entry else {
+        let bid = row.bids.first().copied();
+        let ask = row.asks.first().copied();
+        self.quotes.insert(row.symbol.clone(), (bid, ask));
+        let instrument = self.instrument_for(&row.symbol);
+        let (Some((bid_price, bid_qty)), Some((ask_price, ask_qty))) = (bid, ask) else {
+            if let Some(instrument) = instrument {
+                output.push(SessionAction::EmitSystem(SystemEvent::QuoteInvalidated {
+                    venue: Some(self.venue_id()),
+                    session: Some(self.cfg.session),
+                    connection: Some(self.cfg.connection),
+                    instrument,
+                    reason: "native quote side unavailable".into(),
+                }));
+            }
             return Ok(());
         };
-        let instrument = self.instrument_for(symbol);
+        if !bid_price.0.numeric_cmp(ask_price.0).is_lt() {
+            self.invalidate_book_state("crossed native quote", output);
+            return Ok(());
+        }
         let frame_seq = self.next_frame();
-        let src = seq.unwrap_or(update_id);
-        let env = self.envelope(
+        let event = self.envelope(
             instrument,
             frame_seq,
             0,
             received,
-            Some(exchange_ts_ms),
-            Some(SequenceRange {
-                first: src,
-                last: src,
-            }),
-            EventFlags::empty(),
+            Some(row.exchange_ts_ms),
+            None,
+            EventFlags::SNAPSHOT,
             MarketEvent::Quote(Quote {
+                provenance: Some(row.provenance.clone()),
                 bid_price,
                 bid_quantity: Some(bid_qty),
                 ask_price,
@@ -499,211 +502,121 @@ impl BybitSession {
         output.push(SessionAction::EmitBatch(EventBatch {
             session: self.cfg.session,
             frame_seq,
-            events: vec![env],
+            events: vec![event],
         }));
         Ok(())
     }
 
     fn on_l2_book(
         &mut self,
-        symbol: &str,
-        kind: OrderbookKind,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
+        row: BookDecoded,
         received: FrameStamp,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
-        // Venue reset: u==1 means treat as snapshot (Bybit docs).
-        let kind = if update_id == 1 {
-            OrderbookKind::Snapshot
-        } else {
-            kind
+        let snapshot = row.kind == OrderbookKind::Snapshot || row.update_id == 1;
+        let Some(book) = self.books.get_mut(&row.symbol) else {
+            return Ok(());
         };
-
-        match kind {
-            OrderbookKind::Snapshot => self.apply_l2_snapshot(
-                symbol,
-                update_id,
-                seq,
-                bids,
-                asks,
-                exchange_ts_ms,
-                received,
-                output,
-            ),
-            OrderbookKind::Delta => self.apply_l2_delta(
-                symbol,
-                update_id,
-                seq,
-                bids,
-                asks,
-                exchange_ts_ms,
-                received,
-                output,
-            ),
+        if !snapshot && book.sync.state != SyncState::Live {
+            return Ok(());
         }
-    }
-
-    fn apply_l2_snapshot(
-        &mut self,
-        symbol: &str,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
-        received: FrameStamp,
-        output: &mut ActionBuffer,
-    ) -> Result<(), AdapterError> {
-        let Some(book) = self.books.get_mut(symbol) else {
-            return Ok(());
-        };
-        book.sync.begin_resync();
-        book.sync.request_snapshot();
-        if let Err(err) = book.sync.book.apply_snapshot(bids, asks, Some(update_id)) {
-            let instrument = book.sync.instrument;
-            book.sync.invalidate(&err.to_string());
-            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
-                instrument,
-                reason: err.to_string(),
-            }));
-            output.push(SessionAction::ResyncInstrument(instrument));
-            output.push(SessionAction::Reconnect(ReconnectReason::Protocol));
-            return Ok(());
+        if !snapshot {
+            if book.last_message.as_ref() == Some(&row) {
+                return Ok(());
+            } // exact repeat; original frame remains durable
+            let anomaly = book.last_message.as_ref().is_none_or(|previous| {
+                row.update_id <= previous.update_id
+                    || previous
+                        .seq
+                        .zip(row.seq)
+                        .is_some_and(|(old, new)| new < old)
+            });
+            if anomaly {
+                self.invalidate_book_state(
+                    "native book ordering anomaly or conflicting repeat",
+                    output,
+                );
+                return Ok(());
+            }
+        }
+        let mut changes = Vec::new();
+        if snapshot {
+            book.sync.begin_resync();
+            book.sync.request_snapshot();
+            if let Err(error) =
+                book.sync
+                    .book
+                    .apply_snapshot(&row.bids, &row.asks, Some(row.update_id))
+            {
+                self.invalidate_book_state(
+                    &format!("native snapshot apply failed: {error}"),
+                    output,
+                );
+                return Ok(());
+            }
+        } else {
+            for (side, levels) in [(BookSide::Bid, &row.bids), (BookSide::Ask, &row.asks)] {
+                for (price, quantity) in levels {
+                    let (operation, quantity) = level_op(*quantity);
+                    changes.push(BookChange {
+                        side,
+                        operation,
+                        price: *price,
+                        quantity,
+                    });
+                }
+            }
+            if let Err(error) = book.sync.book.apply_changes_atomic(&changes) {
+                self.invalidate_book_state(&format!("native delta apply failed: {error}"), output);
+                return Ok(());
+            }
+            book.sync.book.set_sequence(row.update_id);
         }
         book.sync.state = SyncState::Live;
-        book.sync.expected_sequence = Some(update_id + 1);
-        book.last_u = Some(update_id);
-
+        book.sync.expected_sequence = None; // no native +1 contract
+        book.last_message = Some(row.clone());
         let instrument = book.sync.instrument;
+        let payload = if snapshot {
+            // Consumers clear their old book on this lifecycle action; notify
+            // before the replacement snapshot, not after it.
+            output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
+                instrument,
+            }));
+            MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: Some(row.provenance),
+                bids: to_book_levels(BookSide::Bid, &row.bids),
+                asks: to_book_levels(BookSide::Ask, &row.asks),
+                depth: Some(row.depth),
+                checksum: None,
+            })
+        } else {
+            MarketEvent::BookDelta(BookDelta {
+                provenance: Some(row.provenance),
+                changes,
+                checksum: None,
+            })
+        };
         let frame_seq = self.next_frame();
-        let src = seq.unwrap_or(update_id);
-        let env = self.envelope(
+        let event = self.envelope(
             Some(instrument),
             frame_seq,
             0,
             received,
-            Some(exchange_ts_ms),
-            Some(SequenceRange {
-                first: src,
-                last: src,
-            }),
-            EventFlags::SNAPSHOT,
-            MarketEvent::BookSnapshot(BookSnapshot {
-                bids: to_book_levels(BookSide::Bid, bids),
-                asks: to_book_levels(BookSide::Ask, asks),
-                depth: Some(self.cfg.l2_depth),
-                checksum: None,
-            }),
+            Some(row.exchange_ts_ms),
+            None,
+            if snapshot {
+                EventFlags::SNAPSHOT
+            } else {
+                EventFlags::DELTA
+            },
+            payload,
         );
         output.push(SessionAction::EmitBatch(EventBatch {
             session: self.cfg.session,
             frame_seq,
-            events: vec![env],
-        }));
-        output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
-            instrument,
+            events: vec![event],
         }));
         self.maybe_mark_live(output);
-        Ok(())
-    }
-
-    fn apply_l2_delta(
-        &mut self,
-        symbol: &str,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
-        received: FrameStamp,
-        output: &mut ActionBuffer,
-    ) -> Result<(), AdapterError> {
-        let Some(book) = self.books.get_mut(symbol) else {
-            return Ok(());
-        };
-        if book.sync.state != SyncState::Live {
-            // Waiting for WS/REST snapshot — drop deltas (Bybit pushes snapshot first).
-            return Ok(());
-        }
-        let Some(last_u) = book.last_u else {
-            return Ok(());
-        };
-        if update_id <= last_u {
-            return Ok(()); // stale/duplicate
-        }
-        if update_id != last_u + 1 {
-            let instrument = book.sync.instrument;
-            book.sync.note_gap();
-            book.last_u = None;
-            output.push(SessionAction::EmitSystem(SystemEvent::SequenceGap {
-                expected: last_u + 1,
-                actual: update_id,
-            }));
-            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
-                instrument,
-                reason: "orderbook u gap".into(),
-            }));
-            output.push(SessionAction::ResyncInstrument(instrument));
-            output.push(SessionAction::Reconnect(ReconnectReason::SequenceGap));
-            return Ok(());
-        }
-
-        let mut changes = Vec::new();
-        for (side, levels) in [(BookSide::Bid, bids), (BookSide::Ask, asks)] {
-            for (price, qty) in levels {
-                let (op, q) = level_op(*qty);
-                changes.push(BookChange {
-                    side,
-                    operation: op,
-                    price: *price,
-                    quantity: q,
-                });
-            }
-        }
-        if let Err(err) = book.sync.book.apply_changes_atomic(&changes) {
-            let instrument = book.sync.instrument;
-            book.sync.invalidate("live delta apply failed");
-            book.last_u = None;
-            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
-                instrument,
-                reason: format!("live delta apply failed: {err}"),
-            }));
-            output.push(SessionAction::ResyncInstrument(instrument));
-            output.push(SessionAction::Reconnect(ReconnectReason::SequenceGap));
-            return Ok(());
-        }
-        book.last_u = Some(update_id);
-        book.sync.book.set_sequence(update_id);
-        book.sync.expected_sequence = Some(update_id + 1);
-
-        let instrument = self.instrument_for(symbol);
-        let frame_seq = self.next_frame();
-        let src = seq.unwrap_or(update_id);
-        let env = self.envelope(
-            instrument,
-            frame_seq,
-            0,
-            received,
-            Some(exchange_ts_ms),
-            Some(SequenceRange {
-                first: src,
-                last: src,
-            }),
-            EventFlags::DELTA,
-            MarketEvent::BookDelta(BookDelta {
-                changes,
-                checksum: None,
-            }),
-        );
-        output.push(SessionAction::EmitBatch(EventBatch {
-            session: self.cfg.session,
-            frame_seq,
-            events: vec![env],
-        }));
         Ok(())
     }
 }
@@ -717,6 +630,7 @@ impl SessionMachine for BybitSession {
         match input {
             SessionInput::Connected { now } => {
                 self.live = false;
+                self.quotes.clear();
                 let mut args = Vec::new();
                 for s in &self.cfg.symbols {
                     args.push(format!("publicTrade.{s}"));
@@ -757,7 +671,7 @@ impl SessionMachine for BybitSession {
                 ));
                 if self.cfg.enable_l2 {
                     for book in self.books.values_mut() {
-                        book.last_u = None;
+                        book.last_message = None;
                         book.sync.request_snapshot();
                     }
                 } else {
@@ -769,7 +683,7 @@ impl SessionMachine for BybitSession {
                 self.live = false;
                 for book in self.books.values_mut() {
                     book.sync.invalidate("disconnected");
-                    book.last_u = None;
+                    book.last_message = None;
                 }
                 self.quotes.clear();
                 output.push(SessionAction::CancelTimer(PING_TIMER_ID));
@@ -787,6 +701,15 @@ impl SessionMachine for BybitSession {
                         output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
                             detail: e,
                         }));
+                        // A malformed frame cannot be proved unrelated to the
+                        // book; fail closed rather than applying later deltas on
+                        // potentially missing state.
+                        if self.cfg.enable_l2 || !self.quotes.is_empty() {
+                            self.invalidate_book_state(
+                                "native decode failure; book state uncertain",
+                                output,
+                            );
+                        }
                         Ok(())
                     }
                 }
@@ -796,6 +719,12 @@ impl SessionMachine for BybitSession {
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "binary".into(),
                 }));
+                if self.cfg.enable_l2 || !self.quotes.is_empty() {
+                    self.invalidate_book_state(
+                        "unexpected binary frame; book state uncertain",
+                        output,
+                    );
+                }
                 Ok(())
             }
             SessionInput::Pong { .. } => Ok(()),
@@ -826,7 +755,7 @@ impl SessionMachine for BybitSession {
                             .find(|book| book.sync.instrument == *id)
                         {
                             book.sync.invalidate("control resync");
-                            book.last_u = None;
+                            book.last_message = None;
                             self.live = false;
                             output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
                                 instrument: *id,

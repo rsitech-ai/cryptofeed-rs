@@ -470,6 +470,7 @@ fn decode_ticker(data: &Value) -> Result<DecodedEvent, String> {
         o.get("best_ask_amount"),
     ) {
         (Some(bp), Some(ap), bq, aq) if !bp.is_null() && !ap.is_null() => Some(Quote {
+            provenance: None,
             bid_price: Price(fixed_from_json(bp)?),
             ask_price: Price(fixed_from_json(ap)?),
             bid_quantity: match bq {

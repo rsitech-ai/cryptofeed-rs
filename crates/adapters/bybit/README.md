@@ -22,26 +22,38 @@ See `docs/plan/venue_ids.md` (workspace root) for the canonical registry.
 | `orderbook.{depth}.{symbol}` | all (opt-in `enable_l2`) | `MarketEvent::BookSnapshot` / `BookDelta` |
 | `kline.{interval}.{symbol}` | all (opt-in `candle_intervals`) | `MarketEvent::Candle` |
 
-## L2 orderbook `u` rules (`orderbook.{depth}.{symbol}`)
+## Native book rules (`orderbook.{depth}.{symbol}`)
 
-**Open integrity finding:** the legacy `session.rs` currently enforces the
-following policy, including a `u + 1` assumption that the reviewed official WS
-contract does not establish. This is implementation behavior, not proof of
-continuity. Removing that unsupported inference is a separate pending repair.
-The official SDK also applies deltas without the `+1` test.
+The [official WS contract](https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook)
+does not establish consecutive `u` values. The
+[reviewed official SDK](https://github.com/bybit-exchange/pybit/blob/c3309e14e577b1d5610c1f288a413df6990a6d25/pybit/_websocket_stream.py#L412-L450)
+also applies deltas without a `+1` test. This adapter therefore uses the following
+structural policy:
 
-Current legacy policy:
+1. A native snapshot or `u == 1` atomically replaces the book.
+2. Increasing delta `u` values are applied, including nonunit steps.
+3. An exact repeat of the last successfully applied native message is ignored.
+   Same/nonincreasing `u` with different contents or a regressing cross-sequence
+   invalidates state and reconnects as a protocol anomaly.
+4. Malformed/unknown text, unexpected binary frames and failed atomic book
+   application invalidate active books/quotes. L2 deltas cannot resume until a
+   fresh snapshot. These failures do not manufacture a confirmed `SequenceGap`.
+5. Quantity zero deletes a delta level. Snapshot levels must be ordered, unique,
+   positive and within the requested depth. Topic, symbol and depth are checked.
+6. L1 is snapshot-only. Repeated idle snapshot IDs refresh BBO; a missing side
+   invalidates the quote instead of retaining stale values.
 
-1. On subscribe, WS pushes `type=snapshot` with update id `u` — apply atomically.
-2. Each subsequent `type=delta` must have `u == previous_u + 1`.
-3. `u <= previous_u` → stale/duplicate → **discard silently, no reconnect**.
-4. `u > previous_u + 1` → sequence gap → invalidate book, resync, and reconnect.
-5. `u == 1` after going live → treat as fresh snapshot (venue reset / tick-size change).
-6. Qty `"0"` deletes the price level.
+Native `u`, `seq`, `ts`, optional `cts`, channel and original message type remain
+in `BookProvenance` on quotes, snapshots and deltas. Canonical `source_sequence`
+is absent because neither native ID establishes gap-free delivery. Book
+structural synchronization does not qualify source continuity or a dataset.
+Factory L2 subscriptions support depths 50/200/1000; unsupported/mixed depths and
+explicit cadence requests fail instead of silently subscribing at another depth.
 
-Neither native `u` nor cross-sequence `seq` establishes gap-free delivery under
-the reviewed contract. Structural book synchronization and dataset continuity
-must remain separate. The current L2 gap inference is not qualified evidence.
+This alpha change adds optional provenance fields to the Rust `Quote`,
+`BookSnapshot` and `BookDelta` structs and replaces the adapter's decoded book
+variant with `BookDecoded`. Downstream Rust struct literals/patterns must migrate.
+Older serialized records omit provenance; decoding defaults it to `None`.
 
 ## Limitations
 
@@ -54,8 +66,9 @@ must remain separate. The current L2 gap inference is not qualified evidence.
 
 ## Tests / corpora
 
-- `tests/l2_sync.rs` — snapshot → contiguous `u` delta → gap reconnect; control resync via
-  reconnect and a fresh WebSocket snapshot.
+- `tests/l2_sync.rs` and `tests/book_semantics.rs` — nonunit updates, exact versus
+  conflicting repeats, malformed/binary-frame recovery, resets, native provenance
+  and action-ordered application to the real downstream book projection.
 - `tests/corpus_replay.rs` — checked-in `.mfr` corpora (offline CI):
   - `tests/corpus/linear_trade_quote.mfr`
   - `tests/corpus/linear_l2_book.mfr` — snapshot + ≥2 `u` deltas, replay identity

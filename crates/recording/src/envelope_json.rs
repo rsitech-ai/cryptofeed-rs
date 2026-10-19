@@ -85,6 +85,9 @@ fn market_event_json(ev: &MarketEvent) -> Value {
             if let Some(qty) = q.ask_quantity {
                 quote.insert("ask_quantity".into(), json!({ "value": fixed_json(qty.0) }));
             }
+            if let Some(source) = &q.provenance {
+                quote.insert("provenance".into(), json!(source));
+            }
             json!({ "quote": quote })
         }
         MarketEvent::BookSnapshot(s) => {
@@ -123,6 +126,9 @@ fn market_event_json(ev: &MarketEvent) -> Value {
             if let Some(c) = &s.checksum {
                 snap.insert("checksum".into(), json!(c.0));
             }
+            if let Some(source) = &s.provenance {
+                snap.insert("provenance".into(), json!(source));
+            }
             json!({ "book_snapshot": snap })
         }
         MarketEvent::BookDelta(d) => {
@@ -144,6 +150,9 @@ fn market_event_json(ev: &MarketEvent) -> Value {
             delta.insert("changes".into(), Value::Array(changes));
             if let Some(c) = &d.checksum {
                 delta.insert("checksum".into(), json!(c.0));
+            }
+            if let Some(source) = &d.provenance {
+                delta.insert("provenance".into(), json!(source));
             }
             json!({ "book_delta": delta })
         }

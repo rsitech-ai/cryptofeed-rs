@@ -347,6 +347,7 @@ impl BinanceCoinmSession {
                         }),
                         EventFlags::empty(),
                         MarketEvent::Quote(Quote {
+                            provenance: None,
                             bid_price,
                             bid_quantity: Some(bid_qty),
                             ask_price,
@@ -780,6 +781,7 @@ impl BinanceCoinmSession {
                 }),
                 EventFlags::DELTA,
                 MarketEvent::BookDelta(BookDelta {
+                    provenance: None,
                     changes,
                     checksum: None,
                 }),
@@ -877,6 +879,7 @@ impl BinanceCoinmSession {
                 }),
                 EventFlags::SNAPSHOT,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: levels_b,
                     asks: levels_a,
                     depth: Some(1000),

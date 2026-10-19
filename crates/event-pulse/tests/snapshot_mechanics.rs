@@ -731,6 +731,7 @@ fn warmed_processor_with_clock(
             4,
             60_020_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),
@@ -743,6 +744,7 @@ fn warmed_processor_with_clock(
             5,
             60_030_000_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: Price(Fixed::new(100 * SCALE, 8)),
                     quantity: Quantity(Fixed::new(SCALE, 8)),
@@ -761,6 +763,7 @@ fn warmed_processor_with_clock(
             6,
             60_040_000_000,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: vec![BookChange {
                     side: BookSide::Bid,
                     operation: BookOperation::Upsert,
@@ -848,6 +851,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
             "b_quote",
             1_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),
@@ -858,6 +862,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
             "c_book",
             2_000_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![],
                 asks: vec![],
                 depth: None,
@@ -904,6 +909,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
             2,
             60_020_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -917,6 +923,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
             2,
             60_030_000_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: Price(Fixed::new(100 * SCALE, 8)),
                     quantity: Quantity(Fixed::new(2 * SCALE, 8)),
@@ -998,6 +1005,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
                 3 + round,
                 at,
                 MarketEvent::Quote(Quote {
+                    provenance: None,
                     bid_price: Price(Fixed::new(100 * SCALE, 8)),
                     bid_quantity: None,
                     ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -1011,6 +1019,7 @@ fn warmed_split_processor_for(fixture: SplitFixture) -> (MechanicsProcessor, Spl
                 3 + round,
                 at,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: vec![BookLevel {
                         price: Price(Fixed::new(100 * SCALE, 8)),
                         quantity: Quantity(Fixed::new(2 * SCALE, 8)),
@@ -1165,6 +1174,7 @@ fn split_primary_family_owners_author_their_own_feature_rows() {
             "b_quote",
             1_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(99 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(99 * SCALE + 10_000_000, 8)),
@@ -1175,6 +1185,7 @@ fn split_primary_family_owners_author_their_own_feature_rows() {
             "c_book",
             2_000_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![],
                 asks: vec![],
                 depth: None,
@@ -1219,6 +1230,7 @@ fn split_primary_family_owners_author_their_own_feature_rows() {
                 sequence,
                 ns,
                 MarketEvent::Quote(Quote {
+                    provenance: None,
                     bid_price: Price(Fixed::new(100 * SCALE + offset, 8)),
                     bid_quantity: None,
                     ask_price: Price(Fixed::new(100 * SCALE + 10_000_000 + offset, 8)),
@@ -1234,6 +1246,7 @@ fn split_primary_family_owners_author_their_own_feature_rows() {
                 sequence,
                 ns,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: vec![BookLevel {
                         price: Price(Fixed::new(100 * SCALE, 8)),
                         quantity: Quantity(Fixed::new(2 * SCALE, 8)),
@@ -1445,6 +1458,7 @@ fn split_critical_owner_faults_invalidate_their_exact_feature_and_phase() {
         (
             "b_quote",
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -1455,6 +1469,7 @@ fn split_critical_owner_faults_invalidate_their_exact_feature_and_phase() {
         (
             "c_book",
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![],
                 asks: vec![],
                 depth: None,
@@ -1516,6 +1531,7 @@ fn confirmation_fault_removes_breadth_and_degrades_without_global_invalidity() {
                 "epoch_a",
                 0,
                 MarketEvent::Quote(Quote {
+                    provenance: None,
                     bid_price: Price(Fixed::new(100 * SCALE, 8)),
                     bid_quantity: None,
                     ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -1530,6 +1546,7 @@ fn confirmation_fault_removes_breadth_and_degrades_without_global_invalidity() {
                 "epoch_a",
                 0,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: vec![BookLevel {
                         price: Price(Fixed::new(100 * SCALE, 8)),
                         quantity: Quantity(Fixed::new(2 * SCALE, 8)),
@@ -1698,6 +1715,7 @@ fn contributor_system_fault_is_scoped_to_its_book_owner_and_retires_on_greater_g
             1,
             fault_at + 1_000_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![],
                 asks: vec![],
                 depth: None,
@@ -1830,6 +1848,7 @@ fn clearing_all_current_causal_state_falls_back_to_one_exact_market_record() {
             61_080_000_000,
             61_092_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -2053,6 +2072,7 @@ fn confirmation_price_inputs_can_author_cross_venue_breadth() {
             4,
             60_010_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),
@@ -2067,6 +2087,7 @@ fn confirmation_price_inputs_can_author_cross_venue_breadth() {
             5,
             60_020_000_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: Price(Fixed::new(100 * SCALE, 8)),
                     quantity: Quantity(Fixed::new(SCALE, 8)),
@@ -2279,6 +2300,7 @@ fn recovered_generation_retires_prior_failure_and_provenance() {
             3,
             121_010_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(102 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(102 * SCALE + 10_000_000, 8)),
@@ -2293,6 +2315,7 @@ fn recovered_generation_retires_prior_failure_and_provenance() {
             4,
             121_020_000_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: Price(Fixed::new(102 * SCALE, 8)),
                     quantity: Quantity(Fixed::new(SCALE, 8)),
@@ -2624,6 +2647,7 @@ fn causal_maxima_expire_with_the_sealed_feature_horizon() {
             9,
             66_200_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -2830,6 +2854,7 @@ fn negative_submicrosecond_availability_uses_floor_for_ordering_and_seal() {
             3,
             -1,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),
@@ -2842,6 +2867,7 @@ fn negative_submicrosecond_availability_uses_floor_for_ordering_and_seal() {
             4,
             -1,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: Price(Fixed::new(100 * SCALE, 8)),
                     quantity: Quantity(Fixed::new(SCALE, 8)),
@@ -3118,6 +3144,7 @@ fn first_accepted_warming_market_remains_the_exact_causal_anchor_after_feature_e
         1,
         0,
         MarketEvent::Quote(Quote {
+            provenance: None,
             bid_price: Price(Fixed::new(100 * SCALE, 8)),
             bid_quantity: Some(Quantity(Fixed::new(SCALE, 8))),
             ask_price: Price(Fixed::new(101 * SCALE, 8)),
@@ -3165,6 +3192,7 @@ fn eligible_warming_anchor_still_rejects_when_clock_freshness_is_exceeded() {
             1,
             0,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(101 * SCALE, 8)),
@@ -3208,6 +3236,7 @@ fn healthy_live_natural_horizon_expiry_does_not_reenable_anchor_fallback() {
             9,
             64_900_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -3281,6 +3310,7 @@ fn nonmatching_contributor_fault_cannot_enable_the_newer_retained_anchor() {
             9,
             67_000_000_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 1_000_000, 8)),
@@ -4053,6 +4083,7 @@ fn public_master_capacity_drop_reserves_two_market_recovery_records() {
             "epoch_a",
             0,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(100 * SCALE, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(100 * SCALE + 10_000_000, 8)),

@@ -358,6 +358,7 @@ impl KrakenFuturesSession {
                 };
                 if let (Some(bid_price), Some(ask_price)) = (bid_price, ask_price) {
                     push(MarketEvent::Quote(Quote {
+                        provenance: None,
                         bid_price,
                         ask_price,
                         bid_quantity: bid_qty,
@@ -511,6 +512,7 @@ impl KrakenFuturesSession {
             }),
             EventFlags::SNAPSHOT,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: book_bids,
                 asks: book_asks,
                 depth: None,
@@ -588,6 +590,7 @@ impl KrakenFuturesSession {
             }),
             EventFlags::empty(),
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: vec![BookChange {
                     side: book_side,
                     operation: op,

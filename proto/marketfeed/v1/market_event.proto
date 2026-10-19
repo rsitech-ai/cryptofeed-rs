@@ -80,11 +80,17 @@ message TradeProvenance {
   map<string, string> native_attributes = 6;
 }
 
+message BookProvenance {
+  string source_channel = 1;
+  map<string, string> native_attributes = 2; // native IDs are not a continuity guarantee
+}
+
 message Quote {
   Price bid_price = 1;
   optional Quantity bid_quantity = 2;
   Price ask_price = 3;
   optional Quantity ask_quantity = 4;
+  optional BookProvenance provenance = 5;
 }
 
 message BookLevel {
@@ -104,11 +110,13 @@ message BookSnapshot {
   repeated BookLevel asks = 2;
   optional uint32 depth = 3;
   optional string checksum = 4; // model::SourceId
+  optional BookProvenance provenance = 5;
 }
 
 message BookDelta {
   repeated BookChange changes = 1;
   optional string checksum = 2;
+  optional BookProvenance provenance = 3;
 }
 
 message CandleProvenance {

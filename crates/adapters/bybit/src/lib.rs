@@ -1,19 +1,19 @@
 //! Bybit V5 adapter — protocol state machine only; engine owns I/O.
 //!
-//! # L2 sequence rules (`orderbook.{depth}.{symbol}`)
+//! # Native book rules (`orderbook.{depth}.{symbol}`)
 //!
-//! Open integrity finding: the legacy session currently enforces the policy
-//! below. Its `u + 1` assumption is not established by the reviewed official WS
-//! contract and must not be presented as continuity proof. Repair is pending.
-//! Current implementation policy:
-//! 1. On subscribe, WS pushes `type=snapshot` with update id `u` — apply atomically.
-//! 2. Each subsequent `type=delta` must have `u == previous_u + 1`.
-//! 3. `u <= previous_u` → discard (stale/duplicate).
-//! 4. `u > previous_u + 1` → sequence gap → invalidate book and reconnect.
-//! 5. `u == 1` after going live → treat as fresh snapshot (venue reset / tick-size change).
-//! 6. Qty `"0"` deletes the price level.
+//! A snapshot or `u == 1` replaces the book atomically. Increasing delta update
+//! IDs need not be consecutive. Only an exact repeat of the last applied native
+//! message is ignored; conflicting/nonincreasing updates or a regressing `seq`
+//! invalidate state and reconnect without claiming a confirmed source gap.
+//! Malformed/unknown text and unexpected binary frames also invalidate active
+//! book/quote state; L2 deltas require a new snapshot after invalidation.
+//! Quantity zero deletes a delta level. L1 is snapshot-only and missing sides
+//! invalidate its quote. Native `u`, `seq`, `ts`, optional `cts`, channel and
+//! message type are preserved as provenance; canonical source sequence is absent.
 //!
-//! Book structural validity is separate from unknown source continuity.
+//! Book structural validity is separate from unknown source continuity. Neither
+//! native ID establishes gap-free source delivery under the reviewed contract.
 //!
 //! # Live ping via engine timers
 //!
@@ -41,7 +41,8 @@ pub use instruments::parse_instruments_info;
 #[cfg(feature = "simd-json")]
 pub use messages::decode_text_simd;
 pub use messages::{
-    DecodedEvent, candle_interval_ns, decode_text, decode_text_serde, kline_topic_interval,
+    BookDecoded, CandleDecoded, DecodedEvent, OrderbookKind, TradeDecoded, candle_interval_ns,
+    decode_text, decode_text_serde, kline_topic_interval,
 };
 pub use session::{BybitSession, BybitSessionConfig};
 pub use specification::{

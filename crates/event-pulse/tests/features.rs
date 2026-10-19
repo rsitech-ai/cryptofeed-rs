@@ -68,6 +68,7 @@ fn all_non_book_formulas_cover_boundaries() {
 fn book_projection_is_atomic_fresh_and_resync_gated() {
     let mut book = BookProjection::new(8, 8, None);
     let snapshot = BookSnapshot {
+        provenance: None,
         bids: vec![BookLevel {
             price: price(10_045_000_000),
             quantity: quantity(2 * SCALE),
@@ -83,6 +84,7 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
         .unwrap();
     book.delta_native(
         &BookDelta {
+            provenance: None,
             changes: vec![],
             checksum: None,
         },
@@ -92,6 +94,7 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
     .unwrap();
     book.delta_native(
         &BookDelta {
+            provenance: None,
             changes: vec![],
             checksum: None,
         },
@@ -104,6 +107,7 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
     .unwrap();
     assert_eq!(book.depth_10bps(250_000_000).unwrap(), 50_255_000_000);
     let crossed = BookSnapshot {
+        provenance: None,
         bids: vec![BookLevel {
             price: price(102 * SCALE),
             quantity: quantity(SCALE),
@@ -132,6 +136,7 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
     assert!(
         book.delta_native(
             &BookDelta {
+                provenance: None,
                 changes: vec![],
                 checksum: None
             },
@@ -145,6 +150,7 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
     book.snapshot_derived(&snapshot, 0).unwrap();
     book.delta_derived(
         &BookDelta {
+            provenance: None,
             changes: vec![],
             checksum: None,
         },
@@ -154,6 +160,7 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
     assert!(
         book.delta_native(
             &BookDelta {
+                provenance: None,
                 changes: vec![],
                 checksum: None
             },
@@ -169,6 +176,7 @@ fn book_projection_is_atomic_fresh_and_resync_gated() {
     assert!(
         book.delta_native(
             &BookDelta {
+                provenance: None,
                 changes: vec![],
                 checksum: None
             },
