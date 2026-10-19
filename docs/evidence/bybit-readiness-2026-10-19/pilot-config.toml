@@ -1,0 +1,42 @@
+[engine]
+shutdown_deadline_secs = 10
+[telemetry]
+bind = "127.0.0.1:19144"
+[readiness]
+min_live_sessions = 3
+require_recording_healthy = true
+[recording]
+shared_directory = ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-feed"
+shared_max_bytes = 67108864
+[recording.raw]
+enabled = true
+directory = ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-raw"
+segment_size = "16MiB"
+segment_duration = "60s"
+queue_capacity = 8192
+overflow = "fail_engine"
+min_free_space = "1GiB"
+
+[[venues]]
+id = "bybit-spot"
+adapter = "bybit"
+segment = "spot"
+transport = "live"
+symbols = ["BTCUSDT"]
+channels = ["trades", "candles", "quote", "l2"]
+
+[[venues]]
+id = "bybit-linear"
+adapter = "bybit"
+segment = "linear"
+transport = "live"
+symbols = ["BTCUSDT"]
+channels = ["trades", "candles", "quote", "l2"]
+
+[[venues]]
+id = "bybit-inverse"
+adapter = "bybit"
+segment = "inverse"
+transport = "live"
+symbols = ["BTCUSD"]
+channels = ["trades", "candles", "quote", "l2"]

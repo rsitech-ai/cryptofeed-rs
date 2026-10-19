@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "status": "focused-final-source-checks-passed; workspace and bounded daemon evidence pending",
+  "status": "final-source offline checks completed; bounded live readiness passes; strict trade coverage and Windows durability remain unqualified",
   "source_inputs": {
     "base": "81d7ee549a161560088bea05c231708c88888a3a",
     "files": [
@@ -88,103 +88,104 @@
       "command": "cargo test -p marketfeed-adapter-bybit --test readiness",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-targeted-02.log",
       "sha256": "1507494b14c74536d64ccbc52b943b9c70fe195e99ded8d23c941a2d3691d260",
-      "test_counts_seen": {
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
         "passed": 14,
         "failed": 0,
         "ignored": 0
-      },
-      "completion": "completed",
-      "exit_code": 0
+      }
     },
     {
       "check": "corpus-final",
       "command": "cargo test --locked -p marketfeed-adapter-bybit --test corpus_replay",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-corpus-final-01.log",
       "sha256": "3317fff29990b787b5cda6e2a2e4927d8dde045518efdd1ab7b8413a4f5613b3",
-      "test_counts_seen": {
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
         "passed": 7,
         "failed": 0,
         "ignored": 3
-      },
-      "completion": "completed",
-      "exit_code": 0
+      }
     },
     {
       "check": "final-targets",
       "command": "cargo test --locked -p marketfeed-engine -p marketfeed-adapter-bybit --all-targets --all-features",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-final-targets-01.log",
       "sha256": "e37cb897e89e565aa64f53760045df66eafe6bd096e4a8fbf6989e29366f7c2d",
-      "test_counts_seen": {
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
         "passed": 178,
         "failed": 0,
         "ignored": 4
-      },
-      "completion": "completed",
-      "exit_code": 0
+      }
     },
     {
       "check": "workspace-intermediate",
       "command": "cargo test --locked --workspace --all-targets --all-features",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-workspace-01.log",
-      "sha256": "2dbf345149091bd56bd66e3d29d2e0d2507db468f62ae8f2051bad12e74bf32b",
-      "test_counts_seen": {
-        "passed": 441,
+      "sha256": "26befa9d0112e9db9f7dc4e7fa4a79c6059ff90674081ac01a530491655b34f0",
+      "completion": "completed exploratory run, source changed while compiling; not final-source qualification",
+      "test_counts": {
+        "passed": 1257,
         "failed": 0,
-        "ignored": 40
+        "ignored": 56
       },
-      "completion": "exploratory run still in progress; source changed while compiling; not final-source qualification"
+      "exit_code": 0
     },
     {
       "check": "clippy",
       "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-clippy-final-01.log",
       "sha256": "29162d76fb109d9c6005d8544d63a4a438d15235d4f9b8e73d51adc9ba6e95d7",
-      "test_counts_seen": {
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
         "passed": 0,
         "failed": 0,
         "ignored": 0
-      },
-      "completion": "completed",
-      "exit_code": 0
+      }
     },
     {
       "check": "rustdoc",
       "command": "RUSTDOCFLAGS=-Dwarnings cargo doc --locked --workspace --all-features --no-deps",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-docs-02.log",
       "sha256": "fa5c4653b4c17fbe542e478f46c686b9c598afe580deb3805caefde62168fc35",
-      "test_counts_seen": {
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
         "passed": 0,
         "failed": 0,
         "ignored": 0
-      },
-      "completion": "completed",
-      "exit_code": 0
+      }
     },
     {
       "check": "msrv",
       "command": "cargo +1.85.0 test --locked -p marketfeed-engine -p marketfeed-adapter-bybit --lib",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-msrv-02.log",
       "sha256": "6ae00ad775e3e9b16a382ce9bba2f1fd3bc7b311dc961aeac5a50f7e98afddbd",
-      "test_counts_seen": {
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
         "passed": 36,
         "failed": 0,
         "ignored": 0
-      },
-      "completion": "completed",
-      "exit_code": 0
+      }
     },
     {
       "check": "oss",
       "command": "PATH=<local-tools>:$PATH bash scripts/check-oss-readiness.sh",
       "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-oss-01.log",
       "sha256": "4ce249350beb98613f8d7898da21f1a5dd99a0217a27f7452627915acc3768c9",
-      "test_counts_seen": {
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
         "passed": 0,
         "failed": 0,
         "ignored": 0
-      },
-      "completion": "completed",
-      "exit_code": 0
+      }
     },
     {
       "check": "deny",
@@ -201,6 +202,42 @@
       "sha256": "415c727281153858939257e1046c59cca9b7fb81cb29094b0c37e5fd01fce09e",
       "completion": "completed",
       "exit_code": 0
+    },
+    {
+      "check": "workspace-final-source",
+      "command": "cargo test --locked --workspace --all-targets --all-features",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-workspace-final-01.log",
+      "sha256": "7a1b8a3a3745344b14756c5e9e1200a3fcda8a4fbea1557a12078b6fb0df2f93",
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
+        "passed": 1263,
+        "failed": 0,
+        "ignored": 56
+      },
+      "source_commit": "410c3cae95f17c3b2b8ee88a9809c5fc1d7ad28b"
+    },
+    {
+      "check": "tracked-finite-inspector-challenge",
+      "command": "python3 -B docs/evidence/bybit-readiness-2026-10-19/finite-readiness-challenge.py --inspector docs/evidence/bybit-readiness-2026-10-19/finite-readiness-inspector.py",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-tracked-challenge-01.json",
+      "sha256": "8f396492b6cbcaeea9b8be868d489e63ee84c22c7d86f67cf81b887c3ba5d9b7",
+      "completion": "completed",
+      "exit_code": 0,
+      "test_counts": {
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0
+      },
+      "scope": "finite logic fixtures bypass framing, older real corpus rejection uses strict CRC scan"
+    },
+    {
+      "check": "oss-final-public-evidence",
+      "command": "PATH=<local-tools>:$PATH bash scripts/check-oss-readiness.sh",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-oss-final-03.log",
+      "sha256": "1a956c225ad11ba79b3dafa411860d61e24f8b489e8262a2e4a0c41c4e8b7e25",
+      "exit_code": 0,
+      "completion": "completed"
     }
   ],
   "retained_failed_attempts": [
@@ -223,9 +260,23 @@
       "path": ".local/evidence/hyperliquid-integration-review/bybit-liquidation-ci-windows-job-01.log",
       "sha256": "5306a157928e808a190443d29f345ca089b812bb5c6ca38d41d0029445d79a38",
       "bytes": 158212
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-oss-final-02.log",
+      "sha256": "92998d8eaea84093f04ae615e70dc09a4b67b11a9d5007a274b00bd7bfee4bf1",
+      "bytes": 266,
+      "disposition": "public receipt displayed workstation path; display normalized with original receipt hash retained"
     }
   ],
   "strict_dataset_admitted": false,
   "windows_durability_verified": false,
-  "operational_promotion": false
+  "operational_promotion": false,
+  "source_commit": "410c3cae95f17c3b2b8ee88a9809c5fc1d7ad28b",
+  "ignored_tests_scope": "network, corpus-creation and other ignored cases; not all ignored tests are live",
+  "independent_reviews": {
+    "venue": "14/14 readiness target independently rerun; bounded native docs/request probe and closed feed witnesses examined",
+    "engine": "six portable error-settlement tests independently authored and run; not filesystem failure injection",
+    "consumer": "original corpus SHA preserved, separate create-only fixtures and qualified replay exclusions reviewed; hlscreen pin graph and saved prefix independently rerun"
+  },
+  "dependency_policy_scope": "cargo-deny accepts configured target/source/advisory policy including existing RUSTSEC-2026-0009 time exception; not a claim that no advisories exist"
 }

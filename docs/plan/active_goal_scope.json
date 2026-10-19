@@ -9,7 +9,7 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Bybit exact request-ID/connection ACK admission, all-requested L1/L2 startup readiness and complete engine callback-error readiness settlement implemented; final validation and bounded daemon evidence in progress. Windows durable-publication CI failure is open. Native settlement/expiry/units, downstream rsibot live reader, strict dataset/mixed replay and sustained operational gates remain unfinished.",
+  "current_slice": "Bybit exact request/connection ACK and requested L1/L2 readiness repaired; complete engine callback-error settlement and pure preparation rejection preservation verified. Final workspace1263/0failed/56ignored, focused178/4ignored, MSRV36 and finite-inspector11 pass. Clean30s capture: exact3ACK pairs/17topics before live,972nativebook/BBO rows and1123raw/shared frames match; strict trade gate fails without inverse trade. Hlscreen d40d413 pins all shared packages to410c3ca;542 tests and exact1055-event saved replay pass. Windows durable-publication CI defect, settlement/units, rsibot live context, strict dataset/mixed replay and sustained operational gates remain open.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)",
   "implementation_owners": {
     "cryptofeed-rs": "Exchange adapters, exact native semantics, instrument metadata, acquisition timestamps, quality events, authoritative live feed, durable raw/canonical storage and deterministic replay",

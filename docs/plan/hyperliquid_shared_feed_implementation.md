@@ -871,3 +871,39 @@ not weakened or skipped; local checks do not qualify Windows durability.
 Settlement/expiry/contract units, strict datasets/general mixed causal replay,
 rsibot live context, final downstream pins and sustained operational gates remain
 unfinished. The full goal remains active.
+
+### Forward readiness sample on 410c3ca
+
+One clean30-second capture retained1,123 raw/shared application frames and four
+matching metadata records, with a final seal. All972 observed native book/BBO
+rows reconcile, as do ten trades and eleven candles. No inverse trade arrived;
+the unchanged strict three-venue trade gate exits1 and remains failed. The run
+was not repeated to manufacture missing coverage.
+
+Independent finite inspection binds three outbound request/ACK pairs across17
+topics to each connection and1,117 accepted inbound frames. Required BBO/L2
+witnesses precede live at302.323ms spot,1,642.469ms inverse and1,453.945ms linear,
+within the local receipt-time deadline. Only one chunk per venue was sampled.
+A narrowly corrected inspector assumption about post-LocalStop degraded status
+is recorded with its original failed attempt; it is not a runtime repair or a
+weakened financial/live-after-close gate. Full witnesses, exact prefix/hash,
+source/binary/config/plan identities and raw-object hashes are retained under
+docs/evidence/bybit-readiness-2026-10-19. These checks do not qualify a general
+reader, exact mixed causal replay, a research dataset or operational promotion.
+
+Final-source validation on 410c3ca passes 1,263 workspace all-target/all-feature
+checks (56 ignored), 178 focused Bybit/engine tests (four ignored), 36 Rust 1.85
+library tests and eleven finite-inspector challenges. Clippy/rustdoc/formatting
+and dependency/source checks pass. Portable engine failures use bounded format
+seams, not filesystem-publication fault injection. The exploratory 1257-test run
+started before the independent six-test engine file existed; its source changed
+while compiling and is not substituted for the final-source run.
+
+Hlscreen source d40d4136a53ad130c4374d2e34ccb9778f1c8748 pins both direct and
+all four transitive marketfeed packages to 410c3ca, with unchanged registry versions.
+Its 542 Rust 1.88 all-target tests and Clippy/MSRV/pin/license/source checks pass.
+Independent saved-prefix replay reproduces all 1,055 events, exact summary/cursor/
+archive clock and unchanged feed hashes. The migration receipt is retained in
+hlscreen docs/evidence/shared-feed-pin-20261019; earlier live/soak measurements
+retain their original pins. Windows durability, rsibot live context and all other
+open goal gates remain unfinished.

@@ -1,0 +1,93 @@
+{
+  "schema": "marketfeed.bounded_public_pilot.v1",
+  "status": "prepared-not-run",
+  "purpose": "Bounded forward verification of current exact Bybit request/connection ACK correlation, all-requested BBO/L2-before-live ordering and startup deadline, retaining native/canonical and raw/shared audits. No prior sparse inverse-trade coverage failure is erased.",
+  "sources": [
+    {
+      "venue": 6,
+      "segment": "spot",
+      "symbol": "BTCUSDT",
+      "channels": [
+        "publicTrade",
+        "kline.1",
+        "orderbook.1",
+        "orderbook.50",
+        "tickers"
+      ],
+      "endpoint": "wss://stream.bybit.com/v5/public/spot"
+    },
+    {
+      "venue": 5,
+      "segment": "linear",
+      "symbol": "BTCUSDT",
+      "channels": [
+        "publicTrade",
+        "kline.1",
+        "orderbook.1",
+        "orderbook.50",
+        "tickers",
+        "allLiquidation"
+      ],
+      "endpoint": "wss://stream.bybit.com/v5/public/linear"
+    },
+    {
+      "venue": 11,
+      "segment": "inverse",
+      "symbol": "BTCUSD",
+      "channels": [
+        "publicTrade",
+        "kline.1",
+        "orderbook.1",
+        "orderbook.50",
+        "tickers",
+        "allLiquidation"
+      ],
+      "endpoint": "wss://stream.bybit.com/v5/public/inverse"
+    }
+  ],
+  "time_policy": {
+    "mode": "forward-only",
+    "duration_seconds": 30,
+    "shutdown_allowance_seconds": 15,
+    "actual_utc_bounds": "recorded by launch receipt; no historical window substitution"
+  },
+  "destination": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-{feed,raw}",
+  "limits": {
+    "shared_journal_bytes": 67108864,
+    "raw_segment_bytes": 16777216,
+    "raw_queue_frames": 8192,
+    "overflow": "fail_engine",
+    "minimum_free_space": "1GiB",
+    "symbols": 3,
+    "collector_restarts": 0,
+    "maximum_parent_runtime_seconds": 47,
+    "metadata_source": "public instruments-info: spot without limit/cursor; derivatives limit1000 plus encoded native cursor continuations",
+    "metadata_pagination": "new bounded runtime:16Bybitpages/8MiBperpage/2048cursorbytes; primary+continuation32responses/128MiB/60s, additionally stopped by parent30s runtime",
+    "transport_retries": "existing runtime policy within bounded parent deadline; observed counts retained"
+  },
+  "stop_conditions": [
+    "duration or process exit",
+    "recorder capacity/error",
+    "storage floor",
+    "shutdown deadline: kill owned process and report failure"
+  ],
+  "qualification_gates": [
+    "clean lifecycle",
+    "raw and journal retained",
+    "exact native/canonical book/BBO and trade/candle reconciliation; every required venue has a book snapshot and delta",
+    "no source parse/drop/unknown errors",
+    "committed cursor and prefix hash",
+    "explicit scope limitations; dataset_admitted=false",
+    "exact catalog request/category/product/increment scope; record page counts and whether continuation actually occurred",
+    "Every canonical live transition has exact current outbound request ACK coverage and valid requested L1/L2 witnesses before local deadline; no retry to replace sparse trade gate"
+  ],
+  "forbidden": [
+    "credentials",
+    "orders",
+    "frozen corpus writes",
+    "indefinite collectors",
+    "L2-continuity claim",
+    "economic run"
+  ],
+  "source": "410c3cae95f17c3b2b8ee88a9809c5fc1d7ad28b"
+}

@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "source": "410c3cae95f17c3b2b8ee88a9809c5fc1d7ad28b",
+  "audits": [
+    {
+      "command": "python3 scripts/audit_bybit_shared_feed.py .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-feed --require-venue 5 --require-venue 6 --require-venue 11 --output .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-native.json",
+      "exit": 1,
+      "disposition": "no inverse trade observed; exact10 observed trades and11 candles match, coverage gate remains failed"
+    },
+    {
+      "command": "python3 scripts/audit_bybit_books.py .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-feed --require-venue 5 --require-venue 6 --require-venue 11 --output .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-books.json",
+      "exit": 0
+    },
+    {
+      "command": "python3 scripts/audit_raw_shared_frames.py --raw .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-raw --feed .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-feed --output .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-parity.json",
+      "exit": 0
+    },
+    {
+      "command": "python3 -B docs/evidence/bybit-readiness-2026-10-19/finite-readiness-inspector.py .local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-feed",
+      "exit": 0,
+      "scope": "finite supplemental inspector, not a general qualified reader"
+    }
+  ],
+  "logs": [
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-run.log",
+      "bytes": 1453,
+      "sha256": "bfdc9abc75b535959244d857fea55939ab13c5e2f7dd3f8d383926f79afbf7a1"
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01.log",
+      "bytes": 4513,
+      "sha256": "f77734d83a4a0c48a835d79f8946bcc2e67a5eaf2544d8f8f45cf5aca1866d46"
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-native.log",
+      "bytes": 1145,
+      "sha256": "56ddb341ce3414d4c0f04c3b6a9c0649e4840bf4a88e8d60f5d64dc2ae06d664"
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-books.log",
+      "bytes": 1090,
+      "sha256": "9d443659ef4f7756ba616ff43848366e73a095d3c170f69ebdad62285370af03"
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-parity.log",
+      "bytes": 1031,
+      "sha256": "1995a99183d412d94b82f8fcc48fe04ac32dfd95ee9e7d9a311d42d19c85e94e"
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-readiness-inspection.log",
+      "bytes": 254,
+      "sha256": "ff1513900ddef586d36db000bea481478db911aaf8dee3ba20534c6dd22303fe"
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-readiness-inspection-02.log",
+      "bytes": 254,
+      "sha256": "8ba0a9b6ddd7373c67ff39a8e60d8233b1543d2adc5a3baef8d242b41dae72cb"
+    }
+  ],
+  "preserved_failed_inspector_attempt": "first run rejected the legitimate post-LocalStop degraded status; final inspector permits only matching timestamp/connection/close reason, rejects live or financial postclose; original log retained",
+  "dataset_admitted": false,
+  "source_continuity": "unqualified",
+  "operational_promotion": false,
+  "finite_inspector_challenge": {
+    "command": "python3 -B docs/evidence/bybit-readiness-2026-10-19/finite-readiness-challenge.py --inspector docs/evidence/bybit-readiness-2026-10-19/finite-readiness-inspector.py",
+    "exit": 0,
+    "cases": 11,
+    "scope": "synthetic fixtures bypass framing; older actual corpus rejection uses real strict CRC scan"
+  }
+}

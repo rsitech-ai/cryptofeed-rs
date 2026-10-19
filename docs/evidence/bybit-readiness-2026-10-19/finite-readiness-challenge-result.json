@@ -1,0 +1,97 @@
+{
+  "schema": "marketfeed.bybit_readiness_finite_challenge.v1",
+  "checks_passed": true,
+  "challenge_sha256": "fd22af8bf19e6df99ee60dea9689cd9a2091a8831ab55118981778ac0003851e",
+  "inspector_sha256": "5b50372ef561b41ede12a8a1ae1a79ad35fef67491c5ee88bbc70c477f5cb40b",
+  "cases": [
+    {
+      "name": "three_venue_positive_with_exact_local_stop_exception",
+      "passed": true,
+      "fixture_sha256": "e91f6a3d496efe74d09760261af27da68a0dc4d1fb18c13624e19c77b7c74bdc",
+      "accepted_inbound_frames": 9
+    },
+    {
+      "name": "wrong_ack",
+      "passed": true,
+      "fixture_sha256": "33d2270bbf92ac44543d57329961df46c4ee30197099753077a5056e84797cd3",
+      "observed_rejection": "uncorrelated native ACK"
+    },
+    {
+      "name": "missing_bbo",
+      "passed": true,
+      "fixture_sha256": "9b5246df09777e780c26f11bd8aff8ceb9cc0c17738bc7a6a08a7888835d3c1e",
+      "observed_rejection": "live before every two-sided BBO"
+    },
+    {
+      "name": "missing_acceptance",
+      "passed": true,
+      "fixture_sha256": "0705290e39a883a92046593883c371ba5f38a719ce90f3492eca1852c48a5577",
+      "observed_rejection": "unaccepted original inbound frames"
+    },
+    {
+      "name": "unit_heartbeat_failure",
+      "passed": true,
+      "fixture_sha256": "e0ba02699f3b5103b504ca438968797dccc8bc9ee573a32a9ccd8d83623b43b1",
+      "observed_rejection": "unclean system event: HeartbeatMissed"
+    },
+    {
+      "name": "post_close_live",
+      "passed": true,
+      "fixture_sha256": "ed986ba4e8caaf634f549949d44fcd9fca4c9feeb696b8d7d5199c43bb57f594",
+      "observed_rejection": "canonical event connection mismatch or unsupported post-close event"
+    },
+    {
+      "name": "post_close_financial",
+      "passed": true,
+      "fixture_sha256": "2ec4ff33a56e8f7e8d31c1c4e1938bb9df3e8ed892c829d4efa93e438b8b8ba6",
+      "observed_rejection": "canonical event connection mismatch or unsupported post-close event"
+    },
+    {
+      "name": "post_close_wrong_timestamp",
+      "passed": true,
+      "fixture_sha256": "0f4166c9dcbc7f384c099d1be5e9141f834d0bb43374898fd524238732958016",
+      "observed_rejection": "canonical event connection mismatch or unsupported post-close event"
+    },
+    {
+      "name": "remote_close_is_not_local_stop",
+      "passed": true,
+      "fixture_sha256": "32a3fe837a449b9bb72e245022ef8f672411abdafd93c87cb0d13d18de171c3b",
+      "observed_rejection": "canonical event connection mismatch or unsupported post-close event"
+    },
+    {
+      "name": "repeated_post_close_status",
+      "passed": true,
+      "fixture_sha256": "d3c508699f2560846e63157c1e518fc6df77b327ec2106ae393085b91b233158",
+      "observed_rejection": "canonical event connection mismatch or unsupported post-close event"
+    },
+    {
+      "name": "original_older_closed_corpus_rejected",
+      "passed": true,
+      "command": [
+        "python3",
+        "-B",
+        "docs/evidence/bybit-readiness-2026-10-19/finite-readiness-inspector.py",
+        ".local/evidence/hyperliquid-integration-review/bybit-catalog-pilot-01-feed"
+      ],
+      "exit_code": 1,
+      "observed_rejection": "AssertionError: invalid/reused outbound request ID",
+      "cursor": {
+        "feed_id": "97fc91bac89f8d1fc31eedcc06f86e0620637cb8",
+        "sequence": 3478,
+        "offset": 3507908
+      },
+      "committed_prefix_sha256": "a53a06f18c93e37a41473f88728d7880442d7801fc06c0b022d3f3bd332b74c0",
+      "inspector_stdout_sha256": "0ab9c8e73a32d897f23087f48d48c939b66624427d41bdd1894b090ad7683468"
+    }
+  ],
+  "case_count": 11,
+  "original_final_negative_case_count": 7,
+  "extra_local_stop_policy_negative_case_count": 2,
+  "scope": "synthetic readiness-logic fixtures bypass framing; original older-corpus control uses real committed cursor/CRC scan; no live capture, continuity or dataset qualification",
+  "public_path_normalization": {
+    "scope": "command display only; interpreter/host paths replaced with portable repository-relative invocation",
+    "original_receipt_sha256": "8f396492b6cbcaeea9b8be868d489e63ee84c22c7d86f67cf81b887c3ba5d9b7",
+    "original_retained_at": ".local/evidence/hyperliquid-integration-review/bybit-readiness-finite-challenge-01.json",
+    "financial_or_fixture_content_changed": false
+  }
+}
