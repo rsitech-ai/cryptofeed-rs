@@ -673,3 +673,37 @@ Final post-binary-fix workspace gate passed 1219 tests / 0 failed / 56 ignored.
 Workspace all-targets/all-features Clippy and rustdoc with warnings denied pass.
 Locked offline dependency checks and the staged public-source/secret scan pass. Compact source/log hashes
 and commands are retained in docs/evidence/bybit-books-2026-10-19/offline-validation.json.
+
+## Checkpoint: bounded live Bybit books on source83e5920
+
+Clean source 83e5920e1799610476a1956cee306ebf17ba7a89 was rebuilt and captured
+for 30 seconds from 2026-10-19T22:02:40.789074Z, clean exit 0 at 22:03:11.077806Z.
+The predeclared plan bounded runtime, three symbols, shared/raw storage, queue,
+disk floor and shutdown; no credentials, orders or historical substitution.
+
+For spot BTCUSDT / linear BTCUSDT / inverse BTCUSD at depth 50, all 982 native book/BBO
+rows match exact canonical values, provenance and receipts: 3 snapshots, 758
+deltas and 221 quotes. All 162 trades and 13 candle updates also reconcile. Original
+raw storage and the final sealed shared prefix match 1190 application frames and 4
+metadata records, with 0 differences, unaccepted text frames or reported source
+parse/drop/gap/unknown/book-invalidations. The inverse sample contains only 1 trade.
+Readiness reached 200 after startup, but exact Bybit channel-ACK readiness remains
+unqualified. No reset, conflicting repeat or transport failure occurred live;
+those remain explicit offline tests. Every observed delta `u` step was 1; this
+finite observation does not establish a consecutive native delivery contract.
+
+Raw 365803 bytes SHA e46337d5c0c8517ceddf6a78a13fd17d2ba10f80fbad35e4898b2b388f99f059.
+Shared cursor a551538955eb0879ab2412fbb9cf80bf8be80742 /3539 /3624618 has prefix
+SHA 7353a61e58742518dcf7bfdfb531bff10d0445304397266a141442fa138bb9d1.
+Source/config/binary/launch/plan and audit receipts are retained under
+docs/evidence/bybit-books-2026-10-19; originals remain in ignored evidence.
+The prepared acquisition plan is retained verbatim and its execution is evidenced
+by the separate launch/audit receipts. This does not admit a dataset, qualify
+WS quantity units, prove source continuity or replace calendar operational gates.
+
+Independent read-only recheck passed all three auditors and independently checked
+CRC/sequence, exact final offset, stable watermark, clean_shutdown seal and the
+raw/shared/config/plan/binary hashes. Source identity is bound by the launch
+receipt; the binary does not embed a build SHA. Live catalog responses contained
+527 spot / 906 linear / 26 inverse rows, with empty derivative cursors and no
+spot cursor. This particular capture therefore did not exercise pagination.

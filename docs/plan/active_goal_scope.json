@@ -9,7 +9,7 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Finish Bybit book native semantics, fail-closed recovery and independent verifier repair; then metadata, liquidation and readiness findings. Quants Lab read-only manifest handoff is implemented locally; cross-venue observations and strategy context will be implemented in rsibot after feed prerequisites.",
+  "current_slice": "Bybit book repair offline and bounded live row/parity verification completed on source83e5920; next implement bounded catalog pagination, then liquidation/readiness findings. Quants Lab read-only manifest handoff implemented locally; live cross-venue observations/features remain rsibot-owned after feed prerequisites.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)",
   "implementation_owners": {
     "cryptofeed-rs": "Exchange adapters, exact native semantics, instrument metadata, acquisition timestamps, quality events, authoritative live feed, durable raw/canonical storage and deterministic replay",
