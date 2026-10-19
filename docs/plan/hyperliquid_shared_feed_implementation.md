@@ -987,3 +987,59 @@ retained for a tooling-contract investigation; no report or binary is relabelled
 Cryptofeed6ef70d6 Windows job118367304888/run39342545062 also fails; other
 platform tests are still running at this observation. Neither result is green
 integration evidence.
+
+
+## Portable publication failure/recovery repair (2026-10-20)
+
+Independent review found two real persistence defects: after replacing a feed
+watermark, a directory-barrier failure could leave the complete transaction
+visible while the writer restored its last acknowledged cursor; the old comment
+incorrectly promised an invisible tail for every failure. Dataset immutable
+reuse could acknowledge an object after a prior failed install without
+reestablishing durability. The first draft also needed direct-reference admission,
+per-instance thread serialization and complete ancestor bootstrap barriers;
+those review findings were resolved before final qualification.
+
+FeedWriter now returns PublicationIndeterminate after replacement/barrier
+failure, retains its last acknowledged cursor and stays permanently poisoned.
+Readers may see the whole synced transaction. Dataset mutation failures poison
+the current instance; reopen under the lease and recover the intent. Existing
+objects, caller/recovered references and reused manifests are verified and synced
+with their namespace before writer admission; recovered intents receive a file
+and namespace barrier too. Public/read-only checks remain write/sync/lock free.
+A mutex serializes entire public put/publish/recover operations and parent CAS;
+private helpers do not recursively acquire it. Bootstrap syncs the resolved
+child-to-root directory chain, including reused paths after failed initialization.
+
+Final frozen source passes1269 workspace alltarget/allfeature tests,0failed and
+56ignored (the ignored live/corpus tests are not live evidence),51recording
+Rust1.85 library tests, workspace Clippy, focused docs, formatting and staged OSS
+checks with gitleaks present/no leaks. The earlier compatible-lock source372e6f1
+separately passes1263workspace tests. UI174tests/audit0/build unchanged. Exact
+source/log hashes, focused failure/concurrency coverage and independent review
+scope are in docs/evidence/publication-failures-20261020/validation.json.
+No schema/format change or new capture is implied.
+
+Dedicated Windows job118370920848/run39343533677 on372e6f1 passes the exact
+GENERIC_WRITE+BACKUP_SEMANTICS API probe on handle-identified local NTFS; READ
+control flush fails with OS5. Its administrative token is explicit. Original
+artifact bytes remain unchanged locally/source CI; the checked-in result changes
+CRLF to LF only, with both hashes and equal parsed values recorded in
+ docs/evidence/windows-directory-flush-20261020/verification.json.
+This is permission/API compatibility, not unprivileged, production-backend or
+power-loss qualification. The production directory barrier remains plain
+File::open and Windows collection still fails; no sync error was ignored.
+Next integrate write-access, handle-verified local-NTFS barriers across all3
+publication paths and verify Windows reader coexistence/rotation/recovery.
+
+Hlscreen tooling repair b1bb810 (public-receipt follow-upbcfc9f4) fixes the real
+historical-soak/current-binary CI mismatch without rewriting reports or granting
+current operational qualification. The exact scripts/check.sh pr passes543unique
+workspace tests and8behavioral Python bindings, Clippy/release/docs/screenshots/
+packaging/smoke. Packaging explicitly labels historical/report-only scope;
+current candidate validation requires exact binary AND runtime-source hashes.
+Public-receipt paths are repository-relative and the publication check passes.
+See hlscreen docs/evidence/soak-validation-20261020; new remote CI is pending.
+Producer pin410c3ca and original historical report bytes remain unchanged.
+All remaining native units/settlement, continuity, strict datasets/mixed replay,
+rsibot live context and calendar24h/7d gates stay open. Goal remains active.

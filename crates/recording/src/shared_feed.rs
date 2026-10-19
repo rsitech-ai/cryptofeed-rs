@@ -240,6 +240,8 @@ pub struct FeedWriter {
     max_bytes: u64,
     poisoned: bool,
     sealed: bool,
+    #[cfg(test)]
+    fail_publication_barrier: bool,
 }
 impl FeedWriter {
     /// Refuses an existing directory, preventing overwrite and concurrent owners.
@@ -276,17 +278,17 @@ impl FeedWriter {
             max_bytes,
             poisoned: false,
             sealed: false,
+            #[cfg(test)]
+            fail_publication_barrier: false,
         };
         writer.publish()?;
-        if let Some(parent) = writer
-            .directory
-            .parent()
-            .filter(|p| !p.as_os_str().is_empty())
-        {
-            File::open(parent)?.sync_all()?;
-        }
+        crate::durability::sync_directory_ancestry(&writer.directory)
+            .map_err(|e| RecordingError::PublicationIndeterminate(e.to_string()))?;
         Ok(writer)
     }
+    /// Last successfully acknowledged durable cursor. After an indeterminate
+    /// publication, readers may see a complete later transaction. The poisoned
+    /// writer cannot acknowledge or append anything further.
     pub fn cursor(&self) -> &FeedCursor {
         &self.cursor
     }
@@ -295,8 +297,11 @@ impl FeedWriter {
     pub fn append(&mut self, record: FeedRecord) -> Result<FeedCursor, RecordingError> {
         self.append_many(vec![record])
     }
-    /// Publish all records under one durable watermark. A failed transaction
-    /// leaves only an uncommitted tail; no reader can observe a partial frame.
+    /// Publish all records under one durable watermark. Failure before watermark
+    /// replacement leaves an uncommitted tail. Failure of the subsequent
+    /// directory barrier is indeterminate: readers may see the complete synced
+    /// transaction, but no durability acknowledgment is issued. Both failures
+    /// poison the writer permanently; neither exposes a partial transaction.
     pub fn append_many(&mut self, records: Vec<FeedRecord>) -> Result<FeedCursor, RecordingError> {
         if self.poisoned || self.sealed {
             return Err(err("shared feed writer poisoned or sealed"));
@@ -369,8 +374,18 @@ impl FeedWriter {
         f.sync_all()?;
         drop(f);
         fs::rename(temp, self.directory.join("committed.json"))?;
-        File::open(&self.directory)?.sync_all()?;
+        self.sync_publication_directory()
+            .map_err(|e| RecordingError::PublicationIndeterminate(e.to_string()))?;
         Ok(())
+    }
+    fn sync_publication_directory(&self) -> std::io::Result<()> {
+        #[cfg(test)]
+        if self.fail_publication_barrier {
+            return Err(std::io::Error::other(
+                "injected publication barrier failure",
+            ));
+        }
+        File::open(&self.directory)?.sync_all()
     }
 }
 #[derive(Debug, Clone)]
@@ -590,5 +605,63 @@ impl FeedReader {
         self.cursor.sequence = wire.sequence;
         self.cursor.offset = end;
         Ok(Some(wire.record))
+    }
+}
+
+#[cfg(test)]
+mod publication_failure_tests {
+    use super::*;
+
+    fn state(name: &str) -> FeedRecord {
+        FeedRecord::Lifecycle {
+            session: marketfeed_model::SessionId(7),
+            now_ns: 1,
+            state: name.into(),
+        }
+    }
+
+    #[test]
+    fn post_replace_barrier_failure_is_indeterminate_and_permanently_poisoned() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("feed");
+        let mut writer = FeedWriter::create(&directory, 1_000_000).unwrap();
+        let mut existing_reader = FeedReader::open(&directory, None).unwrap();
+        let acknowledged = writer.append(state("acknowledged")).unwrap();
+        assert!(existing_reader.read_next().unwrap().is_some());
+        writer.fail_publication_barrier = true;
+        let failure = writer
+            .append_many(vec![state("first"), state("second")])
+            .unwrap_err();
+        assert!(matches!(
+            failure,
+            RecordingError::PublicationIndeterminate(_)
+        ));
+        assert_eq!(writer.cursor(), &acknowledged);
+
+        // Rename has happened and data was synced. Existing and new readers can
+        // observe the entire transaction despite the missing durability ACK.
+        for mut reader in [
+            existing_reader,
+            FeedReader::open(&directory, Some(acknowledged.clone())).unwrap(),
+        ] {
+            assert!(
+                matches!(reader.read_next().unwrap(), Some(FeedRecord::Lifecycle { state, .. }) if state == "first")
+            );
+            assert!(
+                matches!(reader.read_next().unwrap(), Some(FeedRecord::Lifecycle { state, .. }) if state == "second")
+            );
+            assert!(reader.read_next().unwrap().is_none());
+            assert_eq!(reader.cursor().sequence, acknowledged.sequence + 2);
+        }
+        let data = fs::read(directory.join("events.mfsf")).unwrap();
+        let watermark = fs::read(directory.join("committed.json")).unwrap();
+        writer.fail_publication_barrier = false;
+        assert!(writer.append(state("must-not-bless-tail")).is_err());
+        assert_eq!(writer.cursor(), &acknowledged);
+        assert_eq!(fs::read(directory.join("events.mfsf")).unwrap(), data);
+        assert_eq!(
+            fs::read(directory.join("committed.json")).unwrap(),
+            watermark
+        );
     }
 }

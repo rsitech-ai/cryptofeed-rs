@@ -219,6 +219,14 @@
     },
     "cargo_deny": "existing policy passes; no ignore-policy edits",
     "independent_review": "consumer_review verified minimal package records, primary patched versions and MSRV1.85 compatibility; identified/fixed workspace source-guard scope gap",
-    "claims": "Root full-lock RustSec scan remains failing on time; no clean security clearance claimed. Original failing scan above retained."
+    "claims": "Root full-lock RustSec scan remains failing on time; no clean security clearance claimed. Original failing scan above retained.",
+    "workspace": {
+      "source": "372e6f1",
+      "command": "cargo test --locked --workspace --all-targets --all-features",
+      "passed": 1263,
+      "failed": 0,
+      "ignored": 56,
+      "log_sha256": "f7ae26eb4644aeb07f0edc91ff5240c11c1f1856f4a925d4ab49f9fcf5a3dfe1"
+    }
   }
 }

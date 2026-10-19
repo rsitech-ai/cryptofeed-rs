@@ -1,0 +1,14 @@
+{
+  "source_head": "372e6f1fa881794e0190556b06edd86af504fed3",
+  "run": 39343533677,
+  "job": 118370920848,
+  "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39343533677/job/118370920848",
+  "native_result_sha256": "00b036afa5a52972208c7598e0100ff8b4df8fc23d2aa6f0f1a8128957795fcf",
+  "script_sha256": "390849932684ef7233fd22657ebd20427da69958c897f5e0ceec2417d0cde8d4",
+  "required_variant_passed": true,
+  "administrator_token": true,
+  "classification": "Verified API/permission compatibility on this hosted Windows local NTFS volume only. GenericWrite+BACKUP_SEMANTICS opens and flushes; read-only control fails with OS5. Not unprivileged, production-backend, hardware or power-loss qualification.",
+  "next_action": "Implement the production shared directory barrier with write access and handle-verified local NTFS support; preserve all ordering/ancestor barriers, reject unsupported filesystems, and run Windows creation/readers/rotation/dataset-recovery tests. No ignored sync errors.",
+  "original_artifact_sha256": "06c4d0562b746cdb8c31ef06df9180d61e1f802c47a606d4dd30db03859f45ff",
+  "public_copy_normalization": "CRLF to LF only; parsed values identical. Original downloaded artifact retained unchanged at local receipt path and source CI artifact."
+}

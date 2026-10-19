@@ -9,6 +9,7 @@
 
 mod control;
 mod crc32c;
+pub mod durability;
 mod envelope_json;
 mod format;
 mod http;

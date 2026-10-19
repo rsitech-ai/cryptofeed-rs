@@ -283,6 +283,7 @@ impl RecordingPipeline {
         }
         validate_metadata_registry(&metadata)?;
         create_dir_all(&cfg.directory)?;
+        crate::durability::sync_directory_ancestry(&cfg.directory)?;
         probe_directory_writable(&cfg.directory)?;
         Ok(Self {
             queue: RecordingQueue::with_byte_capacity(
