@@ -26,6 +26,8 @@ ui-api = ["dep:marketfeed-analytics", "dep:marketfeed-book"]
 ui = ["ui-api"]
 
 [dependencies]
+base64.workspace = true
+marketfeed-adapter-hyperliquid = { path = "../adapters/hyperliquid" }
 bytes = { workspace = true }
 futures-util = { workspace = true }
 marketfeed-adapter-api = { workspace = true }

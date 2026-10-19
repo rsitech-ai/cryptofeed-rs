@@ -193,6 +193,16 @@ pub enum SystemEvent {
         instrument: InstrumentId,
         reason: String,
     },
+    QuoteInvalidated {
+        #[serde(default)]
+        venue: Option<VenueId>,
+        #[serde(default)]
+        session: Option<SessionId>,
+        #[serde(default)]
+        connection: Option<ConnectionId>,
+        instrument: InstrumentId,
+        reason: String,
+    },
     BookSnapshotRejected {
         instrument: InstrumentId,
         reason: String,

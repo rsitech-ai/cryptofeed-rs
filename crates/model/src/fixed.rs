@@ -56,6 +56,37 @@ impl Fixed {
         Self { coefficient, scale }
     }
 
+    /// Compare numerical values without rescaling into a possibly overflowing
+    /// i128. Decimal scales can differ by the full u8 range.
+    pub fn numeric_cmp(self, other: Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        let signs = self.coefficient.signum().cmp(&other.coefficient.signum());
+        if signs != Ordering::Equal {
+            return signs;
+        }
+        if self.coefficient == 0 {
+            return Ordering::Equal;
+        }
+        let a = self.coefficient.unsigned_abs().to_string();
+        let b = other.coefficient.unsigned_abs().to_string();
+        let magnitude = (a.len() as i32 - i32::from(self.scale))
+            .cmp(&(b.len() as i32 - i32::from(other.scale)));
+        let cmp = if magnitude == Ordering::Equal {
+            let width = a.len().max(b.len());
+            a.bytes()
+                .chain(std::iter::repeat(b'0'))
+                .take(width)
+                .cmp(b.bytes().chain(std::iter::repeat(b'0')).take(width))
+        } else {
+            magnitude
+        };
+        if self.coefficient < 0 {
+            cmp.reverse()
+        } else {
+            cmp
+        }
+    }
+
     /// Parse ASCII decimal bytes (`[-]?[0-9]+(\.[0-9]+)?`).
     ///
     /// Scientific notation is rejected here; enable only when a venue emits it
@@ -104,11 +135,14 @@ impl Fixed {
             let digit = (d - b'0') as i128;
             coeff = coeff
                 .checked_mul(10)
-                .and_then(|c| c.checked_add(digit))
+                .and_then(|c| {
+                    if neg {
+                        c.checked_sub(digit)
+                    } else {
+                        c.checked_add(digit)
+                    }
+                })
                 .ok_or(FixedError::Overflow)?;
-        }
-        if neg {
-            coeff = coeff.checked_neg().ok_or(FixedError::Overflow)?;
         }
 
         Ok(Self {
@@ -409,5 +443,43 @@ mod tests {
             let len = (state as usize % buf.len()) + 1;
             let _ = Fixed::parse_decimal(&buf[..len]);
         }
+    }
+}
+
+#[cfg(test)]
+mod exact_boundary_tests {
+    use super::*;
+    use std::cmp::Ordering;
+    #[test]
+    fn signed_i128_bounds_parse_without_intermediate_positive_overflow() {
+        assert_eq!(
+            Fixed::parse_str(&i128::MIN.to_string()).unwrap(),
+            Fixed::new(i128::MIN, 0)
+        );
+        assert_eq!(
+            Fixed::parse_str(&i128::MAX.to_string()).unwrap(),
+            Fixed::new(i128::MAX, 0)
+        );
+        assert!(Fixed::parse_str("-170141183460469231731687303715884105729").is_err());
+    }
+    #[test]
+    fn numeric_ordering_handles_extreme_scales_and_equivalent_encodings() {
+        assert_eq!(
+            Fixed::new(100, 2).numeric_cmp(Fixed::new(1, 0)),
+            Ordering::Equal
+        );
+        assert_eq!(
+            Fixed::new(-10, 1).numeric_cmp(Fixed::new(-2, 0)),
+            Ordering::Greater
+        );
+        assert_eq!(
+            Fixed::new(i128::MIN, 0).numeric_cmp(Fixed::new(-1, 255)),
+            Ordering::Less
+        );
+        assert_eq!(
+            Fixed::new(i128::MAX, 255).numeric_cmp(Fixed::new(1, 0)),
+            Ordering::Less
+        );
+        assert_eq!(Fixed::new(0, 255).numeric_cmp(Fixed::ZERO), Ordering::Equal);
     }
 }

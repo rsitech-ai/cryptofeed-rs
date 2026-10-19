@@ -1,5 +1,8 @@
 //! Config → venue session wiring (engine owns I/O; adapters stay pure).
 
+use marketfeed_adapter_hyperliquid::{
+    HYPERLIQUID_PERPS_VENUE_ID, HYPERLIQUID_SPOT_VENUE_ID, HyperliquidFactory,
+};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
@@ -40,12 +43,9 @@ use marketfeed_model::{
     InstrumentKey, InstrumentKind, InstrumentStatus, OverflowPolicy, SessionId, TimestampNs,
     VenueCode, VenueId,
 };
-use marketfeed_transport::{
-    MemoryWebSocket, ReqwestHttpTransport, TungsteniteWebSocket, WebSocketSpec,
-};
+use marketfeed_transport::{MemoryWebSocket, ReqwestHttpTransport, WebSocketSpec};
 use tokio::sync::watch;
 
-use crate::catalog_discover::discover_catalog;
 use crate::config::{TransportMode, VenueConfig, VenueKind};
 use crate::sinks::SharedDaemonSinks;
 use crate::state::DaemonState;
@@ -563,6 +563,34 @@ async fn run_venue(
             )
             .await
         }
+        VenueKind::HyperliquidSpot => {
+            run_live_ws(
+                &state,
+                &venue,
+                live_flag,
+                stop_flag,
+                &mut shutdown,
+                HyperliquidFactory::spot(),
+                HYPERLIQUID_SPOT_VENUE_ID,
+                "hyperliquid-spot",
+                InstrumentKind::Spot,
+            )
+            .await
+        }
+        VenueKind::HyperliquidPerps => {
+            run_live_ws(
+                &state,
+                &venue,
+                live_flag,
+                stop_flag,
+                &mut shutdown,
+                HyperliquidFactory::perps(),
+                HYPERLIQUID_PERPS_VENUE_ID,
+                "hyperliquid-perps",
+                InstrumentKind::PerpetualLinear,
+            )
+            .await
+        }
         VenueKind::Gemini => {
             run_live_ws(
                 &state,
@@ -732,6 +760,7 @@ async fn resolve_live_catalog<F: VenueFactory>(
     venue_code: &str,
     kind: InstrumentKind,
     symbols: &[String],
+    shared_feed: Option<&marketfeed_recording::shared_feed::FeedHandle>,
 ) -> (CatalogView, bool) {
     let stub = catalog_for_venue(venue_id, venue_code, kind, symbols);
     if symbols.is_empty() {
@@ -748,12 +777,13 @@ async fn resolve_live_catalog<F: VenueFactory>(
             return (stub, false);
         }
     };
-    match discover_catalog(
+    match crate::catalog_discover::discover_catalog_with_feed(
         factory,
         &http,
         venue_id,
         Environment::Production,
         CatalogVersion(1),
+        shared_feed,
     )
     .await
     {
@@ -863,6 +893,7 @@ async fn run_synthetic_memory(
                 session,
                 record: state.config.recording.raw.enabled,
                 recording_pipeline: state.recording_pipeline.clone(),
+                shared_feed: state.shared_feed.clone(),
                 overflow: OverflowPolicy::FailEngine,
                 mirror_capacity: 0,
                 live_signal: Some(Arc::clone(&live_flag)),
@@ -1023,8 +1054,21 @@ async fn run_live_ws<F: VenueFactory>(
     }
 
     let max_frame_bytes = factory.specification().max_frame_bytes;
-    let (catalog, catalog_authoritative) =
-        resolve_live_catalog(&factory, venue_id, venue_code, kind, &venue.symbols).await;
+    let (catalog, catalog_authoritative) = resolve_live_catalog(
+        &factory,
+        venue_id,
+        venue_code,
+        kind,
+        &venue.symbols,
+        state.shared_feed.as_ref(),
+    )
+    .await;
+    if (venue.adapter == "hyperliquid" || state.shared_feed.is_some()) && !catalog_authoritative {
+        return Err(format!(
+            "venue {}: authoritative discovery required; refusing placeholder metadata",
+            venue.id
+        ));
+    }
     #[cfg(feature = "ui-api")]
     {
         register_view_venue(state, venue_id, venue);
@@ -1064,6 +1108,21 @@ async fn run_live_ws<F: VenueFactory>(
                     ),
                 ))
                 .map_err(|e| e.to_string())?;
+        }
+        if let Some(feed) = &state.shared_feed {
+            feed.append(marketfeed_recording::shared_feed::FeedRecord::Metadata(
+                marketfeed_recording::MetadataRecord::Session(
+                    marketfeed_recording::SessionRecordingMetadata::from_plan(
+                        session,
+                        venue_id,
+                        &venue.adapter,
+                        "production",
+                        &session_spec,
+                        &catalog,
+                    ),
+                ),
+            ))
+            .map_err(|e| e.to_string())?;
         }
         let machine = factory
             .create_session(session_spec, catalog.clone())
@@ -1206,6 +1265,7 @@ async fn run_live_ws_session(
                 session,
                 record: state.config.recording.raw.enabled,
                 recording_pipeline: state.recording_pipeline.clone(),
+                shared_feed: state.shared_feed.clone(),
                 overflow: OverflowPolicy::FailEngine,
                 mirror_capacity: 0,
                 live_signal: Some(Arc::clone(&session_live)),
@@ -1216,11 +1276,17 @@ async fn run_live_ws_session(
         )
         .map_err(|e| e.to_string())?;
 
-    let mut ws = TungsteniteWebSocket::new();
+    let mut ws = crate::hyperliquid_limits::BudgetedWebSocket::new(
+        (venue.adapter == "hyperliquid").then(|| Arc::clone(&state.hyperliquid_limits)),
+    );
     let http = ReqwestHttpTransport::new().map_err(|e| e.to_string())?;
     let spec = live_websocket_spec(url, max_frame_bytes);
     let policy = ReconnectPolicy {
-        min_delay_ms: 200,
+        min_delay_ms: if venue.adapter == "hyperliquid" {
+            2000
+        } else {
+            200
+        },
         max_delay_ms: 30_000,
         reset_after_live_ms: 60_000,
     };

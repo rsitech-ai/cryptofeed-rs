@@ -6,6 +6,8 @@
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-kraken --test corpus_replay regen_futures_ticker_liq_corpus -- --ignored`
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-kraken --test corpus_replay regen_futures_l2_book_corpus -- --ignored`
 
+include!("../../../recording/test_support/corpus_clock.rs");
+
 use marketfeed_adapter_api::{ConcreteSubscriptionSet, SessionSpec};
 use marketfeed_adapter_kraken::{
     KrakenFuturesSession, KrakenFuturesSessionConfig, KrakenSessionConfig, KrakenSpotSession,
@@ -129,8 +131,8 @@ fn corpus_spot_trade_quote_matches_live_record() {
     let corpus = std::fs::read(trade_quote_corpus_path())
         .expect("missing corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(false, corpus));
@@ -180,8 +182,8 @@ fn corpus_spot_l2_book_matches_live_record() {
     let corpus =
         std::fs::read(l2_corpus_path()).expect("missing L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(true, corpus));
@@ -326,8 +328,8 @@ fn corpus_futures_ticker_liq_matches_live_record() {
     let corpus = std::fs::read(futures_ticker_liq_corpus_path())
         .expect("missing corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in futures ticker/liq corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_futures_events(false, corpus));
@@ -377,8 +379,8 @@ fn corpus_futures_l2_book_matches_live_record() {
     let corpus = std::fs::read(futures_l2_corpus_path())
         .expect("missing futures L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in futures L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_futures_events(true, corpus));

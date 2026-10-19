@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -38,6 +38,7 @@ use crate::{EngineError, SessionLifecycle};
 
 /// Max outstanding timers per session (id → fire_at map, not a hierarchical wheel).
 const MAX_SESSION_TIMERS: usize = 32;
+static NEXT_RUNTIME_CONNECTION: AtomicU64 = AtomicU64::new(1);
 /// Cap due-timer deliveries per poll so a buggy adapter cannot hot-loop the runner.
 const MAX_TIMER_FIRES_PER_POLL: usize = 64;
 /// Bound outbound frames waiting for the live flush loop.
@@ -65,6 +66,8 @@ fn sink_to_engine(err: SinkError) -> EngineError {
 #[derive(Debug, Clone)]
 pub struct SessionRunnerConfig {
     pub venue: VenueId,
+    /// Placeholder before the first connect; each actual connection gets a
+    /// fresh collector-owned identity, including reconnect attempts.
     pub connection: ConnectionId,
     pub session: SessionId,
     pub dispatch_capacity: usize,
@@ -73,6 +76,8 @@ pub struct SessionRunnerConfig {
     /// Optional process-wide persistent recorder. When absent, `record=true`
     /// retains an in-memory MFR1 segment for deterministic record/replay tests.
     pub recording_pipeline: Option<RecordingHandle>,
+    /// Complete committed stream; optional and separate from diagnostic mirrors.
+    pub shared_feed: Option<marketfeed_recording::shared_feed::FeedHandle>,
     /// Bound for diagnostic mirror Vecs; `0` disables mirroring.
     pub mirror_capacity: usize,
     /// Optional shared flag set true on MarkLive / false on disconnect.
@@ -93,6 +98,7 @@ impl Default for SessionRunnerConfig {
             overflow: OverflowPolicy::FailEngine,
             record: true,
             recording_pipeline: None,
+            shared_feed: None,
             // Tests keep short histories; live daemon sets 0.
             mirror_capacity: 1024,
             live_signal: None,
@@ -110,6 +116,9 @@ pub struct SessionRunner {
     actions: ActionBuffer,
     recorder: Option<RawSegmentWriter<Cursor<Vec<u8>>>>,
     recording_pipeline: Option<RecordingHandle>,
+    /// Canonical outputs remain private until every action of an input succeeds.
+    feed_transaction: Option<Vec<marketfeed_recording::shared_feed::FeedRecord>>,
+    feed_transaction_bytes: usize,
     pub lifecycle: SessionLifecycle,
     /// Wire-level inbound frame sequence (recording / transport order).
     inbound_frame_seq: u64,
@@ -244,6 +253,8 @@ impl SessionRunner {
             actions: ActionBuffer::with_capacity(action_buffer_capacity),
             recorder,
             recording_pipeline,
+            feed_transaction: None,
+            feed_transaction_bytes: 0,
             lifecycle: SessionLifecycle::Planned,
             inbound_frame_seq: 0,
             market_batches: Vec::new(),
@@ -259,6 +270,18 @@ impl SessionRunner {
     }
 
     pub fn on_connected(&mut self, now: TimestampNs) -> Result<(), EngineError> {
+        self.cfg.connection = ConnectionId(
+            NEXT_RUNTIME_CONNECTION
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .map_err(|_| EngineError::Internal("connection ID exhausted".into()))?,
+        );
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+            session: self.cfg.session,
+            connection: self.cfg.connection,
+            now_ns: now.0,
+            connected: true,
+            reason: None,
+        })?;
         self.lifecycle = SessionLifecycle::Connected;
         self.timers.clear();
         self.actions.clear();
@@ -276,6 +299,13 @@ impl SessionRunner {
         reason: DisconnectReason,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+            session: self.cfg.session,
+            connection: self.cfg.connection,
+            now_ns: now.0,
+            connected: false,
+            reason: Some(format!("{reason:?};continuity_unverified")),
+        })?;
         self.lifecycle = SessionLifecycle::Draining;
         self.invalidate_live_readiness();
         self.timers.clear();
@@ -316,7 +346,7 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        let out = self.apply_actions(received.receive_ts);
+        let out = self.apply_frame_actions(frame_seq, received.receive_ts);
         self.metrics
             .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
         out
@@ -348,7 +378,7 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        let out = self.apply_actions(received.receive_ts);
+        let out = self.apply_frame_actions(frame_seq, received.receive_ts);
         self.metrics
             .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
         out
@@ -424,6 +454,54 @@ impl SessionRunner {
         self.recorder.take().map(|w| w.into_inner().into_inner())
     }
 
+    fn record_feed(
+        &mut self,
+        record: marketfeed_recording::shared_feed::FeedRecord,
+    ) -> Result<(), EngineError> {
+        if let Some(records) = &mut self.feed_transaction {
+            self.feed_transaction_bytes = self.feed_transaction_bytes.saturating_add(
+                serde_json::to_vec(&record)
+                    .map_err(|e| EngineError::Internal(e.to_string()))?
+                    .len()
+                    + 64,
+            );
+            if self.feed_transaction_bytes > 64 * 1024 * 1024 || records.len() >= 65535 {
+                return Err(EngineError::Internal(
+                    "shared feed input transaction budget exhausted".into(),
+                ));
+            }
+            records.push(record);
+            return Ok(());
+        }
+        if let Some(feed) = &self.cfg.shared_feed {
+            feed.append(record)?;
+        }
+        Ok(())
+    }
+
+    fn apply_frame_actions(&mut self, frame_seq: u64, now: TimestampNs) -> Result<(), EngineError> {
+        if self.cfg.shared_feed.is_none() {
+            return self.apply_actions(now);
+        }
+        self.feed_transaction = Some(Vec::new());
+        self.feed_transaction_bytes = 0;
+        let result = self.apply_actions(now);
+        let mut records = self.feed_transaction.take().expect("input transaction");
+        result?;
+        records.push(
+            marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
+                session: self.cfg.session,
+                frame_seq,
+            },
+        );
+        self.cfg
+            .shared_feed
+            .as_ref()
+            .expect("shared feed")
+            .append_many(records)?;
+        Ok(())
+    }
+
     fn record_frame(
         &mut self,
         frame_seq: u64,
@@ -433,6 +511,15 @@ impl SessionRunner {
         opcode: RecOpcode,
         payload: &[u8],
     ) -> Result<(), EngineError> {
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::frame(
+            self.cfg.session,
+            frame_seq,
+            receive_ts_ns,
+            monotonic_ns,
+            direction as u8,
+            opcode as u8,
+            payload,
+        ))?;
         if let Some(pipeline) = &self.recording_pipeline {
             let outcome = pipeline.enqueue(
                 self.cfg.session,
@@ -510,6 +597,11 @@ impl SessionRunner {
                     continue;
                 }
                 fired += 1;
+                self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Timer {
+                    session: self.cfg.session,
+                    timer_id,
+                    now_ns: now.0,
+                })?;
                 self.actions.clear();
                 self.machine
                     .on_input(SessionInput::Timer { timer_id, now }, &mut self.actions)?;
@@ -556,7 +648,7 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        self.apply_actions(received.receive_ts)
+        self.apply_frame_actions(frame_seq, received.receive_ts)
     }
 
     pub fn on_transport_lost(
@@ -564,6 +656,13 @@ impl SessionRunner {
         reason: DisconnectReason,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+            session: self.cfg.session,
+            connection: self.cfg.connection,
+            now_ns: now.0,
+            connected: false,
+            reason: Some(format!("{reason:?};continuity_unverified")),
+        })?;
         self.lifecycle = SessionLifecycle::Backoff;
         self.invalidate_live_readiness();
         self.timers.clear();
@@ -655,7 +754,12 @@ impl SessionRunner {
         self.settle_diagnostic_result(result, false)
     }
 
-    pub fn push_system(&mut self, ev: SystemEvent) -> Result<(), EngineError> {
+    pub fn push_system(&mut self, mut ev: SystemEvent) -> Result<(), EngineError> {
+        self.stamp_system_event(&mut ev);
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
+            session: self.cfg.session,
+            event: ev.clone(),
+        })?;
         self.trace_system_event(&ev);
         self.metrics
             .observe_system_for_session(self.cfg.session, &ev);
@@ -674,6 +778,19 @@ impl SessionRunner {
         if self.push_system(ev).is_err() {
             self.metrics.record_queue_overflow();
             self.metrics.record_events_dropped(1);
+        }
+    }
+    fn stamp_system_event(&self, event: &mut SystemEvent) {
+        if let SystemEvent::QuoteInvalidated {
+            venue,
+            session,
+            connection,
+            ..
+        } = event
+        {
+            *venue = Some(self.cfg.venue);
+            *session = Some(self.cfg.session);
+            *connection = Some(self.cfg.connection);
         }
     }
 
@@ -728,6 +845,9 @@ impl SessionRunner {
             self.metrics
                 .events_normalized
                 .fetch_add(batch.events.len() as u64, Ordering::Relaxed);
+            self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+                batch.clone(),
+            ))?;
             let outcome = self.dispatch.push_batch(batch.clone())?;
             match outcome {
                 PushOutcome::Accepted => {
@@ -775,6 +895,9 @@ impl SessionRunner {
         self.metrics
             .events_normalized
             .fetch_add(1, Ordering::Relaxed);
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+            batch.clone(),
+        ))?;
         let outcome = self.dispatch.push_batch(batch.clone())?;
         match outcome {
             PushOutcome::Accepted => {
@@ -903,9 +1026,27 @@ impl SessionRunner {
         system_failures_fatal: bool,
     ) -> Result<(), EngineError> {
         let actions: Vec<_> = self.actions.drain().collect();
+        let mut next_event_index: u32 = 0;
         for action in actions {
             match action {
-                SessionAction::EmitBatch(batch) => {
+                SessionAction::EmitBatch(mut batch) => {
+                    // Adapters do not own runtime transport identity or the raw
+                    // input ordinal. Assign these once at the collector boundary.
+                    batch.session = self.cfg.session;
+                    batch.frame_seq = self.inbound_frame_seq;
+                    for event in &mut batch.events {
+                        event.venue = self.cfg.venue;
+                        event.session = self.cfg.session;
+                        event.connection = self.cfg.connection;
+                        event.frame_seq = self.inbound_frame_seq;
+                        event.event_index = u16::try_from(next_event_index).map_err(|_| {
+                            EngineError::Internal("too many events in one input".into())
+                        })?;
+                        next_event_index += 1;
+                    }
+                    self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+                        batch.clone(),
+                    ))?;
                     let n = batch.events.len() as u64;
                     self.metrics
                         .events_normalized
@@ -927,7 +1068,12 @@ impl SessionRunner {
                     }
                     self.refresh_queue_gauges();
                 }
-                SessionAction::EmitSystem(ev) => {
+                SessionAction::EmitSystem(mut ev) => {
+                    self.stamp_system_event(&mut ev);
+                    self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
+                        session: self.cfg.session,
+                        event: ev.clone(),
+                    })?;
                     self.trace_system_event(&ev);
                     self.metrics
                         .observe_system_for_session(self.cfg.session, &ev);
@@ -1059,6 +1205,10 @@ impl SessionRunner {
             count,
             detail: detail.to_string(),
         };
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
+            session: self.cfg.session,
+            event: ev.clone(),
+        })?;
         self.trace_system_event(&ev);
         match self.dispatch.push_system(ev.clone()) {
             Ok(PushOutcome::Accepted) => self.push_mirror_system(ev),
@@ -1184,7 +1334,7 @@ impl SessionRunner {
         self.record_frame(
             self.inbound_frame_seq,
             now.0,
-            now.0 as u64,
+            0, // No transport monotonic stamp exists for this send attempt.
             Direction::Outbound,
             opcode,
             payload,
@@ -1197,14 +1347,17 @@ impl SessionRunner {
         wire: &SubscriptionWireAction,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
-        if self.recording_pipeline.is_none() && self.recorder.is_none() {
+        if self.recording_pipeline.is_none()
+            && self.recorder.is_none()
+            && self.cfg.shared_feed.is_none()
+        {
             return Ok(());
         }
         let payload = encode_subscription_command(command, wire)?;
         self.record_frame(
             self.inbound_frame_seq,
             now.0,
-            u64::try_from(now.0).unwrap_or_default(),
+            0, // Control acceptance has no transport monotonic stamp.
             Direction::Inbound,
             RecOpcode::SubscriptionCommand,
             &payload,
@@ -1474,6 +1627,39 @@ mod tests {
                 command,
                 SubscriptionWireAction::Text(Bytes::from_static(b"wire-subscribe"))
             )
+        );
+    }
+
+    #[test]
+    fn shared_only_dynamic_subscription_command_is_recorded() {
+        use marketfeed_recording::shared_feed::*;
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("feed");
+        let mut runner = SessionRunner::new(
+            Box::new(DynamicSubscriptionMachine),
+            SessionRunnerConfig {
+                record: false,
+                shared_feed: Some(FeedHandle::new(FeedWriter::create(&dir, 100000).unwrap())),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        runner
+            .deliver_control(
+                SessionCommand::Subscribe(vec!["BTC-USD".into()]),
+                TimestampNs(42),
+            )
+            .unwrap();
+        let mut reader = FeedReader::open(dir, None).unwrap();
+        let record = reader.read_next().unwrap().unwrap();
+        assert!(
+            matches!(record, FeedRecord::Frame { opcode, .. } if opcode == RecordedOpcode::SubscriptionCommand as u8)
+        );
+        assert_eq!(
+            decode_subscription_command(&record.payload_bytes().unwrap().unwrap())
+                .unwrap()
+                .0,
+            SessionCommand::Subscribe(vec!["BTC-USD".into()])
         );
     }
 

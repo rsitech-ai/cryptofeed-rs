@@ -33,6 +33,7 @@ fn prometheus_label_value(value: &str) -> String {
 #[derive(Debug)]
 pub struct DaemonState {
     pub config: DaemonConfig,
+    pub(crate) hyperliquid_limits: Arc<crate::hyperliquid_limits::HyperliquidLimits>,
     /// Hot-reloadable subset (§21.4); see `reload` module.
     pub reloadable: Mutex<ReloadableConfig>,
     pub supervisor_lifecycle: Mutex<EngineLifecycle>,
@@ -51,6 +52,7 @@ pub struct DaemonState {
     pub recording_rotate: Arc<RecordingRotateHandle>,
     /// Shared bounded raw-frame pipeline used by every public venue runner.
     pub recording_pipeline: Option<RecordingHandle>,
+    pub shared_feed: Option<marketfeed_recording::shared_feed::FeedHandle>,
     /// Public venue tasks that can still enqueue raw frames during shutdown.
     pub active_public_venue_tasks: AtomicU64,
     pub disk_pressure: AtomicBool,
@@ -83,6 +85,7 @@ impl DaemonState {
                 PipelineConfig {
                     directory: raw.directory.clone().into(),
                     queue_capacity: raw.queue_capacity,
+                    queue_byte_capacity: raw.queue_byte_capacity,
                     overflow: raw.overflow_policy().map_err(|e| e.to_string())?,
                     rotation: RotationConfig {
                         max_bytes: raw.segment_size_bytes().map_err(|e| e.to_string())?,
@@ -101,6 +104,29 @@ impl DaemonState {
         } else {
             None
         };
+        let shared_feed = config
+            .recording
+            .shared_directory
+            .as_ref()
+            .map(|path| {
+                let writer = marketfeed_recording::shared_feed::FeedWriter::create(
+                    path,
+                    config.recording.shared_max_bytes,
+                )
+                .map_err(|e| e.to_string())?;
+                let feed = marketfeed_recording::shared_feed::FeedHandle::new(writer);
+                feed.append(marketfeed_recording::shared_feed::FeedRecord::Metadata(
+                    marketfeed_recording::MetadataRecord::current_build(),
+                ))
+                .map_err(|e| e.to_string())?;
+                feed.append(marketfeed_recording::shared_feed::FeedRecord::artifact(
+                    "cargo_lock",
+                    include_bytes!("../../../Cargo.lock"),
+                ))
+                .map_err(|e| e.to_string())?;
+                Ok::<_, String>(feed)
+            })
+            .transpose()?;
         let recording_enabled = recording_pipeline.is_some();
         let started_unix_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -111,6 +137,8 @@ impl DaemonState {
         let view = Some(Arc::new(ViewPlane::from_daemon_config(&config)));
         Ok(Arc::new(Self {
             config,
+            hyperliquid_limits: Arc::new(crate::hyperliquid_limits::HyperliquidLimits::default()),
+            shared_feed,
             reloadable: Mutex::new(reloadable),
             supervisor_lifecycle: Mutex::new(EngineLifecycle::Starting),
             process_live: AtomicBool::new(false),

@@ -70,9 +70,13 @@ impl<W: Write> RawSegmentWriter<W> {
             payload_len,
             payload_crc32c: payload_crc,
         };
+        // Once any bytes may have been written, an error makes the stream
+        // irrecoverable. A later write must never bless a torn record tail.
+        self.started = false;
         self.write_header(&header)?;
         self.writer.write_all(payload)?;
         self.records_written += 1;
+        self.started = true;
         Ok(())
     }
 
@@ -130,7 +134,12 @@ impl<W: Write> RawSegmentWriter<W> {
     }
 
     pub fn flush(&mut self) -> Result<(), RecordingError> {
+        if !self.started {
+            return Err(RecordingError::Io("writer poisoned".into()));
+        }
+        self.started = false;
         self.writer.flush()?;
+        self.started = true;
         Ok(())
     }
 }
@@ -138,6 +147,57 @@ impl<W: Write> RawSegmentWriter<W> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct PartialFailure {
+        bytes: usize,
+    }
+    impl Write for PartialFailure {
+        fn write(&mut self, input: &[u8]) -> std::io::Result<usize> {
+            if self.bytes >= 36 {
+                return Err(std::io::Error::other("injected partial write"));
+            }
+            let n = input.len().min(36 - self.bytes);
+            self.bytes += n;
+            Ok(n)
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    #[test]
+    fn partial_io_failure_poisoning_prevents_a_later_valid_append() {
+        let mut writer = RawSegmentWriter::create(PartialFailure { bytes: 0 }, 0).unwrap();
+        assert!(
+            writer
+                .write_record(
+                    SessionId(1),
+                    1,
+                    1,
+                    1,
+                    Direction::Inbound,
+                    FrameOpcode::Text,
+                    0,
+                    b"x"
+                )
+                .is_err()
+        );
+        assert!(
+            writer
+                .write_record(
+                    SessionId(1),
+                    2,
+                    2,
+                    2,
+                    Direction::Inbound,
+                    FrameOpcode::Text,
+                    0,
+                    b"valid"
+                )
+                .is_err()
+        );
+        assert!(writer.flush().is_err());
+        assert_eq!(writer.records_written, 0);
+    }
 
     #[test]
     fn writer_rejects_records_the_reader_cannot_accept() {

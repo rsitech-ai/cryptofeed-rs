@@ -2,8 +2,10 @@
 useDefault = true
 
 [[allowlists]]
-description = "Ignore generated build output and separately registered Git worktrees"
+description = "Ignore generated build/tool/operator output and separately registered Git worktrees; release guard rejects these paths if tracked"
 paths = [
   '''^target/''',
   '''^\.worktrees/''',
+  '''^\.local/''',
+  '''^\.tools/''',
 ]

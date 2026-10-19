@@ -4,6 +4,8 @@
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-deribit --test corpus_replay regen_perp_trade_ticker_corpus -- --ignored`
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-deribit --test corpus_replay regen_perp_l2_book_corpus -- --ignored`
 
+include!("../../../recording/test_support/corpus_clock.rs");
+
 use marketfeed_adapter_api::{ConcreteSubscriptionSet, SessionSpec};
 use marketfeed_adapter_deribit::{DeribitSession, DeribitSessionConfig};
 use marketfeed_engine::{SessionRunner, SessionRunnerConfig};
@@ -125,8 +127,8 @@ fn corpus_perp_trade_ticker_matches_live_record() {
     let corpus = std::fs::read(trade_ticker_corpus_path())
         .expect("missing corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(false, corpus));
@@ -176,8 +178,8 @@ fn corpus_perp_l2_book_matches_live_record() {
     let corpus =
         std::fs::read(l2_corpus_path()).expect("missing L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(true, corpus));

@@ -1,0 +1,29 @@
+# Use a NEW shared_directory for every collector process. Consumers read the
+# committed journal; they do not open another exchange WebSocket connection.
+[engine]
+shutdown_deadline_secs = 10
+[telemetry]
+bind = "127.0.0.1:19128"
+[recording]
+shared_directory = ".local/hyperliquid/capture-001"
+shared_max_bytes = 1073741824
+[recording.raw]
+enabled = true
+directory = ".local/hyperliquid/raw-001"
+segment_size = "64MiB"
+segment_duration = "5m"
+queue_capacity = 8192
+overflow = "fail_engine"
+min_free_space = "1GiB"
+[[venues]]
+id = "hyperliquid-spot"
+adapter = "hyperliquid"
+segment = "spot"
+symbols = ["@107", "PURR/USDC"]
+channels = ["trades", "quote", "l2", "candles", "mark", "statistics24h"]
+[[venues]]
+id = "hyperliquid-perps"
+adapter = "hyperliquid"
+segment = "perps"
+symbols = ["BTC", "ETH"]
+channels = ["trades", "quote", "l2", "candles", "mark", "index", "funding", "open_interest", "statistics24h"]

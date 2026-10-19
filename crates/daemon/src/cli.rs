@@ -34,6 +34,9 @@ use marketfeed_adapter_coinbase::{
 };
 use marketfeed_adapter_deribit::{DERIBIT_VENUE_ID, DeribitFactory};
 use marketfeed_adapter_gemini::{GEMINI_VENUE_ID, GeminiFactory};
+use marketfeed_adapter_hyperliquid::{
+    HYPERLIQUID_PERPS_VENUE_ID, HYPERLIQUID_SPOT_VENUE_ID, HyperliquidFactory,
+};
 use marketfeed_adapter_kraken::{
     KRAKEN_FUTURES_VENUE_ID, KRAKEN_SPOT_VENUE_ID, KrakenFuturesFactory, KrakenSpotFactory,
 };
@@ -58,6 +61,16 @@ struct VenueMeta {
 
 fn venue_meta(kind: VenueKind) -> VenueMeta {
     match kind {
+        VenueKind::HyperliquidSpot => VenueMeta {
+            venue_id: HYPERLIQUID_SPOT_VENUE_ID,
+            venue_code: "hyperliquid-spot",
+            kind: InstrumentKind::Spot,
+        },
+        VenueKind::HyperliquidPerps => VenueMeta {
+            venue_id: HYPERLIQUID_PERPS_VENUE_ID,
+            venue_code: "hyperliquid-perps",
+            kind: InstrumentKind::PerpetualLinear,
+        },
         VenueKind::Synthetic => VenueMeta {
             venue_id: SYNTHETIC_VENUE_ID,
             venue_code: "synthetic",
@@ -194,6 +207,12 @@ fn plan_lines(
     let l2 = venue.wants_l2();
     let request = expand_concrete_subscriptions(venue, catalog).map_err(|e| e.to_string())?;
     match kind {
+        VenueKind::HyperliquidSpot => {
+            plan_with_factory(HyperliquidFactory::spot(), &request, catalog)
+        }
+        VenueKind::HyperliquidPerps => {
+            plan_with_factory(HyperliquidFactory::perps(), &request, catalog)
+        }
         VenueKind::Synthetic => plan_with_factory(SyntheticFactory, &request, catalog),
         VenueKind::BinanceSpot => {
             plan_with_factory(BinanceSpotFactory { enable_l2: l2 }, &request, catalog)
@@ -326,6 +345,12 @@ async fn discover_catalog_for_venue<H: HttpTransport>(
     let env = Environment::Production;
     let ver = CatalogVersion(1);
     match kind {
+        VenueKind::HyperliquidSpot => {
+            discover_catalog(&HyperliquidFactory::spot(), http, meta.venue_id, env, ver).await
+        }
+        VenueKind::HyperliquidPerps => {
+            discover_catalog(&HyperliquidFactory::perps(), http, meta.venue_id, env, ver).await
+        }
         VenueKind::BinanceSpot => {
             discover_catalog(
                 &BinanceSpotFactory { enable_l2: l2 },

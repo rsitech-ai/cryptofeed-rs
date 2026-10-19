@@ -348,13 +348,14 @@ async fn main() {
         }
         "run" => {
             let path = parse_config_arg(&args[1..]);
-            let cfg = match DaemonConfig::load_path(&path) {
-                Ok(c) => c,
-                Err(e) => {
-                    eprintln!("invalid config: {e}");
-                    std::process::exit(1);
-                }
-            };
+            let configuration = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+                eprintln!("cannot read config: {e}");
+                std::process::exit(1);
+            });
+            let cfg = DaemonConfig::from_toml_str(&configuration).unwrap_or_else(|e| {
+                eprintln!("invalid config: {e}");
+                std::process::exit(1);
+            });
             let filter_reload = install_tracing(&cfg);
             if let Some(profile) =
                 marketfeed_engine::RuntimeProfile::parse(&cfg.engine.runtime_profile)
@@ -378,6 +379,23 @@ async fn main() {
                 tracing::error!(error = %e, "daemon runtime initialization failed");
                 std::process::exit(1);
             });
+            if let Some(feed) = &state.shared_feed {
+                let public_configuration = DaemonConfig::public_capture_configuration(
+                    &configuration,
+                )
+                .unwrap_or_else(|e| {
+                    tracing::error!(error = %e, "shared configuration is not public");
+                    std::process::exit(1);
+                });
+                feed.append(marketfeed_recording::shared_feed::FeedRecord::artifact(
+                    "configuration",
+                    &public_configuration,
+                ))
+                .unwrap_or_else(|e| {
+                    tracing::error!(error = %e, "cannot persist capture configuration");
+                    std::process::exit(1);
+                });
+            }
             state.mark_supervisor_running();
             let (shutdown_tx, shutdown_rx) = watch::channel(false);
             let mut venue_handles = spawn_venues(Arc::clone(&state), shutdown_rx.clone());
@@ -509,6 +527,23 @@ async fn main() {
             if shutdown_error.is_some() {
                 tracing::error!("marketfeed daemon stopped with errors");
                 std::process::exit(1);
+            }
+            if let Some(feed) = &state.shared_feed {
+                let now_ns = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .and_then(|d| i64::try_from(d.as_nanos()).ok())
+                    .unwrap_or(0);
+                if let Err(error) =
+                    feed.append(marketfeed_recording::shared_feed::FeedRecord::Seal {
+                        schema_version: 1,
+                        now_ns,
+                        reason: "clean_shutdown;exchange_continuity_unverified".into(),
+                    })
+                {
+                    tracing::error!(%error, "failed to seal shared feed");
+                    std::process::exit(1);
+                }
             }
             tracing::info!("marketfeed daemon stopped cleanly");
         }

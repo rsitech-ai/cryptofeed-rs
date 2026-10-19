@@ -10,7 +10,7 @@
 **Canary checklist:** [`docs/ops/canary_checklist.md`](../ops/canary_checklist.md)  
 **Laptop live evidence:** [`docs/ops/canary_results.md`](../ops/canary_results.md) (laptop **10/10**; scheduled **0**; reconnect **PASS** laptop — **not beta**)<br>
 **Laptop soak evidence:** [`docs/ops/soak_results.md`](../ops/soak_results.md) (15m all-public-segment + ~31m live binance+okx + synthetic, not stable)<br>
-**Updated:** 2026-07-23
+**Updated:** 2026-10-19
 
 Spec vocabulary: **experimental | beta | stable**. Informal labels:
 
@@ -37,6 +37,8 @@ Spec vocabulary: **experimental | beta | stable**. Informal labels:
 
 | VenueId | Code | Segment | Capabilities (claimed) | Maturity | Offline proofs | Blocks beta |
 |--------:|------|---------|------------------------|----------|----------------|-------------|
+| 21 | `hyperliquid-spot` | spot | T, Q, L2 snapshots, Candles, mark, Statistics24h | **alpha** | exact protocol/metadata/ack/book contracts; bounded shared collector/hlscreen pilots | qualified persistence/recovery, scheduled canary, soak |
+| 22 | `hyperliquid-perps` | native + builder linear perps | T, Q, L2 snapshots, Candles, mark, oracle/index, funding, OI, Statistics24h | **alpha** | native/builder metadata and derivative contracts; bounded shared collector/hlscreen pilots | qualified persistence/recovery, scheduled canary, soak |
 | 1 | `synthetic` | test | T, Q, L2, Candles | **alpha** | memory reconnect + QUOTE/CANDLE fixtures | N/A (test venue) |
 | 2 | `binance-spot` | spot | T, Q, L2, Candles, Statistics24h | **alpha+** (beta-ready offline; laptop canary **10/10**, not scheduled) | fixtures + corpus + `@ticker` Stats24h + heartbeat + README/owner/limits + laptop canary + reconnect probe + ~31m live soak | scheduled canary ≥7 (**scheduled = 0**) |
 | 3 | `binance-usdm` | linear | T, Q, L2, Candles, Statistics24h, mark, index, funding, OI, liq | **alpha** | fixtures + OI REST timer + `@kline_*` + `@ticker` Stats24h + dedicated `@indexPrice@1s` + L2 book corpus | live canary, soak |

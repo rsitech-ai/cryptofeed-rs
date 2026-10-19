@@ -37,6 +37,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn invalidations_with_the_same_instrument_keep_distinct_runtime_scopes() {
+        let event = |venue, session| SystemEvent::QuoteInvalidated {
+            venue: Some(VenueId(venue)),
+            session: Some(SessionId(session)),
+            connection: Some(ConnectionId(session)),
+            instrument: InstrumentId(1),
+            reason: "native side unavailable".into(),
+        };
+        let left: serde_json::Value =
+            serde_json::from_slice(&system_json(&event(21, 1)).unwrap()).unwrap();
+        let right: serde_json::Value =
+            serde_json::from_slice(&system_json(&event(22, 2)).unwrap()).unwrap();
+        assert_eq!(
+            left["event"]["QuoteInvalidated"]["instrument"],
+            right["event"]["QuoteInvalidated"]["instrument"]
+        );
+        assert_ne!(
+            left["event"]["QuoteInvalidated"]["venue"],
+            right["event"]["QuoteInvalidated"]["venue"]
+        );
+        assert_ne!(
+            left["event"]["QuoteInvalidated"]["session"],
+            right["event"]["QuoteInvalidated"]["session"]
+        );
+    }
+
+    #[test]
     fn batch_json_contains_complete_normalized_trade() {
         let batch = EventBatch {
             session: SessionId(1),

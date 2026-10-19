@@ -6,6 +6,8 @@
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-okx --test corpus_replay regen_swap_l2_book_corpus -- --ignored`
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-okx --test corpus_replay regen_futures_l2_book_corpus -- --ignored`
 
+include!("../../../recording/test_support/corpus_clock.rs");
+
 use marketfeed_adapter_api::{ConcreteSubscriptionSet, SessionSpec};
 use marketfeed_adapter_okx::{OkxSession, OkxSessionConfig};
 use marketfeed_engine::{SessionRunner, SessionRunnerConfig};
@@ -155,8 +157,8 @@ fn corpus_spot_trade_quote_matches_live_record() {
     let (live_bytes, live_events) = record_frames(false, &corpus_frames());
     let corpus = std::fs::read(corpus_path()).expect("missing corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(false, corpus));
@@ -206,8 +208,8 @@ fn corpus_spot_l2_book_matches_live_record() {
     let corpus =
         std::fs::read(l2_corpus_path()).expect("missing L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(true, corpus));
@@ -283,7 +285,10 @@ fn corpus_swap_l2_book_matches_live_record() {
     );
     let corpus = std::fs::read(swap_l2_corpus_path())
         .expect("missing swap L2 corpus — regen with REGEN_CORPUS=1");
-    assert_eq!(live_bytes.as_slice(), corpus.as_slice());
+    assert_eq!(
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus)
+    );
     assert_eq!(
         live_events,
         replay_events_with(okx_session(VenueId(9), "BTC-USDT-SWAP", true), corpus)
@@ -343,7 +348,10 @@ fn corpus_futures_l2_book_matches_live_record() {
     );
     let corpus = std::fs::read(futures_l2_corpus_path())
         .expect("missing futures L2 corpus — regen with REGEN_CORPUS=1");
-    assert_eq!(live_bytes.as_slice(), corpus.as_slice());
+    assert_eq!(
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus)
+    );
     assert_eq!(
         live_events,
         replay_events_with(okx_session(VenueId(10), "BTC-USDT-250328", true), corpus)

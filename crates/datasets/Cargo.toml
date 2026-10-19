@@ -1,0 +1,36 @@
+[package]
+name = "marketfeed-datasets"
+description = "Exact immutable datasets, verified publication, backup and restore"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+# Parquet 60 removes the unmaintained paste dependency. The collector and core
+# libraries retain their 1.85 MSRV; this offline dataset tool requires 1.88.
+rust-version = "1.88"
+
+[[bin]]
+name = "marketfeed-dataset"
+path = "src/main.rs"
+
+[dependencies]
+marketfeed-model.workspace = true
+marketfeed-recording.workspace = true
+marketfeed-adapter-hyperliquid = { path = "../adapters/hyperliquid" }
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+sha2.workspace = true
+base64.workspace = true
+bytes.workspace = true
+parquet = { version = "60.0.0", default-features = false, features = ["zstd"] }
+fs4 = { version = "0.13", default-features = false, features = ["sync"] }
+time = { version = "0.3", features = ["formatting"] }
+jsonschema = { version = "=0.45.0", default-features = false }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

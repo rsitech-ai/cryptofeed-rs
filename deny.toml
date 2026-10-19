@@ -35,6 +35,7 @@ allow = [
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
+    "MIT-0",
     "Unicode-3.0",
     "Unlicense",
     "Zlib",
@@ -57,6 +58,9 @@ skip = [
     { crate = "getrandom@0.2.17", reason = "ring and proptest currently require incompatible getrandom major versions" },
     { crate = "getrandom@0.4.3", reason = "tempfile 3.27 requires getrandom 0.4 while rand and tungstenite remain on getrandom 0.3" },
     { crate = "hashbrown@0.15.5", reason = "simd-json currently requires hashbrown 0.15 while the remaining graph uses 0.17" },
+    { crate = "hashbrown@0.16.1", reason = "offline jsonschema referencing 0.45 uses hashbrown 0.16 while the collector graph uses 0.17" },
+    { crate = "foldhash@0.1.5", reason = "simd-json hashbrown 0.15 uses foldhash 0.1 while offline schema validation uses foldhash 0.2" },
+    { crate = "num-bigint@0.4.8", reason = "jsonschema fraction uses num-bigint 0.4 while Parquet 60 uses num-bigint 0.5" },
     { crate = "syn@2.0.119", reason = "transitive procedural macro dependencies currently span syn 2 and syn 3" },
     { crate = "webpki-roots@0.26.11", reason = "tokio-tungstenite 0.26 and reqwest 0.12 currently resolve different webpki-roots majors" },
 ]
