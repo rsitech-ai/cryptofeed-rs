@@ -391,3 +391,25 @@ No scheduled canaries or multi-day soak were run. Existing ≥7 scheduled-run,
 ≥24h/≥7d requirements remain unchanged. Immediate next work is S1–S6 semantics
 and identity, D1–D5 delivery/recovery/durability, P1–P3 storage/admission, C1/C2
 actual OKX readers, then Q1/Q2 qualified acquisition and O1 calendar evidence.
+
+
+## Bybit native integrity repair followup (2026-10-19)
+
+Bybit public trades/candles now preserve batch rows, trade classification and
+repeatable cross-sequence provenance, explicit candle finality and native
+start/end/last-match/publication fields. Malformed late rows, negative financials,
+timestamp overflow, mismatched symbols/intervals and missing catalog identity
+fail before partial emission. Optional canonical candle provenance reaches JSON
+and protobuf; existing absent fields remain unknown. This is a Rust alpha
+constructor/decoded-variant migration, not source compatibility.
+
+Independently checked offline:47 Bybit tests (4 live/regen ignored),6 explicit
+native adversarial regressions,4 generated-protobuf exact/presence fixtures and
+45 Python audit tests with false-green mutations. Full workspace testing and a
+new source-pinned bounded live probe are still pending at this checkpoint.
+
+Open Bybit findings: unsupported L2 u+1 inference, conflicting duplicate-book
+discard, first-page-only derivative catalog, missing liquidation bankruptcy-price
+provenance, exact per-channel ACK readiness, source continuity and WS quantity
+unit qualification. These repairs do not admit a dataset or verify every product.
+See adapter README and active implementation ledger for source contracts/evidence.

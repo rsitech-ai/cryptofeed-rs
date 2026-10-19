@@ -159,6 +159,9 @@ fn market_event_json(ev: &MarketEvent) -> Value {
                 "start_ts": { "ns": c.start_ts.0 },
             }
             });
+            if let Some(provenance) = &c.provenance {
+                payload["candle"]["provenance"] = json!(provenance);
+            }
             if let Some(closed) = c.is_closed {
                 payload["candle"]["is_closed"] = json!(closed);
             }

@@ -4,6 +4,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let directory = std::path::PathBuf::from(std::env::args().nth(1).ok_or("directory required")?);
     std::fs::create_dir(&directory)?;
     let candle = Candle {
+        provenance: Some(Box::new(CandleProvenance {
+            source_channel: "kline.1.BTCUSD".into(),
+            native_attributes: std::collections::BTreeMap::from([
+                ("timestamp".into(), "1700000000000".into()),
+                ("turnover".into(), "0.000000000000000001".into()),
+            ]),
+        })),
         native_volume_ccy: Some(Quantity(Fixed::new(17, 3))),
         open: Price(Fixed::new(100, 0)),
         high: Price(Fixed::new(101, 0)),
@@ -40,6 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     source.native_count = Some(0);
     let mut legacy = candle.clone();
     legacy.native_volume_ccy = None;
+    legacy.provenance = None;
     legacy.is_closed = None;
     legacy.quote_volume = None;
     for (index, payload) in [

@@ -652,6 +652,7 @@ impl BinanceUsdmSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Candle(Candle {
+                        provenance: None,
                         native_volume_ccy: None,
                         is_closed: None,
                         quote_volume: None,

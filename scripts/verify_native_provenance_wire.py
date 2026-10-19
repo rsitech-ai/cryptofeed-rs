@@ -25,6 +25,9 @@ assert trade.provenance.constituent_first_id == '9007199254740993'
 assert trade.provenance.native_attributes['count_meaning'] == 'unverified-native-only'
 assert records[1].payload.candle.HasField('is_closed')
 assert records[1].payload.candle.is_closed is False
+assert records[1].payload.candle.provenance.source_channel == 'kline.1.BTCUSD'
+assert records[1].payload.candle.provenance.native_attributes['turnover'] == '0.000000000000000001'
+assert not records[2].payload.candle.HasField('provenance')
 assert not records[2].payload.candle.HasField('is_closed')
 assert not records[2].payload.candle.HasField('quote_volume')
 assert records[1].payload.candle.native_volume_ccy.value.coefficient_lo == 17

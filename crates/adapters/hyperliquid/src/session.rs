@@ -313,6 +313,7 @@ impl HyperliquidSession {
                     None,
                     stamp,
                     MarketEvent::Candle(Candle {
+                        provenance: None,
                         native_volume_ccy: None,
                         is_closed: None,
                         quote_volume: None,

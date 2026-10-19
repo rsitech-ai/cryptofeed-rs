@@ -187,21 +187,29 @@ impl BybitSession {
                 if trades.is_empty() {
                     return Ok(());
                 }
+                if trades
+                    .iter()
+                    .any(|row| self.instrument_for(&row.symbol).is_none())
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: "trade symbol absent from session catalog".into(),
+                    }));
+                    return Ok(());
+                }
                 let frame_seq = self.next_frame();
                 let mut events = Vec::with_capacity(trades.len());
                 for (i, t) in trades.into_iter().enumerate() {
                     let instrument = self.instrument_for(&t.symbol);
-                    let seq = t.seq.map(|s| SequenceRange { first: s, last: s });
                     events.push(self.envelope(
                         instrument,
                         frame_seq,
                         i as u16,
                         received,
                         Some(t.exchange_ts_ms),
-                        seq,
+                        None,
                         EventFlags::empty(),
                         MarketEvent::Trade(Trade {
-                            provenance: None,
+                            provenance: Some(t.provenance),
                             price: t.price,
                             quantity: t.quantity,
                             aggressor: t.aggressor,
@@ -251,45 +259,50 @@ impl BybitSession {
                     )?;
                 }
             }
-            DecodedEvent::Candle {
-                symbol,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                interval_ns,
-                start_ts,
-                exchange_ts_ms,
-                is_closed: _,
-            } => {
-                let instrument = self.instrument_for(&symbol);
+            DecodedEvent::Candles(rows) => {
+                if rows
+                    .iter()
+                    .any(|row| self.instrument_for(&row.symbol).is_none())
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: "candle symbol absent from session catalog".into(),
+                    }));
+                    return Ok(());
+                }
                 let frame_seq = self.next_frame();
-                let env = self.envelope(
-                    instrument,
-                    frame_seq,
-                    0,
-                    received,
-                    Some(exchange_ts_ms),
-                    None,
-                    EventFlags::empty(),
-                    MarketEvent::Candle(Candle {
-                        native_volume_ccy: None,
-                        is_closed: None,
-                        quote_volume: None,
-                        open,
-                        high,
-                        low,
-                        close,
-                        volume,
-                        interval_ns,
-                        start_ts,
-                    }),
-                );
+                let mut events = Vec::with_capacity(rows.len());
+                for (index, row) in rows.into_iter().enumerate() {
+                    // Preserve the native volume and counter-volume. WS docs name
+                    // turnover but do not explicitly state category units; do not
+                    // promote the REST unit analogy to qualified WS quote volume.
+                    let quote_volume = None;
+                    events.push(self.envelope(
+                        self.instrument_for(&row.symbol),
+                        frame_seq,
+                        index as u16,
+                        received,
+                        Some(row.exchange_ts_ms),
+                        None,
+                        EventFlags::empty(),
+                        MarketEvent::Candle(Candle {
+                            provenance: Some(row.provenance),
+                            native_volume_ccy: row.turnover,
+                            is_closed: Some(row.is_closed),
+                            quote_volume,
+                            open: row.open,
+                            high: row.high,
+                            low: row.low,
+                            close: row.close,
+                            volume: row.volume,
+                            interval_ns: row.interval_ns,
+                            start_ts: row.start_ts,
+                        }),
+                    ));
+                }
                 output.push(SessionAction::EmitBatch(EventBatch {
                     session: self.cfg.session,
                     frame_seq,
-                    events: vec![env],
+                    events,
                 }));
             }
             DecodedEvent::Tickers {

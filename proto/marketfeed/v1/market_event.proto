@@ -111,6 +111,11 @@ message BookDelta {
   optional string checksum = 2;
 }
 
+message CandleProvenance {
+  string source_channel = 1;
+  map<string, string> native_attributes = 2;
+}
+
 message Candle {
   Price open = 1;
   Price high = 2;
@@ -121,7 +126,8 @@ message Candle {
   TimestampNs start_ts = 7;
   optional Quantity quote_volume = 8;
   optional bool is_closed = 9; // absent = unknown, false = explicitly unconfirmed
-  optional Quantity native_volume_ccy = 10; // native volCcy; product-dependent unit
+  optional Quantity native_volume_ccy = 10; // native counter-volume; product-dependent unit
+  optional CandleProvenance provenance = 11;
 }
 
 message PricePoint {

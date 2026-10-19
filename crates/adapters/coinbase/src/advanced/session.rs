@@ -377,6 +377,7 @@ impl CoinbaseAdvSession {
                     self.emit_candle(
                         &product_id,
                         Candle {
+                            provenance: None,
                             native_volume_ccy: None,
                             is_closed: None,
                             quote_volume: None,
@@ -654,6 +655,7 @@ impl SessionMachine for CoinbaseAdvSession {
                         self.emit_candle(
                             &product,
                             Candle {
+                                provenance: None,
                                 native_volume_ccy: None,
                                 is_closed: None,
                                 quote_volume: None,

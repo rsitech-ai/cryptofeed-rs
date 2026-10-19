@@ -994,6 +994,7 @@ impl SessionMachine for GeminiSession {
                         self.emit_candle(
                             &symbol,
                             Candle {
+                                provenance: None,
                                 native_volume_ccy: None,
                                 is_closed: None,
                                 quote_volume: None,

@@ -129,7 +129,15 @@ pub struct BookDelta {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CandleProvenance {
+    pub source_channel: String,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Candle {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<CandleProvenance>>,
     pub open: Price,
     pub high: Price,
     pub low: Price,
@@ -142,7 +150,8 @@ pub struct Candle {
     pub is_closed: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub quote_volume: Option<Quantity>,
-    /// Venue volCcy, whose unit depends on the instrument/product. Never
+    /// Native counter-volume (e.g. OKX volCcy or Bybit turnover), whose unit
+    /// depends on the instrument/product. Never
     /// reinterpret it as base quantity without the native metadata contract.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_volume_ccy: Option<Quantity>,

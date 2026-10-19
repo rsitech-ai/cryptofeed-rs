@@ -1,0 +1,82 @@
+{
+  "schema": "marketfeed.bounded_public_pilot.v1",
+  "status": "prepared-not-run",
+  "purpose": "Native Bybit trade/candle repair observed-message reconciliation; no source continuity or dataset admission",
+  "sources": [
+    {
+      "venue": 6,
+      "segment": "spot",
+      "symbol": "BTCUSDT",
+      "channels": [
+        "publicTrade",
+        "kline.1",
+        "orderbook.1"
+      ],
+      "endpoint": "wss://stream.bybit.com/v5/public/spot"
+    },
+    {
+      "venue": 5,
+      "segment": "linear",
+      "symbol": "BTCUSDT",
+      "channels": [
+        "publicTrade",
+        "kline.1",
+        "orderbook.1"
+      ],
+      "endpoint": "wss://stream.bybit.com/v5/public/linear"
+    },
+    {
+      "venue": 11,
+      "segment": "inverse",
+      "symbol": "BTCUSD",
+      "channels": [
+        "publicTrade",
+        "kline.1",
+        "orderbook.1"
+      ],
+      "endpoint": "wss://stream.bybit.com/v5/public/inverse"
+    }
+  ],
+  "time_policy": {
+    "mode": "forward-only",
+    "duration_seconds": 30,
+    "shutdown_allowance_seconds": 15,
+    "actual_utc_bounds": "recorded by launch receipt; no historical window substitution"
+  },
+  "destination": ".local/evidence/hyperliquid-integration-review/bybit-native-pilot-01-{feed,raw}",
+  "limits": {
+    "shared_journal_bytes": 67108864,
+    "raw_segment_bytes": 16777216,
+    "raw_queue_frames": 8192,
+    "overflow": "fail_engine",
+    "minimum_free_space": "1GiB",
+    "symbols": 3,
+    "collector_restarts": 0,
+    "maximum_parent_runtime_seconds": 45,
+    "metadata_source": "existing public instruments-info request per category, limit1000 where supported",
+    "metadata_pagination": "existing first-page behavior only; whole-catalog coverage not claimed",
+    "transport_retries": "existing runtime policy within bounded parent deadline; observed counts retained"
+  },
+  "stop_conditions": [
+    "duration or process exit",
+    "recorder capacity/error",
+    "storage floor",
+    "shutdown deadline: kill owned process and report failure"
+  ],
+  "qualification_gates": [
+    "clean lifecycle",
+    "raw and journal retained",
+    "exact native/canonical trade/candle reconciliation",
+    "no source parse/drop/unknown errors",
+    "committed cursor and prefix hash",
+    "explicit scope limitations; dataset_admitted=false"
+  ],
+  "forbidden": [
+    "credentials",
+    "orders",
+    "frozen corpus writes",
+    "indefinite collectors",
+    "L2-continuity claim",
+    "economic run"
+  ]
+}

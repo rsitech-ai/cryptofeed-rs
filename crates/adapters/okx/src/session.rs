@@ -518,6 +518,7 @@ impl OkxSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Candle(Candle {
+                        provenance: None,
                         native_volume_ccy: Some(native_volume_ccy),
                         is_closed: Some(is_closed),
                         quote_volume,

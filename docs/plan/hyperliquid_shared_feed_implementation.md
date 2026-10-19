@@ -522,3 +522,48 @@ with canonical local paths stay in ignored task evidence.
 
 Quants boundary is committed locally at97e034c on its isolated owner branch.
 No Quants push/PR, root pointer update or publication was performed.
+
+
+## Next integrity slice: Bybit native trade/candle semantics (in progress)
+
+Current source f441d5f discards native BT/RPI/L/publication provenance, exposes
+repeatable cross-sequence as generic trade sequence, retains only first candle
+row, drops confirmation/turnover and uses last-match time as candle publication
+time. Bounded atomic row validation, native provenance and honest product volume
+semantics are being implemented with independent native expectations and review.
+L2 update-ID consecutiveness and liquidation bankruptcy-price provenance are
+separately under audit; no new live or qualified-data result is claimed yet.
+
+
+Bybit trade/candle implementation checkpoint: independent reviewer ran47 offline
+Bybit tests with4 live/regeneration ignores; root focused Bybit/recording/sinks/
+event-pulse suite passed368 with4 ignores. Rust1.85 relevant104 library tests,
+workspace Clippy, rustdoc and generated-Google-protobuf4-fixture checks pass.
+Full workspace run is still in progress and is not included in these counts.
+
+Native trade provenance preserves source channel, exact native IDs/financials,
+T/ts/seq/BT/RPI/L and original side. Every documented batch (max1024) is validated
+before one emitted batch; repeated seq is native provenance, not continuity.
+Unknown side stays Unknown, absent flags stay absent. Candles validate all rows
+(local cap4096) and retain explicit finality and native timing/turnover via new
+optional CandleProvenance, propagated to serde/normalized JSON/protobuf11. Frame
+ts is system generation; last matched order time remains separate. Native WS
+turnover is never promoted to qualified quote volume by REST unit analogy.
+
+Independent review found false-green paths in the first Bybit oracle: orphan
+acceptance, bool/int/float aliasing, duplicate JSON keys, candle history flags,
+dual enum payloads and unbounded whole-file hashing. These are fixed and covered
+by mutations plus a real-framing sparse-tail regression. The new Bybit audit
+reports a pinned committed cursor and streaming prefix hash within128MiB;
+watermark changes fail.45 Python audit tests pass and independent review closed
+all findings for the new tool. Existing older HL/OKX report whole-file digest
+behavior is separate; their earlier finite sealed-capture evidence is preserved.
+
+The next live pilot has an explicit three-symbol30s/45s-wall-cap acquisition plan
+at docs/evidence/bybit-native-2026-10-19/acquisition-plan.json. No live repair
+evidence is claimed yet. Bybit L2 uses an unsupported +1 assumption and silent
+conflicting-repeat discard; this separate P1 finding is recorded in its README.
+Metadata discovery also currently requests only the first1000 derivative rows
+and does not follow nextPageCursor; whole-catalog coverage cannot be claimed.
+Liquidation bankruptcy-price/position metadata and channel-specific readiness
+remain open. No original/frozen corpus, strategy owner or rsibot pointer changed.

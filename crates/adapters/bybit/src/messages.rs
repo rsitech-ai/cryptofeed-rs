@@ -2,8 +2,8 @@
 
 use marketfeed_adapter_api::CandleInterval;
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, Rate, SourceId,
-    TimestampNs,
+    AggressorSide, BookLevel, BookOperation, BookSide, CandleProvenance, Fixed, Price, Quantity,
+    Rate, SourceId, TimestampNs, TradeGranularity, TradeProvenance,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -24,19 +24,7 @@ pub enum DecodedEvent {
         asks: Vec<(Price, Quantity)>,
         exchange_ts_ms: i64,
     },
-    Candle {
-        symbol: String,
-        open: Price,
-        high: Price,
-        low: Price,
-        close: Price,
-        volume: Quantity,
-        interval_ns: i64,
-        start_ts: TimestampNs,
-        exchange_ts_ms: i64,
-        /// Venue `confirm`: bar closed.
-        is_closed: bool,
-    },
+    Candles(Vec<CandleDecoded>),
     /// `tickers.{symbol}` — fields optional on delta updates (spot + linear/inverse).
     Tickers {
         symbol: String,
@@ -80,6 +68,22 @@ pub enum OrderbookKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CandleDecoded {
+    pub symbol: String,
+    pub open: Price,
+    pub high: Price,
+    pub low: Price,
+    pub close: Price,
+    pub volume: Quantity,
+    pub turnover: Option<Quantity>,
+    pub interval_ns: i64,
+    pub start_ts: TimestampNs,
+    pub exchange_ts_ms: i64,
+    pub is_closed: bool,
+    pub provenance: Box<CandleProvenance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TradeDecoded {
     pub symbol: String,
     pub trade_id: String,
@@ -88,6 +92,7 @@ pub struct TradeDecoded {
     pub aggressor: AggressorSide,
     pub exchange_ts_ms: i64,
     pub seq: Option<u64>,
+    pub provenance: Box<TradeProvenance>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +106,12 @@ struct TradeRow {
     p: String,
     i: String,
     seq: Option<u64>,
+    #[serde(rename = "BT")]
+    block: Option<bool>,
+    #[serde(rename = "RPI")]
+    rpi: Option<bool>,
+    #[serde(rename = "L")]
+    tick_direction: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -156,13 +167,30 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
 
     let topic = obj.get("topic").and_then(|x| x.as_str()).unwrap_or("");
     let msg_type = obj.get("type").and_then(|x| x.as_str()).unwrap_or("");
-    let ts = obj.get("ts").and_then(|x| x.as_i64()).unwrap_or(0);
+    let ts = match obj.get("ts") {
+        Some(value) => {
+            let ms = value.as_i64().ok_or("invalid native frame ts")?;
+            checked_ms(ms)?;
+            ms
+        }
+        None => 0,
+    };
 
     if topic.starts_with("publicTrade.") {
-        return decode_trades(obj.get("data").unwrap_or(&Value::Null));
+        if !obj.contains_key("ts") {
+            return Err("trade frame ts required".into());
+        }
+        return decode_trades(
+            topic,
+            obj.get("data").unwrap_or(&Value::Null),
+            obj.get("ts"),
+        );
     }
 
     if topic.starts_with("kline.") {
+        if !obj.contains_key("ts") {
+            return Err("kline frame ts required".into());
+        }
         return decode_kline(topic, obj.get("data").unwrap_or(&Value::Null), ts);
     }
 
@@ -240,42 +268,145 @@ fn interval_ns_from_bybit(i: &str) -> Result<i64, String> {
 #[derive(Debug, Deserialize)]
 struct KlineRow {
     start: i64,
+    end: Option<i64>,
     interval: String,
     open: String,
     high: String,
     low: String,
     close: String,
     volume: String,
+    turnover: Option<String>,
     confirm: bool,
     timestamp: Option<i64>,
 }
 
+const MAX_TRADE_ROWS: usize = 1024;
+const MAX_CANDLE_ROWS: usize = 4096;
+fn checked_ms(ms: i64) -> Result<TimestampNs, String> {
+    if ms < 0 {
+        return Err("negative native timestamp".into());
+    }
+    ms.checked_mul(1_000_000)
+        .map(TimestampNs)
+        .ok_or_else(|| "native timestamp overflow".into())
+}
+fn bounded_rows(data: &Value, cap: usize) -> Result<&[Value], String> {
+    let rows = data.as_array().ok_or("native data must be an array")?;
+    if rows.is_empty() || rows.len() > cap {
+        return Err("native row count outside capacity".into());
+    }
+    Ok(rows)
+}
+fn positive(text: &str) -> Result<Fixed, String> {
+    let value = parse_fixed(text)?;
+    if value.coefficient <= 0 {
+        return Err("positive financial value required".into());
+    }
+    Ok(value)
+}
+fn nonnegative(text: &str) -> Result<Fixed, String> {
+    let value = parse_fixed(text)?;
+    if value.coefficient < 0 {
+        return Err("nonnegative financial value required".into());
+    }
+    Ok(value)
+}
+fn attributes(
+    value: &Value,
+    keys: &[&str],
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    keys.iter()
+        .filter_map(|key| value.get(*key).map(|v| (*key, v)))
+        .map(|(key, value)| {
+            let text = match value {
+                Value::String(v) => v.clone(),
+                Value::Number(v) if v.is_i64() || v.is_u64() => v.to_string(),
+                Value::Bool(v) => v.to_string(),
+                _ => return Err(format!("invalid native attribute {key}")),
+            };
+            Ok((key.into(), text))
+        })
+        .collect()
+}
 fn decode_kline(topic: &str, data: &Value, ts: i64) -> Result<DecodedEvent, String> {
-    // topic: kline.{interval}.{symbol}
     let mut parts = topic.splitn(3, '.');
     let _ = parts.next();
-    let _interval_seg = parts.next();
+    let interval = parts.next().ok_or("missing kline interval")?;
     let symbol = parts
         .next()
-        .ok_or_else(|| format!("bad kline topic {topic}"))?
-        .to_string();
-    let rows: Vec<KlineRow> = serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
-    let row = rows
-        .into_iter()
-        .next()
-        .ok_or_else(|| "kline data empty".to_string())?;
-    Ok(DecodedEvent::Candle {
-        symbol,
-        open: Price(parse_fixed(&row.open)?),
-        high: Price(parse_fixed(&row.high)?),
-        low: Price(parse_fixed(&row.low)?),
-        close: Price(parse_fixed(&row.close)?),
-        volume: Quantity(parse_fixed(&row.volume)?),
-        interval_ns: interval_ns_from_bybit(&row.interval)?,
-        start_ts: TimestampNs(row.start.saturating_mul(1_000_000)),
-        exchange_ts_ms: row.timestamp.unwrap_or(ts),
-        is_closed: row.confirm,
-    })
+        .filter(|s| !s.is_empty())
+        .ok_or("missing kline symbol")?;
+    let interval_ns = interval_ns_from_bybit(interval)?;
+    let rows = bounded_rows(data, MAX_CANDLE_ROWS)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for value in rows {
+        let row: KlineRow = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+        if row.interval != interval {
+            return Err("kline topic/row interval mismatch".into());
+        }
+        let start_ts = checked_ms(row.start)?;
+        if let Some(end) = row.end {
+            checked_ms(end)?;
+            if end < row.start {
+                return Err("kline end before start".into());
+            }
+        }
+        if let Some(last_match) = row.timestamp {
+            checked_ms(last_match)?;
+        }
+        let open = Price(positive(&row.open)?);
+        let high = Price(positive(&row.high)?);
+        let low = Price(positive(&row.low)?);
+        let close = Price(positive(&row.close)?);
+        if low.0.numeric_cmp(high.0).is_gt()
+            || open.0.numeric_cmp(low.0).is_lt()
+            || open.0.numeric_cmp(high.0).is_gt()
+            || close.0.numeric_cmp(low.0).is_lt()
+            || close.0.numeric_cmp(high.0).is_gt()
+        {
+            return Err("inconsistent kline OHLC".into());
+        }
+        let mut native_attributes = attributes(
+            value,
+            &[
+                "start",
+                "end",
+                "interval",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "turnover",
+                "confirm",
+                "timestamp",
+            ],
+        )?;
+        native_attributes.insert("ts".into(), ts.to_string());
+        out.push(CandleDecoded {
+            symbol: symbol.into(),
+            open,
+            high,
+            low,
+            close,
+            volume: Quantity(nonnegative(&row.volume)?),
+            turnover: row
+                .turnover
+                .as_deref()
+                .map(nonnegative)
+                .transpose()?
+                .map(Quantity),
+            interval_ns,
+            start_ts,
+            exchange_ts_ms: ts,
+            is_closed: row.confirm,
+            provenance: Box::new(CandleProvenance {
+                source_channel: topic.into(),
+                native_attributes,
+            }),
+        });
+    }
+    Ok(DecodedEvent::Candles(out))
 }
 
 fn optional_fixed_price(
@@ -325,7 +456,7 @@ fn decode_tickers(topic: &str, data: &Value, ts: i64) -> Result<DecodedEvent, St
     let next_funding_ts = match obj.get("nextFundingTime").and_then(|v| v.as_str()) {
         Some(s) if !s.is_empty() => {
             let ms: i64 = s.parse().map_err(|_| format!("bad nextFundingTime {s}"))?;
-            Some(TimestampNs(ms.saturating_mul(1_000_000)))
+            Some(checked_ms(ms)?)
         }
         _ => None,
     };
@@ -346,23 +477,53 @@ fn decode_tickers(topic: &str, data: &Value, ts: i64) -> Result<DecodedEvent, St
     })
 }
 
-fn decode_trades(data: &Value) -> Result<DecodedEvent, String> {
-    let rows: Vec<TradeRow> = serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
+fn decode_trades(
+    topic: &str,
+    data: &Value,
+    frame_ts: Option<&Value>,
+) -> Result<DecodedEvent, String> {
+    let symbol = topic
+        .strip_prefix("publicTrade.")
+        .filter(|s| !s.is_empty())
+        .ok_or("missing trade topic symbol")?;
+    let rows = bounded_rows(data, MAX_TRADE_ROWS)?;
     let mut out = Vec::with_capacity(rows.len());
-    for m in rows {
+    for value in rows {
+        let m: TradeRow = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+        if m.s != symbol || m.i.is_empty() {
+            return Err("trade symbol mismatch or empty ID".into());
+        }
+        checked_ms(m.trade_time)?;
         let aggressor = match m.side.as_str() {
             "Buy" => AggressorSide::Buy,
             "Sell" => AggressorSide::Sell,
             _ => AggressorSide::Unknown,
         };
+        // Deserialize optional typed fields as well as retaining their presence.
+        let _ = (&m.block, &m.rpi, &m.tick_direction);
+        let mut native_attributes = attributes(
+            value,
+            &["T", "s", "S", "v", "p", "i", "seq", "L", "BT", "RPI"],
+        )?;
+        if let Some(ts) = frame_ts {
+            native_attributes.insert("ts".into(), ts.to_string());
+        }
         out.push(TradeDecoded {
             symbol: m.s,
             trade_id: m.i,
-            price: Price(parse_fixed(&m.p)?),
-            quantity: Quantity(parse_fixed(&m.v)?),
+            price: Price(positive(&m.p)?),
+            quantity: Quantity(positive(&m.v)?),
             aggressor,
             exchange_ts_ms: m.trade_time,
             seq: m.seq,
+            provenance: Box::new(TradeProvenance {
+                source_channel: topic.into(),
+                granularity: TradeGranularity::IndividualExecution,
+                constituent_first_id: None,
+                constituent_last_id: None,
+                native_count: None,
+                native_attributes,
+            }),
         });
     }
     Ok(DecodedEvent::Trades(out))
@@ -552,7 +713,10 @@ mod tests {
             "timestamp":1672324859999
           }]
         }"#;
-        let DecodedEvent::Candle {
+        let DecodedEvent::Candles(rows) = decode_text(raw).unwrap() else {
+            panic!("klines")
+        };
+        let CandleDecoded {
             open,
             high,
             low,
@@ -562,10 +726,7 @@ mod tests {
             start_ts,
             is_closed,
             ..
-        } = decode_text(raw).unwrap()
-        else {
-            panic!("kline");
-        };
+        } = rows.into_iter().next().unwrap();
         assert!(is_closed);
         assert_eq!(interval_ns, candle_interval_ns(CandleInterval::M1));
         assert_eq!(start_ts, TimestampNs(1_672_324_800_000_000_000));

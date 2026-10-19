@@ -2,7 +2,10 @@
 //!
 //! # L2 sequence rules (`orderbook.{depth}.{symbol}`)
 //!
-//! From Bybit V5 public orderbook docs:
+//! Open integrity finding: the legacy session currently enforces the policy
+//! below. Its `u + 1` assumption is not established by the reviewed official WS
+//! contract and must not be presented as continuity proof. Repair is pending.
+//! Current implementation policy:
 //! 1. On subscribe, WS pushes `type=snapshot` with update id `u` — apply atomically.
 //! 2. Each subsequent `type=delta` must have `u == previous_u + 1`.
 //! 3. `u <= previous_u` → discard (stale/duplicate).
@@ -10,8 +13,7 @@
 //! 5. `u == 1` after going live → treat as fresh snapshot (venue reset / tick-size change).
 //! 6. Qty `"0"` deletes the price level.
 //!
-//! Cross-sequence `seq` is recorded when present; continuity is enforced on `u`
-//! (`u` consecutive; `seq` monotonic but not necessarily consecutive).
+//! Book structural validity is separate from unknown source continuity.
 //!
 //! # Live ping via engine timers
 //!

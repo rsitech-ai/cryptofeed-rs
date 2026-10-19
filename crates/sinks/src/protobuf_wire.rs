@@ -180,6 +180,17 @@ fn encode_candle(c: &marketfeed_model::Candle) -> Vec<u8> {
     if let Some(quantity) = c.native_volume_ccy {
         write_msg(&mut out, 10, &encode_quantity(quantity));
     }
+    if let Some(provenance) = &c.provenance {
+        let mut value = Vec::new();
+        write_string(&mut value, 1, &provenance.source_channel);
+        for (key, text) in &provenance.native_attributes {
+            let mut entry = Vec::new();
+            write_string(&mut entry, 1, key);
+            write_string(&mut entry, 2, text);
+            write_msg(&mut value, 2, &entry);
+        }
+        write_msg(&mut out, 11, &value);
+    }
     out
 }
 

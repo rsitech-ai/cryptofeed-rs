@@ -9,6 +9,6 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Verify and preserve the rsibot/Quants Lab manifest boundary and read-only cryptofeed dataset reader; then implement separately versioned time-qualified continuous observations in Quants Lab. Binance repair committed; strict profiles remain denied.",
+  "current_slice": "Bybit native trade/candle repair and bounded saved-feed verification; next close L2/update-ID, metadata and liquidation findings. Quants Lab manifest handoff completed locally; continuous observations remain rsibot-owned pending data semantics.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)"
 }

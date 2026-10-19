@@ -760,6 +760,7 @@ impl SessionMachine for CoinbaseSpotSession {
                         self.emit_candle(
                             &product,
                             Candle {
+                                provenance: None,
                                 native_volume_ccy: None,
                                 is_closed: None,
                                 quote_volume: None,

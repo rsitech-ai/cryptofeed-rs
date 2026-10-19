@@ -1,0 +1,29 @@
+{
+  "schema": "marketfeed.bybit_native_offline_checkpoint.v1",
+  "status": "offline-reviewed-live-pending",
+  "parent_source": "f441d5f",
+  "checks": {
+    "independent_bybit_tests": {
+      "passed": 47,
+      "ignored": 4
+    },
+    "focused_package_suite": {
+      "passed": 368,
+      "ignored": 4
+    },
+    "rust185_libraries": {
+      "passed": 104,
+      "ignored": 0
+    },
+    "python_audit_tests": {
+      "passed": 45
+    },
+    "independent_generated_protobuf_records": 4,
+    "workspace_clippy": "passed",
+    "workspace_rustdoc": "passed",
+    "full_workspace": "in-progress"
+  },
+  "independent_findings": "closed for native trade/candle and new Bybit oracle slices",
+  "dataset_admitted": false,
+  "whole_goal_complete": false
+}
