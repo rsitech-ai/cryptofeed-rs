@@ -217,7 +217,7 @@ fn readiness_needs_all_acks_and_reconnect_exposes_gap() {
     send(&mut *m,r#"{"channel":"subscriptionResponse","data":{"method":"subscribe","subscription":{"type":"trades","coin":"BTC"}}}"#,&mut out).unwrap();
     assert!(!out.as_slice().contains(&SessionAction::MarkLive));
     send(&mut *m,r#"{"channel":"subscriptionResponse","data":{"method":"subscribe","subscription":{"type":"bbo","coin":"BTC"}}}"#,&mut out).unwrap();
-    assert!(!out.as_slice().contains(&SessionAction::MarkLive));
+    assert!(out.as_slice().contains(&SessionAction::MarkLive));
     out.clear();
     m.on_input(
         SessionInput::Disconnected {
@@ -609,4 +609,71 @@ fn disappearing_bbo_side_invalidates_the_previous_canonical_quote() {
         );
     }
     assert_eq!(catalog(false).instruments[0].price_increment.coefficient, 0);
+}
+
+#[test]
+fn silent_candle_is_unverified_while_required_book_freshness_expires_despite_pongs() {
+    let f = HyperliquidFactory::perps();
+    let c = catalog(false);
+    let r = ConcreteSubscriptionSet {
+        items: vec![
+            request(Channel::L2Book {
+                depth: None,
+                cadence: None,
+            }),
+            request(Channel::Candles {
+                interval: CandleInterval::M1,
+            }),
+        ],
+    };
+    let mut m = f
+        .create_session(f.plan(&r, &c).unwrap().remove(0), c)
+        .unwrap();
+    let mut out = ActionBuffer::new();
+    m.on_input(
+        SessionInput::Connected {
+            now: TimestampNs(0),
+        },
+        &mut out,
+    )
+    .unwrap();
+    out.clear();
+    for subscription in [
+        r#"{"type":"l2Book","coin":"BTC"}"#,
+        r#"{"type":"candle","coin":"BTC","interval":"1m"}"#,
+    ] {
+        send(&mut *m,&format!(r#"{{"channel":"subscriptionResponse","data":{{"method":"subscribe","subscription":{subscription}}}}}"#),&mut out).unwrap();
+    }
+    assert!(!out.as_slice().contains(&SessionAction::MarkLive));
+    out.clear();
+    send(&mut *m,r#"{"channel":"l2Book","data":{"coin":"BTC","time":1,"levels":[[{"px":"10","sz":"1","n":1}],[{"px":"11","sz":"1","n":1}]]}}"#,&mut out).unwrap();
+    assert!(out.as_slice().contains(&SessionAction::MarkLive));
+    assert!(out.as_slice().iter().any(|a|matches!(a,SessionAction::EmitSystem(SystemEvent::SubscriptionStateChanged {state}) if state.contains("silence is unverified"))));
+    out.clear();
+    let mut pong = br#"{"channel":"pong"}"#.to_vec();
+    m.on_input(
+        SessionInput::TextFrame {
+            bytes: &mut pong,
+            received: FrameStamp {
+                receive_ts: TimestampNs(60_000_000_000),
+                mono_ns: 60_000_000_000,
+            },
+        },
+        &mut out,
+    )
+    .unwrap();
+    out.clear();
+    m.on_input(
+        SessionInput::Timer {
+            timer_id: 1,
+            now: TimestampNs(61_000_000_000),
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert!(out.as_slice().contains(&SessionAction::MarkDegraded));
+    assert!(
+        out.as_slice()
+            .contains(&SessionAction::Reconnect(ReconnectReason::Heartbeat))
+    );
 }

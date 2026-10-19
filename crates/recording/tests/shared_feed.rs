@@ -180,3 +180,64 @@ fn multi_record_budget_or_publish_failure_exposes_none_of_the_transaction() {
         assert!(r.read_next().unwrap().is_none());
     }
 }
+
+#[test]
+fn concurrently_created_capture_ids_have_globally_scoped_random_identifiers() {
+    let root = tempfile::tempdir().unwrap();
+    let mut tasks = Vec::new();
+    for index in 0..16 {
+        let path = root.path().join(index.to_string());
+        tasks.push(std::thread::spawn(move || {
+            FeedWriter::create(path, 10000)
+                .unwrap()
+                .cursor()
+                .feed_id
+                .clone()
+        }));
+    }
+    let ids: std::collections::BTreeSet<_> =
+        tasks.into_iter().map(|task| task.join().unwrap()).collect();
+    assert_eq!(ids.len(), 16);
+    assert!(
+        ids.iter()
+            .all(|id| id.len() == 40 && id.bytes().all(|b| b.is_ascii_hexdigit()))
+    );
+}
+
+#[test]
+fn immutable_reader_requires_the_pinned_complete_sealed_prefix() {
+    let t = tempfile::tempdir().unwrap();
+    let directory = t.path().join("feed");
+    let mut writer = FeedWriter::create(&directory, 1_000_000).unwrap();
+    writer.append(state("connected")).unwrap();
+    let unsealed = fs::read(directory.join("events.mfsf")).unwrap();
+    let mut reader = SealedFeedReader::new(&unsealed, writer.cursor().clone()).unwrap();
+    assert!(reader.read_next().unwrap().is_some());
+    assert!(reader.read_next().is_err());
+    writer
+        .append(FeedRecord::Seal {
+            schema_version: 1,
+            now_ns: 2,
+            reason: "unit".into(),
+        })
+        .unwrap();
+    let bytes = fs::read(directory.join("events.mfsf")).unwrap();
+    let checkpoint = writer.cursor().clone();
+    let mut reader = SealedFeedReader::new(&bytes, checkpoint.clone()).unwrap();
+    assert!(reader.read_next().unwrap().is_some());
+    assert!(matches!(
+        reader.read_next().unwrap(),
+        Some(FeedRecord::Seal { .. })
+    ));
+    assert!(reader.read_next().unwrap().is_none());
+    assert!(SealedFeedReader::new(&bytes[..bytes.len() - 1], checkpoint.clone()).is_err());
+    let mut wrong = checkpoint.clone();
+    wrong.sequence += 1;
+    let mut reader = SealedFeedReader::new(&bytes, wrong).unwrap();
+    assert!(reader.read_next().unwrap().is_some());
+    assert!(reader.read_next().is_err());
+    let mut corrupted = bytes;
+    corrupted[60] ^= 1;
+    let mut reader = SealedFeedReader::new(&corrupted, checkpoint).unwrap();
+    assert!(reader.read_next().is_err());
+}

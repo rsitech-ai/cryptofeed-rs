@@ -253,14 +253,11 @@ impl FeedWriter {
             fs::create_dir_all(parent)?;
         }
         fs::create_dir(&directory)?;
-        let id = format!(
-            "{:032x}{:08x}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(err)?
-                .as_nanos(),
-            std::process::id()
-        );
+        // Globally scoped across hosts and concurrent collectors. Timestamp
+        // plus PID can collide across machines or coarse-clock threads.
+        let mut random = [0u8; 20];
+        getrandom::fill(&mut random).map_err(err)?;
+        let id: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -402,6 +399,81 @@ pub struct FeedReader {
     cursor: FeedCursor,
     seen_commit: FeedCursor,
     sealed: bool,
+}
+/// Read an immutable, completely sealed journal against its pinned checkpoint.
+/// Unlike the live reader this never consults a mutable filesystem watermark.
+pub struct SealedFeedReader<'a> {
+    bytes: &'a [u8],
+    checkpoint: FeedCursor,
+    cursor: FeedCursor,
+    sealed: bool,
+}
+impl<'a> SealedFeedReader<'a> {
+    pub fn new(bytes: &'a [u8], checkpoint: FeedCursor) -> Result<Self, RecordingError> {
+        if bytes.len() < HEADER_LEN as usize
+            || &bytes[..8] != MAGIC
+            || bytes[8..48] != *checkpoint.feed_id.as_bytes()
+            || checkpoint.offset != bytes.len() as u64
+        {
+            return Err(err("invalid sealed feed identity or length"));
+        }
+        Ok(Self {
+            bytes,
+            cursor: FeedCursor {
+                feed_id: checkpoint.feed_id.clone(),
+                sequence: 0,
+                offset: HEADER_LEN,
+            },
+            checkpoint,
+            sealed: false,
+        })
+    }
+    pub fn read_next(&mut self) -> Result<Option<FeedRecord>, RecordingError> {
+        if self.cursor.offset == self.checkpoint.offset {
+            if !self.sealed || self.cursor != self.checkpoint {
+                return Err(err("incomplete sealed journal"));
+            }
+            return Ok(None);
+        }
+        if self.sealed {
+            return Err(err("journal grew after seal"));
+        }
+        let start = usize::try_from(self.cursor.offset).map_err(err)?;
+        let header = self
+            .bytes
+            .get(start..start + 8)
+            .ok_or_else(|| err("truncated journal header"))?;
+        let length = u32::from_le_bytes(header[..4].try_into().expect("length")) as usize;
+        if length > MAX_RECORD {
+            return Err(err("journal record byte budget"));
+        }
+        let end = start
+            .checked_add(8 + length)
+            .ok_or_else(|| err("journal offset overflow"))?;
+        let payload = self
+            .bytes
+            .get(start + 8..end)
+            .ok_or_else(|| err("truncated journal record"))?;
+        if crc32c(payload) != u32::from_le_bytes(header[4..].try_into().expect("CRC")) {
+            return Err(err("journal CRC mismatch"));
+        }
+        let wire: WireRecord = serde_json::from_slice(payload).map_err(err)?;
+        if wire.sequence != self.cursor.sequence + 1 || wire.sequence > self.checkpoint.sequence {
+            return Err(err("journal sequence gap"));
+        }
+        if let FeedRecord::Seal { schema_version, .. } = &wire.record {
+            if *schema_version != 1
+                || end as u64 != self.checkpoint.offset
+                || wire.sequence != self.checkpoint.sequence
+            {
+                return Err(err("invalid journal seal"));
+            }
+            self.sealed = true;
+        }
+        self.cursor.sequence = wire.sequence;
+        self.cursor.offset = end as u64;
+        Ok(Some(wire.record))
+    }
 }
 impl FeedReader {
     pub fn open(

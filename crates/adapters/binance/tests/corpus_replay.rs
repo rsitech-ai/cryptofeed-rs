@@ -12,6 +12,8 @@
 //! updates in MFR1 v2. All paths replay through `ReplayRunner`. Gap/overflow stay
 //! in `l2_buffer.rs` / `usdm_l2_buffer.rs` / `coinm_l2_buffer.rs`.
 
+include!("../../../recording/test_support/corpus_clock.rs");
+
 use bytes::Bytes;
 use marketfeed_adapter_api::{ConcreteSubscriptionSet, HttpResponse, SessionSpec};
 use marketfeed_adapter_binance::{
@@ -131,8 +133,8 @@ fn corpus_spot_trade_quote_matches_live_record() {
     let (live_bytes, live_events) = record_frames(&corpus_frames());
     let corpus = std::fs::read(corpus_path()).expect("missing corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(corpus));
@@ -251,8 +253,8 @@ fn corpus_usdm_mark_matches_live_record() {
     let corpus =
         std::fs::read(usdm_corpus_path()).expect("missing corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_usdm_events(corpus));
@@ -413,8 +415,8 @@ fn corpus_spot_l2_book_matches_live_record() {
     let corpus = std::fs::read(spot_l2_corpus_path())
         .expect("missing spot L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in spot L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_spot_l2(&corpus));
@@ -572,8 +574,8 @@ fn corpus_usdm_l2_book_matches_live_record() {
     let corpus = std::fs::read(usdm_l2_corpus_path())
         .expect("missing usdm L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in usdm L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_usdm_l2(&corpus));
@@ -731,8 +733,8 @@ fn corpus_coinm_l2_book_matches_live_record() {
     let corpus = std::fs::read(coinm_l2_corpus_path())
         .expect("missing coinm L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in coinm L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_coinm_l2(&corpus));

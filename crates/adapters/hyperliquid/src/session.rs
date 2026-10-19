@@ -173,6 +173,12 @@ impl HyperliquidSession {
     }
     fn streams_healthy(&self, now: TimestampNs) -> Result<bool, AdapterError> {
         for sub in &self.wire {
+            // Change-driven streams may have no initial delivery (observed for
+            // an inactive PURR candle). Their ACK is operational readiness,
+            // never evidence of execution/candle continuity or zero activity.
+            if !matches!(sub["type"].as_str(), Some("l2Book" | "activeAssetCtx")) {
+                continue;
+            }
             let Some(last) = self.stream_progress.get(&subscription_key(sub)?) else {
                 return Ok(false);
             };
@@ -518,6 +524,9 @@ impl SessionMachine for HyperliquidSession {
                                     .id;
                                 output.push(SessionAction::EmitSystem(
                                     SystemEvent::QuoteInvalidated {
+                                        venue: Some(self.catalog.venue),
+                                        session: None,
+                                        connection: None,
                                         instrument,
                                         reason: "Hyperliquid BBO has an unavailable side".into(),
                                     },
@@ -551,6 +560,9 @@ impl SessionMachine for HyperliquidSession {
                 {
                     self.live = true;
                     output.push(SessionAction::MarkLive);
+                    output.push(SessionAction::EmitSystem(SystemEvent::SubscriptionStateChanged {
+                        state: "required periodic streams observed; change-driven trade/BBO/candle silence is unverified".into(),
+                    }));
                 }
             }
             SessionInput::Timer { timer_id: 1, now } if self.connected => {

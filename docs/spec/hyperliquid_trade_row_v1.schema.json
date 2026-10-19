@@ -1,0 +1,349 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Exact Hyperliquid row v1; conservative unqualified acquisition policy",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "price": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coefficient": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
+        "scale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      },
+      "required": [
+        "coefficient",
+        "scale"
+      ]
+    },
+    "native_quantity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "coefficient": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
+        "scale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      },
+      "required": [
+        "coefficient",
+        "scale"
+      ]
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dataset_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_symbol": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instrument_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "collector_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acquisition_context_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_attributes_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quality_interval_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "native_trade_id": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "native_time_value": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "session_id": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "connection_generation": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "capture_ordinal": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "raw_record_offset": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "raw_row_index": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$"
+        },
+        "event_time_ns": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
+        "receipt_time_ns": {
+          "type": "string",
+          "pattern": "^-?(0|[1-9][0-9]*)$"
+        },
+        "revision_id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "metadata_ref": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "raw_object_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "validation_policy_ref": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schema_version": {
+          "const": "1"
+        },
+        "protocol": {
+          "const": "websocket-json"
+        },
+        "channel": {
+          "const": "trades"
+        },
+        "identity_scope": {
+          "const": "venue-coin-block-time-tid"
+        },
+        "identity_epoch": {
+          "const": "native-block-time"
+        },
+        "granularity": {
+          "const": "unknown"
+        },
+        "native_time_unit": {
+          "const": "ms"
+        },
+        "native_time_resolution": {
+          "const": "1ms"
+        },
+        "timestamp_origin": {
+          "const": "venue-field"
+        },
+        "native_quantity_unit": {
+          "const": "unknown"
+        },
+        "native_side_meaning": {
+          "const": "unknown"
+        },
+        "aggressor": {
+          "const": "unknown"
+        },
+        "revision_operation": {
+          "const": "insert"
+        },
+        "lineage_kind": {
+          "const": "mfr1"
+        },
+        "acquisition_mode": {
+          "const": "live"
+        },
+        "native_sequence": {
+          "type": "null"
+        },
+        "aggregate_id": {
+          "type": "null"
+        },
+        "constituent_first_id": {
+          "type": "null"
+        },
+        "constituent_last_id": {
+          "type": "null"
+        },
+        "constituent_count": {
+          "type": "null"
+        },
+        "publication_time_ns": {
+          "type": "null"
+        },
+        "retrieval_time_ns": {
+          "type": "null"
+        },
+        "availability_time_ns": {
+          "type": "null"
+        },
+        "base_quantity": {
+          "type": "null"
+        },
+        "quote_quantity": {
+          "type": "null"
+        },
+        "conversion_ref": {
+          "type": "null"
+        },
+        "revision_target": {
+          "type": "null"
+        },
+        "native_revision_id": {
+          "type": "null"
+        },
+        "revision_order": {
+          "type": "null"
+        },
+        "revision_known_at_ns": {
+          "type": "null"
+        },
+        "archive_member": {
+          "type": "null"
+        },
+        "decoded_record_index": {
+          "type": "null"
+        },
+        "source_coordinate": {
+          "type": "null"
+        },
+        "codec_ref": {
+          "type": "null"
+        },
+        "venue": {
+          "enum": [
+            "hyperliquid-spot",
+            "hyperliquid-perps"
+          ]
+        },
+        "api_product": {
+          "enum": [
+            "spot",
+            "linear-perpetuals"
+          ]
+        },
+        "native_side": {
+          "enum": [
+            "B",
+            "A"
+          ]
+        },
+        "collector_side_projection": {
+          "enum": [
+            "Buy",
+            "Sell"
+          ]
+        },
+        "flags": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "initial-delivery",
+              "acquisition-origin-unverified"
+            ]
+          },
+          "contains": {
+            "const": "acquisition-origin-unverified"
+          }
+        }
+      },
+      "required": [
+        "acquisition_context_id",
+        "acquisition_mode",
+        "aggregate_id",
+        "aggressor",
+        "api_product",
+        "archive_member",
+        "availability_time_ns",
+        "base_quantity",
+        "capture_ordinal",
+        "channel",
+        "codec_ref",
+        "collector_id",
+        "collector_side_projection",
+        "connection_generation",
+        "constituent_count",
+        "constituent_first_id",
+        "constituent_last_id",
+        "conversion_ref",
+        "dataset_id",
+        "decoded_record_index",
+        "event_time_ns",
+        "flags",
+        "granularity",
+        "identity",
+        "identity_epoch",
+        "identity_scope",
+        "instrument_ref",
+        "lineage_kind",
+        "metadata_ref",
+        "native_attributes_ref",
+        "native_quantity_unit",
+        "native_revision_id",
+        "native_sequence",
+        "native_side",
+        "native_side_meaning",
+        "native_symbol",
+        "native_time_resolution",
+        "native_time_unit",
+        "native_time_value",
+        "native_trade_id",
+        "protocol",
+        "publication_time_ns",
+        "quality_interval_ref",
+        "quote_quantity",
+        "raw_object_sha256",
+        "raw_record_offset",
+        "raw_row_index",
+        "receipt_time_ns",
+        "region",
+        "retrieval_time_ns",
+        "revision_id",
+        "revision_known_at_ns",
+        "revision_operation",
+        "revision_order",
+        "revision_target",
+        "schema_version",
+        "session_id",
+        "source_coordinate",
+        "timestamp_origin",
+        "validation_policy_ref",
+        "venue"
+      ]
+    }
+  },
+  "required": [
+    "price",
+    "native_quantity",
+    "fields"
+  ]
+}

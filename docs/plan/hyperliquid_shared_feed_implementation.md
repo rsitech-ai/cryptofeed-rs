@@ -29,8 +29,10 @@ strategy runs are part of this goal. New capture is bounded and stored separatel
    adapter state machine, daemon/CLI/config integration, protocol contract tests.
 2. IMPLEMENTED initial local journal/UI path; continuing tests: complete committed shared feed, metadata/raw/lifecycle linkage,
    resumable reader and hlscreen shared consumer + projection parity.
-3. PENDING: exact persistent datasets and manifest admission, transactional
-   publication, streaming replay, backup/restore and bounded data acquisition.
+3. IMPLEMENTED initial Hyperliquid-only exact dataset publisher, immutable
+   manifests, transactional publication/recovery and backup/restore. Strict
+   profile admission remains deliberately denied; full mixed-input replay and
+   general venue policies remain pending.
 4. PENDING: repair known integrity findings from the prior audit, retaining a
    per-finding test and disposition rather than declaring all venues verified.
 5. PENDING: live source references, end-to-end hlscreen parity, failure injection,
@@ -171,9 +173,9 @@ not bounded by a hard realtime deadline and remain a performance gate.
 Initial trade deliveries now carry explicit generation-local initial-delivery
 and unverified-origin flags. Canonical quotes emit invalidation if a side
 vanishes. Nonuniform executable ticks are represented as unsupported (zero
-constant increment); decimal precision remains available. Readiness requires
-initial per-subscription progress and recurring book/context freshness, rather
-than acknowledgements and global socket traffic alone. Quiet trade continuity
+constant increment); decimal precision remains available. Readiness requires every subscription acknowledgement and initial/fresh
+recurring book/context delivery. Change-driven trades/BBO/candles may be silent;
+channel silence never proves trade continuity. Quiet trade continuity
 remains unknown. The independent Python audit now checks native coin against
 session instrument metadata and reports initial-delivery counts; a swapped
 instrument regression verifies this check.
@@ -199,3 +201,53 @@ and build Cargo.lock. Catalog responses retain exact request bytes, URL/method,
 headers and response receipt time. Old captures do not retroactively acquire
 missing provenance. No capture is qualified; publication/recovery/restore and
 remaining venue failures are still open work under the active goal.
+
+## Dataset and consumer review checkpoint (goal remains active)
+
+The offline `marketfeed-datasets` crate (Rust1.88; collector/core remain1.85)
+implements bounded sealed Hyperliquid trade export. Original MFR1 bytes and
+metadata are reconciled with accepted MFSF1 inputs, exact canonical rows and
+connection generations. Publication uses immutable content hashes, parent CAS,
+synced staged intents and atomic HEAD. Backup/restore copies and verifies pinned
+ancestry plus every referenced object. Inspector validates hashes, schemas,
+financial columns, original source rows and runtime provenance. Strict profiles
+remain empty: no dataset is qualified by these integrity checks. See
+`crates/datasets/README.md` for limits and reproducible commands.
+
+Independent review reproduced partial-final-intent recovery failure, hidden
+catalog backup dependencies, forged price, forged runtime generation and forged
+effective catalog metadata. Regression tests now cover these cases. Footer
+collection preflight precedes Parquet metadata allocation; nested dictionary/data
+counts, page sizes, encodings and decoded row budgets are bounded. Remaining
+allocation review is pending. Two-way PyArrow cross-reader checks preserve all
+signed i128 coefficients, uint8 scales and signed nanosecond extrema. Parquet60
+removes the unmaintained paste dependency. Cargo-deny passes with a narrowly
+reviewed MIT-0 permissive license addition and versioned duplicate exceptions.
+
+Pilot06 (source99516c):295 trade deliveries matched original native rows,
+210 initial deliveries and85 subsequent deliveries; no unaccepted input. Collector
+and hlscreen exited0. All /ready probes returned503: the new health rule required
+an inactive PURR candle to deliver, triggering two spot reconnects. Corrected
+health distinguishes recurring book/context liveness from change-driven channel
+silence. Preserve this failed evidence; a corrected live pilot is still required.
+The consumer reviewer proved full final feature screens, summary, cursor and
+counts identical between live and saved replay on pilot06. Archive time is a
+monotonic high-water across sessions. API shared mode was added and independently
+checked with an invalid WS URL: no exchange connection, saved feature values and
+cursor preserved, wall-time health correctly stale for an old archive.
+
+A hlscreen PTY cleanup test failed once under integration load. The prior helper
+ignored final wait/signal results and emitted stubborn-child readiness before
+its traps were installed. The harness now reports fallible cleanup, signal and
+remaining-process evidence, shares a bounded deadline and closes PTY handles
+before final escalation. Focused and full PTY tests pass; the historical process
+failure's precise cause remains unproven and its log is retained. Further review
+and the final full hlscreen suite remain due.
+
+Current passing checkpoints before the latest review fixes:1170 workspace tests
+with56 intentionally ignored; pinned hlscreen540 tests; collector MSRV436 library
+tests; dataset MSRV; full Clippy; dependency and source scans. Latest edits need
+final gates and immutable pins again. The original venue decoder/source-origin
+failures, full causal replay, actual external backtest readers and sustained
+operational durations remain open. No claim of perfection or production
+qualification follows from these development pilots.

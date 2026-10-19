@@ -754,7 +754,8 @@ impl SessionRunner {
         self.settle_diagnostic_result(result, false)
     }
 
-    pub fn push_system(&mut self, ev: SystemEvent) -> Result<(), EngineError> {
+    pub fn push_system(&mut self, mut ev: SystemEvent) -> Result<(), EngineError> {
+        self.stamp_system_event(&mut ev);
         self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
             session: self.cfg.session,
             event: ev.clone(),
@@ -777,6 +778,19 @@ impl SessionRunner {
         if self.push_system(ev).is_err() {
             self.metrics.record_queue_overflow();
             self.metrics.record_events_dropped(1);
+        }
+    }
+    fn stamp_system_event(&self, event: &mut SystemEvent) {
+        if let SystemEvent::QuoteInvalidated {
+            venue,
+            session,
+            connection,
+            ..
+        } = event
+        {
+            *venue = Some(self.cfg.venue);
+            *session = Some(self.cfg.session);
+            *connection = Some(self.cfg.connection);
         }
     }
 
@@ -1054,7 +1068,8 @@ impl SessionRunner {
                     }
                     self.refresh_queue_gauges();
                 }
-                SessionAction::EmitSystem(ev) => {
+                SessionAction::EmitSystem(mut ev) => {
+                    self.stamp_system_event(&mut ev);
                     self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
                         session: self.cfg.session,
                         event: ev.clone(),

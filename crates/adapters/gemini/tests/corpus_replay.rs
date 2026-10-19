@@ -4,6 +4,8 @@
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-gemini --test corpus_replay regen_spot_l2_book_corpus -- --ignored`
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-gemini --test corpus_replay regen_spot_candles_rest_corpus -- --ignored`
 
+include!("../../../recording/test_support/corpus_clock.rs");
+
 use bytes::Bytes;
 use marketfeed_adapter_api::{CandleInterval, ConcreteSubscriptionSet, HttpResponse, SessionSpec};
 use marketfeed_adapter_gemini::{GeminiSession, GeminiSessionConfig};
@@ -131,8 +133,8 @@ fn corpus_spot_l2_book_matches_live_record() {
     let corpus =
         std::fs::read(l2_corpus_path()).expect("missing L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(corpus));
@@ -271,8 +273,8 @@ fn corpus_spot_candles_rest_matches_live_http() {
     let checked = std::fs::read(candle_corpus_path())
         .expect("missing candle corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        corpus.as_slice(),
-        checked.as_slice(),
+        normalized_outbound_clock(&corpus),
+        normalized_outbound_clock(&checked),
         "checked-in candle corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(

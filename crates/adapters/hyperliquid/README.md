@@ -55,8 +55,9 @@ at 200 native subscriptions per session to respect engine queue capacity. Daemon
 configuration checks the combined 1000 spot/perp subscription budget. Rolling
 connection and outgoing-message limits are shared within this collector process;
 other applications behind the same IP need their own coordination.
-Readiness also requires initial data for every native subscription. Required
-books and contexts expire after 60 seconds without their own progress; pongs
+Readiness also requires initial data for every recurring book/context subscription.
+Change-driven trade/BBO/candle streams may be silent after acknowledgement;
+that silence remains explicitly unverified. Required books and contexts expire after 60 seconds without their own progress; pongs
 cannot refresh them. Trade/BBO silence alone cannot distinguish inactivity
 from loss, and readiness never proves trade completeness.
 

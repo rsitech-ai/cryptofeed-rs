@@ -14,6 +14,7 @@ members = [
     "crates/ffi",
     "crates/transport",
     "crates/recording",
+    "crates/datasets",
     "crates/replay",
     "crates/engine",
     "crates/private",

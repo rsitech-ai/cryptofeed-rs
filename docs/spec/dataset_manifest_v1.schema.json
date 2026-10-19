@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://rsitech.ai/cryptofeed-rs/schema/dataset-manifest-v1",
-  "title": "Proposed dataset manifest v1; not implemented publication",
+  "title": "Dataset manifest v1; bounded Hyperliquid trade publication",
   "type": "object",
   "additionalProperties": false,
   "properties": {

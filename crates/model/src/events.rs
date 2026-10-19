@@ -194,6 +194,12 @@ pub enum SystemEvent {
         reason: String,
     },
     QuoteInvalidated {
+        #[serde(default)]
+        venue: Option<VenueId>,
+        #[serde(default)]
+        session: Option<SessionId>,
+        #[serde(default)]
+        connection: Option<ConnectionId>,
         instrument: InstrumentId,
         reason: String,
     },

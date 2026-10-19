@@ -3,6 +3,8 @@
 //! Regenerate with:
 //! `REGEN_CORPUS=1 cargo test -p marketfeed-adapter-bitfinex --test corpus_replay regen_ -- --ignored`
 
+include!("../../../recording/test_support/corpus_clock.rs");
+
 use marketfeed_adapter_api::{ConcreteSubscriptionSet, SessionSpec};
 use marketfeed_adapter_bitfinex::{
     BITFINEX_DERIV_VENUE_ID, BITFINEX_VENUE_ID, BitfinexSession, BitfinexSessionConfig,
@@ -168,8 +170,8 @@ fn corpus_spot_l2_book_matches_live_record() {
     let corpus = std::fs::read(spot_l2_corpus_path())
         .expect("missing L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(spot_l2_session, corpus));
@@ -192,8 +194,8 @@ fn corpus_deriv_l2_book_matches_live_record() {
     let corpus = std::fs::read(deriv_l2_corpus_path())
         .expect("missing deriv L2 corpus — regen with REGEN_CORPUS=1");
     assert_eq!(
-        live_bytes.as_slice(),
-        corpus.as_slice(),
+        normalized_outbound_clock(&live_bytes),
+        normalized_outbound_clock(&corpus),
         "checked-in deriv L2 corpus drifted; regen with REGEN_CORPUS=1"
     );
     assert_eq!(live_events, replay_events(deriv_l2_session, corpus));

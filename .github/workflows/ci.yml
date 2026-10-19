@@ -118,7 +118,17 @@ jobs:
       - name: Install MSRV toolchain
         run: rustup toolchain install 1.85 --profile minimal
       # ponytail: MSRV = compile+lib tests only; full --workspace --all-targets stays on pin toolchain.
-      - run: cargo +1.85 test --locked --workspace --lib
+      - run: cargo +1.85 test --locked --workspace --exclude marketfeed-datasets --lib
+      - name: Offline dataset tool MSRV (Parquet 60)
+        run: |
+          rustup toolchain install 1.88 --profile minimal
+          cargo +1.88 test --locked -p marketfeed-datasets
+      - name: Independent exact Parquet cross-reader
+        run: |
+          cargo +1.88 build --locked -p marketfeed-datasets --example cross_reader_fixture
+          python3 -m venv .local/arrow-env
+          .local/arrow-env/bin/pip install --only-binary=:all: pyarrow==25.0.1
+          .local/arrow-env/bin/python scripts/verify_exact_parquet.py --fixture-binary target/debug/examples/cross_reader_fixture --directory .local/parquet-cross-reader
 
   deny:
     name: cargo-deny

@@ -118,13 +118,19 @@ pub struct RecordingSnapshot {
 }
 
 impl RecordingHandle {
-    pub fn new(pipeline: RecordingPipeline) -> Self {
-        let ingress = RecordingIngress {
-            queue: RecordingQueue::with_byte_capacity(
+    pub fn new(mut pipeline: RecordingPipeline) -> Self {
+        // Move already accepted frames into the producer lane as well. A
+        // handle must not strand a pipeline's existing queue on conversion.
+        let queue = std::mem::replace(
+            &mut pipeline.queue,
+            RecordingQueue::with_byte_capacity(
                 pipeline.cfg.queue_capacity,
                 pipeline.cfg.queue_byte_capacity,
                 pipeline.cfg.overflow,
             ),
+        );
+        let ingress = RecordingIngress {
+            queue,
             last_reported_dropped: 0,
         };
         Self {
@@ -1038,6 +1044,46 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, RecordingError::ShutdownTimeout { .. }));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn converting_a_nonempty_pipeline_keeps_already_accepted_frames() {
+        let dir = unique_dir("handle-existing");
+        let mut pipeline = RecordingPipeline::open(tiny_cfg(dir.clone(), 0)).unwrap();
+        pipeline
+            .enqueue(
+                SessionId(1),
+                1,
+                1,
+                1,
+                Direction::Inbound,
+                FrameOpcode::Text,
+                0,
+                b"accepted-before-handle",
+            )
+            .unwrap();
+        let handle = RecordingHandle::new(pipeline);
+        assert_eq!(handle.snapshot().unwrap().queue_len, 1);
+        assert_eq!(handle.flush_pending(10).unwrap(), 1);
+        handle
+            .shutdown_drain(Instant::now() + Duration::from_secs(1))
+            .unwrap();
+        let path = std::fs::read_dir(&dir)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let records = crate::RawSegmentReader::from_bytes(std::fs::read(path).unwrap())
+            .unwrap()
+            .read_all()
+            .unwrap();
+        assert!(
+            records
+                .iter()
+                .any(|r| r.payload == b"accepted-before-handle")
+        );
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
