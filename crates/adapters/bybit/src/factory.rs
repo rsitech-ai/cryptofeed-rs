@@ -139,18 +139,51 @@ impl VenueFactory for BybitFactory {
         Ok(vec![HttpRequestSpec {
             id: 1,
             method: HttpMethod::Get,
-            // Default page is 10 rows; linear alone has 700+ instruments. limit=1000
-            // fits current catalogs on one page (cursor empty). If Bybit grows past
-            // 1000, discovery must follow nextPageCursor.
+            // Spot has no pagination and does not accept limit/cursor. Derivative
+            // responses are followed until their explicit terminal cursor.
             url: format!(
-                "https://api.bybit.com/v5/market/instruments-info?category={}&limit=1000",
-                self.category.as_str()
+                "https://api.bybit.com/v5/market/instruments-info?category={}{}",
+                self.category.as_str(),
+                if matches!(self.category, BybitCategory::Spot) {
+                    ""
+                } else {
+                    "&limit=1000"
+                }
             ),
             headers: Vec::new(),
             body: None,
         }])
     }
 
+    fn instrument_continuation_requests(
+        &self,
+        responses: &[HttpResponse],
+    ) -> Result<Vec<HttpRequestSpec>, AdapterError> {
+        let Some(cursor) = crate::instruments::next_cursor(responses, self.category)? else {
+            return Ok(Vec::new());
+        };
+        let mut encoded = String::with_capacity(cursor.len() * 3);
+        const HEX: &[u8; 16] = b"0123456789ABCDEF";
+        for byte in cursor.bytes() {
+            if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+                encoded.push(char::from(byte));
+            } else {
+                encoded.push('%');
+                encoded.push(char::from(HEX[(byte >> 4) as usize]));
+                encoded.push(char::from(HEX[(byte & 15) as usize]));
+            }
+        }
+        Ok(vec![HttpRequestSpec {
+            id: responses.len() as u64 + 1,
+            method: HttpMethod::Get,
+            url: format!(
+                "https://api.bybit.com/v5/market/instruments-info?category={}&limit=1000&cursor={encoded}",
+                self.category.as_str()
+            ),
+            headers: Vec::new(),
+            body: None,
+        }])
+    }
     fn parse_instruments(
         &self,
         responses: &[HttpResponse],

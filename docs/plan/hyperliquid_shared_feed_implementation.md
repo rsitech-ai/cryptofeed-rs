@@ -707,3 +707,48 @@ raw/shared/config/plan/binary hashes. Source identity is bound by the launch
 receipt; the binary does not embed a build SHA. Live catalog responses contained
 527 spot / 906 linear / 26 inverse rows, with empty derivative cursors and no
 spot cursor. This particular capture therefore did not exercise pagination.
+
+## Checkpoint: bounded catalog continuation and Bybit metadata admission
+
+The factory API now has an optional continuation hook over ordered primary/page
+responses. The daemon collects pages before parsing/publishing a catalog and
+preserves each HTTP response's request ID, full query and original bytes in the
+shared journal. The page phase is bounded to 32 responses / 128 MiB / 60 seconds,
+with duplicate request IDs and post-deadline results rejected. Existing optional
+Gemini detail discovery remains a separate unchanged phase. Default hooks retain
+the original primary response order, including Hyperliquid's two metadata inputs.
+
+Bybit spot omits invalid limit/cursor parameters. Derivatives request limit1000
+and follow exact percent-encoded opaque cursors to an explicit empty terminal
+cursor. The adapter bounds pages16 / page bytes8MiB / cursor bytes2048, validates
+category, status, JSON structure/types/duplicate keys and per-page row counts,
+and rejects cycles, duplicate symbols and responses following a terminal page.
+An incomplete/failed later page cannot publish earlier definitions.
+
+Independent review found two adjacent admission errors, now repaired: a missing,
+unknown or category-mismatched derivative contractType no longer defaults to a
+perpetual, and spot basePrecision / derivative qtyStep are selected only within
+their native product schema. Increment values must be positive and exact. Tests
+cover inverse pagination and future kinds, missing/cross-schema fields, cursor
+injection/UTF-8 encoding, cycles, limits, late failures and saved HTTP provenance.
+
+Current focused checks pass 68 all-feature Bybit tests / 4 ignored and 149
+all-feature daemon tests / 0 failed. Independent reviews passed the 8 new native
+catalog tests and 13 daemon discovery tests, plus Hyperliquid metadata ordering.
+Workspace all-target/all-feature compilation passes. Final Clippy/MSRV and source
+checks are recorded in the accompanying receipt once complete. The earlier
+1219-test workspace run applies to the preceding book repair, not this new slice.
+
+Completion covers only the endpoint's requested/default status scope, without
+atomic cross-page snapshot guarantees. Native settlement/expiry/contract-unit
+qualification, liquidation semantics, exact Bybit channel ACK readiness and strict
+datasets remain open. No new live pagination claim is made from the preceding
+single-page native responses. The goal remains active and strategy context stays
+rsibot-owned.
+
+Final catalog-slice workspace compilation/Clippy/rustdoc and staged source/secret
+checks pass. Rust1.85 passes the 13 Bybit default-library tests and checks the
+all-feature daemon. Exact commands and source/log hashes are retained in
+docs/evidence/bybit-catalog-2026-10-19/offline-validation.json. No dependency
+versions changed. Independent runtime and adapter findings are closed; new live
+catalog verification follows separately from these offline checks.

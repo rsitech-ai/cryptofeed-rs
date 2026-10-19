@@ -13,6 +13,35 @@ engine drives connect/reconnect/timers and this crate decides what to send/emit.
 
 See `docs/plan/venue_ids.md` (workspace root) for the canonical registry.
 
+## Catalog discovery
+
+The [official instruments contract](https://bybit-exchange.github.io/docs/v5/market/instrument)
+defines spot as unpaginated. Spot requests omit `limit`/`cursor`; derivatives
+request up to 1000 rows and follow the exact opaque `nextPageCursor`, percent
+encoded as a query value, until an explicit empty terminal cursor. Discovery
+refuses incomplete pages, cycles, duplicate symbols, wrong categories, malformed
+cursor types, duplicate JSON keys, nonpositive increments and responses after a
+terminal page. A malformed later page cannot publish earlier definitions.
+
+Bybit admission bounds are 16 pages, 8 MiB per page, 2048 cursor bytes, 1000 rows
+per derivative page and 4096 spot rows. The daemon bounds primary/continuation
+collection to 32 responses, 128 MiB and a 60-second request-phase deadline;
+existing optional detail requests on other factories retain their own policy.
+HTTP bytes, request IDs and full query provenance remain in the shared journal.
+Other factories default to no continuation and retain their original ordering.
+Callers of the factory outside the daemon must honor the continuation hook and
+its documented resource/completion contract.
+
+Derivative product kinds require category-correct native `contractType` values;
+unknown or absent values never become perpetuals by default. Quantity increments
+require derivative `qtyStep` or spot `basePrecision`; a field from another schema
+cannot supply a missing required field or override the correct one.
+
+Completion covers the returned pages for the requested endpoint/status scope.
+It does not establish an atomic exchange-universe snapshot or all historical
+statuses. Settlement/expiry/contract-unit qualification and source continuity
+remain separate open work; strict dataset admission is unavailable.
+
 ## Channels
 
 | Topic | Segment | Emits |

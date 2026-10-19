@@ -22,6 +22,19 @@ pub trait VenueFactory: Send + Sync + 'static {
         out: &mut Vec<InstrumentDefinition>,
     ) -> Result<(), AdapterError>;
 
+    /// Additional catalog pages after the ordered primary responses.
+    ///
+    /// Called repeatedly with all responses so far, before `parse_instruments`.
+    /// Return no requests only when the response set is complete. Request IDs
+    /// must be unique across primary/continuation requests. The caller must bound requests,
+    /// bytes and elapsed time and must not publish a partial catalog on error.
+    fn instrument_continuation_requests(
+        &self,
+        _responses: &[HttpResponse],
+    ) -> Result<Vec<HttpRequestSpec>, AdapterError> {
+        Ok(Vec::new())
+    }
+
     /// Optional N+1 detail requests after primary `parse_instruments`.
     ///
     /// Default: none. Factories that fan out must cap (no unbounded N+1).

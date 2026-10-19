@@ -1,0 +1,97 @@
+{
+  "schema": "marketfeed.bybit_catalog_offline_validation.v1",
+  "recorded_utc": "2026-10-19T22:13:18.533222+00:00",
+  "source_identity": "content-pinned repair on e0e31e0; validation preceded final repair commit",
+  "source_sha256": {
+    "crates/adapter-api/src/factory.rs": "cb023e90c3c6e3aabe27b67269301332018dbed5f7fbf892b05b077331b6bf32",
+    "crates/adapters/bybit/src/factory.rs": "1802bf1ac22a52a80f4a05945d90e7cda62f7290a259601ea436f4cc83865890",
+    "crates/adapters/bybit/src/instruments.rs": "57980302e2e586a2b5b39da15e862d2b1fb5ce2b7eb0c4b800489aa0af99ecec",
+    "crates/adapters/bybit/tests/catalog_pages.rs": "cdd35da3320beffac4555c86c2d4b826ac8e81bec7c064968bce746ec2291469",
+    "crates/daemon/src/catalog_discover.rs": "5319fa8f89d6ab359b09a8393212bdfd9646dc3a5660ea5b717b0e6d6dc7b359"
+  },
+  "checks": {
+    "bybit_all_features": {
+      "passed": 68,
+      "failed": 0,
+      "ignored": 4
+    },
+    "daemon_all_features": {
+      "passed": 149,
+      "failed": 0,
+      "ignored": 0
+    },
+    "bybit_rust185_default_library": {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    "daemon_rust185_all_features": "passed",
+    "workspace_all_targets_all_features_compile": "passed",
+    "workspace_clippy": "passed",
+    "workspace_rustdoc": "passed",
+    "source_secret_scan": "passed",
+    "independent_adapter_review": "closed including product-kind and category-specific increment findings",
+    "independent_runtime_review": "closed, 13 discovery tests and Hyperliquid default metadata ordering"
+  },
+  "commands_and_retained_log_sha256": {
+    "bybit-catalog-focused-02.log": {
+      "command": "cargo test --offline -p marketfeed-adapter-bybit --all-features",
+      "sha256": "f5f9f4b83a585960d3ad7ee6b6985aaf64423743702e8eb7ea2f134449a77519"
+    },
+    "bybit-catalog-daemon-02.log": {
+      "command": "cargo test --offline -p marketfeed-daemon --all-features",
+      "sha256": "747d9f0fe998d56499d98133c171b3336a74f7a76d2523064a511b138f1f5385"
+    },
+    "bybit-catalog-workspace-check-01.log": {
+      "command": "cargo check --workspace --all-targets --all-features --offline",
+      "sha256": "6d57fa520d175f888177de515606210b4e5b7240b4b7d0d9c10e03a9257ca140"
+    },
+    "bybit-catalog-clippy-01.log": {
+      "command": "cargo clippy --workspace --all-targets --all-features --offline -- -D warnings",
+      "sha256": "44751d27e3972625f73dd59d3541ea242bbf7841b2f4bb179326bd883ea8d801"
+    },
+    "bybit-catalog-rustdoc-01.log": {
+      "command": "RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --all-features --offline",
+      "sha256": "97e9b2fe8a363a635186d46446603acc95a8ae62e8bd9530108c14958fd2eef2"
+    },
+    "bybit-catalog-msrv185-01.log": {
+      "command": "cargo +1.85.0 test --offline -p marketfeed-adapter-bybit --lib",
+      "sha256": "5743ff38fa00b89982f510f0dc6da4466adcb0cd10e519afb9ae383641c0040b"
+    },
+    "bybit-catalog-daemon-msrv185-01.log": {
+      "command": "cargo +1.85.0 check --offline -p marketfeed-daemon --all-features",
+      "sha256": "16af2c2d162171740506381f53a9a52a4cf4170eb995adaf483f36f668743535"
+    },
+    "bybit-catalog-oss-secrets-01.log": {
+      "command": "PATH=<repo>/.tools/bin:$PATH bash scripts/check-oss-readiness.sh",
+      "sha256": "e6785afd29fd31e9f21c0638c6c65b845c04a4f2b23de899d2ec2c290973eaf7"
+    }
+  },
+  "bounds": {
+    "primary_and_continuation_phase": {
+      "responses": 32,
+      "bytes": 134217728,
+      "request_phase_seconds": 60
+    },
+    "bybit_pages": 16,
+    "bybit_page_bytes": 8388608,
+    "cursor_bytes": 2048,
+    "derivative_page_rows": 1000,
+    "spot_rows": 4096,
+    "detail_phase": "existing separate factory-owned policy unchanged"
+  },
+  "new_live_verification": "not-run",
+  "source_scope": "requested/default endpoint status scope; no atomic cross-page universe guarantee",
+  "dataset_admitted": false,
+  "goal_complete": false,
+  "remaining": [
+    "new forward catalog verification",
+    "native settlement/expiry/contract units",
+    "liquidation provenance/price basis/position side",
+    "Bybit exact channel ACK readiness",
+    "general exact datasets/mixed replay",
+    "rsibot observation and owner integration",
+    "hlscreen final pinned revision migration",
+    "calendar canaries and multi-day qualification"
+  ]
+}
