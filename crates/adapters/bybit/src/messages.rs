@@ -38,6 +38,12 @@ pub enum DecodedEvent {
     Liquidations(LiquidationBatchDecoded),
     SubscribeAck {
         success: bool,
+        req_id: Option<String>,
+        conn_id: Option<String>,
+        ret_msg: String,
+    },
+    UnexpectedControl {
+        operation: String,
     },
     Pong,
     Unknown,
@@ -156,6 +162,15 @@ fn decode_text_with(
     parse: fn(&[u8]) -> Result<Value, String>,
 ) -> Result<DecodedEvent, String> {
     let v = parse(bytes)?;
+    if let Some(operation) = v.get("op") {
+        let op = operation
+            .as_str()
+            .ok_or("native control op must be a string")?;
+        if op.is_empty() || op.len() > 64 {
+            return Err("invalid control operation length".into());
+        }
+        return decode_control(bytes, &v, op);
+    }
     if v.get("topic")
         .and_then(Value::as_str)
         .is_some_and(|topic| topic.starts_with("allLiquidation."))
@@ -169,20 +184,6 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
     let Some(obj) = v.as_object() else {
         return Ok(DecodedEvent::Unknown);
     };
-
-    if obj.get("op").and_then(|x| x.as_str()) == Some("pong") {
-        return Ok(DecodedEvent::Pong);
-    }
-
-    if obj.get("op").and_then(|x| x.as_str()) == Some("subscribe")
-        || (obj.contains_key("success") && obj.contains_key("ret_msg"))
-    {
-        let success = obj
-            .get("success")
-            .and_then(|x| x.as_bool())
-            .unwrap_or(false);
-        return Ok(DecodedEvent::SubscribeAck { success });
-    }
 
     let topic = obj.get("topic").and_then(|x| x.as_str()).unwrap_or("");
     let msg_type = obj.get("type").and_then(|x| x.as_str()).unwrap_or("");
@@ -300,6 +301,55 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
     }
 
     Ok(DecodedEvent::Unknown)
+}
+
+fn decode_control(bytes: &[u8], value: &Value, op: &str) -> Result<DecodedEvent, String> {
+    if value.get("topic").is_some() || value.get("data").is_some() {
+        return Err("mixed control and market frame".into());
+    }
+    match op {
+        "subscribe" => {
+            #[derive(Deserialize)]
+            struct Ack {
+                success: bool,
+                req_id: Option<String>,
+                conn_id: Option<String>,
+                ret_msg: String,
+            }
+            // Decode original bytes: lexical financial JSON must not coerce
+            // numeric request IDs, connection IDs or success into control types.
+            let ack: Ack = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+            if ack.req_id.as_ref().is_some_and(|id| id.len() > 64)
+                || ack.conn_id.as_ref().is_some_and(|id| id.len() > 256)
+                || ack.ret_msg.len() > 4096
+                || value.get("type").is_some()
+            {
+                return Err("unsupported or oversized subscribe response".into());
+            }
+            Ok(DecodedEvent::SubscribeAck {
+                success: ack.success,
+                req_id: ack.req_id,
+                conn_id: ack.conn_id,
+                ret_msg: ack.ret_msg,
+            })
+        }
+        "ping" => {
+            #[derive(Deserialize)]
+            struct PingReply {
+                success: bool,
+                ret_msg: String,
+            }
+            let reply: PingReply = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+            if !reply.success || reply.ret_msg != "pong" {
+                return Err("unexpected ping response".into());
+            }
+            Ok(DecodedEvent::Pong)
+        }
+        "pong" => Ok(DecodedEvent::Pong),
+        _ => Ok(DecodedEvent::UnexpectedControl {
+            operation: op.to_owned(),
+        }),
+    }
 }
 
 /// Bybit V5 kline topic interval segment for a canonical interval.
@@ -811,7 +861,7 @@ mod tests {
     fn decode_subscribe_ack_and_pong() {
         assert!(matches!(
             decode_text(br#"{"success":true,"ret_msg":"","op":"subscribe"}"#).unwrap(),
-            DecodedEvent::SubscribeAck { success: true }
+            DecodedEvent::SubscribeAck { success: true, .. }
         ));
         assert!(matches!(
             decode_text(br#"{"op":"pong"}"#).unwrap(),

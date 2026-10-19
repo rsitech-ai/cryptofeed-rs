@@ -1,0 +1,87 @@
+{
+  "source": "81d7ee549a161560088bea05c231708c88888a3a",
+  "scope": "prior-source CI only; not current readiness code",
+  "checks": [
+    {
+      "name": "rustfmt",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070746"
+    },
+    {
+      "name": "clippy",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070832"
+    },
+    {
+      "name": "test (ubuntu-latest)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070726"
+    },
+    {
+      "name": "test (macos-latest)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070876"
+    },
+    {
+      "name": "test (windows-latest)",
+      "conclusion": "FAILURE",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070805"
+    },
+    {
+      "name": "test (ubuntu-24.04-arm)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070666"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070932"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070635"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070777"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070825"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070694"
+    },
+    {
+      "name": "docs",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070786"
+    },
+    {
+      "name": "C header and ABI exports",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070742"
+    },
+    {
+      "name": "msrv (1.85)",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070698"
+    },
+    {
+      "name": "cargo-deny",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070383"
+    },
+    {
+      "name": "sbom",
+      "conclusion": "SUCCESS",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39337055374/job/118349070657"
+    }
+  ],
+  "windows_failure": "durable writer creation: directory open/sync Access is denied; unresolved"
+}

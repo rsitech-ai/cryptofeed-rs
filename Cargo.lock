@@ -978,6 +978,7 @@ dependencies = [
  "marketfeed-transport",
  "serde",
  "serde_json",
+ "sha2",
  "simd-json",
  "tokio",
 ]

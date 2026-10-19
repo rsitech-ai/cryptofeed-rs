@@ -9,7 +9,7 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Bybit liquidation native semantics, wire/view propagation and causal execution-notional unavailability implemented and offline verified; workspace1242/0failed/56ignored, UI174, Python59, independent protobuf11 and ten rejected oracle mutations. Next exact Bybit ACK readiness and settlement/expiry/units, alongside downstream rsibot reader/owner integration. Live liquidation delivery, catalog continuation and strict datasets remain unqualified; prior inverse-trade coverage gate remains unmet.",
+  "current_slice": "Bybit exact request-ID/connection ACK admission, all-requested L1/L2 startup readiness and complete engine callback-error readiness settlement implemented; final validation and bounded daemon evidence in progress. Windows durable-publication CI failure is open. Native settlement/expiry/units, downstream rsibot live reader, strict dataset/mixed replay and sustained operational gates remain unfinished.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)",
   "implementation_owners": {
     "cryptofeed-rs": "Exchange adapters, exact native semantics, instrument metadata, acquisition timestamps, quality events, authoritative live feed, durable raw/canonical storage and deterministic replay",

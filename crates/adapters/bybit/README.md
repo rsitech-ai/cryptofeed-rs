@@ -50,6 +50,8 @@ remain separate open work; strict dataset admission is unavailable.
 | `orderbook.1.{symbol}` | all | `MarketEvent::Quote` (best bid/ask) |
 | `orderbook.{depth}.{symbol}` | all (opt-in `enable_l2`) | `MarketEvent::BookSnapshot` / `BookDelta` |
 | `kline.{interval}.{symbol}` | all (opt-in `candle_intervals`) | `MarketEvent::Candle` |
+| `tickers.{symbol}` | all | Spot statistics or derivative mark/funding/open interest |
+| `allLiquidation.{symbol}` | derivatives | `MarketEvent::Liquidation` with native bankruptcy/position provenance |
 
 ## Native book rules (`orderbook.{depth}.{symbol}`)
 
@@ -93,18 +95,60 @@ Older serialized records omit provenance; decoding defaults it to `None`.
   symbols; `BTCUSDT` / `BTCUSD` are fallback defaults only for an empty request.
 - `live_ignored.rs` network smoke test is `#[ignore]`d by default — CI stays offline.
 
+## Subscription admission and readiness
+
+Each connection generation sends unique `req_id` values and retains the exact
+requested topics per request. Requests contain at most ten topics for all three
+categories. The connection is bounded to21,000 aggregate serialized JSON args
+bytes, a conservative local bound relative to the native character limit.
+
+An ACK must name a current outstanding request, contain boolean success=true,
+nonempty native conn_id consistent across that connection, and ret_msg equal to
+empty or subscribe. Exact duplicate ACKs are idempotent. Ping/pong cannot satisfy
+an ACK. Missing/foreign IDs, negative/conflicting responses, unexpected controls
+and malformed mixed control/data frames invalidate the active connection;
+recovery requires a new Connected lifecycle input. The official SDK has a
+fallback for servers without request IDs. This adapter refuses that ambiguous
+admission rather than guessing which request succeeded; universal native ID echo
+is not established by the protocol documentation.
+
+MarkLive requires all request ACKs, a valid two-sided L1 quote for every selected
+symbol, and every requested L2 book synchronized. Financial observations may be
+emitted during connected startup; consumers must also inspect readiness/quality.
+Cold, disconnected, stopped and failed sessions emit no later financial frames.
+A20-second local receipt-timestamp startup deadline applies even when a frame
+arrives before timer polling. At the exact deadline startup fails. A missing L1
+side after live revokes readiness and starts a new20-second quote recovery
+window; known ACKs remain bound to the same connection. Overflow fails closed.
+This deadline is not proof of clock health, source freshness or continuity.
+
+The decoded alpha API expands SubscribeAck with req_id/conn_id/ret_msg and adds
+UnexpectedControl. Rust pattern users must migrate. Engine public callbacks
+revoke readiness on any returned error, including errors after MarkLive during
+publication, and revoke old admission before new connection/close/loss handling.
+Partial actions from failed adapter callbacks are discarded.
+
+Primary contracts: [connection/ACK/heartbeat and limits](https://bybit-exchange.github.io/docs/v5/ws/connect),
+[pinned SDK fallback](https://github.com/bybit-exchange/pybit/blob/c3309e14e577b1d5610c1f288a413df6990a6d25/pybit/_websocket_stream.py#L473-L479).
+
 ## Tests / corpora
 
-- `tests/l2_sync.rs` and `tests/book_semantics.rs` — nonunit updates, exact versus
-  conflicting repeats, malformed/binary-frame recovery, resets, native provenance
-  and action-ordered application to the real downstream book projection.
-- `tests/corpus_replay.rs` — checked-in `.mfr` corpora (offline CI):
-  - `tests/corpus/linear_trade_quote.mfr`
-  - `tests/corpus/linear_l2_book.mfr` — snapshot + ≥2 `u` deltas, replay identity
-
-```bash
-REGEN_CORPUS=1 cargo test -p marketfeed-adapter-bybit --test corpus_replay regen_linear_l2_book_corpus -- --ignored
-```
+- `tests/readiness.rs` checks exact ACK correlation, all requested startup inputs,
+  chunking, cumulative limits, timeout boundaries, reconnect isolation, cold
+  frame suppression and engine readiness revocation on errors.
+- `tests/l2_sync.rs` and `tests/book_semantics.rs` check native book rules and
+  action-ordered application to the real downstream book projection.
+- Original `linear_trade_quote.mfr`, `linear_l2_book.mfr` and
+  `inverse_l2_book.mfr` remain byte-for-byte unchanged. Their uncorrelated ACKs
+  are SHA-pinned and explicitly tested as quarantined under strict admission.
+- Separately named `*_correlated_v1.mfr` fixtures cover the accepted path.
+  Creation requires CREATE_CORRELATED_CORPUS=1 and create_new, which refuses
+  overwrite. Do not regenerate original frozen bytes.
+- MFR1 semantic replay comparison checks payloads, timestamps, venue/session and
+  flags, with explicit runtime connection/ordinal exclusions. MFR1 omits physical
+  connection identity, and ReplayRunner uses adapter ordinals rather than raw
+  frame ordinals. These fixtures do not qualify exact runtime-envelope replay;
+  authoritative shared-feed/mixed causal replay remains a separate requirement.
 
 ## C10 (`simd-json` feature)
 
@@ -148,8 +192,9 @@ when data became usable in a strategy.
 Volume stays native. Turnover stays native counter-volume; quote_volume is None.
 The REST kline contract explicitly distinguishes inverse vs linear units; the
 WS page names turnover without restating those units. A REST analogy is not WS
-unit qualification. Liquidation bankruptcy-price/native-position provenance,
-source-gap recovery and exact per-channel ACK readiness remain separate work.
+unit qualification. Liquidations now retain bankruptcy-price/native-position
+provenance and unverified WS units; consumers must not treat them as executed
+spot flow. Source-gap recovery and strict dataset qualification remain open.
 
 The Rust alpha decoded API changes Candle to Candles(Vec<CandleDecoded>) and
 adds TradeDecoded.provenance. Canonical Candle construction adds optional

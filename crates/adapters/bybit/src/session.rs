@@ -1,6 +1,6 @@
 //! Bybit V5 book reconstruction in observed order; source continuity is unknown.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use bytes::Bytes;
 use marketfeed_adapter_api::{
@@ -26,6 +26,19 @@ use crate::specification::{
 const SCHEMA_VERSION: u16 = 1;
 const PING_TIMER_ID: u64 = 1;
 const PING_INTERVAL_NS: i64 = 20_000_000_000; // 20s
+const STARTUP_TIMER_ID: u64 = 2;
+const STARTUP_TIMEOUT_NS: i64 = 20_000_000_000;
+const MAX_ARGS_PER_SUBSCRIBE: usize = 10;
+// Conservative local UTF-8 JSON-byte interpretation of the native connection
+// args-character limit. Applied across all requests, not independently per chunk.
+const MAX_CONNECTION_ARGS_BYTES: usize = 21_000;
+
+#[derive(Debug)]
+struct SubscriptionRequest {
+    topics: Vec<String>,
+    acknowledged: bool,
+    ack_message: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct BybitSessionConfig {
@@ -81,6 +94,12 @@ pub struct BybitSession {
     /// Best bid/ask from orderbook.1 for quote emission.
     quotes: HashMap<String, (Option<(Price, Quantity)>, Option<(Price, Quantity)>)>,
     live: bool,
+    running: bool,
+    failed: bool,
+    generation: u64,
+    requests: BTreeMap<String, SubscriptionRequest>,
+    server_connection_id: Option<String>,
+    startup_deadline: Option<TimestampNs>,
 }
 
 impl BybitSession {
@@ -113,6 +132,12 @@ impl BybitSession {
             books,
             quotes: HashMap::new(),
             live: false,
+            running: false,
+            failed: false,
+            generation: 0,
+            requests: BTreeMap::new(),
+            server_connection_id: None,
+            startup_deadline: None,
         }
     }
 
@@ -170,7 +195,18 @@ impl BybitSession {
     }
 
     fn maybe_mark_live(&mut self, output: &mut ActionBuffer) {
-        if self.live {
+        if self.live
+            || !self.running
+            || self.failed
+            || self.requests.is_empty()
+            || self.requests.values().any(|request| !request.acknowledged)
+            || self.cfg.symbols.iter().any(|symbol| {
+                !self
+                    .quotes
+                    .get(symbol)
+                    .is_some_and(|(bid, ask)| bid.is_some() && ask.is_some())
+            })
+        {
             return;
         }
         if self.cfg.enable_l2 {
@@ -180,7 +216,106 @@ impl BybitSession {
             }
         }
         self.live = true;
+        self.startup_deadline = None;
+        output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
         output.push(SessionAction::MarkLive);
+    }
+
+    fn subscription_topics(&self) -> Result<Vec<String>, AdapterError> {
+        let mut topics = Vec::new();
+        let mut seen_symbols = BTreeSet::new();
+        if self.cfg.symbols.is_empty()
+            || self.cfg.symbols.len() != self.cfg.instrument_ids.len()
+            || self.cfg.candle_intervals.len() > 5
+        {
+            return Err(AdapterError::Protocol(
+                "Bybit selected symbols/catalog must match and be nonempty".into(),
+            ));
+        }
+        for symbol in &self.cfg.symbols {
+            if symbol.is_empty()
+                || symbol.len() > 256
+                || symbol.contains('.')
+                || symbol.chars().any(|c| c.is_whitespace() || c.is_control())
+                || !seen_symbols.insert(symbol)
+                || self.instrument_for(symbol).is_none()
+            {
+                return Err(AdapterError::Protocol(
+                    "invalid or duplicate Bybit subscription symbol".into(),
+                ));
+            }
+            topics.push(format!("publicTrade.{symbol}"));
+            topics.push(format!("orderbook.1.{symbol}"));
+            if self.cfg.enable_l2 {
+                if !matches!(self.cfg.l2_depth, 50 | 200 | 1000) {
+                    return Err(AdapterError::Protocol("unsupported Bybit L2 depth".into()));
+                }
+                topics.push(format!("orderbook.{}.{symbol}", self.cfg.l2_depth));
+            }
+            topics.push(format!("tickers.{symbol}"));
+            if !matches!(self.cfg.category, BybitCategory::Spot) {
+                topics.push(format!("allLiquidation.{symbol}"));
+            }
+            for interval in &self.cfg.candle_intervals {
+                topics.push(format!(
+                    "kline.{}.{symbol}",
+                    kline_topic_interval(*interval)
+                ));
+            }
+            if serde_json::to_vec(&topics)
+                .map_err(|e| AdapterError::Protocol(e.to_string()))?
+                .len()
+                > MAX_CONNECTION_ARGS_BYTES
+            {
+                return Err(AdapterError::Protocol(
+                    "Bybit connection args exceed local21000 JSON-byte bound".into(),
+                ));
+            }
+        }
+        if topics.iter().collect::<BTreeSet<_>>().len() != topics.len() {
+            return Err(AdapterError::Protocol(
+                "duplicate native Bybit subscription topic".into(),
+            ));
+        }
+        Ok(topics)
+    }
+
+    fn arm_startup(
+        &mut self,
+        now: TimestampNs,
+        output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        let Some(deadline) = now.0.checked_add(STARTUP_TIMEOUT_NS) else {
+            self.invalidate_book_state("startup timestamp overflow", output);
+            return Err(AdapterError::Protocol(
+                "Bybit startup timestamp overflow".into(),
+            ));
+        };
+        self.startup_deadline = Some(TimestampNs(deadline));
+        output.push(SessionAction::ScheduleTimer(TimerSpec {
+            timer_id: STARTUP_TIMER_ID,
+            fire_at: TimestampNs(deadline),
+        }));
+        Ok(())
+    }
+
+    fn startup_expired(&mut self, now: TimestampNs, output: &mut ActionBuffer) -> bool {
+        if self
+            .startup_deadline
+            .is_some_and(|deadline| now.0 >= deadline.0)
+            && !self.live
+            && !self.failed
+        {
+            let pending = self
+                .requests
+                .values()
+                .filter(|request| !request.acknowledged)
+                .count();
+            output.push(SessionAction::EmitSystem(SystemEvent::ParseError { detail: format!("Bybit startup timeout: {pending} pending requests; initial requested BBO/books incomplete") }));
+            self.invalidate_book_state("startup readiness deadline expired", output);
+            return true;
+        }
+        false
     }
 
     fn handle_decoded(
@@ -409,26 +544,67 @@ impl BybitSession {
                     events,
                 }));
             }
-            DecodedEvent::SubscribeAck { success } => {
-                output.push(SessionAction::EmitSystem(
-                    SystemEvent::SubscriptionStateChanged {
-                        state: if success {
-                            "subscribed".into()
-                        } else {
-                            "subscribe_failed".into()
+            DecodedEvent::SubscribeAck {
+                success,
+                req_id,
+                conn_id,
+                ret_msg,
+            } => {
+                let request = req_id.as_ref().and_then(|id| self.requests.get(id));
+                let valid = self.running
+                    && !self.failed
+                    && success
+                    && request.is_some_and(|request| !request.topics.is_empty())
+                    && conn_id.as_ref().is_some_and(|id| !id.is_empty())
+                    && self
+                        .server_connection_id
+                        .as_ref()
+                        .is_none_or(|id| Some(id) == conn_id.as_ref())
+                    && matches!(ret_msg.as_str(), "" | "subscribe")
+                    && request.is_none_or(|request| {
+                        request
+                            .ack_message
+                            .as_ref()
+                            .is_none_or(|prior| prior == &ret_msg)
+                    });
+                if !valid {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: format!("uncorrelated, failed or conflicting Bybit subscription response: req={req_id:?}, success={success}, message={ret_msg:?}"),
+                    }));
+                    self.invalidate_book_state("subscription acknowledgement rejected", output);
+                    return Ok(());
+                }
+                self.server_connection_id = conn_id;
+                let request = self
+                    .requests
+                    .get_mut(req_id.as_ref().expect("validated request"))
+                    .expect("validated request");
+                if request.acknowledged {
+                    return Ok(());
+                }
+                request.acknowledged = true;
+                request.ack_message = Some(ret_msg);
+                if self.requests.values().all(|request| request.acknowledged) {
+                    output.push(SessionAction::EmitSystem(
+                        SystemEvent::SubscriptionStateChanged {
+                            state: "subscribed".into(),
                         },
-                    },
-                ));
-                if success && !self.cfg.enable_l2 {
+                    ));
                     self.maybe_mark_live(output);
                 }
+            }
+            DecodedEvent::UnexpectedControl { operation } => {
+                output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                    detail: format!("unrequested Bybit control operation: {operation}"),
+                }));
+                self.invalidate_book_state("unexpected native control response", output);
             }
             DecodedEvent::Pong => {}
             DecodedEvent::Unknown => {
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "bybit".into(),
                 }));
-                if self.cfg.enable_l2 || !self.quotes.is_empty() {
+                if self.running || self.cfg.enable_l2 || !self.quotes.is_empty() {
                     self.invalidate_book_state(
                         "unknown native frame; book state uncertain",
                         output,
@@ -440,7 +616,14 @@ impl BybitSession {
     }
 
     fn invalidate_book_state(&mut self, reason: &str, output: &mut ActionBuffer) {
+        if self.failed {
+            return;
+        }
+        self.failed = true;
         self.live = false;
+        self.startup_deadline = None;
+        output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
+        output.push(SessionAction::CancelTimer(PING_TIMER_ID));
         output.push(SessionAction::MarkDegraded);
         for book in self.books.values_mut() {
             book.sync.invalidate(reason);
@@ -483,6 +666,11 @@ impl BybitSession {
         self.quotes.insert(row.symbol.clone(), (bid, ask));
         let instrument = self.instrument_for(&row.symbol);
         let (Some((bid_price, bid_qty)), Some((ask_price, ask_qty))) = (bid, ask) else {
+            if self.live {
+                self.live = false;
+                output.push(SessionAction::MarkDegraded);
+                self.arm_startup(received.receive_ts, output)?;
+            }
             if let Some(instrument) = instrument {
                 output.push(SessionAction::EmitSystem(SystemEvent::QuoteInvalidated {
                     venue: Some(self.venue_id()),
@@ -520,6 +708,7 @@ impl BybitSession {
             frame_seq,
             events: vec![event],
         }));
+        self.maybe_mark_live(output);
         Ok(())
     }
 
@@ -646,35 +835,39 @@ impl SessionMachine for BybitSession {
         match input {
             SessionInput::Connected { now } => {
                 self.live = false;
+                // A new physical connection revokes prior readiness even if a
+                // caller did not first deliver Disconnected.
+                output.push(SessionAction::MarkDegraded);
+                self.running = false;
+                self.failed = true;
+                self.requests.clear();
+                self.startup_deadline = None;
+                self.server_connection_id = None;
                 self.quotes.clear();
-                let mut args = Vec::new();
-                for s in &self.cfg.symbols {
-                    args.push(format!("publicTrade.{s}"));
-                    args.push(format!("orderbook.1.{s}"));
-                    if self.cfg.enable_l2 {
-                        args.push(format!("orderbook.{}.{s}", self.cfg.l2_depth));
-                    }
-                    // Spot: tickers carry 24h stats. Linear/inverse: mark/index/
-                    // funding/OI (+ 24h when present). allLiquidation is der-only.
-                    args.push(format!("tickers.{s}"));
-                    if matches!(
-                        self.cfg.category,
-                        BybitCategory::Linear | BybitCategory::Inverse
-                    ) {
-                        args.push(format!("allLiquidation.{s}"));
-                    }
-                    for interval in &self.cfg.candle_intervals {
-                        args.push(format!("kline.{}.{s}", kline_topic_interval(*interval)));
-                    }
+                for book in self.books.values_mut() {
+                    book.last_message = None;
+                    book.sync.begin_resync();
+                    book.sync.request_snapshot();
                 }
-                // Bybit spot rejects subscribe when args.len() > 10 (`args size >10`).
-                // Linear/inverse are safer when chunked the same way.
-                const MAX_ARGS_PER_SUBSCRIBE: usize = 10;
-                for chunk in args.chunks(MAX_ARGS_PER_SUBSCRIBE.max(1)) {
-                    let body = serde_json::json!({
-                        "op": "subscribe",
-                        "args": chunk
-                    });
+                let args = self.subscription_topics()?;
+                let generation = self.generation.checked_add(1).ok_or_else(|| {
+                    AdapterError::Protocol("Bybit request generation overflow".into())
+                })?;
+                self.arm_startup(now, output)?;
+                self.generation = generation;
+                self.running = true;
+                self.failed = false;
+                for (index, chunk) in args.chunks(MAX_ARGS_PER_SUBSCRIBE).enumerate() {
+                    let req_id = format!("b{generation:016x}-{index:04x}");
+                    self.requests.insert(
+                        req_id.clone(),
+                        SubscriptionRequest {
+                            topics: chunk.to_vec(),
+                            acknowledged: false,
+                            ack_message: None,
+                        },
+                    );
+                    let body = serde_json::json!({"op":"subscribe", "req_id":req_id,"args":chunk});
                     output.push(SessionAction::SendText(Bytes::from(body.to_string())));
                 }
                 // ScheduleTimer(PING_TIMER_ID) is emitted here on every connect — see
@@ -685,18 +878,17 @@ impl SessionMachine for BybitSession {
                         state: "connected".into(),
                     },
                 ));
-                if self.cfg.enable_l2 {
-                    for book in self.books.values_mut() {
-                        book.last_message = None;
-                        book.sync.request_snapshot();
-                    }
-                } else {
-                    self.maybe_mark_live(output);
-                }
                 Ok(())
             }
             SessionInput::Disconnected { .. } => {
                 self.live = false;
+                self.running = false;
+                self.failed = true;
+                self.requests.clear();
+                self.server_connection_id = None;
+                self.startup_deadline = None;
+                output.push(SessionAction::MarkDegraded);
+                output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
                 for book in self.books.values_mut() {
                     book.sync.invalidate("disconnected");
                     book.last_message = None;
@@ -711,6 +903,10 @@ impl SessionMachine for BybitSession {
                 Ok(())
             }
             SessionInput::TextFrame { bytes, received } => {
+                if !self.running || self.failed || self.startup_expired(received.receive_ts, output)
+                {
+                    return Ok(());
+                }
                 match crate::messages::decode_text(bytes) {
                     Ok(decoded) => self.handle_decoded(decoded, received, output),
                     Err(e) => {
@@ -720,7 +916,7 @@ impl SessionMachine for BybitSession {
                         // A malformed frame cannot be proved unrelated to the
                         // book; fail closed rather than applying later deltas on
                         // potentially missing state.
-                        if self.cfg.enable_l2 || !self.quotes.is_empty() {
+                        if self.running || self.cfg.enable_l2 || !self.quotes.is_empty() {
                             self.invalidate_book_state(
                                 "native decode failure; book state uncertain",
                                 output,
@@ -732,10 +928,13 @@ impl SessionMachine for BybitSession {
             }
             SessionInput::HttpResponse { .. } => Ok(()),
             SessionInput::BinaryFrame { .. } => {
+                if !self.running || self.failed {
+                    return Ok(());
+                }
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "binary".into(),
                 }));
-                if self.cfg.enable_l2 || !self.quotes.is_empty() {
+                if self.running || self.cfg.enable_l2 || !self.quotes.is_empty() {
                     self.invalidate_book_state(
                         "unexpected binary frame; book state uncertain",
                         output,
@@ -745,6 +944,9 @@ impl SessionMachine for BybitSession {
             }
             SessionInput::Pong { .. } => Ok(()),
             SessionInput::Timer { timer_id, now } => {
+                if !self.running || self.failed || self.startup_expired(now, output) {
+                    return Ok(());
+                }
                 if timer_id == PING_TIMER_ID {
                     output.push(SessionAction::SendText(Bytes::from_static(
                         br#"{"op":"ping"}"#,
@@ -756,6 +958,12 @@ impl SessionMachine for BybitSession {
             SessionInput::Control { command } => {
                 match command {
                     marketfeed_adapter_api::SessionCommand::Stop => {
+                        self.live = false;
+                        self.running = false;
+                        self.failed = true;
+                        self.startup_deadline = None;
+                        output.push(SessionAction::MarkDegraded);
+                        output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
                         output.push(SessionAction::CancelTimer(PING_TIMER_ID));
                         output.push(SessionAction::StopSession(StopReason::Control));
                     }
@@ -773,6 +981,11 @@ impl SessionMachine for BybitSession {
                             book.sync.invalidate("control resync");
                             book.last_message = None;
                             self.live = false;
+                            self.failed = true;
+                            self.startup_deadline = None;
+                            output.push(SessionAction::MarkDegraded);
+                            output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
+                            output.push(SessionAction::CancelTimer(PING_TIMER_ID));
                             output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
                                 instrument: *id,
                                 reason: "control resync requires fresh WebSocket snapshot".into(),

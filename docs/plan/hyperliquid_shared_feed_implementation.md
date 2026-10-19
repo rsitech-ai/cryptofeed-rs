@@ -814,7 +814,7 @@ strict research qualification follows from this offline slice. Strategy context
 remains rsibot-owned; the goal is active.
 
 Final liquidation-slice validation passes 1,242 workspace all-target/all-feature
-tests with 56 live tests ignored, 74 Bybit tests with 4 ignored, 174 UI tests,
+tests with 56 ignored tests (including network and corpus-creation cases), 74 Bybit tests with 4 ignored, 174 UI tests,
 59 Python audit tests and 11 generated-Google-protobuf fixtures. Ten synchronized
 binary/JSON corruptions are rejected by the retained finite oracle challenge.
 Rust1.85 model/recording/sinks library tests pass89 and Bybit library tests13;
@@ -831,3 +831,43 @@ capacity, ownership and earlier-prefix behavior. Two initially mistaken fixture
 expectations and the failed original workspace run remain retained rather than
 being represented as native/runtime failures. These checks do not qualify live
 liquidation delivery or alter the unmet inverse-trade gate.
+
+## Checkpoint: exact Bybit request admission and engine callback readiness
+
+Current implementation replaces uncorrelated success flags with an exact
+per-generation request/topic ledger and consistent native connection binding.
+MarkLive requires all ACKs, all selected two-sided L1 quotes and requested L2
+snapshots before a local20-second receipt/timer deadline. Native ping/pong cannot
+satisfy subscription readiness. Cold/stopped/failed/disconnected sessions cannot
+emit financial frames. Missing post-live BBO sides revoke readiness and arm a
+bounded recovery deadline. Request batching and aggregate byte limits fail
+before sending unsupported plans.
+
+Separate review found and closed two lifecycle gaps: cold financial emission
+and stale engine readiness when a failed callback's queued degradation was not
+applied. Complete public runner callback failures now revoke readiness even
+when recording/dispatch/publication fails after MarkLive; failed adapter actions
+are discarded. Pure dynamic subscription preparation rejection preserves the
+existing healthy feed, with operational failures handled separately. Native
+optional IDs, local mandatory correlation/limits and non-monotonic startup timing
+are distinguished explicitly.
+
+Original MFR1 corpus bytes remain SHA-pinned and actively quarantined for old
+uncorrelated ACKs. Separately named create-only fixtures cover correlated
+admission. Full semantic envelope checks independently assert configured replay
+identity and adapter ordinals; physical connection/raw ordinal exclusions remain
+explicit because MFR1 cannot establish exact runtime-envelope identity.
+
+Scoped evidence, original red regressions, primary sources and independent
+review dispositions are under docs/evidence/bybit-readiness-2026-10-19.
+The six-ACK native protocol probe shows bounded compatibility only. Final offline
+checks and any bounded daemon capture are recorded separately, with failures
+retained. The previous inverse-trade coverage failure is not overwritten.
+
+The prior-source CI run39337055374 passed Linux x86/arm and macOS but failed
+Windows job118349070805 at shared-feed writer creation (OS error5). This is a
+real open durable-publication portability defect. Directory-sync guarantees are
+not weakened or skipped; local checks do not qualify Windows durability.
+Settlement/expiry/contract units, strict datasets/general mixed causal replay,
+rsibot live context, final downstream pins and sustained operational gates remain
+unfinished. The full goal remains active.

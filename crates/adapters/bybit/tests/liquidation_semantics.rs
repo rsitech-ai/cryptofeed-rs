@@ -11,7 +11,7 @@ fn frame() -> Value {
     json!({"topic":"allLiquidation.BTCUSDT","type":"snapshot","ts":1700000000001_i64,"data":[{"T":1700000000000_i64,"s":"BTCUSDT","S":"Buy","v":"0.000000000000000001","p":"65000.123456789012345678"}]})
 }
 fn session(category: BybitCategory) -> BybitSession {
-    BybitSession::new(
+    let mut session = BybitSession::new(
         SessionSpec {
             endpoint_name: "ws".into(),
             subscriptions: ConcreteSubscriptionSet::default(),
@@ -23,7 +23,16 @@ fn session(category: BybitCategory) -> BybitSession {
             instrument_ids: [("BTCUSDT".into(), InstrumentId(1))].into(),
             ..Default::default()
         },
-    )
+    );
+    session
+        .on_input(
+            SessionInput::Connected {
+                now: TimestampNs(1700000000002000000),
+            },
+            &mut ActionBuffer::new(),
+        )
+        .unwrap();
+    session
 }
 fn drive(s: &mut BybitSession, value: &Value) -> ActionBuffer {
     let mut bytes = serde_json::to_vec(value).unwrap();

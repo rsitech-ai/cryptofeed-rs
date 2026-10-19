@@ -9,7 +9,7 @@ use marketfeed_model::{
 };
 use serde_json::{Value, json};
 fn session() -> BybitSession {
-    BybitSession::new(
+    let mut session = BybitSession::new(
         SessionSpec {
             endpoint_name: "ws".into(),
             subscriptions: ConcreteSubscriptionSet::default(),
@@ -19,7 +19,16 @@ fn session() -> BybitSession {
             enable_l2: true,
             ..Default::default()
         },
-    )
+    );
+    session
+        .on_input(
+            SessionInput::Connected {
+                now: TimestampNs(1700000000002000000),
+            },
+            &mut ActionBuffer::new(),
+        )
+        .unwrap();
+    session
 }
 fn message(kind: &str, u: u64, seq: u64, quantity: &str) -> Value {
     json!({"topic":"orderbook.50.BTCUSDT","type":kind,"ts":1700000000001_i64,"cts":1700000000000_i64,"data":{"s":"BTCUSDT","b":[["100.00",quantity]],"a":if kind=="snapshot"{json!([["101.00","1.000"]])}else{json!([])},"u":u,"seq":seq}})
@@ -39,6 +48,21 @@ fn drive(s: &mut BybitSession, v: &Value) -> ActionBuffer {
     )
     .unwrap();
     out
+}
+fn restart(s: &mut BybitSession) {
+    let mut out = ActionBuffer::new();
+    s.on_input(
+        SessionInput::Connected {
+            now: TimestampNs(1700000000002000000),
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert!(
+        !out.as_slice()
+            .iter()
+            .any(|a| matches!(a, SessionAction::MarkLive))
+    );
 }
 fn market_count(out: &ActionBuffer) -> usize {
     out.as_slice()
@@ -103,6 +127,11 @@ fn conflicting_repeat_is_visible_and_requires_fresh_snapshot() {
         market_count(&drive(&mut s, &message("delta", 12, 102, "3.000"))),
         0
     );
+    assert_eq!(
+        market_count(&drive(&mut s, &message("snapshot", 99, 999, "1.000"))),
+        0
+    );
+    restart(&mut s);
     assert_eq!(
         market_count(&drive(&mut s, &message("snapshot", 2, 1, "4.000"))),
         1
@@ -186,6 +215,11 @@ fn malformed_native_frame_latches_unavailable_until_a_fresh_snapshot() {
             "{field}"
         );
         assert_eq!(
+            market_count(&drive(&mut s, &message("snapshot", 99, 999, "1.000"))),
+            0
+        );
+        restart(&mut s);
+        assert_eq!(
             market_count(&drive(&mut s, &message("snapshot", 40, 400, "4.000"))),
             1
         );
@@ -224,6 +258,11 @@ fn unexpected_binary_frame_invalidates_books_and_quotes_until_a_fresh_snapshot()
         market_count(&drive(&mut s, &message("delta", 30, 300, "2.000"))),
         0
     );
+    assert_eq!(
+        market_count(&drive(&mut s, &message("snapshot", 99, 999, "1.000"))),
+        0
+    );
+    restart(&mut s);
     assert_eq!(
         market_count(&drive(&mut s, &message("snapshot", 40, 400, "3.000"))),
         1
@@ -366,6 +405,11 @@ fn reset_metadata_and_failed_atomic_apply_are_not_silently_reused() {
         0
     );
     assert_eq!(
+        market_count(&drive(&mut s, &message("snapshot", 99, 999, "1.000"))),
+        0
+    );
+    restart(&mut s);
+    assert_eq!(
         market_count(&drive(&mut s, &message("snapshot", 3, 3, "5.000"))),
         1
     );
@@ -388,7 +432,7 @@ fn connection_restart_clears_snapshot_and_exact_repeat_identity() {
     .unwrap();
     s.on_input(
         SessionInput::Connected {
-            now: TimestampNs(2),
+            now: TimestampNs(1700000000002000000),
         },
         &mut out,
     )

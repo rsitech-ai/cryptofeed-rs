@@ -226,6 +226,16 @@ fn ping_timer_sends_ping() {
         &mut out,
     )
     .unwrap();
+    drive_text(
+        &mut s,
+        r#"{"success":true,"ret_msg":"","op":"subscribe","req_id":"b0000000000000001-0000","conn_id":"fixture"}"#,
+        2,
+    );
+    drive_text(
+        &mut s,
+        r#"{"topic":"orderbook.1.BTCUSDT","type":"snapshot","ts":1,"data":{"s":"BTCUSDT","b":[["1.00","1"]],"a":[["1.01","1"]],"u":1,"seq":1}}"#,
+        3,
+    );
     out.clear();
     s.on_input(
         SessionInput::Timer {
@@ -260,7 +270,7 @@ fn record_replay_bybit_trade_quote_identical() {
     live.on_connected(TimestampNs(100)).unwrap();
 
     let frames = [
-        r#"{"success":true,"ret_msg":"","op":"subscribe"}"#,
+        r#"{"success":true,"ret_msg":"","op":"subscribe","req_id":"b0000000000000001-0000","conn_id":"fixture"}"#,
         r#"{"topic":"publicTrade.BTCUSDT","type":"snapshot","ts":1,"data":[{"T":1,"s":"BTCUSDT","S":"Sell","v":"1","p":"1.00","L":"MinusTick","i":"t1","seq":1}]}"#,
         r#"{"topic":"orderbook.1.BTCUSDT","type":"snapshot","ts":2,"data":{"s":"BTCUSDT","b":[["1.00","1"]],"a":[["1.01","1"]],"u":1,"seq":1}}"#,
     ];
@@ -277,6 +287,11 @@ fn record_replay_bybit_trade_quote_identical() {
         // SessionRunner injects VenueStatus; ReplayRunner does not.
         .filter(|e| !matches!(e, MarketEvent::VenueStatus(_)))
         .collect();
+    assert_eq!(
+        live_events.len(),
+        2,
+        "replay parity must not be a zero-event pass"
+    );
     let bytes = live.recording_bytes().unwrap();
 
     let mut replay_machine = session(false);

@@ -15,7 +15,7 @@ fn session(category: BybitCategory) -> BybitSession {
         BybitCategory::Linear => 5,
         BybitCategory::Inverse => 11,
     };
-    BybitSession::new(
+    let mut session = BybitSession::new(
         SessionSpec {
             endpoint_name: "ws".into(),
             subscriptions: ConcreteSubscriptionSet::default(),
@@ -27,7 +27,16 @@ fn session(category: BybitCategory) -> BybitSession {
             instrument_ids: [("BTCUSDT".into(), InstrumentId(1))].into(),
             ..Default::default()
         },
-    )
+    );
+    session
+        .on_input(
+            SessionInput::Connected {
+                now: TimestampNs(1700000001000000000),
+            },
+            &mut ActionBuffer::new(),
+        )
+        .unwrap();
+    session
 }
 fn drive(session: &mut BybitSession, value: &Value) -> ActionBuffer {
     let mut bytes = serde_json::to_vec(value).unwrap();

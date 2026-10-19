@@ -23,6 +23,15 @@
 //! checked before emission; even empty batches require derivative catalog scope.
 //! The decoded batch retains its symbol independently of its rows.
 //!
+//! # Scoped startup admission
+//!
+//! Each generation correlates every subscribe ACK by req_id and native conn_id.
+//! MarkLive additionally requires all selected two-sided L1 quotes and requested
+//! L2 snapshots before the local20-second receipt deadline. Ping is not an ACK.
+//! Missing IDs are refused conservatively; native universal echo is not assumed.
+//! Failed/stopped/cold sessions emit no financial frames until Connected.
+//! Source continuity and exact runtime-envelope replay remain separate gates.
+//!
 //! # Live ping via engine timers
 //!
 //! [`BybitSession`] emits `SessionAction::ScheduleTimer` on connect and reacts to

@@ -269,29 +269,59 @@ impl SessionRunner {
         })
     }
 
-    pub fn on_connected(&mut self, now: TimestampNs) -> Result<(), EngineError> {
-        self.cfg.connection = ConnectionId(
-            NEXT_RUNTIME_CONNECTION
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
-                .map_err(|_| EngineError::Internal("connection ID exhausted".into()))?,
-        );
-        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
-            session: self.cfg.session,
-            connection: self.cfg.connection,
-            now_ns: now.0,
-            connected: true,
-            reason: None,
-        })?;
-        self.lifecycle = SessionLifecycle::Connected;
-        self.timers.clear();
-        self.actions.clear();
-        self.machine
-            .on_input(SessionInput::Connected { now }, &mut self.actions)?;
-        self.note_action_buffer_drops()?;
-        self.apply_actions(now)?;
-        // Spec §8.7 / R6: thin VenueStatus on connect (engine-owned, adapters stay I/O-free).
-        self.emit_venue_status("connected", now)?;
+    // Callback failure may occur after MarkLive (for example during feed
+    // publication). Settle the whole operation, including I/O and dispatch.
+    fn settle_callback_result(
+        &mut self,
+        result: Result<(), EngineError>,
+    ) -> Result<(), EngineError> {
+        if result.is_err() {
+            self.invalidate_live_readiness();
+            self.lifecycle = SessionLifecycle::Degraded;
+            self.actions.clear();
+        }
+        result
+    }
+
+    /// An adapter error cannot leave an old readiness admission in effect.
+    /// Partial callback actions are discarded rather than applying a prefix.
+    fn deliver_machine_input(&mut self, input: SessionInput<'_>) -> Result<(), EngineError> {
+        if let Err(error) = self.machine.on_input(input, &mut self.actions) {
+            self.invalidate_live_readiness();
+            self.lifecycle = SessionLifecycle::Degraded;
+            self.actions.clear();
+            return Err(error.into());
+        }
         Ok(())
+    }
+
+    pub fn on_connected(&mut self, now: TimestampNs) -> Result<(), EngineError> {
+        let result = (|| {
+            // Revoke the previous physical connection before any fallible work.
+            self.invalidate_live_readiness();
+            self.lifecycle = SessionLifecycle::Connected;
+            self.cfg.connection = ConnectionId(
+                NEXT_RUNTIME_CONNECTION
+                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                    .map_err(|_| EngineError::Internal("connection ID exhausted".into()))?,
+            );
+            self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+                session: self.cfg.session,
+                connection: self.cfg.connection,
+                now_ns: now.0,
+                connected: true,
+                reason: None,
+            })?;
+            self.timers.clear();
+            self.actions.clear();
+            self.deliver_machine_input(SessionInput::Connected { now })?;
+            self.note_action_buffer_drops()?;
+            self.apply_actions(now)?;
+            // Spec §8.7 / R6: thin VenueStatus on connect (engine-owned, adapters stay I/O-free).
+            self.emit_venue_status("connected", now)?;
+            Ok(())
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn on_disconnected(
@@ -299,25 +329,25 @@ impl SessionRunner {
         reason: DisconnectReason,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
-        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
-            session: self.cfg.session,
-            connection: self.cfg.connection,
-            now_ns: now.0,
-            connected: false,
-            reason: Some(format!("{reason:?};continuity_unverified")),
-        })?;
-        self.lifecycle = SessionLifecycle::Draining;
-        self.invalidate_live_readiness();
-        self.timers.clear();
-        self.actions.clear();
-        self.machine.on_input(
-            SessionInput::Disconnected { reason, now },
-            &mut self.actions,
-        )?;
-        self.note_action_buffer_drops()?;
-        self.apply_actions(now)?;
-        self.lifecycle = SessionLifecycle::Stopped;
-        Ok(())
+        let result = (|| {
+            self.invalidate_live_readiness();
+            self.lifecycle = SessionLifecycle::Draining;
+            self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+                session: self.cfg.session,
+                connection: self.cfg.connection,
+                now_ns: now.0,
+                connected: false,
+                reason: Some(format!("{reason:?};continuity_unverified")),
+            })?;
+            self.timers.clear();
+            self.actions.clear();
+            self.deliver_machine_input(SessionInput::Disconnected { reason, now })?;
+            self.note_action_buffer_drops()?;
+            self.apply_actions(now)?;
+            self.lifecycle = SessionLifecycle::Stopped;
+            Ok(())
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn on_text_frame(
@@ -325,31 +355,31 @@ impl SessionRunner {
         bytes: &mut [u8],
         received: FrameStamp,
     ) -> Result<(), EngineError> {
-        let t0 = std::time::Instant::now();
-        self.metrics.record_frame_received(bytes.len());
-        self.inbound_frame_seq += 1;
-        let frame_seq = self.inbound_frame_seq;
-        self.record_frame(
-            frame_seq,
-            received.receive_ts.0,
-            received.mono_ns,
-            Direction::Inbound,
-            RecOpcode::Text,
-            bytes,
-        )?;
-        self.actions.clear();
-        let parse_t0 = std::time::Instant::now();
-        self.machine.on_input(
-            SessionInput::TextFrame { bytes, received },
-            &mut self.actions,
-        )?;
-        self.metrics
-            .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
-        self.note_action_buffer_drops()?;
-        let out = self.apply_frame_actions(frame_seq, received.receive_ts);
-        self.metrics
-            .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
-        out
+        let result = (|| {
+            let t0 = std::time::Instant::now();
+            self.metrics.record_frame_received(bytes.len());
+            self.inbound_frame_seq += 1;
+            let frame_seq = self.inbound_frame_seq;
+            self.record_frame(
+                frame_seq,
+                received.receive_ts.0,
+                received.mono_ns,
+                Direction::Inbound,
+                RecOpcode::Text,
+                bytes,
+            )?;
+            self.actions.clear();
+            let parse_t0 = std::time::Instant::now();
+            self.deliver_machine_input(SessionInput::TextFrame { bytes, received })?;
+            self.metrics
+                .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
+            self.note_action_buffer_drops()?;
+            let out = self.apply_frame_actions(frame_seq, received.receive_ts);
+            self.metrics
+                .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
+            out
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn on_binary_frame(
@@ -357,31 +387,31 @@ impl SessionRunner {
         bytes: &mut [u8],
         received: FrameStamp,
     ) -> Result<(), EngineError> {
-        let t0 = std::time::Instant::now();
-        self.metrics.record_frame_received(bytes.len());
-        self.inbound_frame_seq += 1;
-        let frame_seq = self.inbound_frame_seq;
-        self.record_frame(
-            frame_seq,
-            received.receive_ts.0,
-            received.mono_ns,
-            Direction::Inbound,
-            RecOpcode::Binary,
-            bytes,
-        )?;
-        self.actions.clear();
-        let parse_t0 = std::time::Instant::now();
-        self.machine.on_input(
-            SessionInput::BinaryFrame { bytes, received },
-            &mut self.actions,
-        )?;
-        self.metrics
-            .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
-        self.note_action_buffer_drops()?;
-        let out = self.apply_frame_actions(frame_seq, received.receive_ts);
-        self.metrics
-            .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
-        out
+        let result = (|| {
+            let t0 = std::time::Instant::now();
+            self.metrics.record_frame_received(bytes.len());
+            self.inbound_frame_seq += 1;
+            let frame_seq = self.inbound_frame_seq;
+            self.record_frame(
+                frame_seq,
+                received.receive_ts.0,
+                received.mono_ns,
+                Direction::Inbound,
+                RecOpcode::Binary,
+                bytes,
+            )?;
+            self.actions.clear();
+            let parse_t0 = std::time::Instant::now();
+            self.deliver_machine_input(SessionInput::BinaryFrame { bytes, received })?;
+            self.metrics
+                .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
+            self.note_action_buffer_drops()?;
+            let out = self.apply_frame_actions(frame_seq, received.receive_ts);
+            self.metrics
+                .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
+            out
+        })();
+        self.settle_callback_result(result)
     }
 
     /// Transport already auto-replied with Pong; persist and count the frame.
@@ -390,16 +420,19 @@ impl SessionRunner {
         payload: &[u8],
         received: FrameStamp,
     ) -> Result<(), EngineError> {
-        self.metrics.record_frame_received(payload.len());
-        self.inbound_frame_seq += 1;
-        self.record_frame(
-            self.inbound_frame_seq,
-            received.receive_ts.0,
-            received.mono_ns,
-            Direction::Inbound,
-            RecOpcode::Ping,
-            payload,
-        )
+        let result = {
+            self.metrics.record_frame_received(payload.len());
+            self.inbound_frame_seq += 1;
+            self.record_frame(
+                self.inbound_frame_seq,
+                received.receive_ts.0,
+                received.mono_ns,
+                Direction::Inbound,
+                RecOpcode::Ping,
+                payload,
+            )
+        };
+        self.settle_callback_result(result)
     }
 
     /// Persist a remote close control frame before reconnect handling.
@@ -408,16 +441,21 @@ impl SessionRunner {
         payload: &[u8],
         received: FrameStamp,
     ) -> Result<(), EngineError> {
-        self.metrics.record_frame_received(payload.len());
-        self.inbound_frame_seq += 1;
-        self.record_frame(
-            self.inbound_frame_seq,
-            received.receive_ts.0,
-            received.mono_ns,
-            Direction::Inbound,
-            RecOpcode::Close,
-            payload,
-        )
+        let result = {
+            self.invalidate_live_readiness();
+            self.lifecycle = SessionLifecycle::Draining;
+            self.metrics.record_frame_received(payload.len());
+            self.inbound_frame_seq += 1;
+            self.record_frame(
+                self.inbound_frame_seq,
+                received.receive_ts.0,
+                received.mono_ns,
+                Direction::Inbound,
+                RecOpcode::Close,
+                payload,
+            )
+        };
+        self.settle_callback_result(result)
     }
 
     /// Deliver `SessionInput::Pong` to the adapter (app-level heartbeat ACKs).
@@ -426,22 +464,24 @@ impl SessionRunner {
         payload: &[u8],
         received: FrameStamp,
     ) -> Result<(), EngineError> {
-        self.metrics.record_frame_received(payload.len());
-        self.inbound_frame_seq += 1;
-        let frame_seq = self.inbound_frame_seq;
-        self.record_frame(
-            frame_seq,
-            received.receive_ts.0,
-            received.mono_ns,
-            Direction::Inbound,
-            RecOpcode::Pong,
-            payload,
-        )?;
-        self.actions.clear();
-        self.machine
-            .on_input(SessionInput::Pong { payload, received }, &mut self.actions)?;
-        self.note_action_buffer_drops()?;
-        self.apply_actions(received.receive_ts)
+        let result = (|| {
+            self.metrics.record_frame_received(payload.len());
+            self.inbound_frame_seq += 1;
+            let frame_seq = self.inbound_frame_seq;
+            self.record_frame(
+                frame_seq,
+                received.receive_ts.0,
+                received.mono_ns,
+                Direction::Inbound,
+                RecOpcode::Pong,
+                payload,
+            )?;
+            self.actions.clear();
+            self.deliver_machine_input(SessionInput::Pong { payload, received })?;
+            self.note_action_buffer_drops()?;
+            self.apply_actions(received.receive_ts)
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn recording_bytes(&self) -> Option<Vec<u8>> {
@@ -580,41 +620,43 @@ impl SessionRunner {
     }
 
     pub fn poll_timers(&mut self, now: TimestampNs) -> Result<(), EngineError> {
-        let mut fired = 0usize;
-        while fired < MAX_TIMER_FIRES_PER_POLL {
-            let mut due: Vec<u64> = self
-                .timers
-                .iter()
-                .filter(|(_, fire_at)| fire_at.0 <= now.0)
-                .map(|(id, _)| *id)
-                .collect();
-            if due.is_empty() {
-                return Ok(());
-            }
-            due.sort_unstable();
-            for timer_id in due {
-                if self.timers.remove(&timer_id).is_none() {
-                    continue;
-                }
-                fired += 1;
-                self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Timer {
-                    session: self.cfg.session,
-                    timer_id,
-                    now_ns: now.0,
-                })?;
-                self.actions.clear();
-                self.machine
-                    .on_input(SessionInput::Timer { timer_id, now }, &mut self.actions)?;
-                self.note_action_buffer_drops()?;
-                self.apply_actions(now)?;
-                if fired >= MAX_TIMER_FIRES_PER_POLL {
-                    // ponytail: hard stop after 64 fires/poll; ceiling = starved I/O if adapter
-                    // keeps scheduling already-due timers; upgrade = require fire_at > now.
+        let result = (|| {
+            let mut fired = 0usize;
+            while fired < MAX_TIMER_FIRES_PER_POLL {
+                let mut due: Vec<u64> = self
+                    .timers
+                    .iter()
+                    .filter(|(_, fire_at)| fire_at.0 <= now.0)
+                    .map(|(id, _)| *id)
+                    .collect();
+                if due.is_empty() {
                     return Ok(());
                 }
+                due.sort_unstable();
+                for timer_id in due {
+                    if self.timers.remove(&timer_id).is_none() {
+                        continue;
+                    }
+                    fired += 1;
+                    self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Timer {
+                        session: self.cfg.session,
+                        timer_id,
+                        now_ns: now.0,
+                    })?;
+                    self.actions.clear();
+                    self.deliver_machine_input(SessionInput::Timer { timer_id, now })?;
+                    self.note_action_buffer_drops()?;
+                    self.apply_actions(now)?;
+                    if fired >= MAX_TIMER_FIRES_PER_POLL {
+                        // ponytail: hard stop after 64 fires/poll; ceiling = starved I/O if adapter
+                        // keeps scheduling already-due timers; upgrade = require fire_at > now.
+                        return Ok(());
+                    }
+                }
             }
-        }
-        Ok(())
+            Ok(())
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn on_http_response(
@@ -623,32 +665,32 @@ impl SessionRunner {
         response: &HttpResponse,
         received: FrameStamp,
     ) -> Result<(), EngineError> {
-        self.inbound_frame_seq = self.inbound_frame_seq.saturating_add(1);
-        let frame_seq = self.inbound_frame_seq;
-        let payload = encode_http_response(request_id, response)?;
-        self.metrics.record_frame_received(payload.len());
-        self.record_frame(
-            frame_seq,
-            received.receive_ts.0,
-            received.mono_ns,
-            Direction::Inbound,
-            RecOpcode::HttpResponse,
-            &payload,
-        )?;
-        self.actions.clear();
-        let parse_t0 = std::time::Instant::now();
-        self.machine.on_input(
-            SessionInput::HttpResponse {
+        let result = (|| {
+            self.inbound_frame_seq = self.inbound_frame_seq.saturating_add(1);
+            let frame_seq = self.inbound_frame_seq;
+            let payload = encode_http_response(request_id, response)?;
+            self.metrics.record_frame_received(payload.len());
+            self.record_frame(
+                frame_seq,
+                received.receive_ts.0,
+                received.mono_ns,
+                Direction::Inbound,
+                RecOpcode::HttpResponse,
+                &payload,
+            )?;
+            self.actions.clear();
+            let parse_t0 = std::time::Instant::now();
+            self.deliver_machine_input(SessionInput::HttpResponse {
                 request_id,
                 response,
                 received,
-            },
-            &mut self.actions,
-        )?;
-        self.metrics
-            .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
-        self.note_action_buffer_drops()?;
-        self.apply_frame_actions(frame_seq, received.receive_ts)
+            })?;
+            self.metrics
+                .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
+            self.note_action_buffer_drops()?;
+            self.apply_frame_actions(frame_seq, received.receive_ts)
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn on_transport_lost(
@@ -656,25 +698,27 @@ impl SessionRunner {
         reason: DisconnectReason,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
-        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
-            session: self.cfg.session,
-            connection: self.cfg.connection,
-            now_ns: now.0,
-            connected: false,
-            reason: Some(format!("{reason:?};continuity_unverified")),
-        })?;
-        self.lifecycle = SessionLifecycle::Backoff;
-        self.invalidate_live_readiness();
-        self.timers.clear();
-        self.actions.clear();
-        self.machine.on_input(
-            SessionInput::Disconnected { reason, now },
-            &mut self.actions,
-        )?;
-        self.note_action_buffer_drops()?;
-        self.apply_actions(now)?;
-        self.reconnect_requested = false;
-        Ok(())
+        let result = (|| {
+            self.invalidate_live_readiness();
+            self.lifecycle = SessionLifecycle::Draining;
+            self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+                session: self.cfg.session,
+                connection: self.cfg.connection,
+                now_ns: now.0,
+                connected: false,
+                reason: Some(format!("{reason:?};continuity_unverified")),
+            })?;
+            self.lifecycle = SessionLifecycle::Backoff;
+            self.invalidate_live_readiness();
+            self.timers.clear();
+            self.actions.clear();
+            self.deliver_machine_input(SessionInput::Disconnected { reason, now })?;
+            self.note_action_buffer_drops()?;
+            self.apply_actions(now)?;
+            self.reconnect_requested = false;
+            Ok(())
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn note_reconnect(&self) {
@@ -699,13 +743,13 @@ impl SessionRunner {
         ) {
             return self.deliver_subscription_control(command, now);
         }
-        self.actions.clear();
-        self.machine.on_input(
-            SessionInput::Control { command: &command },
-            &mut self.actions,
-        )?;
-        self.note_action_buffer_drops()?;
-        self.apply_actions_with_system_policy(now, false)
+        let result = (|| {
+            self.actions.clear();
+            self.deliver_machine_input(SessionInput::Control { command: &command })?;
+            self.note_action_buffer_drops()?;
+            self.apply_actions_with_system_policy(now, false)
+        })();
+        self.settle_callback_result(result)
     }
 
     fn deliver_subscription_control(
@@ -713,45 +757,49 @@ impl SessionRunner {
         command: SessionCommand,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
-        if self.pending_writes.len() >= MAX_PENDING_WRITES {
-            return Err(DispatchError::FailEngine.into());
-        }
-
         // Preparation is side-effect free by contract. Recording and the
         // bounded queue reservation therefore complete before adapter-local
         // state is committed.
+        // A refused, side-effect-free preparation does not revoke the existing
+        // feed's admission. Failures after preparation are operational errors.
         let wire = self.machine.prepare_dynamic_subscription(&command)?;
-        let (pending, mirror) = match &wire {
-            SubscriptionWireAction::Text(payload) => (
-                OutboundFrame {
-                    opcode: FrameOpcode::Text,
-                    payload: payload.to_vec(),
-                },
-                SessionAction::SendText(payload.clone()),
-            ),
-            SubscriptionWireAction::Binary(payload) => (
-                OutboundFrame {
-                    opcode: FrameOpcode::Binary,
-                    payload: payload.to_vec(),
-                },
-                SessionAction::SendBinary(payload.clone()),
-            ),
-            SubscriptionWireAction::Ping(payload) => (
-                OutboundFrame {
-                    opcode: FrameOpcode::Ping,
-                    payload: payload.to_vec(),
-                },
-                SessionAction::SendPing(payload.clone()),
-            ),
-        };
-        self.record_subscription_command(&command, &wire, now)?;
-        self.pending_writes.push(pending);
-        self.machine.commit_dynamic_subscription(&command);
+        let result = (|| {
+            if self.pending_writes.len() >= MAX_PENDING_WRITES {
+                return Err(DispatchError::FailEngine.into());
+            }
+            let (pending, mirror) = match &wire {
+                SubscriptionWireAction::Text(payload) => (
+                    OutboundFrame {
+                        opcode: FrameOpcode::Text,
+                        payload: payload.to_vec(),
+                    },
+                    SessionAction::SendText(payload.clone()),
+                ),
+                SubscriptionWireAction::Binary(payload) => (
+                    OutboundFrame {
+                        opcode: FrameOpcode::Binary,
+                        payload: payload.to_vec(),
+                    },
+                    SessionAction::SendBinary(payload.clone()),
+                ),
+                SubscriptionWireAction::Ping(payload) => (
+                    OutboundFrame {
+                        opcode: FrameOpcode::Ping,
+                        payload: payload.to_vec(),
+                    },
+                    SessionAction::SendPing(payload.clone()),
+                ),
+            };
+            self.record_subscription_command(&command, &wire, now)?;
+            self.pending_writes.push(pending);
+            self.machine.commit_dynamic_subscription(&command);
 
-        // Mirrors remain diagnostic: once the authoritative frame is queued
-        // and adapter state committed, mirror saturation cannot roll it back.
-        let result = self.push_mirror_action(mirror);
-        self.settle_diagnostic_result(result, false)
+            // Mirrors remain diagnostic: once the authoritative frame is queued
+            // and adapter state committed, mirror saturation cannot roll it back.
+            let result = self.push_mirror_action(mirror);
+            self.settle_diagnostic_result(result, false)
+        })();
+        self.settle_callback_result(result)
     }
 
     pub fn push_system(&mut self, mut ev: SystemEvent) -> Result<(), EngineError> {

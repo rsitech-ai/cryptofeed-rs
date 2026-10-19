@@ -69,6 +69,29 @@ fn drive(s: &mut BybitSession, text: &str, ts: i64) -> ActionBuffer {
     out
 }
 
+fn startup_frames(generation: u64) -> [String; 2] {
+    [format!(r#"{{"op":"subscribe","success":true,"ret_msg":"","req_id":"b{generation:016x}-0000","conn_id":"l2-fixture"}}"#),
+    r#"{"topic":"orderbook.1.BTCUSDT","type":"snapshot","ts":1,"data":{"s":"BTCUSDT","b":[["100.00","1"]],"a":[["101.00","1"]],"u":10,"seq":100}}"#.into()]
+}
+fn startup_ack_quote(session: &mut BybitSession, generation: u64, at: i64) {
+    for frame in startup_frames(generation) {
+        let out = drive(session, &frame, at);
+        assert!(
+            !out.as_slice()
+                .iter()
+                .any(|a| matches!(a, SessionAction::MarkLive))
+        );
+    }
+}
+fn runner_ack_quote(runner: &mut SessionRunner, generation: u64, at: i64) {
+    for frame in startup_frames(generation) {
+        runner
+            .on_text_frame(&mut frame.into_bytes(), stamp(at))
+            .unwrap();
+    }
+    assert_ne!(runner.lifecycle, SessionLifecycle::Live);
+}
+
 #[test]
 fn ws_snapshot_then_deltas_go_live() {
     let mut s = l2_session();
@@ -80,6 +103,7 @@ fn ws_snapshot_then_deltas_go_live() {
         &mut out,
     )
     .unwrap();
+    startup_ack_quote(&mut s, 1, 1);
 
     out = drive(
         &mut s,
@@ -122,6 +146,14 @@ fn ws_snapshot_then_deltas_go_live() {
 #[test]
 fn multi_level_delta_validates_only_the_final_book() {
     let mut session = l2_session();
+    session
+        .on_input(
+            SessionInput::Connected {
+                now: TimestampNs(0),
+            },
+            &mut ActionBuffer::new(),
+        )
+        .unwrap();
     drive(
         &mut session,
         r#"{"topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":1,"data":{"s":"BTCUSDT","b":[["100.00","1.0"]],"a":[["101.00","1.0"]],"u":10,"seq":100}}"#,
@@ -159,6 +191,7 @@ fn spot_ws_snapshot_then_delta_goes_live() {
         &mut out,
     )
     .unwrap();
+    startup_ack_quote(&mut s, 1, 1);
 
     out = drive(
         &mut s,
@@ -209,6 +242,7 @@ fn exact_repeat_does_not_mutate_and_conflicting_repeat_requests_snapshot() {
         &mut out,
     )
     .unwrap();
+    startup_ack_quote(&mut s, 1, 1);
 
     drive(
         &mut s,
@@ -243,6 +277,15 @@ fn exact_repeat_does_not_mutate_and_conflicting_repeat_requests_snapshot() {
             .iter()
             .any(|a| matches!(a, SessionAction::Reconnect(ReconnectReason::Protocol)))
     );
+    let mut restarted = ActionBuffer::new();
+    s.on_input(
+        SessionInput::Connected {
+            now: TimestampNs(5),
+        },
+        &mut restarted,
+    )
+    .unwrap();
+    startup_ack_quote(&mut s, 2, 5);
     drive(
         &mut s,
         r#"{"topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":4,"data":{"s":"BTCUSDT","b":[["100.00","1.2"]],"a":[["101.00","1.0"]],"u":11,"seq":101}}"#,
@@ -279,6 +322,7 @@ fn u_equals_one_forces_snapshot_reset() {
         &mut out,
     )
     .unwrap();
+    startup_ack_quote(&mut s, 1, 1);
     drive(
         &mut s,
         r#"{"topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":1,"data":{"s":"BTCUSDT","b":[["100.00","1"]],"a":[["101.00","1"]],"u":50,"seq":1}}"#,
@@ -313,6 +357,7 @@ fn control_resync_reconnects_for_fresh_ws_snapshot() {
         &mut out,
     )
     .unwrap();
+    startup_ack_quote(&mut s, 1, 1);
     out.clear();
     s.on_input(
         SessionInput::Control {
@@ -350,6 +395,7 @@ async fn runner_ws_snapshot_then_live() {
     )
     .unwrap();
     runner.on_connected(TimestampNs(1)).unwrap();
+    runner_ack_quote(&mut runner, 1, 1);
 
     let mut snap =
         br#"{"topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":1,"data":{"s":"BTCUSDT","b":[["100.00","1"]],"a":[["101.00","1"]],"u":10,"seq":100}}"#
@@ -378,6 +424,7 @@ async fn rejected_ws_snapshot_requests_transport_reconnect() {
     )
     .unwrap();
     runner.on_connected(TimestampNs(1)).unwrap();
+    runner_ack_quote(&mut runner, 1, 1);
 
     let mut crossed =
         br#"{"topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":1,"data":{"s":"BTCUSDT","b":[["102.00","1"]],"a":[["101.00","1"]],"u":10,"seq":100}}"#
@@ -402,6 +449,7 @@ async fn control_resync_reconnects_and_waits_for_configured_depth_snapshot() {
     )
     .unwrap();
     runner.on_connected(TimestampNs(1)).unwrap();
+    runner_ack_quote(&mut runner, 1, 1);
     let initial_subscriptions = runner.take_pending_writes();
     assert!(initial_subscriptions.iter().any(|frame| {
         String::from_utf8_lossy(&frame.payload).contains("orderbook.200.BTCUSDT")
@@ -424,6 +472,7 @@ async fn control_resync_reconnects_and_waits_for_configured_depth_snapshot() {
         .on_transport_lost(DisconnectReason::RemoteClose, TimestampNs(4))
         .unwrap();
     runner.on_connected(TimestampNs(5)).unwrap();
+    runner_ack_quote(&mut runner, 2, 5);
     let reconnect_subscriptions = runner.take_pending_writes();
     assert!(reconnect_subscriptions.iter().any(|frame| {
         String::from_utf8_lossy(&frame.payload).contains("orderbook.200.BTCUSDT")

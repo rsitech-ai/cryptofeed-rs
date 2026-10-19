@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "status": "focused-final-source-checks-passed; workspace and bounded daemon evidence pending",
+  "source_inputs": {
+    "base": "81d7ee549a161560088bea05c231708c88888a3a",
+    "files": [
+      {
+        "path": "Cargo.lock",
+        "sha256": "edcf1ad94a05a6c2a6e88f477d5b08584f72f248340afb1409c350fc4829e20b"
+      },
+      {
+        "path": "crates/adapters/bybit/Cargo.toml",
+        "sha256": "78e4f317efacbadcdc6aa7a074e5c223c35880c1fd7ba97f3899080388ad8cfc"
+      },
+      {
+        "path": "crates/adapters/bybit/README.md",
+        "sha256": "be064d4d998739fb717497180841f00804aaa5d2cc7c74d512758f2046e768a3"
+      },
+      {
+        "path": "crates/adapters/bybit/src/lib.rs",
+        "sha256": "bda6edb656bc153252b1795cff8050259fbd0fb8f9244cedd2938457a9260bf9"
+      },
+      {
+        "path": "crates/adapters/bybit/src/messages.rs",
+        "sha256": "bd8c046bdbc2196ce5e71f57ae6be28e5edeb76add74ff8ce7a9507b9b31d47d"
+      },
+      {
+        "path": "crates/adapters/bybit/src/session.rs",
+        "sha256": "21b0928e58df7e6c56cc4cf13cc9a67e8a078eb1f770cf7b3327006072d2971b"
+      },
+      {
+        "path": "crates/adapters/bybit/src/specification.rs",
+        "sha256": "1cc21e242d86b1982038925a6565e8c5780d7a3a5cdf96d7065b64d49019c767"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/book_semantics.rs",
+        "sha256": "bead1e29628c26bc4edc804fff36820144dd01f5dcd2eed117f31561ede262a6"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/corpus/inverse_l2_book_correlated_v1.mfr",
+        "sha256": "a3a71b65d692f2c0c06f3e18460d8ecfcad8338f318766b4df85f980afef9efb"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/corpus/linear_l2_book_correlated_v1.mfr",
+        "sha256": "205dc8c268d9fb72a871d544811e99a7c910a4a7e7819c104d4441ad69455341"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/corpus/linear_trade_quote_correlated_v1.mfr",
+        "sha256": "05631ba734045b5b27e9f7ec465099f0162b0fd37873cd349ec37deb7018b032"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/corpus_replay.rs",
+        "sha256": "5b21f62ae3ece5b7105420deae6ce94b8b4a8758b85a3afd74a276e84b393674"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/fixtures.rs",
+        "sha256": "ab3e4ea5eacf268daa599636c093a5cb0137ed0a9432d55d45cab8b4fa4a100a"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/l2_sync.rs",
+        "sha256": "43c993b5e95aaaa0c0548573e8810be398c1c9dfc9a66ec5398382f501980f95"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/liquidation_semantics.rs",
+        "sha256": "b2a0e010e5b21824b78305e306a5b3e9a16f8e03a28679daf2348fae65484193"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/native_semantics.rs",
+        "sha256": "3f8db2e7edae0d6ba9ce01a3f38db2467d9419478211b7a41d2464dc1a7dae4d"
+      },
+      {
+        "path": "crates/adapters/bybit/tests/readiness.rs",
+        "sha256": "2222c96a9659b8faafb4d526116e0ea2932446c4c5ee0c1ce28331dc6e47349e"
+      },
+      {
+        "path": "crates/engine/src/runner.rs",
+        "sha256": "6098773b0555c287441a9123776b7c62645c904f0e86e0c5f69dc38462c09bfc"
+      },
+      {
+        "path": "crates/engine/tests/runner_readiness_errors.rs",
+        "sha256": "8d1d07cf7e19495f8eeb5c448d3d7fb6b00fb3534086d40da4958a59747c507f"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "check": "targeted14",
+      "command": "cargo test -p marketfeed-adapter-bybit --test readiness",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-targeted-02.log",
+      "sha256": "1507494b14c74536d64ccbc52b943b9c70fe195e99ded8d23c941a2d3691d260",
+      "test_counts_seen": {
+        "passed": 14,
+        "failed": 0,
+        "ignored": 0
+      },
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "corpus-final",
+      "command": "cargo test --locked -p marketfeed-adapter-bybit --test corpus_replay",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-corpus-final-01.log",
+      "sha256": "3317fff29990b787b5cda6e2a2e4927d8dde045518efdd1ab7b8413a4f5613b3",
+      "test_counts_seen": {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 3
+      },
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "final-targets",
+      "command": "cargo test --locked -p marketfeed-engine -p marketfeed-adapter-bybit --all-targets --all-features",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-final-targets-01.log",
+      "sha256": "e37cb897e89e565aa64f53760045df66eafe6bd096e4a8fbf6989e29366f7c2d",
+      "test_counts_seen": {
+        "passed": 178,
+        "failed": 0,
+        "ignored": 4
+      },
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "workspace-intermediate",
+      "command": "cargo test --locked --workspace --all-targets --all-features",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-workspace-01.log",
+      "sha256": "2dbf345149091bd56bd66e3d29d2e0d2507db468f62ae8f2051bad12e74bf32b",
+      "test_counts_seen": {
+        "passed": 441,
+        "failed": 0,
+        "ignored": 40
+      },
+      "completion": "exploratory run still in progress; source changed while compiling; not final-source qualification"
+    },
+    {
+      "check": "clippy",
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-clippy-final-01.log",
+      "sha256": "29162d76fb109d9c6005d8544d63a4a438d15235d4f9b8e73d51adc9ba6e95d7",
+      "test_counts_seen": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      },
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "rustdoc",
+      "command": "RUSTDOCFLAGS=-Dwarnings cargo doc --locked --workspace --all-features --no-deps",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-docs-02.log",
+      "sha256": "fa5c4653b4c17fbe542e478f46c686b9c598afe580deb3805caefde62168fc35",
+      "test_counts_seen": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      },
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "msrv",
+      "command": "cargo +1.85.0 test --locked -p marketfeed-engine -p marketfeed-adapter-bybit --lib",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-msrv-02.log",
+      "sha256": "6ae00ad775e3e9b16a382ce9bba2f1fd3bc7b311dc961aeac5a50f7e98afddbd",
+      "test_counts_seen": {
+        "passed": 36,
+        "failed": 0,
+        "ignored": 0
+      },
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "oss",
+      "command": "PATH=<local-tools>:$PATH bash scripts/check-oss-readiness.sh",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-oss-01.log",
+      "sha256": "4ce249350beb98613f8d7898da21f1a5dd99a0217a27f7452627915acc3768c9",
+      "test_counts_seen": {
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0
+      },
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "deny",
+      "command": "PATH=<local-tools>:$PATH cargo deny check",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-deny-01.log",
+      "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+      "completion": "completed",
+      "exit_code": 0
+    },
+    {
+      "check": "daemon-build",
+      "command": "cargo build --locked -p marketfeed-daemon --bin marketfeed",
+      "log": ".local/evidence/hyperliquid-integration-review/bybit-readiness-daemon-build-01.log",
+      "sha256": "415c727281153858939257e1046c59cca9b7fb81cb29094b0c37e5fd01fce09e",
+      "completion": "completed",
+      "exit_code": 0
+    }
+  ],
+  "retained_failed_attempts": [
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-cold-red-01.log",
+      "sha256": "7546b20ff5eb9eef6e1152dec227aea89699b3e873de485c7193ab724f48caf0",
+      "bytes": 918
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-engine-red-01.log",
+      "sha256": "819d1a686651624fd72952c6114bb349d6fe127e180ffd69e485ec8038e922f3",
+      "bytes": 789
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-clippy-02.log",
+      "sha256": "a829d03fd38a55a5bb9514f869483aad408fefda671e64e2c7e573274941af25",
+      "bytes": 2814
+    },
+    {
+      "path": ".local/evidence/hyperliquid-integration-review/bybit-liquidation-ci-windows-job-01.log",
+      "sha256": "5306a157928e808a190443d29f345ca089b812bb5c6ca38d41d0029445d79a38",
+      "bytes": 158212
+    }
+  ],
+  "strict_dataset_admitted": false,
+  "windows_durability_verified": false,
+  "operational_promotion": false
+}
