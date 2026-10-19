@@ -30,7 +30,7 @@ struct Intent {
 
 pub struct Store {
     root: PathBuf,
-    _lock: File,
+    _lock: Option<File>,
 }
 fn sync_dir(path: &Path) -> Result<()> {
     File::open(path)?.sync_all()?;
@@ -90,12 +90,38 @@ impl Store {
         if let Some(parent) = root.parent().filter(|p| !p.as_os_str().is_empty()) {
             sync_dir(parent)?;
         }
-        Ok(Self { root, _lock: lock })
+        Ok(Self {
+            root,
+            _lock: Some(lock),
+        })
+    }
+    /// Read an existing immutable publication without creating files, requiring
+    /// write access, taking the writer lock, syncing or recovering anything.
+    /// Pinned manifests and objects are hash checked on every read. Concurrent
+    /// publication can advance HEAD atomically without changing pinned bytes.
+    pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self> {
+        let root = root.as_ref().to_path_buf();
+        for path in [root.clone(), root.join("objects"), root.join("manifests")] {
+            let metadata = fs::symlink_metadata(path)?;
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err(fail("existing regular store directories required"));
+            }
+        }
+        Ok(Self { root, _lock: None })
+    }
+    fn require_writer(&self) -> Result<()> {
+        if self._lock.is_none() {
+            return Err(fail(
+                "read-only dataset store cannot mutate publication state",
+            ));
+        }
+        Ok(())
     }
     pub fn root(&self) -> &Path {
         &self.root
     }
     pub fn put(&self, bytes: &[u8]) -> Result<ObjectRef> {
+        self.require_writer()?;
         if bytes.len() as u64 > MAX_OBJECT {
             return Err(fail("object exceeds resource bound"));
         }
@@ -109,6 +135,7 @@ impl Store {
         })
     }
     fn immutable(&self, relative: &str, bytes: &[u8]) -> Result<()> {
+        self.require_writer()?;
         let path = self.root.join(relative);
         if path.exists() {
             if read_bounded(&path, MAX_OBJECT)? != bytes {
@@ -241,6 +268,7 @@ impl Store {
         )
     }
     pub fn publish(&self, manifest: Value, expected_parent: Option<&str>) -> Result<String> {
+        self.require_writer()?;
         self.recover()?;
         if self.head()?.as_deref() != expected_parent {
             return Err(fail("manifest parent CAS failed"));
@@ -264,6 +292,7 @@ impl Store {
         Ok(hash)
     }
     fn write_intent(&self, intent: &Intent) -> Result<()> {
+        self.require_writer()?;
         let bytes = serde_json::to_vec(intent)?;
         if bytes.len() as u64 > MAX_MANIFEST + 4096 {
             return Err(fail("publication intent too large"));
@@ -290,6 +319,7 @@ impl Store {
         sync_dir(&self.root)
     }
     pub fn recover(&self) -> Result<Option<String>> {
+        self.require_writer()?;
         let path = self.root.join("publication.intent.json");
         if !path.exists() {
             return Ok(None);
@@ -456,6 +486,32 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn read_only_store_never_creates_or_recovers_and_does_not_take_writer_lock() {
+        let temp = tempfile::tempdir().unwrap();
+        let missing = temp.path().join("missing");
+        assert!(Store::open_read_only(&missing).is_err());
+        assert!(!missing.exists());
+        let incomplete = temp.path().join("incomplete");
+        fs::create_dir(&incomplete).unwrap();
+        assert!(Store::open_read_only(&incomplete).is_err());
+        assert_eq!(fs::read_dir(&incomplete).unwrap().count(), 0);
+        let root = temp.path().join("complete");
+        let writer = Store::open(&root).unwrap();
+        let first = manifest(&writer, None, "published");
+        let pin = writer.publish(first.clone(), None).unwrap();
+        let reader = Store::open_read_only(&root).unwrap();
+        assert_eq!(reader.published_manifest(&pin).unwrap(), first);
+        assert!(reader.put(b"must-not-exist").is_err());
+        assert!(reader.publish(serde_json::json!({}), Some(&pin)).is_err());
+        assert!(reader.recover().is_err());
+        assert!(!root.join("publication.intent.json").exists());
+        drop(writer);
+        fs::remove_file(root.join("writer.lock")).unwrap();
+        let reader = Store::open_read_only(&root).unwrap();
+        assert_eq!(reader.published_manifest(&pin).unwrap(), first);
+        assert!(!root.join("writer.lock").exists());
+    }
     #[test]
     fn interrupted_intent_staging_never_becomes_a_recovery_authority() {
         for bytes in [

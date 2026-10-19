@@ -9,6 +9,6 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Finish Binance feed-integrity repairs in cryptofeed-rs; then implement time-qualified strategy context through existing rsibot/Quants Lab and Hummingbot owner boundaries.",
+  "current_slice": "Verify and preserve the rsibot/Quants Lab manifest boundary and read-only cryptofeed dataset reader; then implement separately versioned time-qualified continuous observations in Quants Lab. Binance repair committed; strict profiles remain denied.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)"
 }

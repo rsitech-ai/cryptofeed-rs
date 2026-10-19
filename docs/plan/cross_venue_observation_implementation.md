@@ -34,7 +34,9 @@ No second strategy engine, research platform or exchange collector is authorized
 Hyperliquid spot/perps shared capture, saved replay and bounded dataset recovery
 have measured evidence in the companion ledger. Strict research admission is
 still denied. Numeric venue and OKX batch/finality/readiness repairs are tested;
-Binance provenance/classification repair is underway. None of this establishes
+Binance provenance/classification repair is committed at8fb517d; the first
+rsibot/Quants Lab manifest boundary is locally implemented and independently
+reviewed, including real read-only-copy integrity and strict denial checks. None of this establishes
 cross-venue alpha, whole-window continuity or sustained operational promotion.
 
 ## Implementation sequence and acceptance

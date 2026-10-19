@@ -31,13 +31,20 @@ target/debug/marketfeed-dataset restore --store data/backup-new --manifest MANIF
 target/debug/marketfeed-dataset recover --store data/store
 ```
 
-The store uses an exclusive OS lock, immutable SHA256 objects and manifests,
+Writers use an exclusive OS lock, immutable SHA256 objects and manifests,
 parent compare-and-swap, synced intent publication and atomic HEAD replacement.
 Recovery finishes published intents idempotently; unreferenced staging files do
 not authorize publication. Backup/restore verifies the pinned ancestry and all
 referenced objects into a new destination. Existing destinations are refused.
 Disk/filesystem sync errors fail the operation; actual power-loss durability also
 depends on the filesystem and hardware honoring sync semantics.
+
+Inspection, admission and the source of backup/restore open existing stores read-only.
+They create no directories or lock files, perform no recovery or sync, and do not
+acquire the writer lock. Pinned immutable objects remain hash-checked while another
+writer publishes a new HEAD. Missing or incomplete stores fail without creating
+anything. Backup/restore still requires a fresh writable destination; export and
+recovery require writer authority.
 
 Parquet coefficients are **signed 16-byte big-endian integers with separate uint8
 scales**, preserving the full i128 and scale domains. They are not Decimal128 or

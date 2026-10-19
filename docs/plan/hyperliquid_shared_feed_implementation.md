@@ -431,8 +431,8 @@ storage, integrity and operational work remains active. New scope covers data
 feasibility, causal context/feature contracts, source alias/quote/unit semantics,
 small qualified observation sets, owner bridge and separately gated model/ETF
 hypotheses. No economic, model or deployment result is implied. Integrity repairs
-remain the immediate prerequisite; current Binance changes are uncommitted and
-under test, followed by the additive descriptive observation boundary.
+remain the immediate prerequisite; Binance repair is committed at8fb517d, followed by the additive rsibot-owned
+manifest observation boundary.
 
 
 Placement clarification: the user asked that strategy context live in rsibot.
@@ -448,7 +448,7 @@ contract and must not masquerade as a listing/OTHER announcement event.
 
 ## Binance trade semantics repair checkpoint
 
-Current uncommitted repair retains source trade vs aggregate granularity and
+Repair8fb517d retains source trade vs aggregate granularity and
 namespaced aggregate IDs, f/l bounds, nq, st, X and E/T. No execution count is
 inferred from ranges. Source trade IDs no longer impersonate sequence continuity.
 Spot native trades use documented individual granularity; legacy futures trade
@@ -482,5 +482,43 @@ It invokes the pinned trusted Rust dataset validator, rather than duplicating
 its security/financial checks. It does not load controllers or run economics.
 Existing data_sources eager imports require an unavailable Hummingbot package,
 so an opt-in pure market_observations package preserves that legacy initializer.
-Six boundary tests plus four subprocess failure subcases pass; real saved-data
-validation/admission smoke and independent consumer review are in progress.
+The completed slice and its measured validation limits are recorded in the
+following checkpoint.
+
+
+## rsibot consumer boundary and read-only dataset checkpoint
+
+The first opt-in Quants Lab slice validates exact manifest identity through a
+SHA256-pinned Rust executable and distinguishes integrity inspection from strict
+profile admission. It uses no exchange client, Hummingbot import, financial float
+conversion, controller, model or economic run. Nine Python tests plus six
+subprocess subcases pass; Black/isort and compile checks pass. Independent review
+closed FIFO blocking, scalar identity, read-only-store and receipt-provenance
+findings. A prior FIFO test pathname-transition failure remains in local logs
+with its OS cause unproven; independent fresh fixtures preserve bounded rejection
+checks and pass both verification runs.
+
+Rust Store::open_read_only now requires existing regular store directories and
+never creates files/locks, syncs, recovers or acquires the writer lock. CLI inspect,
+admit and backup/restore sources use this path; mutation methods reject a reader.
+Fifteen dataset tests pass, including reads under an existing writer lock and
+missing/incomplete-store CLI failure without resource creation. Clippy and
+Rust1.88 package checks passed.
+
+A separate read-only copy of the existing saved capture passed real consumer
+inspection (2666 rows), all five strict profiles denied, unchanged complete store
+byte/path inventory, denied write probe and no writer.lock creation. Exact
+manifest, executable, source-parent and patch hashes are retained in
+docs/evidence/quants-manifest-boundary-2026-10-19/readonly-boundary-smoke.json.
+The original capture and frozen research corpus were untouched. This is
+Hyperliquid integrity evidence only; OKX trade-reader compatibility, continuous
+context/features, models, economics and calendar canaries remain pending.
+Quants work stays local in its isolated owner branch, without root gitlink changes.
+
+The Quants CLI also passed the real read-only-copy boundary: default30s inspector
+deadline, exit0 with2666 verified rows and exit2 for signed-execution-flow refusal;
+complete store byte/path inventory unchanged and no writer.lock. CLI receipts
+with canonical local paths stay in ignored task evidence.
+
+Quants boundary is committed locally at97e034c on its isolated owner branch.
+No Quants push/PR, root pointer update or publication was performed.

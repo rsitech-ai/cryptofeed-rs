@@ -46,7 +46,11 @@ fn run() -> Result<()> {
             .map(String::as_str)
             .ok_or_else(|| fail(&format!("missing {key}")))
     };
-    let store = Store::open(get("--store")?)?;
+    let store = if matches!(command.as_str(), "export" | "recover") {
+        Store::open(get("--store")?)?
+    } else {
+        Store::open_read_only(get("--store")?)?
+    };
     match command.as_str() {
         "export" => {
             let parent = get("--expected-parent")?;
@@ -88,7 +92,7 @@ fn run() -> Result<()> {
             export::verify_manifest(&store, &store.published_manifest(pin)?)?;
             let destination = Path::new(get("--destination")?);
             store.backup_to(pin, destination)?;
-            let restored = Store::open(destination)?;
+            let restored = Store::open_read_only(destination)?;
             export::verify_manifest(&restored, &restored.published_manifest(pin)?)?;
             println!(
                 "{}",
