@@ -320,6 +320,8 @@ pub struct ReadinessConfig {
     pub require_running: bool,
     #[serde(default = "default_true")]
     pub require_required_venues: bool,
+    /// Legacy name: counts configured venue groups; each group is live only
+    /// when every planned child transport session is live.
     #[serde(default)]
     pub min_live_sessions: u32,
     #[serde(default)]
@@ -1318,9 +1320,9 @@ impl DaemonConfig {
                 "shared_max_bytes requires shared_directory".into(),
             ));
         }
-        if self.readiness.min_live_sessions > 0 && self.venues.is_empty() {
+        if self.readiness.min_live_sessions as usize > self.venues.len() {
             return Err(ConfigError::Validation(
-                "impossible readiness: min_live_sessions > 0 but no venues".into(),
+                "impossible readiness: min_live_sessions exceeds configured venue groups (each group requires all child sessions)".into(),
             ));
         }
         if self.readiness.require_recording_healthy && !self.recording.raw.enabled {
@@ -2290,6 +2292,31 @@ bind = \"0.0.0.0:9108\"
         "#,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn readiness_minimum_counts_venue_groups_not_child_transports() {
+        let source = r#"
+            [readiness]
+            min_live_sessions = 2
+            [[venues]]
+            id = "okx-spot"
+            adapter = "okx"
+            symbols = ["BTC-USDT"]
+            channels = ["trades", "candles"]
+        "#;
+        let error = DaemonConfig::from_toml_str(source).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("exceeds configured venue groups")
+        );
+        assert!(
+            DaemonConfig::from_toml_str(
+                &source.replace("min_live_sessions = 2", "min_live_sessions = 1")
+            )
+            .is_ok()
         );
     }
 

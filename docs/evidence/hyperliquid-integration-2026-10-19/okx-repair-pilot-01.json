@@ -1,0 +1,165 @@
+{
+  "schema_version": 1,
+  "plan": {
+    "schema_version": 1,
+    "created_utc": "2026-10-19T20:45:38.578431+00:00",
+    "wall_cap_secs": 30,
+    "shutdown_cap_secs": 15,
+    "journal_cap_bytes": 67108864,
+    "source": "production global OKX public/business on443; physical region unknown",
+    "symbols": [
+      "BTC-USDT",
+      "BTC-USDT-SWAP",
+      "BTC-USD-261030"
+    ],
+    "requested_channels": [
+      "trades",
+      "trades-all",
+      "candle1m",
+      "books",
+      "tickers"
+    ],
+    "session_count": 6,
+    "acceptance": {
+      "all_6_sessions_live": true,
+      "parse_or_unknown_or_gap_errors": 0,
+      "every_native_trade_row_matches_canonical": true,
+      "explicit_native_channel_granularity_preserved": true,
+      "complete_ack_ledger": true,
+      "candle_finality_preserved": true,
+      "clean_shutdown": true
+    },
+    "observation_limit": "quiet trade/candle channels may produce no rows; report not-observed instead of passing trade coverage; no continuity proof, no strict dataset qualification"
+  },
+  "receipt": {
+    "start_utc": "2026-10-19T20:45:55.259660+00:00",
+    "source": "6478a659932c3fd2446fa43997def5f5c70a633b",
+    "source_clean": true,
+    "binary_sha256": "5398deedf9e495387fbeab552f5c3aae24df52eb02fba88d5355aade8cd3251a",
+    "config_sha256": "60ed7b1fc9202469141d18943a176054f642931d19285f920884730598cc9eaa",
+    "health": [
+      {
+        "error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "error": "HTTP Error 503: "
+      }
+    ],
+    "exit": 0,
+    "end_utc": "2026-10-19T20:46:25.780151+00:00"
+  },
+  "audit": {
+    "schema_version": 1,
+    "records": {
+      "metadata": 7,
+      "artifact": 2,
+      "catalog_response": 3,
+      "connection": 12,
+      "frame": 1192,
+      "system": 33,
+      "batch": 1171,
+      "frame_accepted": 1180,
+      "timer": 6,
+      "seal": 1
+    },
+    "session_venues": {
+      "1": 10,
+      "2": 10,
+      "3": 9,
+      "4": 9,
+      "5": 4,
+      "6": 4
+    },
+    "native_rows_by_venue_channel": {
+      "9:trades-all": 65,
+      "9:candle1m": 17,
+      "4:candle1m": 16,
+      "10:candle1m": 5,
+      "4:tickers": 176,
+      "9:tickers": 176,
+      "10:tickers": 71,
+      "10:books": 63,
+      "9:books": 264,
+      "4:books": 232,
+      "4:trades-all": 37,
+      "4:trades": 18,
+      "9:trades": 19
+    },
+    "native_trade_rows": 139,
+    "native_candle_rows": 38,
+    "unaccepted_text_frames": 0,
+    "difference_count": 0,
+    "difference_examples": [],
+    "pending_acks_by_session": {
+      "4": [],
+      "6": [],
+      "2": [],
+      "5": [],
+      "3": [],
+      "1": []
+    },
+    "errors": [],
+    "checks_passed": true,
+    "continuity": "unverified; exact observed rows and ACKs do not prove complete source delivery",
+    "sha256": "63228cb4588c4e1a3787e4727e1d176f8bea4583102e3fbe5ffbf86b44b6f9f1"
+  },
+  "readiness_disposition": "failed configuration: threshold6 exceeds3 configured venue groups. Each group requires all planned sockets, not one socket. New validation rejects this threshold. Preserve this failed pilot; use threshold3 in a separate run.",
+  "unobserved": [
+    "No dated-futures trades or trades-all rows during30s; ACK/candle/book observation does not verify those trade streams."
+  ],
+  "source_docs": [
+    {
+      "url": "https://www.okx.com/docs-v5/en/",
+      "accessed": "2026-10-19"
+    },
+    {
+      "url": "https://www.okx.com/docs-v5/log_en/",
+      "accessed": "2026-10-19",
+      "purpose": "443 support and8443 retirement notice"
+    }
+  ],
+  "qualification": "No continuity or research profile qualification.",
+  "oracle_review_corrections": [
+    "Compare candle interval, envelope timestamp and absence of sequence independently.",
+    "Retain incomplete ACK generations across reconnects."
+  ]
+}

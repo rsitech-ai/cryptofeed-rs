@@ -378,3 +378,32 @@ executions, Clippy, rustdoc, packaging/public scans, matching soak runtime hash
 and local release artifact smoke. Immutable shared pin and dependency-source
 checks pass. Hlscreen PR21 is pushed throughd5a26dd. No calendar-spaced canaries,
 24h or7d operational soak was run, and the active goal remains unfinished.
+
+
+## OKX production probe and readiness configuration correction
+
+At source6478a65, a30s global-endpoint public/business probe selected BTC-USDT,
+BTC-USDT-SWAP and catalog-resolved BTC-USD-261030. All6 socket ACK ledgers
+completed,3 books synchronized and the daemon sealed/drained with exit0. The
+independent audit compared139 native trade rows and38 native candle rows against
+canonical exact values, IDs, side/time, channel granularity, native count/source/
+seqId and candle finality/volumes: zero mismatches, zero unaccepted text frames,
+zero parse/drop/gap/unknown source events. Spot/swap trades and trades-all were
+observed; dated-futures trades were not observed and remain unverified live.
+
+All readiness polls returned503 because the pilot incorrectly requested
+min_live_sessions6 for3 venue groups. The legacy option counts venue groups;
+each is live only after every planned child session is live. This was a pilot
+configuration failure. Validation now rejects thresholds above venue count and
+ADR0009 documents the semantics. A corrected separate probe is pending. The
+independent oracle has mutation challenges for count/granularity/side/time/
+price, duplicate or missing canonical ordinals, missing ACKs and fake sequences.
+All36 Python audit tests pass. Independent review found two oracle omissions:
+candle interval/envelope-time/sequence and incomplete earlier ACK generations.
+Both now have comparisons and adversarial regressions; the frozen pilot still
+passes all compared fields. Tracked receipts preserve the failed pilot.
+
+Final pre-followup broad gate:1192 passed,56 intentionally ignored; full Clippy,
+rustdoc, dependency advisories/bans/licenses/sources, OSS scan and Rust1.85
+relevant library110 tests pass. The later readiness configuration followup has
+its own daemon tests; it does not invalidate the prior compiled runtime probe.
