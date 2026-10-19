@@ -15,9 +15,7 @@ use marketfeed_model::{
     SequenceRange, SessionId, Statistics24h, SystemEvent, TimestampNs, Trade,
 };
 
-use crate::messages::{
-    DecodedEvent, decode_text, kline_stream_interval, level_op, to_book_levels, trade_id_source,
-};
+use crate::messages::{DecodedEvent, decode_text, kline_stream_interval, level_op, to_book_levels};
 use crate::specification::{BINANCE_SPOT_VENUE_ID, HEARTBEAT_TIMEOUT_MS, HEARTBEAT_TIMER_ID};
 
 const SCHEMA_VERSION: u16 = 1;
@@ -260,6 +258,7 @@ impl BinanceSpotSession {
             DecodedEvent::Trade {
                 symbol,
                 trade_id,
+                provenance,
                 price,
                 quantity,
                 aggressor,
@@ -273,17 +272,14 @@ impl BinanceSpotSession {
                     0,
                     received,
                     Some(exchange_ts_ms),
-                    Some(SequenceRange {
-                        first: trade_id,
-                        last: trade_id,
-                    }),
+                    None,
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
-                        provenance: None,
+                        provenance: Some(provenance.clone()),
                         price,
                         quantity,
                         aggressor,
-                        trade_id: Some(trade_id_source(trade_id)),
+                        trade_id: Some(crate::trade_semantics::identity(trade_id, &provenance)),
                     }),
                 );
                 output.push(SessionAction::EmitBatch(EventBatch {

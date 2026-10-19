@@ -39,6 +39,98 @@ impl SessionMachine for WrongIdentity {
         Ok(())
     }
 }
+
+struct ExcludedRecord;
+impl SessionMachine for ExcludedRecord {
+    fn on_input(
+        &mut self,
+        input: SessionInput<'_>,
+        out: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        if matches!(input, SessionInput::TextFrame { .. }) {
+            out.push(SessionAction::EmitSystem(SystemEvent::TradeRecordExcluded(
+                Box::new(TradeRecordExclusion {
+                    venue: VenueId(999),
+                    session: SessionId(999),
+                    connection: ConnectionId(999),
+                    frame_seq: 999,
+                    instrument: Some(InstrumentId(1)),
+                    source_channel: "trade".into(),
+                    native_id: SourceId("7".into()),
+                    reason: "native_type_not_admitted:NA".into(),
+                    native_attributes: [("p".into(), "0.000".into()), ("X".into(), "NA".into())]
+                        .into(),
+                }),
+            )));
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn excluded_native_record_is_counted_and_durable_with_original_runtime_scope() {
+    use std::sync::atomic::Ordering;
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().join("excluded-feed");
+    let feed = FeedHandle::new(FeedWriter::create(&dir, 1_000_000).unwrap());
+    let mut runner = SessionRunner::new(
+        Box::new(ExcludedRecord),
+        SessionRunnerConfig {
+            venue: VenueId(3),
+            session: SessionId(33),
+            shared_feed: Some(feed),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let stamp = FrameStamp {
+        receive_ts: TimestampNs(22),
+        mono_ns: 17,
+    };
+    runner.on_connected(TimestampNs(10)).unwrap();
+    runner.drain_dispatch();
+    runner.on_ping_frame(b"p", stamp).unwrap();
+    runner
+        .on_text_frame(&mut b"original excluded payload".to_vec(), stamp)
+        .unwrap();
+    assert_eq!(
+        runner
+            .metrics
+            .trade_records_excluded
+            .load(Ordering::Relaxed),
+        1
+    );
+    assert!(
+        runner
+            .metrics
+            .prometheus_text()
+            .contains("marketfeed_trade_records_excluded_total 1")
+    );
+    let mut reader = FeedReader::open(&dir, None).unwrap();
+    let mut excluded = None;
+    let mut accepted = false;
+    while let Some(record) = reader.read_next().unwrap() {
+        match record {
+            FeedRecord::System {
+                event: SystemEvent::TradeRecordExcluded(record),
+                ..
+            } => excluded = Some(record),
+            FeedRecord::FrameAccepted {
+                session: SessionId(33),
+                frame_seq: 2,
+            } => accepted = true,
+            _ => {}
+        }
+    }
+    let record = excluded.expect("durable classified source record");
+    assert_eq!(
+        (record.venue, record.session, record.frame_seq),
+        (VenueId(3), SessionId(33), 2)
+    );
+    assert_ne!(record.connection, ConnectionId(999));
+    assert_eq!(record.native_attributes["p"], "0.000");
+    assert!(accepted);
+}
 #[test]
 fn runtime_identity_original_ordinal_and_reconnect_generation_are_recorded() {
     let temp = tempfile::tempdir().unwrap();

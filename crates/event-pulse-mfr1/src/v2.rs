@@ -766,8 +766,17 @@ fn provenance_for(
                 },
             )))
         }
-        (BinanceMfr1RouteV2::Market, UsdmDecoded::AggTrade { symbol, agg_id, .. })
-            if symbol == "BNBUSDT" && agg_id <= i64::MAX as u64 =>
+        (
+            BinanceMfr1RouteV2::Market,
+            UsdmDecoded::AggTrade {
+                symbol,
+                agg_id,
+                provenance,
+                ..
+            },
+        ) if symbol == "BNBUSDT"
+            && provenance.source_channel == "aggTrade"
+            && agg_id <= i64::MAX as u64 =>
         {
             Ok(Some((
                 direct,
@@ -948,6 +957,7 @@ impl TransformStateV2 {
                 let provenance = ledger
                     .remove(&key)
                     .ok_or(Mfr1TransformErrorV2::ProvenanceLedger)?;
+                let envelope = legacy_v2_trade_projection(envelope, &provenance)?;
                 let input = MechanicsInputV2::market(
                     envelope,
                     action_index,
@@ -1070,6 +1080,45 @@ fn consume_batch_provenance(
     Ok(())
 }
 
+/// Explicit compatibility projection for the frozen v2 wire contract only.
+/// Authoritative shared-feed envelopes retain the richer native fields. V2's
+/// historical sequence-named cursor stores an aggregate ID, not execution
+/// continuity; v2 cannot expose the full new provenance without a new schema.
+fn legacy_v2_trade_projection(
+    mut envelope: EventEnvelope,
+    source: &SourceProvenanceV2,
+) -> Result<EventEnvelope, Mfr1TransformErrorV2> {
+    if let MarketEvent::Trade(trade) = &mut envelope.payload {
+        let native = trade
+            .provenance
+            .as_ref()
+            .ok_or(Mfr1TransformErrorV2::Provenance)?;
+        let id = native
+            .native_attributes
+            .get("a")
+            .and_then(|v| v.parse::<u64>().ok())
+            .ok_or(Mfr1TransformErrorV2::Provenance)?;
+        if native.source_channel != "aggTrade"
+            || native.granularity != marketfeed_model::TradeGranularity::NativeAggregate
+            || envelope.source_sequence.is_some()
+            || trade
+                .trade_id
+                .as_ref()
+                .is_none_or(|native| native.0 != format!("aggTrade:{id}"))
+            || !matches!(source, SourceProvenanceV2::BinanceAggregateTrade { aggregate_trade_id, .. } if *aggregate_trade_id == id)
+        {
+            return Err(Mfr1TransformErrorV2::Provenance);
+        }
+        trade.provenance = None;
+        trade.trade_id = Some(marketfeed_model::SourceId(id.to_string()));
+        envelope.source_sequence = Some(marketfeed_model::SequenceRange {
+            first: id,
+            last: id,
+        });
+    }
+    Ok(envelope)
+}
+
 fn market_key_cursor(
     envelope: &EventEnvelope,
     direct_key: Option<&LedgerKey>,
@@ -1088,7 +1137,35 @@ fn market_key_cursor(
                 },
             ))
         }
-        MarketEvent::BookSnapshot(_) | MarketEvent::Trade(_) => {
+        MarketEvent::Trade(trade) => {
+            let key = direct_key
+                .cloned()
+                .ok_or(Mfr1TransformErrorV2::ProvenanceLedger)?;
+            let source = trade
+                .provenance
+                .as_ref()
+                .ok_or(Mfr1TransformErrorV2::Provenance)?;
+            if source.source_channel != "aggTrade"
+                || source.granularity != marketfeed_model::TradeGranularity::NativeAggregate
+            {
+                return Err(Mfr1TransformErrorV2::Provenance);
+            }
+            let id = source
+                .native_attributes
+                .get("a")
+                .and_then(|s| s.parse::<u64>().ok())
+                .ok_or(Mfr1TransformErrorV2::Provenance)?;
+            // Legacy v2 cursor encoding retains the aggregate ID as a native
+            // ordering marker. It is not a consecutive execution sequence.
+            Ok((
+                key,
+                MarketCursorV2::Native {
+                    first_sequence: id,
+                    last_sequence: id,
+                },
+            ))
+        }
+        MarketEvent::BookSnapshot(_) => {
             let key = direct_key
                 .cloned()
                 .ok_or(Mfr1TransformErrorV2::ProvenanceLedger)?;

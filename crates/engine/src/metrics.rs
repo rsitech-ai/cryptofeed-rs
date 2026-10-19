@@ -200,6 +200,7 @@ pub struct EngineMetrics {
     pub events_dispatched: AtomicU64,
     pub parse_failures: AtomicU64,
     pub unknown_messages: AtomicU64,
+    pub trade_records_excluded: AtomicU64,
     pub reconnects: AtomicU64,
     pub sequence_gaps: AtomicU64,
     pub checksum_mismatches: AtomicU64,
@@ -236,6 +237,7 @@ impl Default for EngineMetrics {
             events_dispatched: AtomicU64::new(0),
             parse_failures: AtomicU64::new(0),
             unknown_messages: AtomicU64::new(0),
+            trade_records_excluded: AtomicU64::new(0),
             reconnects: AtomicU64::new(0),
             sequence_gaps: AtomicU64::new(0),
             checksum_mismatches: AtomicU64::new(0),
@@ -347,6 +349,7 @@ impl EngineMetrics {
 
     pub fn observe_system_for_session(&self, session: SessionId, ev: &SystemEvent) {
         match ev {
+            SystemEvent::TradeRecordExcluded(_) => Self::add(&self.trade_records_excluded, 1),
             SystemEvent::ParseError { .. } => Self::add(&self.parse_failures, 1),
             SystemEvent::UnknownMessage { .. } => Self::add(&self.unknown_messages, 1),
             SystemEvent::SequenceGap { .. } => Self::add(&self.sequence_gaps, 1),
@@ -446,6 +449,11 @@ impl EngineMetrics {
             "marketfeed_unknown_messages_total",
             "Unknown message system events",
             self.unknown_messages.load(Ordering::Relaxed),
+        ));
+        out.push_str(&c(
+            "marketfeed_trade_records_excluded_total",
+            "Native trade-bearing records explicitly excluded by tape admission policy",
+            self.trade_records_excluded.load(Ordering::Relaxed),
         ));
         out.push_str(&c(
             "marketfeed_reconnects_total",

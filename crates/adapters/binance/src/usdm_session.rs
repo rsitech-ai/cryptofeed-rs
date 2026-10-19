@@ -18,8 +18,8 @@ use marketfeed_model::{
 
 use crate::messages::kline_stream_interval;
 use crate::usdm_messages::{
-    UsdmDecoded, UsdmRoutedV4SourceTimes, agg_id_source, decode_routed_v4_text, decode_text,
-    level_op, to_book_levels,
+    UsdmDecoded, UsdmRoutedV4SourceTimes, decode_routed_v4_text, decode_text, level_op,
+    to_book_levels,
 };
 use crate::usdm_specification::{BINANCE_USDM_VENUE_ID, OI_POLL_INTERVAL_MS, OI_TIMER_ID};
 
@@ -413,9 +413,37 @@ impl BinanceUsdmSession {
                         .transaction_time_ms
                         .is_some_and(valid_routed_source_ms)
             }
-            (BinanceUsdmRouteV4::Market, UsdmDecoded::AggTrade { symbol, agg_id, .. }) => {
+            (
+                BinanceUsdmRouteV4::Market,
+                UsdmDecoded::AggTrade {
+                    symbol,
+                    agg_id,
+                    provenance,
+                    ..
+                },
+            ) => {
                 symbol == ROUTED_V4_SYMBOL
+                    && provenance.source_channel == "aggTrade"
                     && *agg_id <= i64::MAX as u64
+                    && source_times
+                        .event_time_ms
+                        .is_some_and(valid_routed_source_ms)
+                    && source_times
+                        .transaction_time_ms
+                        .is_some_and(valid_routed_source_ms)
+            }
+            (
+                BinanceUsdmRouteV4::Market,
+                UsdmDecoded::TradeExcluded {
+                    symbol,
+                    native_id,
+                    provenance,
+                    ..
+                },
+            ) => {
+                symbol == ROUTED_V4_SYMBOL
+                    && provenance.source_channel == "aggTrade"
+                    && *native_id <= i64::MAX as u64
                     && source_times
                         .event_time_ms
                         .is_some_and(valid_routed_source_ms)
@@ -571,6 +599,7 @@ impl BinanceUsdmSession {
             UsdmDecoded::AggTrade {
                 symbol,
                 agg_id,
+                provenance,
                 price,
                 quantity,
                 aggressor,
@@ -587,17 +616,14 @@ impl BinanceUsdmSession {
                         routed_source_times
                             .and_then(|times| times.transaction_time_ms)
                             .or(Some(exchange_ts_ms)),
-                        Some(SequenceRange {
-                            first: agg_id,
-                            last: agg_id,
-                        }),
+                        None,
                         EventFlags::empty(),
                         MarketEvent::Trade(Trade {
-                            provenance: None,
+                            provenance: Some(provenance.clone()),
                             price,
                             quantity,
                             aggressor,
-                            trade_id: Some(agg_id_source(agg_id)),
+                            trade_id: Some(crate::trade_semantics::identity(agg_id, &provenance)),
                         }),
                     ),
                     output,
@@ -899,7 +925,28 @@ impl BinanceUsdmSession {
                     output.push(SessionAction::MarkLive);
                 }
             }
-            UsdmDecoded::Ignored => {}
+
+            UsdmDecoded::TradeExcluded {
+                symbol,
+                native_id,
+                provenance,
+                reason,
+            } => {
+                let instrument = self.instrument_for(&symbol);
+                output.push(SessionAction::EmitSystem(SystemEvent::TradeRecordExcluded(
+                    Box::new(marketfeed_model::TradeRecordExclusion {
+                        venue: BINANCE_USDM_VENUE_ID,
+                        session: self.cfg.session,
+                        connection: self.cfg.connection,
+                        frame_seq: 0,
+                        instrument,
+                        source_channel: provenance.source_channel.clone(),
+                        native_id: crate::trade_semantics::identity(native_id, &provenance),
+                        reason,
+                        native_attributes: provenance.native_attributes,
+                    }),
+                )));
+            }
             UsdmDecoded::Unknown => {
                 if self.routed_v4().is_some() {
                     return Err(AdapterError::Protocol(

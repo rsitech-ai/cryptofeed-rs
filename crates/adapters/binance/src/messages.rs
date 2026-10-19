@@ -2,8 +2,7 @@
 
 use marketfeed_adapter_api::CandleInterval;
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, SourceId,
-    TimestampNs,
+    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, TimestampNs,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -13,6 +12,7 @@ pub enum DecodedEvent {
     Trade {
         symbol: String,
         trade_id: u64,
+        provenance: Box<marketfeed_model::TradeProvenance>,
         price: Price,
         quantity: Quantity,
         aggressor: AggressorSide,
@@ -283,6 +283,15 @@ fn decode_kline(v: &Value) -> Result<DecodedEvent, String> {
 
 fn decode_trade(v: &Value) -> Result<DecodedEvent, String> {
     let m: TradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+    m.trade_time
+        .checked_mul(1_000_000)
+        .ok_or("trade timestamp overflow")?;
+    let provenance = crate::trade_semantics::provenance(v, false, true, None)?;
+    let price = Price(parse_fixed(&m.p)?);
+    let quantity = Quantity(parse_fixed(&m.q)?);
+    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+        return Err("nonpositive spot trade".into());
+    }
     let aggressor = if m.m {
         AggressorSide::Sell
     } else {
@@ -291,8 +300,9 @@ fn decode_trade(v: &Value) -> Result<DecodedEvent, String> {
     Ok(DecodedEvent::Trade {
         symbol: m.s,
         trade_id: m.t,
-        price: Price(parse_fixed(&m.p)?),
-        quantity: Quantity(parse_fixed(&m.q)?),
+        provenance,
+        price,
+        quantity,
         aggressor,
         exchange_ts_ms: m.trade_time,
     })
@@ -381,10 +391,6 @@ pub fn to_book_levels(side: BookSide, levels: &[(Price, Quantity)]) -> Vec<BookL
             quantity: *q,
         })
         .collect()
-}
-
-pub fn trade_id_source(id: u64) -> SourceId {
-    SourceId(id.to_string())
 }
 
 #[cfg(test)]

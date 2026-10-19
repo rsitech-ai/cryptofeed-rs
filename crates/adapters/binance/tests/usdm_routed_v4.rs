@@ -319,10 +319,18 @@ fn routed_pair_requires_exact_catalog_row() {
 }
 
 #[test]
-fn legacy_usdm_decoded_variant_shape_remains_source_compatible() {
+fn usdm_decoded_variant_carries_explicit_native_provenance() {
     let price = Price(Fixed::new(1, 0));
     let quantity = Quantity(Fixed::new(1, 0));
     let _ = UsdmDecoded::AggTrade {
+        provenance: Box::new(marketfeed_model::TradeProvenance {
+            source_channel: "aggTrade".into(),
+            granularity: marketfeed_model::TradeGranularity::NativeAggregate,
+            constituent_first_id: None,
+            constituent_last_id: None,
+            native_count: None,
+            native_attributes: Default::default(),
+        }),
         symbol: "BNBUSDT".to_owned(),
         agg_id: 1,
         price,
@@ -457,7 +465,10 @@ fn routed_market_preserves_family_source_times_and_native_trade_cursor() {
     let event = emitted(&trade)[0];
     assert!(matches!(event.payload, MarketEvent::Trade(_)));
     assert_eq!(event.exchange_ts, Some(TimestampNs(1_001_000_000)));
-    assert_eq!(event.source_sequence.unwrap().first, 42);
+    assert_eq!(event.source_sequence, None);
+    assert!(matches!(&event.payload, MarketEvent::Trade(trade)
+        if trade.trade_id.as_ref().unwrap().0 == "aggTrade:42"
+        && trade.provenance.as_ref().unwrap().native_attributes["a"] == "42"));
     assert!(matches!(
         decode_usdm_routed_v4_text(
             br#"{"e":"aggTrade","E":1000,"s":"BNBUSDT","a":42,"p":"650.1","q":"0.01","T":1001,"m":false}"#
@@ -641,7 +652,11 @@ fn routed_native_ids_are_bounded_before_output_or_state_mutation() {
         ),
     )
     .unwrap();
-    assert_eq!(emitted(&first)[0].source_sequence.unwrap().first, MAX);
+    assert_eq!(emitted(&first)[0].source_sequence, None);
+    assert!(
+        matches!(&emitted(&first)[0].payload, MarketEvent::Trade(trade)
+        if trade.provenance.as_ref().unwrap().native_attributes["a"] == MAX.to_string())
+    );
     assert!(drive_text(
         &mut market,
         &format!(
@@ -1032,5 +1047,47 @@ fn routed_depth_rejects_reversed_ranges_before_buffering_or_live_mutation() {
         emitted(&valid)
             .iter()
             .any(|event| matches!(event.payload, MarketEvent::BookDelta(_)))
+    );
+}
+
+#[test]
+fn routed_native_type_exclusions_retain_source_time_and_are_visible() {
+    for (kind, price, quantity) in [
+        ("NA", "0", "0"),
+        ("ADL", "10", "2"),
+        ("NEW_TYPE", "10", "2"),
+    ] {
+        let mut session = routed(BinanceUsdmRouteV4::Market);
+        let raw = format!(
+            r#"{{"e":"aggTrade","E":2,"T":1,"s":"BNBUSDT","a":42,"p":"{price}","q":"{quantity}","m":false,"X":"{kind}"}}"#
+        );
+        let source = decode_usdm_routed_v4_text(raw.as_bytes())
+            .unwrap()
+            .source_times;
+        assert_eq!(source.transaction_time_ms, Some(1));
+        let actions = drive_text(&mut session, &raw).unwrap();
+        assert!(emitted(&actions).is_empty());
+        assert!(actions.as_slice().iter().any(|a| matches!(a,
+            SessionAction::EmitSystem(marketfeed_model::SystemEvent::TradeRecordExcluded(record))
+            if record.native_id.0 == "aggTrade:42" && record.native_attributes["T"] == "1"
+                && record.reason == format!("native_type_not_admitted:{kind}")
+        )));
+    }
+    let mut public = routed(BinanceUsdmRouteV4::Public);
+    assert!(drive_text(&mut public,
+        r#"{"e":"aggTrade","E":2,"T":1,"s":"BNBUSDT","a":42,"p":"0","q":"0","m":false,"X":"NA"}"#
+    ).is_err());
+    let mut wrong_symbol = routed(BinanceUsdmRouteV4::Market);
+    assert!(drive_text(&mut wrong_symbol,
+        r#"{"e":"aggTrade","E":2,"T":1,"s":"BTCUSDT","a":42,"p":"0","q":"0","m":false,"X":"NA"}"#
+    ).is_err());
+    let mut session = routed(BinanceUsdmRouteV4::Market);
+    assert!(
+        drive_text(
+            &mut session,
+            r#"{"e":"trade","E":2,"T":1,"s":"BNBUSDT","t":42,"p":"10","q":"2","m":false,"X":"ADL"}"#
+        )
+        .is_err(),
+        "legacy individual channel is not a routed-v4 aggregate subscription"
     );
 }

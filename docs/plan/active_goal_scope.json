@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "status": "active",
+  "objective": "Implement and independently audit Hyperliquid spot/perps, one shared hlscreen feed, exact durable data publication/replay and known exchange-integrity repairs; extend that foundation with time-qualified, versioned cross-venue observations and descriptive analytics for existing OKX spot entry research, preserving legacy capital/execution ownership and enforcing data, timing, owner and economic admission gates before any comparison.",
+  "accepted_scope_documents": [
+    "docs/plan/hyperliquid_shared_feed_implementation.md",
+    "docs/plan/cross_venue_observation_implementation.md"
+  ],
+  "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
+  "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
+  "operational_promotion": "not-granted",
+  "current_slice": "Finish Binance feed-integrity repairs in cryptofeed-rs; then implement time-qualified strategy context through existing rsibot/Quants Lab and Hummingbot owner boundaries.",
+  "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)"
+}

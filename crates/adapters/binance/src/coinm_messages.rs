@@ -1,8 +1,7 @@
 //! Binance Coin-M JSON decode (aggTrade / bookTicker / ticker / mark / indexPrice / depth / forceOrder / OI / kline).
 
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, Rate, SourceId,
-    TimestampNs,
+    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, Rate, TimestampNs,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,6 +13,7 @@ pub enum CoinmDecoded {
     AggTrade {
         symbol: String,
         agg_id: u64,
+        provenance: Box<marketfeed_model::TradeProvenance>,
         price: Price,
         quantity: Quantity,
         aggressor: AggressorSide,
@@ -98,6 +98,12 @@ pub enum CoinmDecoded {
     },
     SubscribeAck {
         id: Option<u64>,
+    },
+    TradeExcluded {
+        symbol: String,
+        native_id: u64,
+        provenance: Box<marketfeed_model::TradeProvenance>,
+        reason: String,
     },
     Unknown,
 }
@@ -322,34 +328,68 @@ fn decode_kline(v: &Value) -> Result<CoinmDecoded, String> {
 
 fn decode_agg_trade(v: &Value) -> Result<CoinmDecoded, String> {
     let m: AggTradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
-    let aggressor = if m.m {
-        AggressorSide::Sell
-    } else {
-        AggressorSide::Buy
-    };
+    m.trade_time
+        .checked_mul(1_000_000)
+        .ok_or("trade timestamp overflow")?;
+    let price = Price(parse_fixed(&m.p)?);
+    let quantity = Quantity(parse_fixed(&m.q)?);
+    let provenance = crate::trade_semantics::provenance(v, true, false, Some(2))?;
+    if let Some(reason) = crate::trade_semantics::exclusion(v)? {
+        return Ok(CoinmDecoded::TradeExcluded {
+            symbol: m.s,
+            native_id: m.a,
+            provenance,
+            reason,
+        });
+    }
+    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+        return Err("nonpositive native trade without an admitted exclusion classification".into());
+    }
     Ok(CoinmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.a,
-        price: Price(parse_fixed(&m.p)?),
-        quantity: Quantity(parse_fixed(&m.q)?),
-        aggressor,
+        provenance,
+        price,
+        quantity,
+        aggressor: if m.m {
+            AggressorSide::Sell
+        } else {
+            AggressorSide::Buy
+        },
         exchange_ts_ms: m.trade_time,
     })
 }
 
 fn decode_trade(v: &Value) -> Result<CoinmDecoded, String> {
     let m: TradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
-    let aggressor = if m.m {
-        AggressorSide::Sell
-    } else {
-        AggressorSide::Buy
-    };
+    m.trade_time
+        .checked_mul(1_000_000)
+        .ok_or("trade timestamp overflow")?;
+    let price = Price(parse_fixed(&m.p)?);
+    let quantity = Quantity(parse_fixed(&m.q)?);
+    let provenance = crate::trade_semantics::provenance(v, false, false, Some(2))?;
+    if let Some(reason) = crate::trade_semantics::exclusion(v)? {
+        return Ok(CoinmDecoded::TradeExcluded {
+            symbol: m.s,
+            native_id: m.t,
+            provenance,
+            reason,
+        });
+    }
+    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+        return Err("nonpositive native trade without an admitted exclusion classification".into());
+    }
     Ok(CoinmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.t,
-        price: Price(parse_fixed(&m.p)?),
-        quantity: Quantity(parse_fixed(&m.q)?),
-        aggressor,
+        provenance,
+        price,
+        quantity,
+        aggressor: if m.m {
+            AggressorSide::Sell
+        } else {
+            AggressorSide::Buy
+        },
         exchange_ts_ms: m.trade_time,
     })
 }
@@ -494,10 +534,6 @@ pub fn to_book_levels(side: BookSide, levels: &[(Price, Quantity)]) -> Vec<BookL
             quantity: *q,
         })
         .collect()
-}
-
-pub fn agg_id_source(id: u64) -> SourceId {
-    SourceId(id.to_string())
 }
 
 #[cfg(test)]

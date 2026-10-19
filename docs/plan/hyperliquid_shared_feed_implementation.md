@@ -419,3 +419,68 @@ prior503 configuration failure remains intact. Native granularity/count/source,
 interval/finality/volumes and no fabricated candle sequences were checked by the
 independently reviewed oracle. This is a bounded observation, not continuity or
 operational promotion. Receipt and journal hash accompany pilot01 evidence.
+
+
+## Accepted cross-venue observation extension
+
+The2026-10-19 user follow-up expands this active goal with time-qualified
+cross-venue observations for existing OKX spot entry research. The full accepted
+completion contract is `docs/plan/cross_venue_observation_implementation.md` and
+the machine-readable scope is `docs/plan/active_goal_scope.json`. Existing feed,
+storage, integrity and operational work remains active. New scope covers data
+feasibility, causal context/feature contracts, source alias/quote/unit semantics,
+small qualified observation sets, owner bridge and separately gated model/ETF
+hypotheses. No economic, model or deployment result is implied. Integrity repairs
+remain the immediate prerequisite; current Binance changes are uncommitted and
+under test, followed by the additive descriptive observation boundary.
+
+
+Placement clarification: the user asked that strategy context live in rsibot.
+Quants Lab will own cross-venue feature combination and model/ETF research;
+Hummingbot retains admitted decisions, order/inventory/exit ownership; Research
+OS retains hypothesis/evidence truth. cryptofeed remains the data authority and
+hlscreen its view. Existing owner implementations are further along than old
+SPECIFIED_NOT_IMPLEMENTED banners: inspect the active ExecPlan and exact source
+commits, not stale nested checkouts. Existing root rsibot dirty policy/docs/
+gitlinks are unrelated and must be preserved. Continuous flow is a distinct
+contract and must not masquerade as a listing/OTHER announcement event.
+
+
+## Binance trade semantics repair checkpoint
+
+Current uncommitted repair retains source trade vs aggregate granularity and
+namespaced aggregate IDs, f/l bounds, nq, st, X and E/T. No execution count is
+inferred from ranges. Source trade IDs no longer impersonate sequence continuity.
+Spot native trades use documented individual granularity; legacy futures trade
+remains unverified because the current official futures contract only documents
+aggregates. Product-type mismatches and trade timestamp overflow fail decoding.
+
+Non-MARKET native X is a conservative tape exclusion policy. It emits an exact
+native-attribute system record with engine-owned venue/session/connection/original
+frame scope and exclusion counters, rather than silently Ignored. Unclassified
+nonpositive prices/quantities fail. Routed-v4 exclusions require the correct
+aggregate channel, symbol, role and valid E/T. Independent review found that the
+first version rejected classified routed inputs before the exclusion handler;
+that route is fixed and direct role/symbol/channel regressions pass.
+
+Five explicit expected native fixtures/adversarial cases pass; six shared-engine
+tests include committed exclusion/raw-frame linkage and counters. The focused
+Binance/engine/daemon/v2 suite passes372 tests with7 deliberate ignores. Frozen
+v2 serialization has an explicit validated compatibility projection from rich
+canonical aggregate provenance into its historical aggregate-ID cursor encoding;
+original MFR1 and frozen v2 bytes remain untouched. Independent20-case v2 review
+and exact synthetic frozen-oracle tests pass. Rust decoded enum constructors now
+require native provenance: this is an alpha source-API migration, documented in
+the adapter README; it is not claimed source-compatible. Clippy and Rust1.85
+relevant47 library tests pass. Full workspace all-targets/all-features testing passed1200 cases with56
+deliberately ignored tests. The later read-only dataset-consumer followup has
+separate package, real-boundary and review gates.
+
+The first rsibot-owned slice is an isolated Quants Lab exact manifest/admission
+boundary at origin/main72c71564 on feat/andrzej_cryptofeed_context_20261019.
+It invokes the pinned trusted Rust dataset validator, rather than duplicating
+its security/financial checks. It does not load controllers or run economics.
+Existing data_sources eager imports require an unavailable Hummingbot package,
+so an opt-in pure market_observations package preserves that legacy initializer.
+Six boundary tests plus four subprocess failure subcases pass; real saved-data
+validation/admission smoke and independent consumer review are in progress.

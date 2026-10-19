@@ -191,6 +191,21 @@ pub struct VenueStatus {
     pub message: String,
 }
 
+/// A native trade-bearing record deliberately excluded from canonical tape.
+/// Runtime scope and original frame ordinal are stamped by the engine.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TradeRecordExclusion {
+    pub venue: VenueId,
+    pub session: SessionId,
+    pub connection: ConnectionId,
+    pub frame_seq: u64,
+    pub instrument: Option<InstrumentId>,
+    pub source_channel: String,
+    pub native_id: SourceId,
+    pub reason: String,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
+}
+
 /// Operational events — separate stream from market data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SystemEvent {
@@ -206,6 +221,7 @@ pub enum SystemEvent {
     InstrumentCatalogUpdated {
         version: u64,
     },
+    TradeRecordExcluded(Box<TradeRecordExclusion>),
     HeartbeatMissed,
     RateLimited,
     ParseError {

@@ -781,6 +781,12 @@ impl SessionRunner {
         }
     }
     fn stamp_system_event(&self, event: &mut SystemEvent) {
+        if let SystemEvent::TradeRecordExcluded(record) = event {
+            record.venue = self.cfg.venue;
+            record.session = self.cfg.session;
+            record.connection = self.cfg.connection;
+            record.frame_seq = self.inbound_frame_seq;
+        }
         if let SystemEvent::QuoteInvalidated {
             venue,
             session,
