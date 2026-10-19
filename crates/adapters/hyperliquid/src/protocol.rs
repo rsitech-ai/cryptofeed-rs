@@ -99,7 +99,7 @@ pub enum Message {
     Bbo(Bbo),
     Book(Book),
     Candle(Candle),
-    Context(Context),
+    Context(Box<Context>),
     AllMids(BTreeMap<String, Decimal>),
     Subscription(Value),
     Pong,
@@ -263,7 +263,7 @@ pub fn decode(bytes: &[u8]) -> Result<Message, AdapterError> {
             if let Some(v) = c.ctx.open_interest {
                 nonnegative(v)?;
             }
-            Message::Context(c)
+            Message::Context(Box::new(c))
         }
         "allMids" => {
             #[derive(Deserialize)]
