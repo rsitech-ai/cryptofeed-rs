@@ -579,6 +579,7 @@ pub fn ms_to_ts(ms: i64) -> TimestampNs {
 
 pub fn to_market_trade(row: &TradeRow) -> Trade {
     Trade {
+        provenance: None,
         price: row.price,
         quantity: row.quantity,
         aggressor: row.aggressor,

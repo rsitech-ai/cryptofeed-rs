@@ -61,6 +61,23 @@ message Trade {
   Quantity quantity = 2;
   AggressorSide aggressor = 3;
   optional string trade_id = 4; // model::SourceId
+  optional TradeProvenance provenance = 5;
+}
+
+enum TradeGranularity {
+  TRADE_GRANULARITY_UNSPECIFIED = 0;
+  TRADE_GRANULARITY_INDIVIDUAL_EXECUTION = 1;
+  TRADE_GRANULARITY_NATIVE_AGGREGATE = 2;
+  TRADE_GRANULARITY_UNVERIFIED = 3;
+}
+
+message TradeProvenance {
+  string source_channel = 1;
+  TradeGranularity granularity = 2;
+  optional string constituent_first_id = 3;
+  optional string constituent_last_id = 4;
+  optional uint64 native_count = 5; // native meaning only; never inferred executions
+  map<string, string> native_attributes = 6;
 }
 
 message Quote {
@@ -102,6 +119,9 @@ message Candle {
   Quantity volume = 5;
   int64 interval_ns = 6;
   TimestampNs start_ts = 7;
+  optional Quantity quote_volume = 8;
+  optional bool is_closed = 9; // absent = unknown, false = explicitly unconfirmed
+  optional Quantity native_volume_ccy = 10; // native volCcy; product-dependent unit
 }
 
 message PricePoint {

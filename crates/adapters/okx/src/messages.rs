@@ -3,13 +3,15 @@
 use marketfeed_adapter_api::CandleInterval;
 use marketfeed_model::{
     AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, Rate, SourceId,
-    TimestampNs,
+    TimestampNs, TradeGranularity, TradeProvenance,
 };
 use serde::Deserialize;
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodedEvent {
+    /// All rows were validated before any session output is emitted.
+    Batch(Vec<DecodedEvent>),
     Trade {
         inst_id: String,
         trade_id: String,
@@ -18,6 +20,7 @@ pub enum DecodedEvent {
         aggressor: AggressorSide,
         exchange_ts_ms: i64,
         seq_id: Option<u64>,
+        provenance: Box<TradeProvenance>,
     },
     Quote {
         inst_id: String,
@@ -46,6 +49,8 @@ pub enum DecodedEvent {
         exchange_ts_ms: i64,
         /// Venue confirm flag (`"1"` = bar closed).
         is_closed: bool,
+        quote_volume: Option<Quantity>,
+        native_volume_ccy: Quantity,
     },
     BookSnapshot {
         inst_id: String,
@@ -93,8 +98,9 @@ pub enum DecodedEvent {
     /// Derivatives-only: `liquidation-orders` channel (instType firehose).
     Liquidations(Vec<LiquidationDecoded>),
     SubscribeAck {
-        channel: Option<String>,
+        channel: String,
         inst_id: Option<String>,
+        inst_type: Option<String>,
     },
     Error {
         code: Option<String>,
@@ -120,6 +126,8 @@ struct Arg {
     channel: Option<String>,
     #[serde(rename = "instId")]
     inst_id: Option<String>,
+    #[serde(rename = "instType")]
+    inst_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -134,6 +142,8 @@ struct TradeRow {
     ts: String,
     #[serde(rename = "seqId")]
     seq_id: Option<u64>,
+    count: Option<String>,
+    source: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -250,15 +260,31 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
 
     if let Some(event) = obj.get("event").and_then(|x| x.as_str()) {
         match event {
-            "subscribe" | "unsubscribe" => {
-                let arg: Option<Arg> = obj
-                    .get("arg")
-                    .and_then(|a| serde_json::from_value(a.clone()).ok());
+            "subscribe" => {
+                let arg: Arg = serde_json::from_value(
+                    obj.get("arg")
+                        .cloned()
+                        .ok_or("okx subscribe ACK missing arg")?,
+                )
+                .map_err(|e| format!("okx subscribe ACK: {e}"))?;
+                let channel = arg
+                    .channel
+                    .filter(|s| !s.is_empty())
+                    .ok_or("okx subscribe ACK missing channel")?;
+                if arg.inst_id.as_ref().is_some_and(String::is_empty)
+                    || arg.inst_type.as_ref().is_some_and(String::is_empty)
+                    || arg.inst_id.is_some() == arg.inst_type.is_some()
+                {
+                    return Err("okx subscribe ACK requires exactly one instrument scope".into());
+                }
                 return Ok(DecodedEvent::SubscribeAck {
-                    channel: arg.as_ref().and_then(|a| a.channel.clone()),
-                    inst_id: arg.as_ref().and_then(|a| a.inst_id.clone()),
+                    channel,
+                    inst_id: arg.inst_id,
+                    inst_type: arg.inst_type,
                 });
             }
+            // An unsubscribe response can never acknowledge an active subscription.
+            "unsubscribe" => return Ok(DecodedEvent::Unknown),
             "error" => {
                 return Ok(DecodedEvent::Error {
                     code: obj.get("code").and_then(|c| c.as_str()).map(str::to_string),
@@ -276,7 +302,7 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
         .unwrap_or("");
 
     match channel {
-        "trades" => decode_trades(obj),
+        "trades" | "trades-all" => decode_trades(obj, channel),
         "tickers" => decode_tickers(obj),
         "books" | "books5" | "bbo-tbt" | "books-l2-tbt" | "books50-l2-tbt" => {
             decode_books(obj, channel)
@@ -324,6 +350,15 @@ fn interval_ns_from_channel(channel: &str) -> Result<i64, String> {
     Ok(candle_interval_ns(interval))
 }
 
+fn rows_event(mut rows: Vec<DecodedEvent>) -> DecodedEvent {
+    if rows.len() == 1 {
+        rows.remove(0)
+    } else if rows.is_empty() {
+        DecodedEvent::Unknown
+    } else {
+        DecodedEvent::Batch(rows)
+    }
+}
 fn decode_candle(
     obj: &serde_json::Map<String, Value>,
     channel: &str,
@@ -331,63 +366,153 @@ fn decode_candle(
     let inst_id = obj
         .get("arg")
         .and_then(|a| a.get("instId"))
-        .and_then(|i| i.as_str())
-        .unwrap_or("")
-        .to_string();
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "candle missing instrument".to_string())?;
     let rows: Vec<Vec<String>> =
         serde_json::from_value(obj.get("data").cloned().unwrap_or(Value::Null))
             .map_err(|e| e.to_string())?;
-    let Some(row) = rows.into_iter().next() else {
-        return Ok(DecodedEvent::Unknown);
-    };
-    // [ts, o, h, l, c, vol, volCcy, volCcyQuote?, confirm]
-    if row.len() < 6 {
-        return Err("candle row too short".into());
+    if rows.len() > 4096 {
+        return Err("candle row budget".into());
     }
-    let confirm_idx = if row.len() >= 9 {
-        8
-    } else if row.len() >= 8 {
-        7
-    } else {
-        usize::MAX
-    };
-    let is_closed = confirm_idx != usize::MAX && row[confirm_idx] == "1";
-    let start_ms = parse_ts_ms(&row[0])?;
-    Ok(DecodedEvent::Candle {
-        inst_id,
-        open: Price(parse_fixed(&row[1])?),
-        high: Price(parse_fixed(&row[2])?),
-        low: Price(parse_fixed(&row[3])?),
-        close: Price(parse_fixed(&row[4])?),
-        volume: Quantity(parse_fixed(&row[5])?),
-        interval_ns: interval_ns_from_channel(channel)?,
-        start_ts: TimestampNs(start_ms.saturating_mul(1_000_000)),
-        exchange_ts_ms: start_ms,
-        is_closed,
-    })
+    let interval_ns = interval_ns_from_channel(channel)?;
+    let mut out = Vec::new();
+    for row in rows {
+        if !matches!(row.len(), 8 | 9) {
+            return Err("unsupported candle row width".into());
+        }
+        let confirm_idx = row.len() - 1;
+        let is_closed = match row[confirm_idx].as_str() {
+            "0" => false,
+            "1" => true,
+            _ => return Err("invalid candle confirmation".into()),
+        };
+        let start_ms = parse_ts_ms(&row[0])?;
+        let start_ns = start_ms
+            .checked_mul(1_000_000)
+            .ok_or_else(|| "candle timestamp overflow".to_string())?;
+        let open = Price(parse_fixed(&row[1])?);
+        let high = Price(parse_fixed(&row[2])?);
+        let low = Price(parse_fixed(&row[3])?);
+        let close = Price(parse_fixed(&row[4])?);
+        let volume = Quantity(parse_fixed(&row[5])?);
+        if [open, high, low, close]
+            .iter()
+            .any(|p| p.0.coefficient <= 0)
+            || volume.0.coefficient < 0
+            || high.0.numeric_cmp(low.0).is_lt()
+            || high.0.numeric_cmp(open.0).is_lt()
+            || high.0.numeric_cmp(close.0).is_lt()
+            || low.0.numeric_cmp(open.0).is_gt()
+            || low.0.numeric_cmp(close.0).is_gt()
+        {
+            return Err("invalid candle prices/volume".into());
+        }
+        let native_volume_ccy = Quantity(parse_fixed(&row[6])?);
+        if native_volume_ccy.0.coefficient < 0 {
+            return Err("negative native volCcy".into());
+        }
+        let quote_volume = if row.len() == 9 {
+            Some(Quantity(parse_fixed(&row[7])?))
+        } else {
+            None
+        };
+        if quote_volume.is_some_and(|q| q.0.coefficient < 0) {
+            return Err("negative quote volume".into());
+        }
+        out.push(DecodedEvent::Candle {
+            inst_id: inst_id.to_owned(),
+            open,
+            high,
+            low,
+            close,
+            volume,
+            interval_ns,
+            start_ts: TimestampNs(start_ns),
+            exchange_ts_ms: start_ms,
+            is_closed,
+            quote_volume,
+            native_volume_ccy,
+        });
+    }
+    Ok(rows_event(out))
 }
-
-fn decode_trades(obj: &serde_json::Map<String, Value>) -> Result<DecodedEvent, String> {
+fn decode_trades(
+    obj: &serde_json::Map<String, Value>,
+    channel: &str,
+) -> Result<DecodedEvent, String> {
     let rows: Vec<TradeRow> =
         serde_json::from_value(obj.get("data").cloned().unwrap_or(Value::Null))
             .map_err(|e| e.to_string())?;
-    let Some(row) = rows.into_iter().next() else {
-        return Ok(DecodedEvent::Unknown);
-    };
-    let aggressor = match row.side.as_str() {
-        "buy" => AggressorSide::Buy,
-        "sell" => AggressorSide::Sell,
-        _ => AggressorSide::Unknown,
-    };
-    Ok(DecodedEvent::Trade {
-        inst_id: row.inst_id,
-        trade_id: row.trade_id,
-        price: Price(parse_fixed(&row.px)?),
-        quantity: Quantity(parse_fixed(&row.sz)?),
-        aggressor,
-        exchange_ts_ms: parse_ts_ms(&row.ts)?,
-        seq_id: row.seq_id,
-    })
+    if rows.len() > 4096 {
+        return Err("trade row budget".into());
+    }
+    let scope = obj
+        .get("arg")
+        .and_then(|a| a.get("instId"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| "trade missing scope".to_string())?;
+    let mut out = Vec::new();
+    for row in rows {
+        if row.inst_id != scope || row.trade_id.is_empty() {
+            return Err("trade scope/identity mismatch".into());
+        }
+        let aggressor = match row.side.as_str() {
+            "buy" => AggressorSide::Buy,
+            "sell" => AggressorSide::Sell,
+            _ => return Err("invalid trade side".into()),
+        };
+        let price = Price(parse_fixed(&row.px)?);
+        let quantity = Quantity(parse_fixed(&row.sz)?);
+        if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+            return Err("trade price/quantity must be positive".into());
+        }
+        let exchange_ts_ms = parse_ts_ms(&row.ts)?;
+        exchange_ts_ms
+            .checked_mul(1_000_000)
+            .ok_or_else(|| "trade timestamp overflow".to_string())?;
+        let native_count = row
+            .count
+            .as_ref()
+            .map(|c| c.parse::<u64>().map_err(|e| e.to_string()))
+            .transpose()?;
+        if native_count == Some(0) {
+            return Err("zero native trade count".into());
+        }
+        let mut native_attributes = std::collections::BTreeMap::new();
+        if let Some(source) = row.source {
+            native_attributes.insert("source".into(), source);
+        }
+        if let Some(count) = row.count {
+            native_attributes.insert("count".into(), count);
+        }
+        if let Some(seq) = row.seq_id {
+            native_attributes.insert("seqId".into(), seq.to_string());
+        }
+        let provenance = Box::new(TradeProvenance {
+            source_channel: channel.into(),
+            granularity: if channel == "trades" {
+                TradeGranularity::NativeAggregate
+            } else {
+                TradeGranularity::IndividualExecution
+            },
+            constituent_first_id: None,
+            constituent_last_id: None,
+            native_count,
+            native_attributes,
+        });
+        out.push(DecodedEvent::Trade {
+            inst_id: row.inst_id,
+            trade_id: row.trade_id,
+            price,
+            quantity,
+            aggressor,
+            exchange_ts_ms,
+            seq_id: row.seq_id,
+            provenance,
+        });
+    }
+    Ok(rows_event(out))
 }
 
 fn decode_tickers(obj: &serde_json::Map<String, Value>) -> Result<DecodedEvent, String> {
@@ -618,10 +743,6 @@ pub fn to_book_levels(_side: BookSide, levels: &[(Price, Quantity)]) -> Vec<Book
 
 pub fn trade_id_source(id: &str) -> SourceId {
     SourceId(id.to_string())
-}
-
-pub fn trade_id_u64(id: &str) -> Option<u64> {
-    id.parse().ok()
 }
 
 #[cfg(test)]

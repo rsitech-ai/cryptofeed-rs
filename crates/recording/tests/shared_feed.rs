@@ -98,6 +98,7 @@ fn bytes_are_original_and_signed_i128_extrema_roundtrip() {
             source_sequence: None,
             flags: EventFlags::empty(),
             payload: MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::new(i128::MAX, 38)),
                 quantity: Quantity(Fixed::new(i128::MIN, 255)),
                 aggressor: AggressorSide::Unknown,

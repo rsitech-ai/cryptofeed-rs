@@ -593,6 +593,7 @@ impl BinanceUsdmSession {
                         }),
                         EventFlags::empty(),
                         MarketEvent::Trade(Trade {
+                            provenance: None,
                             price,
                             quantity,
                             aggressor,
@@ -625,6 +626,9 @@ impl BinanceUsdmSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Candle(Candle {
+                        native_volume_ccy: None,
+                        is_closed: None,
+                        quote_volume: None,
                         open,
                         high,
                         low,

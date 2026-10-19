@@ -69,7 +69,34 @@ fn encode_trade(t: &marketfeed_model::Trade) -> Vec<u8> {
     write_msg(&mut out, 2, &encode_quantity(t.quantity));
     write_enum(&mut out, 3, aggressor_num(t.aggressor));
     if let Some(id) = &t.trade_id {
-        write_string(&mut out, 4, &id.0);
+        write_bytes(&mut out, 4, id.0.as_bytes());
+    }
+    if let Some(source) = &t.provenance {
+        let mut fields = Vec::new();
+        write_string(&mut fields, 1, &source.source_channel);
+        let granularity = match source.granularity {
+            marketfeed_model::TradeGranularity::IndividualExecution => 1,
+            marketfeed_model::TradeGranularity::NativeAggregate => 2,
+            marketfeed_model::TradeGranularity::Unverified => 3,
+        };
+        write_enum(&mut fields, 2, granularity);
+        if let Some(first) = &source.constituent_first_id {
+            write_bytes(&mut fields, 3, first.0.as_bytes());
+        }
+        if let Some(last) = &source.constituent_last_id {
+            write_bytes(&mut fields, 4, last.0.as_bytes());
+        }
+        if let Some(count) = source.native_count {
+            write_key(&mut fields, 5, WIRE_VARINT);
+            write_varint(&mut fields, count);
+        }
+        for (key, value) in &source.native_attributes {
+            let mut entry = Vec::new();
+            write_string(&mut entry, 1, key);
+            write_string(&mut entry, 2, value);
+            write_msg(&mut fields, 6, &entry);
+        }
+        write_msg(&mut out, 5, &fields);
     }
     out
 }
@@ -142,6 +169,17 @@ fn encode_candle(c: &marketfeed_model::Candle) -> Vec<u8> {
     write_msg(&mut out, 5, &encode_quantity(c.volume));
     write_i64(&mut out, 6, c.interval_ns);
     write_msg(&mut out, 7, &encode_timestamp_ns(c.start_ts));
+    if let Some(quantity) = c.quote_volume {
+        write_msg(&mut out, 8, &encode_quantity(quantity));
+    }
+    if let Some(closed) = c.is_closed {
+        // Optional false must be present on the wire, unlike a proto3 default.
+        write_key(&mut out, 9, WIRE_VARINT);
+        write_varint(&mut out, u64::from(closed));
+    }
+    if let Some(quantity) = c.native_volume_ccy {
+        write_msg(&mut out, 10, &encode_quantity(quantity));
+    }
     out
 }
 
@@ -437,6 +475,7 @@ mod tests {
             source_sequence: None,
             flags: EventFlags(0),
             payload: MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::new(100_00, 2)),
                 quantity: Quantity(Fixed::new(1_5, 1)),
                 aggressor: AggressorSide::Buy,

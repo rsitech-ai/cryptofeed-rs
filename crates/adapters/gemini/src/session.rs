@@ -754,6 +754,7 @@ impl GeminiSession {
                     received,
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
+                        provenance: None,
                         price,
                         quantity,
                         aggressor,
@@ -993,6 +994,9 @@ impl SessionMachine for GeminiSession {
                         self.emit_candle(
                             &symbol,
                             Candle {
+                                native_volume_ccy: None,
+                                is_closed: None,
+                                quote_volume: None,
                                 open,
                                 high,
                                 low,

@@ -144,6 +144,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                     last: 100,
                 }),
                 MarketEvent::Trade(Trade {
+                    provenance: None,
                     price: price(100),
                     quantity: quantity(2),
                     aggressor: AggressorSide::Buy,
@@ -1127,6 +1128,7 @@ fn mutated_duplicate_is_replayed_as_sequence_failure_without_new_evidence() {
     }
     let mut mutation = market_at(&inputs[0], &admission, 16, 16, 0);
     mutation["envelope"]["payload"] = serde_json::to_value(MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(Fixed::new(100, 0)),
         quantity: Quantity(Fixed::new(999, 0)),
         aggressor: AggressorSide::Buy,

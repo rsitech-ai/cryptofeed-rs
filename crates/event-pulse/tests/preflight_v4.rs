@@ -124,6 +124,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                     last: 100,
                 }),
                 MarketEvent::Trade(Trade {
+                    provenance: None,
                     price: price(100),
                     quantity: quantity(2),
                     aggressor: AggressorSide::Buy,

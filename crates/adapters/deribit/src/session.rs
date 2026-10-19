@@ -423,6 +423,9 @@ impl DeribitSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Candle(Candle {
+                        native_volume_ccy: None,
+                        is_closed: None,
+                        quote_volume: None,
                         open,
                         high,
                         low,

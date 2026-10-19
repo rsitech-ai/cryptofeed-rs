@@ -225,6 +225,7 @@ impl CoinbaseIntlSession {
                     seq,
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
+                        provenance: None,
                         price: row.price,
                         quantity: row.quantity,
                         aggressor: row.aggressor,

@@ -268,6 +268,7 @@ fn trade_event(receive: TimestampNs, event_index: u16) -> EventEnvelope {
         source_sequence: None,
         flags: EventFlags::empty(),
         payload: MarketEvent::Trade(Trade {
+            provenance: None,
             price: Price(Fixed::new(10_000, 2)),
             quantity: Quantity(Fixed::new(100, 2)),
             aggressor: AggressorSide::Buy,

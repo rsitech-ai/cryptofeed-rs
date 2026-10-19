@@ -11,6 +11,7 @@ fn configured_channel(name: &str) -> Result<(Channel, DeliveryOptions), ConfigEr
     let normalized = name.trim().to_ascii_lowercase();
     let channel = match normalized.as_str() {
         "trades" => Channel::Trades,
+        "trades_all" | "trades-all" => Channel::AllTrades,
         "quote" | "ticker" => Channel::Quote,
         "l2" | "l2_book" | "book" => Channel::L2Book {
             depth: None,

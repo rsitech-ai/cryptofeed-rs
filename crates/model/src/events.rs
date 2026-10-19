@@ -55,6 +55,29 @@ pub struct Trade {
     pub quantity: Quantity,
     pub aggressor: AggressorSide,
     pub trade_id: Option<SourceId>,
+    /// Native granularity/ranges/attributes. Absence means unverified; never
+    /// infer one execution from one normalized row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<TradeProvenance>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TradeGranularity {
+    IndividualExecution,
+    NativeAggregate,
+    Unverified,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TradeProvenance {
+    pub source_channel: String,
+    pub granularity: TradeGranularity,
+    pub constituent_first_id: Option<SourceId>,
+    pub constituent_last_id: Option<SourceId>,
+    /// Native count only. Its venue-specific meaning is in native_attributes;
+    /// it is not an inferred count of executions or a range cardinality.
+    pub native_count: Option<u64>,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,6 +137,15 @@ pub struct Candle {
     pub volume: Quantity,
     pub interval_ns: i64,
     pub start_ts: TimestampNs,
+    /// None means that native confirmation was unavailable, not a closed bar.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_closed: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quote_volume: Option<Quantity>,
+    /// Venue volCcy, whose unit depends on the instrument/product. Never
+    /// reinterpret it as base quantity without the native metadata contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_volume_ccy: Option<Quantity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

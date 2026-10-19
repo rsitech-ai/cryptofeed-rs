@@ -114,6 +114,7 @@ mod tests {
 
     fn trade_buy() -> MarketEvent {
         MarketEvent::Trade(Trade {
+            provenance: None,
             price: Price(Fixed::new(10000, 2)),
             quantity: Quantity(Fixed::new(1, 3)),
             aggressor: AggressorSide::Buy,

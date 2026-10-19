@@ -1291,6 +1291,16 @@ impl DaemonConfig {
                 let canonical = canonical_channel_name(channel).ok_or_else(|| {
                     ConfigError::Validation(format!("venue {}: unknown channel {channel:?}", v.id))
                 })?;
+                if canonical == "trades_all"
+                    && !matches!(
+                        kind,
+                        VenueKind::OkxSpot | VenueKind::OkxSwap | VenueKind::OkxFutures
+                    )
+                {
+                    return Err(ConfigError::Validation(
+                        "trades_all currently requires an OKX spot/swap/futures venue".into(),
+                    ));
+                }
                 if !canonical_channels.insert(canonical) {
                     return Err(ConfigError::Validation(format!(
                         "venue {}: duplicate channel {:?} (canonical {:?})",
@@ -1364,6 +1374,7 @@ impl DaemonConfig {
 fn canonical_channel_name(name: &str) -> Option<&'static str> {
     match name.to_ascii_lowercase().as_str() {
         "trades" => Some("trades"),
+        "trades_all" | "trades-all" => Some("trades_all"),
         "quote" | "ticker" => Some("quote"),
         "l2" | "l2_book" | "book" => Some("l2"),
         "funding" => Some("funding"),
@@ -2108,6 +2119,37 @@ mod tests {
         .unwrap();
         assert_eq!(cfg.venues[0].symbols.len(), 2);
         assert!(cfg.venues[0].wants_l2());
+    }
+
+    #[test]
+    fn all_trades_alias_is_okx_only_and_duplicates_are_rejected() {
+        for alias in ["trades_all", "trades-all"] {
+            for (id, adapter, valid) in [
+                ("okx-spot", "okx", true),
+                ("binance-spot", "binance", false),
+                ("hyperliquid-spot", "hyperliquid", false),
+            ] {
+                let source = format!(
+                    r#"[telemetry]
+                    bind = "127.0.0.1:0"
+                    [[venues]]
+                    id = "{id}"
+                    adapter = "{adapter}"
+                    symbols = ["BTC-USDT"]
+                    channels = ["{alias}"]"#
+                );
+                let result = DaemonConfig::from_toml_str(&source);
+                assert_eq!(result.is_ok(), valid, "{id} {alias}: {result:?}");
+            }
+        }
+        let source = r#"[telemetry]
+            bind = "127.0.0.1:0"
+            [[venues]]
+            id = "okx-spot"
+            adapter = "okx"
+            symbols = ["BTC-USDT"]
+            channels = ["trades_all", "trades-all"]"#;
+        assert!(DaemonConfig::from_toml_str(source).is_err());
     }
 
     #[test]

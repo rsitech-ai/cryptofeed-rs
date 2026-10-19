@@ -193,6 +193,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             start_ns,
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: price(100),
                 quantity: quantity(2),
                 aggressor: AggressorSide::Buy,
@@ -265,6 +266,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             start_ns + 5_000,
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: price(100),
                 quantity: quantity(1),
                 aggressor: AggressorSide::Unknown,

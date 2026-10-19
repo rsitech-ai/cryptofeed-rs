@@ -298,3 +298,83 @@ ms bounds and lexical metadata were also repaired. Focused all-feature119 tests
 pass (13 deliberately ignored); independent exact-number fixtures9/9 pass.
 Non-trade timestamp saturation, source-origin semantics, OKX multirow/finality,
 Binance classification/ranges and full causal replay remain open work.
+
+
+## Additive native semantics and OKX admission repair
+
+On stacked PR51, Trade now has optional native provenance: source channel,
+individual/aggregate/unverified granularity, optional native constituent IDs,
+optional native count and source attributes. A count is never inferred from a
+range. Candle now preserves optional native confirmation, quote volume and
+product-dependent volCcy. Absence remains unknown; explicit false remains false.
+Serde/normalized JSON/protobuf use additive optional fields; existing events omit
+absent fields. Every adapter constructor was migrated with unknown defaults.
+Generated Google protobuf classes independently read four synthetic Rust binary
+and normalized JSON records, preserving i128 maxima, scale255, uint64 maxima,
+false/absent distinction and optional empty IDs/count0. This tests the wire
+boundary, not a native exchange observation.
+
+OKX validates every trade/candle row before producing output, preserving up to
+4096 rows in one event batch with stable frame/event ordinals. Malformed late rows
+fail atomically. Native trade IDs no longer impersonate source sequences. Trades
+retains aggregate provenance and native count/source/seqId; explicit trades_all
+(or trades-all) selects the individual trades-all business channel. Other venues
+reject that configuration. Public/business sessions send only their actual
+requested native arguments. Candle confirmation and both native volume variants
+are retained exactly. Public/business/private WS use443; the announced8443
+retirement was checked against the official notice.
+
+Readiness now waits for the exact channel+instId/instType ACK set and every
+requested book snapshot. Duplicate and unsubscribe responses cannot advance it;
+malformed/wrong-scope ACKs cannot admit a session. The20s startup deadline stays
+armed until admission and reconnects on missing ACKs or initial book snapshots.
+Independent review found the first version canceled its timer too early after
+ACKs; that defect is fixed and a missing-second-book timeout regression passes.
+This does not establish trade continuity or sustained OKX operational readiness.
+
+Current broad gates before this final ACK edit: full workspace all-targets/
+all-features tests passed; full workspace Clippy passed. Final ACK-specific tests
+and independent review pass; final repeated gates are recorded with the delivery
+checkpoint. Source-origin semantics, Binance classification/ranges, non-trade
+timestamp saturation, actual external backtest readers and mixed causal replay
+remain open under the active goal.
+
+
+## Bounded soak08, storage and release-gate checkpoint
+
+Shared collector62a8fef captured2807 exact native/canonical deliveries (150
+initial deliveries) across spot@107/PURR and perpsBTC/ETH/xyz:TSLA. No unaccepted
+text frames, trade differences or source parse/drop/gap errors were found by the
+independent Python audit. Readiness was503 on the startup poll and200 on all29
+subsequent polls. Sampled peak RSS: collector31,244,288bytes; terminal19,808,256;
+API21,528,576. Live and saved summary plus final screen match byte-for-byte
+(3400bytes). The collector binary was copied and hashed before use. The hlscreen
+process binary hash was not captured at launch; later builds prevent reliable
+retrospective attribution. Source runtime is unchanged from8367b0b.
+
+Collector and terminal exited0. API was SIGKILLed by the harness: its15s wait
+started after sealing, while API had a separate later duration deadline. This
+combined soak is not a clean-shutdown pass. A preserved distinct12s collector /
+18s API probe with30s exit allowance exited0 for all processes; API shared mode
+also exited0 after a separately measured2.018s replay run. The original failure
+is retained; the short corrected probe does not replace a15min operational gate.
+
+Exact export retained2666 event-time rows in manifest
+`a146175ce1fa387e6cfe301626d28798d8136542ad723e9ccbc61dc732f68d39`.
+JSON Schema and independent PyArrow checks, CLI inspection, fresh backup and
+restore, corruption rejection and five denied strict admission profiles pass.
+Decision is validated-not-qualified, region unknown. Tracked compact receipts
+and the immutable manifest are in `docs/evidence/hyperliquid-integration-2026-10-19`;
+bulk original captures and restored stores remain in ignored local evidence.
+No failed or frozen original corpus was modified. Recent source references have
+only10rows per instrument and cannot establish whole-window continuity.
+
+Hlscreen's separate existing supervisor soak passed after902s with334symbols,
+292159 projected events, zero reported parser drops/gaps and zero replay drift;
+RSS peaked48,185,344bytes. That fallback plan used all-mids and asset contexts,
+so it provides no sustained trade-tape coverage. Fresh report is committed in
+hlscreen. Its canonical `scripts/check.sh pr` gate passed, including565 test
+executions, Clippy, rustdoc, packaging/public scans, matching soak runtime hash
+and local release artifact smoke. Immutable shared pin and dependency-source
+checks pass. Hlscreen PR21 is pushed throughd5a26dd. No calendar-spaced canaries,
+24h or7d operational soak was run, and the active goal remains unfinished.

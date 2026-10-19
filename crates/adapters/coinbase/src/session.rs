@@ -357,6 +357,7 @@ impl CoinbaseSpotSession {
                     seq,
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
+                        provenance: None,
                         price: row.price,
                         quantity: row.quantity,
                         aggressor: row.aggressor,
@@ -759,6 +760,9 @@ impl SessionMachine for CoinbaseSpotSession {
                         self.emit_candle(
                             &product,
                             Candle {
+                                native_volume_ccy: None,
+                                is_closed: None,
+                                quote_volume: None,
                                 open,
                                 high,
                                 low,

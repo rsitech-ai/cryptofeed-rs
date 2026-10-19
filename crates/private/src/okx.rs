@@ -27,7 +27,7 @@ use crate::session::{PrivateActionBuffer, PrivateSessionMachine};
 pub const OKX_SPOT_VENUE_ID: VenueId = VenueId(4);
 
 /// OKX v5 private WebSocket URL (mainnet).
-pub const OKX_PRIVATE_WS_URL: &str = "wss://ws.okx.com:8443/ws/v5/private";
+pub const OKX_PRIVATE_WS_URL: &str = "wss://ws.okx.com/ws/v5/private";
 
 /// Default fixture login body (no real signature).
 pub const FIXTURE_LOGIN_PAYLOAD: &str = r#"{"op":"login","args":[{"apiKey":"fixture-api-key","passphrase":"fixture-pass","timestamp":"1700000000","sign":"fixture-sign"}]}"#;

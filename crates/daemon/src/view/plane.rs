@@ -2775,6 +2775,7 @@ mod tests {
                 source_sequence: None,
                 flags: EventFlags::default(),
                 payload: MarketEvent::Trade(Trade {
+                    provenance: None,
                     price: Price(Fixed::parse_str(price).unwrap()),
                     quantity: Quantity(Fixed::parse_str(qty).unwrap()),
                     aggressor: AggressorSide::Buy,
@@ -3090,6 +3091,7 @@ mod tests {
             InstrumentId(1),
             now,
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::parse_str("100.00").unwrap()),
                 quantity: Quantity(Fixed::parse_str("0.250").unwrap()),
                 aggressor: AggressorSide::Buy,

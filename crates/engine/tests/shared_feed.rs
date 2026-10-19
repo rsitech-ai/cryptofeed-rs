@@ -27,6 +27,7 @@ impl SessionMachine for WrongIdentity {
                     source_sequence: None,
                     flags: EventFlags::empty(),
                     payload: MarketEvent::Trade(Trade {
+                        provenance: None,
                         price: Price(Fixed::new(123, 2)),
                         quantity: Quantity(Fixed::new(4, 3)),
                         aggressor: AggressorSide::Buy,

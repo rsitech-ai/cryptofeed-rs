@@ -2,7 +2,7 @@
 //! `books` L2 via WS snapshot, and (derivatives) mark-price/index-tickers/
 //! funding-rate/open-interest/liquidation-orders.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use bytes::Bytes;
 use marketfeed_adapter_api::{
@@ -19,7 +19,6 @@ use marketfeed_model::{
 
 use crate::messages::{
     DecodedEvent, candle_channel, decode_text, level_op, to_book_levels, trade_id_source,
-    trade_id_u64,
 };
 use crate::specification::{
     BUSINESS_WS_URL, OKX_FUTURES_VENUE_ID, OKX_SPOT_VENUE_ID, OKX_SWAP_VENUE_ID, PING_INTERVAL_MS,
@@ -29,6 +28,9 @@ use crate::specification::{
 const SCHEMA_VERSION: u16 = 1;
 /// OKX `books` channel depth.
 const BOOKS_DEPTH: u32 = 400;
+const ACK_TIMER_ID: u64 = 2;
+const ACK_TIMEOUT_NS: i64 = 20_000_000_000;
+type SubscriptionKey = (String, Option<String>, Option<String>);
 
 #[derive(Debug, Clone)]
 pub struct OkxSessionConfig {
@@ -110,8 +112,10 @@ pub struct OkxSession {
     books: HashMap<String, SymbolBook>,
     live: bool,
     business_endpoint: bool,
-    #[allow(dead_code)]
+    subscriptions: marketfeed_adapter_api::ConcreteSubscriptionSet,
     subscribed: bool,
+    expected_acks: BTreeSet<SubscriptionKey>,
+    pending_acks: BTreeSet<SubscriptionKey>,
 }
 
 impl OkxSession {
@@ -120,6 +124,17 @@ impl OkxSession {
         let mut books = HashMap::new();
         if cfg.enable_l2 {
             for (sym, id) in &cfg.instrument_ids {
+                if !spec.subscriptions.items.is_empty()
+                    && !spec.subscriptions.items.iter().any(|item| {
+                        item.instrument == *id
+                            && matches!(
+                                item.channel,
+                                marketfeed_adapter_api::Channel::L2Book { .. }
+                            )
+                    })
+                {
+                    continue;
+                }
                 let (price_scale, qty_scale) = cfg
                     .book_scales
                     .get(sym)
@@ -138,7 +153,10 @@ impl OkxSession {
             books,
             live: false,
             business_endpoint,
+            subscriptions: spec.subscriptions,
             subscribed: false,
+            expected_acks: BTreeSet::new(),
+            pending_acks: BTreeSet::new(),
         }
     }
 
@@ -209,8 +227,53 @@ impl OkxSession {
         output.push(SessionAction::Reconnect(ReconnectReason::ChecksumMismatch));
     }
 
-    fn subscribe_message(&self) -> Bytes {
+    fn subscription_args(&self) -> Vec<serde_json::Value> {
         let mut args = Vec::new();
+        if !self.subscriptions.items.is_empty() {
+            for item in &self.subscriptions.items {
+                let Some(symbol) = self
+                    .cfg
+                    .instrument_ids
+                    .iter()
+                    .find_map(|(symbol, id)| (*id == item.instrument).then_some(symbol))
+                else {
+                    continue;
+                };
+                use marketfeed_adapter_api::Channel;
+                let (channel, instrument) = match &item.channel {
+                    Channel::Trades => ("trades".to_string(), symbol.clone()),
+                    Channel::AllTrades => ("trades-all".to_string(), symbol.clone()),
+                    Channel::Quote | Channel::Statistics24h => {
+                        ("tickers".to_string(), symbol.clone())
+                    }
+                    Channel::L2Book { .. } => ("books".to_string(), symbol.clone()),
+                    Channel::Candles { interval } => {
+                        (candle_channel(*interval).to_string(), symbol.clone())
+                    }
+                    Channel::MarkPrice => ("mark-price".to_string(), symbol.clone()),
+                    Channel::IndexPrice => {
+                        ("index-tickers".to_string(), underlying_index_id(symbol))
+                    }
+                    Channel::Funding => ("funding-rate".to_string(), symbol.clone()),
+                    Channel::OpenInterest => ("open-interest".to_string(), symbol.clone()),
+                    Channel::Liquidations => {
+                        if let Some(inst_type) = derivative_inst_type(self.cfg.venue) {
+                            let arg = serde_json::json!({"channel":"liquidation-orders","instType":inst_type});
+                            if !args.contains(&arg) {
+                                args.push(arg);
+                            }
+                        }
+                        continue;
+                    }
+                    _ => continue,
+                };
+                let arg = serde_json::json!({"channel":channel,"instId":instrument});
+                if !args.contains(&arg) {
+                    args.push(arg);
+                }
+            }
+            return args;
+        }
         for s in &self.cfg.symbols {
             if self.business_endpoint {
                 for interval in &self.cfg.candle_intervals {
@@ -245,12 +308,21 @@ impl OkxSession {
                 }));
             }
         }
-        let body = serde_json::json!({
-            "id": "1",
-            "op": "subscribe",
-            "args": args
-        });
-        Bytes::from(body.to_string())
+        args
+    }
+
+    fn maybe_mark_live(&mut self, output: &mut ActionBuffer) {
+        if !self.live
+            && self.subscribed
+            && self
+                .books
+                .values()
+                .all(|book| book.sync.state == SyncState::Live)
+        {
+            self.live = true;
+            output.push(SessionAction::CancelTimer(ACK_TIMER_ID));
+            output.push(SessionAction::MarkLive);
+        }
     }
 
     fn handle_decoded(
@@ -260,6 +332,50 @@ impl OkxSession {
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
         match decoded {
+            DecodedEvent::Batch(rows) => {
+                for row in &rows {
+                    let inst_id = match row {
+                        DecodedEvent::Trade { inst_id, .. }
+                        | DecodedEvent::Candle { inst_id, .. } => inst_id,
+                        _ => {
+                            return Err(AdapterError::Protocol(
+                                "unsupported decoded batch member".into(),
+                            ));
+                        }
+                    };
+                    if self.instrument_for(inst_id).is_none() {
+                        return Err(AdapterError::Catalog(format!(
+                            "batch instrument absent: {inst_id}"
+                        )));
+                    }
+                }
+                let frame_seq = self
+                    .frame_seq
+                    .checked_add(1)
+                    .ok_or_else(|| AdapterError::Internal("frame counter overflow".into()))?;
+                let mut events = Vec::new();
+                let mut staged = ActionBuffer::with_capacity(1);
+                for row in rows {
+                    self.handle_decoded(row, received, &mut staged)?;
+                    for action in staged.drain() {
+                        let SessionAction::EmitBatch(batch) = action else {
+                            return Err(AdapterError::Internal("unexpected row action".into()));
+                        };
+                        events.extend(batch.events);
+                    }
+                }
+                self.frame_seq = frame_seq;
+                for (index, event) in events.iter_mut().enumerate() {
+                    event.frame_seq = frame_seq;
+                    event.event_index =
+                        u16::try_from(index).map_err(|e| AdapterError::Internal(e.to_string()))?;
+                }
+                output.push(SessionAction::EmitBatch(EventBatch {
+                    session: self.cfg.session,
+                    frame_seq,
+                    events,
+                }));
+            }
             DecodedEvent::Ping => {
                 output.push(SessionAction::SendText(Bytes::from_static(b"pong")));
             }
@@ -272,15 +388,33 @@ impl OkxSession {
                 aggressor,
                 exchange_ts_ms,
                 seq_id,
+                provenance,
             } => {
-                let instrument = self.instrument_for(&inst_id);
+                let instrument = Some(self.instrument_for(&inst_id).ok_or_else(|| {
+                    AdapterError::Catalog(format!("trade instrument absent: {inst_id}"))
+                })?);
+                if !self.subscriptions.items.is_empty() {
+                    let channel = if provenance.source_channel == "trades-all" {
+                        marketfeed_adapter_api::Channel::AllTrades
+                    } else {
+                        marketfeed_adapter_api::Channel::Trades
+                    };
+                    if !self
+                        .subscriptions
+                        .items
+                        .iter()
+                        .any(|item| Some(item.instrument) == instrument && item.channel == channel)
+                    {
+                        return Err(AdapterError::Subscription(
+                            "unrequested OKX trade channel/instrument".into(),
+                        ));
+                    }
+                }
                 let frame_seq = self.next_frame();
-                let seq = seq_id
-                    .or_else(|| trade_id_u64(&trade_id))
-                    .map(|id| SequenceRange {
-                        first: id,
-                        last: id,
-                    });
+                let seq = seq_id.map(|id| SequenceRange {
+                    first: id,
+                    last: id,
+                });
                 let env = self.envelope(
                     instrument,
                     frame_seq,
@@ -290,6 +424,7 @@ impl OkxSession {
                     seq,
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
+                        provenance: Some(provenance),
                         price,
                         quantity,
                         aggressor,
@@ -366,9 +501,13 @@ impl OkxSession {
                 interval_ns,
                 start_ts,
                 exchange_ts_ms,
-                is_closed: _,
+                is_closed,
+                quote_volume,
+                native_volume_ccy,
             } => {
-                let instrument = self.instrument_for(&inst_id);
+                let instrument = Some(self.instrument_for(&inst_id).ok_or_else(|| {
+                    AdapterError::Catalog(format!("candle instrument absent: {inst_id}"))
+                })?);
                 let frame_seq = self.next_frame();
                 let env = self.envelope(
                     instrument,
@@ -379,6 +518,9 @@ impl OkxSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Candle(Candle {
+                        native_volume_ccy: Some(native_volume_ccy),
+                        is_closed: Some(is_closed),
+                        quote_volume,
                         open,
                         high,
                         low,
@@ -574,16 +716,28 @@ impl OkxSession {
                     events,
                 }));
             }
-            DecodedEvent::SubscribeAck { .. } => {
-                self.subscribed = true;
-                output.push(SessionAction::EmitSystem(
-                    SystemEvent::SubscriptionStateChanged {
-                        state: "subscribed".into(),
-                    },
-                ));
-                if !self.cfg.enable_l2 && !self.live {
-                    self.live = true;
-                    output.push(SessionAction::MarkLive);
+            DecodedEvent::SubscribeAck {
+                channel,
+                inst_id,
+                inst_type,
+            } => {
+                let key = (channel, inst_id, inst_type);
+                if !self.expected_acks.contains(&key) {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: format!("okx unexpected subscribe ACK: {key:?}"),
+                    }));
+                    output.push(SessionAction::Reconnect(ReconnectReason::Protocol));
+                    return Ok(());
+                }
+                // Duplicate ACKs do not advance the ledger or re-admit the session.
+                if self.pending_acks.remove(&key) && self.pending_acks.is_empty() {
+                    self.subscribed = true;
+                    output.push(SessionAction::EmitSystem(
+                        SystemEvent::SubscriptionStateChanged {
+                            state: "subscribed".into(),
+                        },
+                    ));
+                    self.maybe_mark_live(output);
                 }
             }
             DecodedEvent::Error { code, msg } => {
@@ -661,10 +815,7 @@ impl OkxSession {
         output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
             instrument,
         }));
-        if !self.live {
-            self.live = true;
-            output.push(SessionAction::MarkLive);
-        }
+        self.maybe_mark_live(output);
         Ok(())
     }
 
@@ -773,17 +924,36 @@ impl SessionMachine for OkxSession {
                     book.sync.begin_resync();
                     book.sync.request_snapshot();
                 }
-                output.push(SessionAction::SendText(self.subscribe_message()));
+                let args = self.subscription_args();
+                self.expected_acks = args
+                    .iter()
+                    .map(|arg| {
+                        (
+                            arg["channel"].as_str().unwrap_or_default().to_owned(),
+                            arg["instId"].as_str().map(str::to_owned),
+                            arg["instType"].as_str().map(str::to_owned),
+                        )
+                    })
+                    .collect();
+                self.pending_acks = self.expected_acks.clone();
+                if self.pending_acks.is_empty() {
+                    return Err(AdapterError::Protocol(
+                        "okx session has no native subscriptions".into(),
+                    ));
+                }
+                output.push(SessionAction::SendText(Bytes::from(
+                    serde_json::json!({"id":"1", "op":"subscribe", "args":args}).to_string(),
+                )));
+                output.push(SessionAction::ScheduleTimer(TimerSpec {
+                    timer_id: ACK_TIMER_ID,
+                    fire_at: TimestampNs(now.0.saturating_add(ACK_TIMEOUT_NS)),
+                }));
                 self.schedule_ping(now, output);
                 output.push(SessionAction::EmitSystem(
                     SystemEvent::ConnectionStateChanged {
                         state: "connected".into(),
                     },
                 ));
-                if !self.cfg.enable_l2 {
-                    self.live = true;
-                    output.push(SessionAction::MarkLive);
-                }
                 Ok(())
             }
             SessionInput::Disconnected { .. } => {
@@ -792,7 +962,10 @@ impl SessionMachine for OkxSession {
                 for book in self.books.values_mut() {
                     book.sync.invalidate("disconnected");
                 }
+                self.pending_acks.clear();
+                self.expected_acks.clear();
                 output.push(SessionAction::CancelTimer(PING_TIMER_ID));
+                output.push(SessionAction::CancelTimer(ACK_TIMER_ID));
                 output.push(SessionAction::EmitSystem(
                     SystemEvent::ConnectionStateChanged {
                         state: "disconnected".into(),
@@ -821,7 +994,19 @@ impl SessionMachine for OkxSession {
                 Ok(())
             }
             SessionInput::Timer { timer_id, now } => {
-                if timer_id == PING_TIMER_ID {
+                if timer_id == ACK_TIMER_ID && !self.expected_acks.is_empty() && !self.live {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: format!(
+                            "okx startup timeout: {} pending ACKs, {} unsynchronized books",
+                            self.pending_acks.len(),
+                            self.books
+                                .values()
+                                .filter(|book| book.sync.state != SyncState::Live)
+                                .count()
+                        ),
+                    }));
+                    output.push(SessionAction::Reconnect(ReconnectReason::Protocol));
+                } else if timer_id == PING_TIMER_ID {
                     output.push(SessionAction::SendText(Bytes::from_static(b"ping")));
                     self.schedule_ping(now, output);
                 }

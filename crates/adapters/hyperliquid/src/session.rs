@@ -216,6 +216,7 @@ impl HyperliquidSession {
                         Some(t.time),
                         stamp,
                         MarketEvent::Trade(Trade {
+                            provenance: None,
                             price: Price(t.px.0),
                             quantity: Quantity(t.sz.0),
                             aggressor: if t.side == "B" {
@@ -312,6 +313,9 @@ impl HyperliquidSession {
                     None,
                     stamp,
                     MarketEvent::Candle(Candle {
+                        native_volume_ccy: None,
+                        is_closed: None,
+                        quote_volume: None,
                         open: Price(c.o.0),
                         high: Price(c.h.0),
                         low: Price(c.l.0),

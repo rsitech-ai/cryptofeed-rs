@@ -338,6 +338,7 @@ impl BitfinexSession {
             Some(ms_to_ts(t.exchange_ts_ms)),
             EventFlags::empty(),
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: t.price,
                 quantity: t.quantity,
                 aggressor: t.aggressor,
@@ -613,6 +614,9 @@ impl BitfinexSession {
                 self.emit_candle(
                     &symbol,
                     Candle {
+                        native_volume_ccy: None,
+                        is_closed: None,
+                        quote_volume: None,
                         open,
                         high,
                         low,

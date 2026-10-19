@@ -730,6 +730,7 @@ fn market_epin_requires_exact_action_and_catalog_mapping() {
     )
     .unwrap();
     let trade = MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(Fixed::new(100, 0)),
         quantity: Quantity(Fixed::new(1, 0)),
         aggressor: AggressorSide::Buy,
@@ -778,6 +779,7 @@ fn market_epin_requires_exact_action_and_catalog_mapping() {
 
     let mut valid = correct;
     valid.payload = MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(Fixed::new(100, 0)),
         quantity: Quantity(Fixed::new(1, 0)),
         aggressor: AggressorSide::Buy,

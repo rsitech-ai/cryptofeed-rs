@@ -22,6 +22,7 @@
 //! let _ = eng.health();
 //! let px = Fixed::new(100_00, 2);
 //! let _ = MarketEvent::Trade(marketfeed::Trade {
+//!     provenance: None,
 //!     price: marketfeed::Price(px),
 //!     quantity: marketfeed::Quantity(Fixed::new(1, 0)),
 //!     aggressor: marketfeed::AggressorSide::Buy,

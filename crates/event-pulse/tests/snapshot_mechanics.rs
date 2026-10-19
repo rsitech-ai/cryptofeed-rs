@@ -645,6 +645,7 @@ fn trade(price: i128) -> MarketEvent {
 
 fn trade_with_side(price: i128, aggressor: AggressorSide) -> MarketEvent {
     MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(Fixed::new(price, 8)),
         quantity: Quantity(Fixed::new(SCALE, 8)),
         aggressor,

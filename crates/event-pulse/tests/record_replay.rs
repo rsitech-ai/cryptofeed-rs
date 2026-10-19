@@ -75,6 +75,7 @@ fn market(sequence: u64, ns: i64, price: i128) -> MechanicsInputV1 {
             source_sequence: None,
             flags: EventFlags::empty(),
             payload: MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::new(price, 0)),
                 quantity: Quantity(Fixed::new(1, 0)),
                 aggressor: AggressorSide::Buy,
@@ -211,6 +212,7 @@ fn snapshot_market(
 
 fn scaled_trade(price: i128) -> MarketEvent {
     MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(Fixed::new(price, 8)),
         quantity: Quantity(Fixed::new(100_000_000, 8)),
         aggressor: AggressorSide::Buy,
