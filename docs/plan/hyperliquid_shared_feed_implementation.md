@@ -407,3 +407,15 @@ Final pre-followup broad gate:1192 passed,56 intentionally ignored; full Clippy,
 rustdoc, dependency advisories/bans/licenses/sources, OSS scan and Rust1.85
 relevant library110 tests pass. The later readiness configuration followup has
 its own daemon tests; it does not invalidate the prior compiled runtime probe.
+
+
+Corrected OKX probe02 (source58f2683) exited0 and readiness reached200 after
+startup (13 ready polls). All6 ACK ledgers completed and all3 required books
+synchronized.422 native/canonical trades and21 candles matched exactly; no
+unaccepted text frames, parse/unknown/gap/drop events or compared differences.
+Spot and swap trades/trades-all were observed. Dated-futures trade channels again
+had no rows, so their live trade delivery is not verified by this sample. The
+prior503 configuration failure remains intact. Native granularity/count/source,
+interval/finality/volumes and no fabricated candle sequences were checked by the
+independently reviewed oracle. This is a bounded observation, not continuity or
+operational promotion. Receipt and journal hash accompany pilot01 evidence.

@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "plan": {
+    "schema_version": 1,
+    "created_utc": "2026-10-19T20:50:15.490992+00:00",
+    "wall_cap_secs": 30,
+    "shutdown_cap_secs": 15,
+    "journal_cap_bytes": 67108864,
+    "source": "production global OKX public/business on443; physical region unknown",
+    "symbols": [
+      "BTC-USDT",
+      "BTC-USDT-SWAP",
+      "BTC-USD-261030"
+    ],
+    "requested_channels": [
+      "trades",
+      "trades-all",
+      "candle1m",
+      "books",
+      "tickers"
+    ],
+    "session_count": 6,
+    "acceptance": {
+      "all_6_sessions_live": true,
+      "parse_or_unknown_or_gap_errors": 0,
+      "every_native_trade_row_matches_canonical": true,
+      "explicit_native_channel_granularity_preserved": true,
+      "complete_ack_ledger": true,
+      "candle_finality_preserved": true,
+      "clean_shutdown": true
+    },
+    "observation_limit": "quiet trade/candle channels may produce no rows; report not-observed instead of passing trade coverage; no continuity proof, no strict dataset qualification",
+    "readiness_minimum_venue_groups": 3
+  },
+  "receipt": {
+    "start_utc": "2026-10-19T20:50:25.185277+00:00",
+    "source": "58f2683888ca278eafd8add5a880a66d0b13be8b",
+    "source_clean": true,
+    "binary_sha256": "03682872e6b12b8e6fc849a7a50d618b3af34223d07b9fbfed5f5db96a816e81",
+    "config_sha256": "bdc798dceb44231ad6856186edeed0678dee1e3ae03d1501ad380181d0ac0054",
+    "health": [
+      {
+        "error": "<urlopen error [Errno 61] Connection refused>"
+      },
+      {
+        "error": "HTTP Error 503: "
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      },
+      {
+        "status": 200,
+        "body": "ready\n"
+      }
+    ],
+    "exit": 0,
+    "end_utc": "2026-10-19T20:50:55.704727+00:00"
+  },
+  "audit": {
+    "schema_version": 1,
+    "records": {
+      "metadata": 7,
+      "artifact": 2,
+      "catalog_response": 3,
+      "connection": 12,
+      "frame": 1179,
+      "system": 33,
+      "batch": 1160,
+      "frame_accepted": 1167,
+      "timer": 6,
+      "seal": 1
+    },
+    "session_venues": {
+      "1": 10,
+      "2": 10,
+      "3": 9,
+      "4": 9,
+      "5": 4,
+      "6": 4
+    },
+    "native_rows_by_venue_channel": {
+      "10:tickers": 68,
+      "10:books": 57,
+      "9:trades-all": 237,
+      "10:candle1m": 4,
+      "9:candle1m": 4,
+      "9:tickers": 79,
+      "4:candle1m": 13,
+      "9:books": 122,
+      "4:tickers": 162,
+      "4:books": 217,
+      "9:trades": 102,
+      "4:trades-all": 52,
+      "4:trades": 31
+    },
+    "native_trade_rows": 422,
+    "native_candle_rows": 21,
+    "unaccepted_text_frames": 0,
+    "difference_count": 0,
+    "difference_examples": [],
+    "pending_acks_by_session": {
+      "1": [],
+      "2": [],
+      "4": [],
+      "3": [],
+      "6": [],
+      "5": []
+    },
+    "errors": [],
+    "checks_passed": true,
+    "continuity": "unverified; exact observed rows and ACKs do not prove complete source delivery",
+    "sha256": "58b3c6b116cf871c2231e3276df98a3018e155fb5f60f6396c1aeca3189e009f"
+  },
+  "unobserved": [
+    "Dated-futures trade channels had no rows in30s."
+  ],
+  "qualification": "Observed rows/readiness only; source continuity and strict datasets unverified."
+}
