@@ -16,5 +16,6 @@
     "rsibot": "Shared-feed/dataset consumers, time-qualified cross-venue observations, feature combination, hypotheses, models, experiments and strategy decision traces through existing owners",
     "hlscreen": "Shared-feed consumer and presentation"
   },
-  "handoff": "One authoritative cryptofeed source with independently progressing consumers; versioned schemas, instrument identity, provenance, cursors and dataset manifests. Each consumer checks freshness/quality and reports unavailable inputs. No second collector or strategy engine."
+  "handoff": "One authoritative cryptofeed source with independently progressing consumers; versioned schemas, instrument identity, provenance, cursors and dataset manifests. Each consumer checks freshness/quality and reports unavailable inputs. No second collector or strategy engine.",
+  "known_dependency_advisories": "Six open default-branch alerts inventoried against current lockfiles: five npm UI alerts across devalue/source-map-js need compatible patch validation; time retains existing explicit MSRV/RFC2822 reachability exception. See docs/evidence/dependency-advisories-2026-10-19.json. No alert dismissed or closed."
 }
