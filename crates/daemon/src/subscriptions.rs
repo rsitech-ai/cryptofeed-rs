@@ -17,6 +17,7 @@ fn configured_channel(name: &str) -> Result<(Channel, DeliveryOptions), ConfigEr
             cadence: None,
         },
         "funding" => Channel::Funding,
+        "statistics24h" => Channel::Statistics24h,
         "open_interest" => Channel::OpenInterest,
         "liquidations" => Channel::Liquidations,
         "mark" | "mark_price" => Channel::MarkPrice,
@@ -71,7 +72,16 @@ pub(crate) fn expand_concrete_subscriptions(
             items.push(ConcreteSubscription {
                 instrument: instrument.id,
                 channel: channel.clone(),
-                delivery: *delivery,
+                delivery: if venue.adapter == "hyperliquid"
+                    && matches!(channel, Channel::L2Book { .. })
+                {
+                    DeliveryOptions {
+                        emit_book_deltas: false,
+                        ..*delivery
+                    }
+                } else {
+                    *delivery
+                },
             });
         }
     }

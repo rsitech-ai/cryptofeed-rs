@@ -17,6 +17,7 @@ mod normalized;
 mod pipeline;
 mod queue;
 mod reader;
+pub mod shared_feed;
 mod writer;
 
 pub use control::{decode_subscription_command, encode_subscription_command};

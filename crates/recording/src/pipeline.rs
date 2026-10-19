@@ -400,6 +400,7 @@ impl RecordingPipeline {
         }
         if let Some(w) = self.writer.as_mut() {
             w.flush()?;
+            w.get_ref().get_ref().sync_data()?;
         }
         self.system_events.push(SystemEvent::ShutdownCompleted);
         Ok(())
@@ -414,6 +415,7 @@ impl RecordingPipeline {
     fn flush_writer(&mut self) -> Result<(), RecordingError> {
         if let Some(writer) = self.writer.as_mut() {
             writer.flush()?;
+            writer.get_ref().get_ref().sync_data()?;
         }
         Ok(())
     }
@@ -473,7 +475,8 @@ impl RecordingPipeline {
         create_dir_all(&self.cfg.directory)?;
         let name = format!("seg-{}-{:06}.mfr1", start_ts_ns, self.segment_seq);
         let path = self.cfg.directory.join(name);
-        let file = File::create(&path)?;
+        // A restarted/concurrent recorder must never truncate prior evidence.
+        let file = File::options().write(true).create_new(true).open(&path)?;
         let mut writer = RawSegmentWriter::create(BufWriter::new(file), start_ts_ns)?;
         let mut segment_bytes = HEADER_SIZE as u64;
         for metadata in &self.metadata {
@@ -482,6 +485,9 @@ impl RecordingPipeline {
             segment_bytes =
                 segment_bytes.saturating_add((4 + RAW_HEADER_BODY_LEN + encoded_len) as u64);
         }
+        writer.flush()?;
+        writer.get_ref().get_ref().sync_data()?;
+        File::open(&self.cfg.directory)?.sync_all()?;
         self.writer = Some(writer);
         self.current_path = Some(path);
         self.current_start_ts_ns = Some(start_ts_ns);
@@ -495,6 +501,7 @@ impl RecordingPipeline {
     fn close_segment(&mut self) -> Result<(), RecordingError> {
         if let Some(mut w) = self.writer.take() {
             w.flush()?;
+            w.get_ref().get_ref().sync_data()?;
         }
         self.current_path = None;
         self.current_start_ts_ns = None;

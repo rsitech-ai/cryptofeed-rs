@@ -1,8 +1,8 @@
 # Canonical VenueId registry
 
 **Status:** authoritative
-**Updated:** 2026-07-23
-**Assigned:** 1–20; next free ID is 21
+**Updated:** 2026-10-19
+**Assigned:** 1–22; next free ID is 23
 
 `VenueId` is a global `u16` in `marketfeed-model`. Each distinct venue-segment
 must keep a stable, non-overlapping ID across configuration, events, recordings,
@@ -33,6 +33,9 @@ replay, metrics, and fixtures.
 | 18 | `coinbase-adv` / `COINBASE_ADV_VENUE_ID` | Advanced Trade spot |
 | 19 | `coinbase-intl` / `COINBASE_INTL_VENUE_ID` | authenticated international derivatives |
 | 20 | `bitfinex-deriv` / `BITFINEX_DERIV_VENUE_ID` | derivatives |
+
+| 21 | `hyperliquid-spot` / `HYPERLIQUID_SPOT_VENUE_ID` | spot |
+| 22 | `hyperliquid-perps` / `HYPERLIQUID_PERPS_VENUE_ID` | linear perpetuals |
 
 ## Authenticated market-data boundary
 

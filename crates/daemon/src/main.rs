@@ -510,6 +510,23 @@ async fn main() {
                 tracing::error!("marketfeed daemon stopped with errors");
                 std::process::exit(1);
             }
+            if let Some(feed) = &state.shared_feed {
+                let now_ns = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .ok()
+                    .and_then(|d| i64::try_from(d.as_nanos()).ok())
+                    .unwrap_or(0);
+                if let Err(error) =
+                    feed.append(marketfeed_recording::shared_feed::FeedRecord::Seal {
+                        schema_version: 1,
+                        now_ns,
+                        reason: "clean_shutdown;exchange_continuity_unverified".into(),
+                    })
+                {
+                    tracing::error!(%error, "failed to seal shared feed");
+                    std::process::exit(1);
+                }
+            }
             tracing::info!("marketfeed daemon stopped cleanly");
         }
         _ => usage(),

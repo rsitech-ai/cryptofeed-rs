@@ -30,6 +30,17 @@ where
     F: VenueFactory,
     H: HttpTransport,
 {
+    discover_catalog_with_feed(factory, http, venue_id, environment, catalog_version, None).await
+}
+
+pub async fn discover_catalog_with_feed<F: VenueFactory, H: HttpTransport>(
+    factory: &F,
+    http: &H,
+    venue_id: VenueId,
+    environment: Environment,
+    catalog_version: CatalogVersion,
+    feed: Option<&marketfeed_recording::shared_feed::FeedHandle>,
+) -> Result<CatalogView, String> {
     let specs = factory
         .instrument_requests(environment)
         .map_err(|e| e.to_string())?;
@@ -39,7 +50,7 @@ where
 
     let mut responses = Vec::with_capacity(specs.len());
     for spec in specs {
-        responses.push(execute_http(http, spec).await?);
+        responses.push(execute_http_captured(http, spec, venue_id, feed).await?);
     }
 
     let mut defs: Vec<InstrumentDefinition> = Vec::new();
@@ -56,7 +67,7 @@ where
     if !detail_specs.is_empty() {
         let mut detail_responses = Vec::with_capacity(detail_specs.len());
         for spec in detail_specs {
-            detail_responses.push(execute_http(http, spec).await?);
+            detail_responses.push(execute_http_captured(http, spec, venue_id, feed).await?);
         }
         factory
             .apply_instrument_details(&detail_responses, &mut defs)
@@ -76,6 +87,35 @@ where
         catalog_version,
         std::sync::Arc::from(instruments),
     ))
+}
+
+async fn execute_http_captured<H: HttpTransport>(
+    http: &H,
+    spec: HttpRequestSpec,
+    venue: VenueId,
+    feed: Option<&marketfeed_recording::shared_feed::FeedHandle>,
+) -> Result<AdapterHttpResponse, String> {
+    use base64::Engine as _;
+    let id = spec.id;
+    let body = spec
+        .body
+        .as_ref()
+        .map(|b| String::from_utf8_lossy(b).into_owned())
+        .unwrap_or_default();
+    let response = execute_http(http, spec).await?;
+    if let Some(feed) = feed {
+        feed.append(
+            marketfeed_recording::shared_feed::FeedRecord::CatalogResponse {
+                venue: venue.0,
+                request_id: id,
+                request_body: body,
+                status: response.status,
+                body_base64: base64::engine::general_purpose::STANDARD.encode(&response.body),
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(response)
 }
 
 async fn execute_http<H: HttpTransport>(

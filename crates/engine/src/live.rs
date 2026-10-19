@@ -417,6 +417,10 @@ async fn run_session_with_reconnect_to_inner<
                     reconnect.observe_transition(lifecycle_before, runner.lifecycle);
                     // Sink replaces null-drain; either path empties dispatch (metrics on push).
                     consume(runner, &mut sink)?;
+                    // A buffered transport can remain immediately ready for an
+                    // arbitrarily long burst. Yield explicitly so parent health,
+                    // other sessions and stop signals still get polled.
+                    tokio::task::yield_now().await;
                     reconnect.observe(runner.lifecycle);
                     if runner.reconnect_requested {
                         disconnect_reason = DisconnectReason::ReconnectRequested;

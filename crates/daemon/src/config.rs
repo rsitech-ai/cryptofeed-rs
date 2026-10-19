@@ -19,6 +19,7 @@ const KNOWN_ADAPTERS: &[&str] = &[
     "deribit",
     "bitstamp",
     "gemini",
+    "hyperliquid",
     "coinbase",
     "bitfinex",
     "synthetic",
@@ -343,6 +344,12 @@ impl Default for ReadinessConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct RecordingConfig {
+    /// New directory for this process lifetime; existing paths fail closed.
+    #[serde(default)]
+    pub shared_directory: Option<String>,
+    /// Mandatory bounded shared-feed size when shared_directory is configured.
+    #[serde(default)]
+    pub shared_max_bytes: u64,
     #[serde(default)]
     pub raw: RawRecordingConfig,
 }
@@ -643,6 +650,8 @@ pub enum VenueKind {
     Deribit,
     Bitstamp,
     Gemini,
+    HyperliquidSpot,
+    HyperliquidPerps,
     CoinbaseSpot,
     CoinbaseAdvanced,
     CoinbaseIntl,
@@ -778,6 +787,14 @@ impl VenueConfig {
             "deribit" => Ok(VenueKind::Deribit),
             "bitstamp" => Ok(VenueKind::Bitstamp),
             "gemini" => Ok(VenueKind::Gemini),
+            "hyperliquid" => match self.segment.as_deref().unwrap_or("spot") {
+                "spot" => Ok(VenueKind::HyperliquidSpot),
+                "perps" | "perp" | "linear" => Ok(VenueKind::HyperliquidPerps),
+                other => Err(ConfigError::Validation(format!(
+                    "venue {}: unknown hyperliquid segment {other:?}",
+                    self.id
+                ))),
+            },
             "coinbase" => {
                 let seg = self
                     .segment
@@ -1054,6 +1071,8 @@ impl DaemonConfig {
                 let _ = sink.nats_subject()?;
             }
         }
+        let mut hl_products = HashSet::new();
+        let mut hl_subscriptions = HashSet::new();
         let mut venue_ids = HashSet::with_capacity(self.venues.len());
         for (venue_index, v) in self.venues.iter().enumerate() {
             if v.id.trim().is_empty() {
@@ -1081,6 +1100,31 @@ impl DaemonConfig {
                 )));
             }
             let kind = v.resolved_kind()?;
+            if v.adapter == "hyperliquid" {
+                let product = if kind == VenueKind::HyperliquidSpot {
+                    "spot"
+                } else {
+                    "perps"
+                };
+                if !hl_products.insert(product) {
+                    return Err(ConfigError::Validation("use one Hyperliquid venue configuration per product to prevent duplicate collectors".into()));
+                }
+                for symbol in &v.symbols {
+                    for channel in &v.channels {
+                        let native = match canonical_channel_name(channel) {
+                            Some(
+                                "funding" | "open_interest" | "mark" | "index" | "statistics24h",
+                            ) => "activeAssetCtx",
+                            Some(c) => c,
+                            None => continue,
+                        };
+                        hl_subscriptions.insert((product, symbol.clone(), native));
+                    }
+                }
+                if hl_subscriptions.len() > 1000 {
+                    return Err(ConfigError::Validation("Hyperliquid combined spot/perp subscription count exceeds IP-wide 1000 limit".into()));
+                }
+            }
             if kind == VenueKind::CoinbaseSpot && v.has_toml_secrets() {
                 return Err(ConfigError::Validation(format!(
                     "venue {}: coinbase-spot secrets must not appear in TOML \
@@ -1120,6 +1164,8 @@ impl DaemonConfig {
                     | VenueKind::Deribit
                     | VenueKind::Bitstamp
                     | VenueKind::Gemini
+                    | VenueKind::HyperliquidSpot
+                    | VenueKind::HyperliquidPerps
                     | VenueKind::CoinbaseSpot
                     | VenueKind::CoinbaseAdvanced
                     | VenueKind::CoinbaseIntl
@@ -1194,6 +1240,15 @@ impl DaemonConfig {
                 }
             }
         }
+        if let Some(path) = &self.recording.shared_directory {
+            if path.trim().is_empty() || self.recording.shared_max_bytes < 48 {
+                return Err(ConfigError::Validation("shared feed needs a nonempty new directory and explicit shared_max_bytes >= 48".into()));
+            }
+        } else if self.recording.shared_max_bytes != 0 {
+            return Err(ConfigError::Validation(
+                "shared_max_bytes requires shared_directory".into(),
+            ));
+        }
         if self.readiness.min_live_sessions > 0 && self.venues.is_empty() {
             return Err(ConfigError::Validation(
                 "impossible readiness: min_live_sessions > 0 but no venues".into(),
@@ -1258,6 +1313,7 @@ fn canonical_channel_name(name: &str) -> Option<&'static str> {
         "mark" | "mark_price" => Some("mark"),
         "index" => Some("index"),
         "candles" => Some("candles"),
+        "statistics24h" => Some("statistics24h"),
         _ => None,
     }
 }

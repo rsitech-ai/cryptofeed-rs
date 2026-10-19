@@ -1,0 +1,158 @@
+use marketfeed_adapter_api::EventBatch;
+use marketfeed_model::*;
+use marketfeed_recording::shared_feed::*;
+use std::{
+    fs::{self, OpenOptions},
+    io::{Seek, SeekFrom, Write},
+};
+fn state(s: &str) -> FeedRecord {
+    FeedRecord::Lifecycle {
+        session: SessionId(7),
+        now_ns: 1,
+        state: s.into(),
+    }
+}
+#[test]
+fn readers_only_observe_synced_prefix_and_resume_exactly() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().join("feed");
+    let mut w = FeedWriter::create(&dir, 1_000_000).unwrap();
+    let mut r = FeedReader::open(&dir, None).unwrap();
+    assert!(r.read_next().unwrap().is_none());
+    w.append(state("connected")).unwrap();
+    assert!(matches!(
+        r.read_next().unwrap(),
+        Some(FeedRecord::Lifecycle { .. })
+    ));
+    let cursor = r.cursor().clone();
+    w.append(state("disconnected")).unwrap();
+    let mut resumed = FeedReader::open(&dir, Some(cursor.clone())).unwrap();
+    assert!(resumed.read_next().unwrap().is_some());
+    assert!(resumed.read_next().unwrap().is_none());
+    let mut wrong = cursor.clone();
+    wrong.feed_id = "other".into();
+    assert!(FeedReader::open(&dir, Some(wrong)).is_err());
+    let mut wrong = cursor;
+    wrong.offset += 1;
+    assert!(FeedReader::open(&dir, Some(wrong)).is_err());
+    let before = fs::read(dir.join("events.mfsf")).unwrap();
+    assert!(FeedWriter::create(&dir, 1_000_000).is_err());
+    assert_eq!(before, fs::read(dir.join("events.mfsf")).unwrap());
+}
+#[test]
+fn torn_uncommitted_tail_is_ignored_but_committed_corruption_fails() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().join("feed");
+    let mut w = FeedWriter::create(&dir, 1_000_000).unwrap();
+    w.append(state("one")).unwrap();
+    drop(w);
+    OpenOptions::new()
+        .append(true)
+        .open(dir.join("events.mfsf"))
+        .unwrap()
+        .write_all(&[9, 1, 0])
+        .unwrap();
+    let mut r = FeedReader::open(&dir, None).unwrap();
+    assert!(r.read_next().unwrap().is_some());
+    assert!(r.read_next().unwrap().is_none());
+    let mut f = OpenOptions::new()
+        .write(true)
+        .open(dir.join("events.mfsf"))
+        .unwrap();
+    f.seek(SeekFrom::Start(60)).unwrap();
+    f.write_all(b"!").unwrap();
+    assert!(FeedReader::open(&dir, None).unwrap().read_next().is_err());
+}
+#[test]
+fn watermark_failure_poisoning_prevents_later_false_commit() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().join("feed");
+    let mut w = FeedWriter::create(&dir, 1_000_000).unwrap();
+    fs::write(dir.join("committed.tmp"), b"leftover-or-collision").unwrap();
+    assert!(w.append(state("uncommitted")).is_err());
+    assert!(w.append(state("must-not-commit-tail")).is_err());
+    let mut r = FeedReader::open(&dir, None).unwrap();
+    assert!(r.read_next().unwrap().is_none());
+}
+#[test]
+fn bytes_are_original_and_signed_i128_extrema_roundtrip() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().join("feed");
+    let mut w = FeedWriter::create(&dir, 1_000_000).unwrap();
+    let original = b" { \"px\" : 1.000000000000000000001 }\n";
+    w.append(FeedRecord::frame(SessionId(3), 5, 6, 7, 0, 1, original))
+        .unwrap();
+    let batch = EventBatch {
+        session: SessionId(3),
+        frame_seq: 5,
+        events: vec![EventEnvelope {
+            schema_version: 1,
+            venue: VenueId(21),
+            instrument: Some(InstrumentId(1)),
+            connection: ConnectionId(3),
+            session: SessionId(3),
+            frame_seq: 5,
+            event_index: 0,
+            exchange_ts: None,
+            receive_ts: TimestampNs(6),
+            source_sequence: None,
+            flags: EventFlags::empty(),
+            payload: MarketEvent::Trade(Trade {
+                price: Price(Fixed::new(i128::MAX, 38)),
+                quantity: Quantity(Fixed::new(i128::MIN, 255)),
+                aggressor: AggressorSide::Unknown,
+                trade_id: Some(SourceId("90071992547409931234567890".into())),
+            }),
+        }],
+    };
+    w.append(FeedRecord::Batch(batch.clone())).unwrap();
+    let mut r = FeedReader::open(&dir, None).unwrap();
+    assert_eq!(
+        r.read_next()
+            .unwrap()
+            .unwrap()
+            .payload_bytes()
+            .unwrap()
+            .unwrap(),
+        original
+    );
+    let FeedRecord::Batch(actual) = r.read_next().unwrap().unwrap() else {
+        panic!()
+    };
+    assert_eq!(actual, batch);
+}
+#[test]
+fn byte_budget_and_commit_rewind_fail_closed() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().join("feed");
+    let mut w = FeedWriter::create(&dir, 2000).unwrap();
+    let initial = fs::read(dir.join("committed.json")).unwrap();
+    w.append(state("one")).unwrap();
+    let mut r = FeedReader::open(&dir, None).unwrap();
+    r.read_next().unwrap();
+    fs::write(dir.join("committed.json"), initial).unwrap();
+    assert!(r.read_next().is_err());
+    assert!(w.append(state(&"x".repeat(3000))).is_err());
+    assert!(w.append(state("later")).is_err());
+}
+
+#[test]
+fn a_seal_is_final_and_cannot_be_followed_by_more_records() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().join("feed");
+    let mut writer = FeedWriter::create(&dir, 1_000_000).unwrap();
+    writer
+        .append(FeedRecord::Seal {
+            schema_version: 1,
+            now_ns: 1,
+            reason: "clean shutdown".into(),
+        })
+        .unwrap();
+    assert!(writer.append(state("late")).is_err());
+    let mut reader = FeedReader::open(&dir, None).unwrap();
+    assert!(matches!(
+        reader.read_next().unwrap(),
+        Some(FeedRecord::Seal { .. })
+    ));
+    assert!(reader.read_next().unwrap().is_none());
+}

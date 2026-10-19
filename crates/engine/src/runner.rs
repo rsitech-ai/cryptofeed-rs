@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -38,6 +38,7 @@ use crate::{EngineError, SessionLifecycle};
 
 /// Max outstanding timers per session (id → fire_at map, not a hierarchical wheel).
 const MAX_SESSION_TIMERS: usize = 32;
+static NEXT_RUNTIME_CONNECTION: AtomicU64 = AtomicU64::new(1);
 /// Cap due-timer deliveries per poll so a buggy adapter cannot hot-loop the runner.
 const MAX_TIMER_FIRES_PER_POLL: usize = 64;
 /// Bound outbound frames waiting for the live flush loop.
@@ -65,6 +66,8 @@ fn sink_to_engine(err: SinkError) -> EngineError {
 #[derive(Debug, Clone)]
 pub struct SessionRunnerConfig {
     pub venue: VenueId,
+    /// Placeholder before the first connect; each actual connection gets a
+    /// fresh collector-owned identity, including reconnect attempts.
     pub connection: ConnectionId,
     pub session: SessionId,
     pub dispatch_capacity: usize,
@@ -73,6 +76,8 @@ pub struct SessionRunnerConfig {
     /// Optional process-wide persistent recorder. When absent, `record=true`
     /// retains an in-memory MFR1 segment for deterministic record/replay tests.
     pub recording_pipeline: Option<RecordingHandle>,
+    /// Complete committed stream; optional and separate from diagnostic mirrors.
+    pub shared_feed: Option<marketfeed_recording::shared_feed::FeedHandle>,
     /// Bound for diagnostic mirror Vecs; `0` disables mirroring.
     pub mirror_capacity: usize,
     /// Optional shared flag set true on MarkLive / false on disconnect.
@@ -93,6 +98,7 @@ impl Default for SessionRunnerConfig {
             overflow: OverflowPolicy::FailEngine,
             record: true,
             recording_pipeline: None,
+            shared_feed: None,
             // Tests keep short histories; live daemon sets 0.
             mirror_capacity: 1024,
             live_signal: None,
@@ -259,6 +265,18 @@ impl SessionRunner {
     }
 
     pub fn on_connected(&mut self, now: TimestampNs) -> Result<(), EngineError> {
+        self.cfg.connection = ConnectionId(
+            NEXT_RUNTIME_CONNECTION
+                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                .map_err(|_| EngineError::Internal("connection ID exhausted".into()))?,
+        );
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+            session: self.cfg.session,
+            connection: self.cfg.connection,
+            now_ns: now.0,
+            connected: true,
+            reason: None,
+        })?;
         self.lifecycle = SessionLifecycle::Connected;
         self.timers.clear();
         self.actions.clear();
@@ -276,6 +294,13 @@ impl SessionRunner {
         reason: DisconnectReason,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+            session: self.cfg.session,
+            connection: self.cfg.connection,
+            now_ns: now.0,
+            connected: false,
+            reason: Some(format!("{reason:?};continuity_unverified")),
+        })?;
         self.lifecycle = SessionLifecycle::Draining;
         self.invalidate_live_readiness();
         self.timers.clear();
@@ -316,7 +341,14 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        let out = self.apply_actions(received.receive_ts);
+        let out = self.apply_actions(received.receive_ts).and_then(|()| {
+            self.record_feed(
+                marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
+                    session: self.cfg.session,
+                    frame_seq,
+                },
+            )
+        });
         self.metrics
             .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
         out
@@ -348,7 +380,14 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        let out = self.apply_actions(received.receive_ts);
+        let out = self.apply_actions(received.receive_ts).and_then(|()| {
+            self.record_feed(
+                marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
+                    session: self.cfg.session,
+                    frame_seq,
+                },
+            )
+        });
         self.metrics
             .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
         out
@@ -424,6 +463,16 @@ impl SessionRunner {
         self.recorder.take().map(|w| w.into_inner().into_inner())
     }
 
+    fn record_feed(
+        &self,
+        record: marketfeed_recording::shared_feed::FeedRecord,
+    ) -> Result<(), EngineError> {
+        if let Some(feed) = &self.cfg.shared_feed {
+            feed.append(record)?;
+        }
+        Ok(())
+    }
+
     fn record_frame(
         &mut self,
         frame_seq: u64,
@@ -433,6 +482,15 @@ impl SessionRunner {
         opcode: RecOpcode,
         payload: &[u8],
     ) -> Result<(), EngineError> {
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::frame(
+            self.cfg.session,
+            frame_seq,
+            receive_ts_ns,
+            monotonic_ns,
+            direction as u8,
+            opcode as u8,
+            payload,
+        ))?;
         if let Some(pipeline) = &self.recording_pipeline {
             let outcome = pipeline.enqueue(
                 self.cfg.session,
@@ -510,6 +568,11 @@ impl SessionRunner {
                     continue;
                 }
                 fired += 1;
+                self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Timer {
+                    session: self.cfg.session,
+                    timer_id,
+                    now_ns: now.0,
+                })?;
                 self.actions.clear();
                 self.machine
                     .on_input(SessionInput::Timer { timer_id, now }, &mut self.actions)?;
@@ -905,7 +968,20 @@ impl SessionRunner {
         let actions: Vec<_> = self.actions.drain().collect();
         for action in actions {
             match action {
-                SessionAction::EmitBatch(batch) => {
+                SessionAction::EmitBatch(mut batch) => {
+                    // Adapters do not own runtime transport identity or the raw
+                    // input ordinal. Assign these once at the collector boundary.
+                    batch.session = self.cfg.session;
+                    batch.frame_seq = self.inbound_frame_seq;
+                    for event in &mut batch.events {
+                        event.venue = self.cfg.venue;
+                        event.session = self.cfg.session;
+                        event.connection = self.cfg.connection;
+                        event.frame_seq = self.inbound_frame_seq;
+                    }
+                    self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+                        batch.clone(),
+                    ))?;
                     let n = batch.events.len() as u64;
                     self.metrics
                         .events_normalized
@@ -928,6 +1004,10 @@ impl SessionRunner {
                     self.refresh_queue_gauges();
                 }
                 SessionAction::EmitSystem(ev) => {
+                    self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
+                        session: self.cfg.session,
+                        event: ev.clone(),
+                    })?;
                     self.trace_system_event(&ev);
                     self.metrics
                         .observe_system_for_session(self.cfg.session, &ev);

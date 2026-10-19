@@ -24,3 +24,5 @@ pub use sinks::DaemonSinks;
 pub use state::{DaemonState, evaluate_readiness};
 #[cfg(feature = "ui-api")]
 pub use view::serve_view;
+
+mod hyperliquid_limits;

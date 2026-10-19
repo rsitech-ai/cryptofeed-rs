@@ -45,6 +45,10 @@ grep -Fq 'homepage = "https://rsitech.ai"' Cargo.toml ||
 grep -Fq 'info@rsitech.ai' SECURITY.md ||
   fail "confidential project contact is missing"
 
+if existing_tracked_files | grep -E '^\.(local|tools)/'; then
+  fail "generated local evidence or tool files are tracked"
+fi
+
 if git grep -I -n -E \
   'github\.com/s1korrrr/cryptofeed-rs|mrsikorarafal@gmail\.com|Apache-2\.0 OR MIT|LICENSE-MIT|LICENSE-APACHE|dual-licensed|dual licensed' \
   -- . ':(exclude)scripts/check-oss-readiness.sh'; then

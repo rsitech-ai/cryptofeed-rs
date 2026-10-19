@@ -22,7 +22,7 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
 ## Capabilities
 
 - Public market-data adapters for Binance, OKX, Bybit, Kraken, Deribit,
-  Bitstamp, Gemini, Coinbase, and Bitfinex across supported spot and derivatives
+  Bitstamp, Gemini, Coinbase, Bitfinex, and Hyperliquid across supported spot and derivatives
   segments.
 - Exact fixed-point price and quantity representation.
 - Pure, bounded market-profile and order-flow analytics for session profiles,
