@@ -251,3 +251,50 @@ final gates and immutable pins again. The original venue decoder/source-origin
 failures, full causal replay, actual external backtest readers and sustained
 operational durations remain open. No claim of perfection or production
 qualification follows from these development pilots.
+
+## Pinned pilot07 and prior numeric repair checkpoint
+
+Shared collector62a8fef and hlscreen8367b0b:270 native/canonical deliveries
+(150 initial,120 other), zero mismatches/unaccepted frames. Collector, terminal
+consumer and shared API exited0; /ready reached200 after startup. Final live and
+saved output (summary plus feature screen,3354bytes) is byte-identical at
+cursor2683/1983487, feed fadae1df2c473d021fa8b06b0947ed664507e04d,
+as-of1792440727739ms;1055 projected events and zero reported gaps.
+Journal SHA2569207b56e6cb1544f0d9d313b17824afb508a6d44d14c35ca740a7b9184a1a45a.
+
+Manifest729b0b99d6c47767d3550f753e7440ce40d929643d644fad6bd7113b7a68ed4f
+retains146 event-time rows, region unknown. Independent JSON Schema/PyArrow,
+CLI inspect, fresh backup/restore and corruption rejection pass; five strict
+profiles are denied. Decision remains validated-not-qualified. Development
+artifacts live only in ignored evidence; old failed/partial artifacts are intact.
+
+Final checkpoint gates: cryptofeed1175 passed/56 ignored; hlscreen542 passed;
+core Rust1.85 library437 passed; dataset Rust1.88 thirteen tests passed. Clippy,
+source scan and cryptofeed dependency gates pass. Hlscreen dependency gate needed
+an explicit shared repository allowlist plus required immutable rev, now passing;
+its generated licenses/notices were refreshed. The old binary soak report cannot
+qualify the changed hlscreen binary: fresh standalone15min and shared collector+
+terminal+API15min runs are in progress. Neither is an operational pass yet.
+Draft delivery: cryptofeed PR50, hlscreen PR21. Old-venue fixes use a stacked
+`codex/exchange-integrity-repairs` branch so the measured shared revision remains
+pinned and reviewable.
+
+The prior numeric JSON failures are repaired in Kraken spot/futures, Deribit
+messages/catalogs and Bitfinex WS/REST financial inputs. Shared RawValue decoding
+keeps decimal/exponent lexemes, integer IDs, bounded structure/work and duplicate
+key rejection. Financial SIMD entrypoints intentionally share this lexical path;
+fixture parity alone is not an independent numerical oracle. Explicit expected
+38-digit, i128, scale/exponent, ID and malformed-value fixtures provide that
+boundary check. Existing raw corpora are unchanged. One Bitfinex test expectation
+now preserves native29001.00 scale, rather than its previous float-reformatted
+29001.0 scale.
+
+Review discovered and closed an obsolete Kraken Futures scientific fallback
+that could allocate gigabytes or turn0.1e-255 into a value ten times larger.
+Fixed::parse_str now rejects it directly. Bitfinex signed-absolute i128 overflow,
+u64 timestamp wrapping and trade ms-to-ns overflow checks were repaired. Native
+fractional liquidation milliseconds are converted exactly to ns. Deribit trade
+ms bounds and lexical metadata were also repaired. Focused all-feature119 tests
+pass (13 deliberately ignored); independent exact-number fixtures9/9 pass.
+Non-trade timestamp saturation, source-origin semantics, OKX multirow/finality,
+Binance classification/ranges and full causal replay remain open work.

@@ -904,6 +904,7 @@ dependencies = [
  "bytes",
  "marketfeed-model",
  "serde",
+ "serde_json",
  "thiserror",
 ]
 
@@ -1017,7 +1018,6 @@ dependencies = [
  "marketfeed-transport",
  "serde",
  "serde_json",
- "simd-json",
  "tokio",
 ]
 
@@ -1064,7 +1064,6 @@ dependencies = [
  "marketfeed-transport",
  "serde",
  "serde_json",
- "simd-json",
  "tokio",
 ]
 

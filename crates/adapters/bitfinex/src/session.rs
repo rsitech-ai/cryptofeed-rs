@@ -297,7 +297,7 @@ impl BitfinexSession {
             frame_seq,
             0,
             received,
-            Some(ms_to_ts(row.exchange_ts_ms)),
+            Some(row.exchange_ts_ns),
             EventFlags::empty(),
             MarketEvent::Liquidation(Liquidation {
                 price: row.price,

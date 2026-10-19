@@ -69,19 +69,18 @@ on `change_id` continuity, unlike Kraken's CRC32-checksummed `book` channel.
 REGEN_CORPUS=1 cargo test -p marketfeed-adapter-deribit --test corpus_replay regen_perp_l2_book_corpus -- --ignored
 ```
 
-## C10 (`simd-json` feature)
+## Exact numeric JSON
 
-Optional `simd-json` for JSON-RPC `decode_text` via `src/json.rs`. Default
-remains `serde_json`. Parity (unit + `tests/decode_simd_parity.rs` on L2
-fixtures):
+Financial numeric tokens retain their original decimal/exponent lexemes through
+shared RawValue decoding before Fixed parsing. Strings and native i64/u64 IDs
+remain exact. The `simd-json` feature name remains accepted for compatibility;
+these financial DOM paths use the lexical parser in every build. They do not use
+a float-based SIMD DOM. A future optimized parser must first satisfy the same
+exact-token and bounded-resource contracts.
 
-```bash
-cargo test -p marketfeed-adapter-deribit
-cargo test -p marketfeed-adapter-deribit --features simd-json
-```
-
-Enable only after parse latency profiles show need — see
-[`docs/ops/latency_runtime.md`](../../../docs/ops/latency_runtime.md).
+Explicit fixtures cover 38-digit values, i128 bounds, exponent/scale overflow,
+IDs above2^53 and nonpositive trade rejection. Native recorded corpora remain
+unchanged. Source continuity and execution semantics retain their separate gates.
 
 ## Maturity
 

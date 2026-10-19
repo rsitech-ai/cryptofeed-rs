@@ -40,8 +40,11 @@ pub fn parse_futures_instruments(
                 resp.status
             )));
         }
-        let body: InstrumentsBody =
-            serde_json::from_slice(&resp.body).map_err(|e| AdapterError::Catalog(e.to_string()))?;
+        let body: InstrumentsBody = serde_json::from_value(
+            marketfeed_adapter_api::exact_value_from_slice(&resp.body)
+                .map_err(AdapterError::Catalog)?,
+        )
+        .map_err(|e| AdapterError::Catalog(e.to_string()))?;
         if body.result != "success" {
             return Err(AdapterError::Catalog(format!(
                 "instruments result {}",
@@ -144,7 +147,9 @@ fn parse_row(
 fn fixed_from_json(v: &serde_json::Value) -> Result<Fixed, String> {
     match v {
         serde_json::Value::String(s) => Fixed::parse_str(s).map_err(|e| e.to_string()),
-        serde_json::Value::Number(n) => Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string()),
+        serde_json::Value::Number(n) if n.is_i64() || n.is_u64() => {
+            Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string())
+        }
         _ => Err("tick/contract not string/number".into()),
     }
 }

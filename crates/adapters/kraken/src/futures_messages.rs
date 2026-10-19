@@ -146,23 +146,32 @@ fn decode_trade(obj: &serde_json::Map<String, Value>) -> Result<FuturesTrade, St
         .get("type")
         .and_then(|t| t.as_str())
         .is_some_and(|t| t.eq_ignore_ascii_case("liquidation"));
+    let price = fixed_from_json(
+        obj.get("price")
+            .ok_or_else(|| "trade missing price".to_string())?,
+    )?;
+    let quantity = fixed_from_json(
+        obj.get("qty")
+            .ok_or_else(|| "trade missing qty".to_string())?,
+    )?;
+    if price.coefficient <= 0 || quantity.coefficient <= 0 {
+        return Err("trade price/quantity must be positive".into());
+    }
+    let exchange_ts_ms = obj
+        .get("time")
+        .and_then(Value::as_i64)
+        .ok_or_else(|| "trade missing time".to_string())?;
+    exchange_ts_ms
+        .checked_mul(1_000_000)
+        .ok_or_else(|| "trade time outside nanosecond range".to_string())?;
     Ok(FuturesTrade {
         product_id,
         uid,
-        price: Price(fixed_from_json(
-            obj.get("price")
-                .ok_or_else(|| "trade missing price".to_string())?,
-        )?),
-        quantity: Quantity(fixed_from_json(
-            obj.get("qty")
-                .ok_or_else(|| "trade missing qty".to_string())?,
-        )?),
+        price: Price(price),
+        quantity: Quantity(quantity),
         aggressor,
         seq: obj.get("seq").and_then(|s| s.as_u64()),
-        exchange_ts_ms: obj
-            .get("time")
-            .and_then(|t| t.as_i64())
-            .ok_or_else(|| "trade missing time".to_string())?,
+        exchange_ts_ms,
         liquidation,
     })
 }
@@ -360,67 +369,18 @@ fn decode_levels(v: &Value) -> Result<Vec<(Price, Quantity)>, String> {
 pub fn fixed_from_json(v: &Value) -> Result<Fixed, String> {
     match v {
         Value::String(s) => parse_fixed_loose(s),
-        Value::Number(n) => parse_fixed_loose(&n.to_string()),
+        Value::Number(n) if n.is_i64() || n.is_u64() => parse_fixed_loose(&n.to_string()),
+        Value::Number(_) => {
+            Err("financial JSON Value already passed through floating point".into())
+        }
         _ => Err("fixed value not string/number".into()),
     }
 }
 
-/// `Fixed::parse_str` rejects sci-notation; Kraken ticker numbers often stringify as `1e-11`.
-///
-/// ponytail: expand mantissa×10^exp to a decimal string (no f64). Ceiling = absurd exponents;
-/// upgrade = keep raw JSON lexical form if serde ever exposes it.
 fn parse_fixed_loose(s: &str) -> Result<Fixed, String> {
-    match Fixed::parse_str(s) {
-        Ok(f) => Ok(f),
-        Err(_) => {
-            let expanded = expand_scientific(s)?;
-            Fixed::parse_str(&expanded).map_err(|e| e.to_string())
-        }
-    }
-}
-
-fn expand_scientific(s: &str) -> Result<String, String> {
-    let s = s.trim();
-    let (neg, body) = match s.strip_prefix('-') {
-        Some(rest) => (true, rest),
-        None => (false, s.strip_prefix('+').unwrap_or(s)),
-    };
-    let (mantissa, exp_str) = body
-        .split_once(['e', 'E'])
-        .ok_or_else(|| format!("not scientific: {s}"))?;
-    let exp: i32 = exp_str
-        .parse()
-        .map_err(|_| format!("bad scientific exponent: {s}"))?;
-    let (int_part, frac_part) = match mantissa.split_once('.') {
-        Some((i, f)) => (i, f),
-        None => (mantissa, ""),
-    };
-    if int_part.is_empty() || !int_part.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(format!("bad scientific mantissa: {s}"));
-    }
-    if !frac_part.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(format!("bad scientific fraction: {s}"));
-    }
-    let digits = format!("{int_part}{frac_part}");
-    let digits = digits.trim_start_matches('0');
-    let digits = if digits.is_empty() { "0" } else { digits };
-    let point_from_left = int_part.len() as i32 + exp;
-    let out = if point_from_left <= 0 {
-        let zeros = usize::try_from((-point_from_left) as u32).unwrap_or(0);
-        format!("0.{}{digits}", "0".repeat(zeros))
-    } else {
-        let split = point_from_left as usize;
-        if split >= digits.len() {
-            format!("{digits}{}", "0".repeat(split - digits.len()))
-        } else {
-            format!("{}.{}", &digits[..split], &digits[split..])
-        }
-    };
-    Ok(if neg && out != "0" && out != "0.0" {
-        format!("-{out}")
-    } else {
-        out
-    })
+    // Fixed already supports checked scientific notation. Retrying failed input
+    // through string expansion could allocate gigabytes or change its value.
+    Fixed::parse_str(s).map_err(|e| e.to_string())
 }
 
 pub fn trade_id_source(uid: &str) -> SourceId {
