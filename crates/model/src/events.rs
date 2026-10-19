@@ -193,6 +193,10 @@ pub enum SystemEvent {
         instrument: InstrumentId,
         reason: String,
     },
+    QuoteInvalidated {
+        instrument: InstrumentId,
+        reason: String,
+    },
     BookSnapshotRejected {
         instrument: InstrumentId,
         reason: String,

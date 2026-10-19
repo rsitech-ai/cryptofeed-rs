@@ -97,6 +97,11 @@ async fn execute_http_captured<H: HttpTransport>(
 ) -> Result<AdapterHttpResponse, String> {
     use base64::Engine as _;
     let id = spec.id;
+    let url = spec.url.clone();
+    let method = format!("{:?}", spec.method);
+    let request_headers = spec.headers.clone();
+    let request_body_base64 =
+        base64::engine::general_purpose::STANDARD.encode(spec.body.as_deref().unwrap_or_default());
     let body = spec
         .body
         .as_ref()
@@ -111,6 +116,20 @@ async fn execute_http_captured<H: HttpTransport>(
                 request_body: body,
                 status: response.status,
                 body_base64: base64::engine::general_purpose::STANDARD.encode(&response.body),
+                provenance: Some(marketfeed_recording::shared_feed::CatalogHttpProvenance {
+                    url,
+                    method,
+                    request_headers,
+                    request_body_base64,
+                    response_headers: response.headers.clone(),
+                    received_at_ns: i64::try_from(
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map_err(|e| e.to_string())?
+                            .as_nanos(),
+                    )
+                    .map_err(|e| e.to_string())?,
+                }),
             },
         )
         .map_err(|e| e.to_string())?;

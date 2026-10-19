@@ -107,6 +107,8 @@ pub struct HyperliquidSession {
     last_received: TimestampNs,
     connected_at: TimestampNs,
     books: BTreeMap<InstrumentId, BookSnapshot>,
+    trade_deliveries: BTreeSet<String>,
+    stream_progress: BTreeMap<String, TimestampNs>,
 }
 impl HyperliquidSession {
     pub fn new(
@@ -127,6 +129,8 @@ impl HyperliquidSession {
             last_received: TimestampNs(0),
             connected_at: TimestampNs(0),
             books: BTreeMap::new(),
+            trade_deliveries: BTreeSet::new(),
+            stream_progress: BTreeMap::new(),
         })
     }
     fn envelope(
@@ -167,16 +171,41 @@ impl HyperliquidSession {
                 .any(|s| s.instrument == i.id && &s.channel == channel)
         })
     }
-    fn events(&self, msg: Message, stamp: FrameStamp) -> Result<Vec<EventEnvelope>, AdapterError> {
+    fn streams_healthy(&self, now: TimestampNs) -> Result<bool, AdapterError> {
+        for sub in &self.wire {
+            let Some(last) = self.stream_progress.get(&subscription_key(sub)?) else {
+                return Ok(false);
+            };
+            // Books and asset contexts have recurring updates. Trades and BBO
+            // are change driven, candles may be daily: silence alone cannot
+            // establish a gap or prove continuity on those streams.
+            if matches!(sub["type"].as_str(), Some("l2Book" | "activeAssetCtx"))
+                && now.0.saturating_sub(last.0) >= 60_000_000_000
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    fn events(
+        &mut self,
+        msg: Message,
+        stamp: FrameStamp,
+    ) -> Result<Vec<EventEnvelope>, AdapterError> {
         let mut out = Vec::new();
         match msg {
             Message::Trades(rows) => {
+                let initial_coins: BTreeSet<_> = rows
+                    .iter()
+                    .map(|t| t.coin.clone())
+                    .filter(|coin| !self.trade_deliveries.contains(coin))
+                    .collect();
                 for t in rows {
                     if !self.wants(&t.coin, &Channel::Trades) {
                         return Err(AdapterError::Protocol("unrequested trades".into()));
                     }
                     let id = t.unique_id();
-                    out.push(self.envelope(
+                    let mut event = self.envelope(
                         &t.coin,
                         Some(t.time),
                         stamp,
@@ -190,7 +219,15 @@ impl HyperliquidSession {
                             },
                             trade_id: Some(SourceId(id)),
                         }),
-                    )?);
+                    )?;
+                    event
+                        .flags
+                        .insert(EventFlags::ACQUISITION_ORIGIN_UNVERIFIED);
+                    if initial_coins.contains(&t.coin) {
+                        event.flags.insert(EventFlags::INITIAL_DELIVERY);
+                    }
+                    out.push(event);
+                    self.trade_deliveries.insert(t.coin);
                 }
             }
             Message::Bbo(b) => {
@@ -386,6 +423,8 @@ impl SessionMachine for HyperliquidSession {
                     }));
                 }
                 self.books.clear();
+                self.trade_deliveries.clear();
+                self.stream_progress.clear();
                 self.connected = true;
                 self.live = false;
                 self.connected_at = now;
@@ -434,9 +473,7 @@ impl SessionMachine for HyperliquidSession {
                             ));
                         }
                         self.pending.remove(&key);
-                        if self.pending.is_empty() && !self.live {
-                            self.live = true;
-                            output.push(SessionAction::MarkLive);
+                        if self.pending.is_empty() {
                             output.push(SessionAction::EmitSystem(
                                 SystemEvent::SubscriptionStateChanged {
                                     state: "all Hyperliquid subscriptions acknowledged".into(),
@@ -446,6 +483,47 @@ impl SessionMachine for HyperliquidSession {
                     }
                     Message::Pong => {}
                     data => {
+                        let progress = match &data {
+                            Message::Trades(rows) => {
+                                rows.first().map(|t| ("trades", t.coin.as_str()))
+                            }
+                            Message::Bbo(b) => Some(("bbo", b.coin.as_str())),
+                            Message::Book(b) => Some(("l2Book", b.coin.as_str())),
+                            Message::Context(c) => Some(("activeAssetCtx", c.coin.as_str())),
+                            Message::Candle(c) => {
+                                self.stream_progress.insert(
+                                    subscription_key(
+                                        &json!({"type":"candle","coin":c.s,"interval":c.i}),
+                                    )?,
+                                    received.receive_ts,
+                                );
+                                None
+                            }
+                            _ => None,
+                        };
+                        if let Some((kind, coin)) = progress {
+                            self.stream_progress.insert(
+                                subscription_key(&json!({"type":kind,"coin":coin}))?,
+                                received.receive_ts,
+                            );
+                        }
+                        if let Message::Bbo(b) = &data {
+                            if b.bbo.iter().any(Option::is_none) {
+                                let instrument = self
+                                    .catalog
+                                    .find_by_native(&b.coin)
+                                    .ok_or_else(|| {
+                                        AdapterError::Protocol("unknown bbo coin".into())
+                                    })?
+                                    .id;
+                                output.push(SessionAction::EmitSystem(
+                                    SystemEvent::QuoteInvalidated {
+                                        instrument,
+                                        reason: "Hyperliquid BBO has an unavailable side".into(),
+                                    },
+                                ));
+                            }
+                        }
                         let events = self.events(data, received)?;
                         for e in &events {
                             if let (Some(instrument), MarketEvent::BookSnapshot(book)) =
@@ -467,10 +545,17 @@ impl SessionMachine for HyperliquidSession {
                         }
                     }
                 }
+                if self.pending.is_empty()
+                    && !self.live
+                    && self.streams_healthy(received.receive_ts)?
+                {
+                    self.live = true;
+                    output.push(SessionAction::MarkLive);
+                }
             }
             SessionInput::Timer { timer_id: 1, now } if self.connected => {
                 if now.0.saturating_sub(self.last_received.0) >= 60_000_000_000
-                    || (!self.pending.is_empty()
+                    || ((!self.pending.is_empty() || !self.streams_healthy(now)?)
                         && now.0.saturating_sub(self.connected_at.0) >= 20_000_000_000)
                 {
                     self.live = false;

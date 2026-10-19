@@ -141,3 +141,61 @@ canary/soak durations and all unrun checks must stay explicit non-passing gates.
   .local/.tools are excluded from the source scan, while the OSS guard now
   explicitly refuses either directory if tracked. No source secret rule was
   disabled. OSS readiness passes with the scanner actually present.
+
+
+## Independent review corrections (2026-10-19)
+
+Three separate reviewers examined source semantics, engine/storage boundaries,
+and the hlscreen consumer at cryptofeed revision e52880c. Their findings are
+acceptance gates, not cosmetic issues. Retained probes proved that two canonical
+batches could be published before a later dispatch failure left the frame
+unaccepted. Outputs now stage under a bounded transaction and publish with
+FrameAccepted under one synced watermark; original bytes remain a separate
+prior durable record. Failed actions expose no partial canonical transaction.
+Added a failing-late-action regression and multi-record publication/cap tests.
+
+Normal transport loss now journals connection boundaries; shared-only dynamic
+subscription mutations, engine-owned clock/drop/system/status/catalog output
+also enter the journal. Outbound records describe queued send attempts, not
+confirmed writes; monotonic timestamps are zero where unavailable, rather than
+mislabeling epoch wall time. Timer batches still need explicit causal references
+before strict mixed-input replay qualification.
+
+Raw recording validates maximum record size before enqueue, retains records
+until successful write, poisons partial-I/O/close failures and bounds queue bytes.
+Ingress and the single consumer each have a configurable byte budget (default
+128MiB), plus at most one 16MiB temporary frame copy; repeated/concurrent flushes
+cannot accumulate unbounded pending retries. Synchronous filesystem stalls are
+not bounded by a hard realtime deadline and remain a performance gate.
+
+Initial trade deliveries now carry explicit generation-local initial-delivery
+and unverified-origin flags. Canonical quotes emit invalidation if a side
+vanishes. Nonuniform executable ticks are represented as unsupported (zero
+constant increment); decimal precision remains available. Readiness requires
+initial per-subscription progress and recurring book/context freshness, rather
+than acknowledgements and global socket traffic alone. Quiet trade continuity
+remains unknown. The independent Python audit now checks native coin against
+session instrument metadata and reports initial-delivery counts; a swapped
+instrument regression verifies this check.
+
+Pilot05 (source e52880c, prior to these review corrections): collector/hlscreen
+exit0; /ready503 during startup, then200 on eight polls.280 native/canonical
+trade deliveries match exactly, including150 initial-history deliveries and130
+other deliveries; no text frame lacks acceptance. Bounded before/after reference
+intersections agree on tokens, never whole-window completeness. This confirms
+the fairness/readiness repair on that revision, not the later health changes.
+
+Both hlscreen Git dependencies and all marketfeed lock entries are pinned to
+one immutable cryptofeed revision; no sibling path dependency remains. Pinned
+hlscreen workspace538 tests and Clippy passed. Wasmtime36.0.18, Parquet60.0.0 and
+TLS upgrades pass advisory checks. New review fixes require another final run.
+The consumer reviewer also proved event/cursor parity was insufficient: frozen
+replay used invocation wall time and aged feature windows out. Shared replay
+now uses the recorded archive clock for --once/sealed captures; live tails
+retain wall-time staleness. Feature-clock regression verification is pending.
+
+New captures embed the public canonical parsed configuration (comments omitted)
+and build Cargo.lock. Catalog responses retain exact request bytes, URL/method,
+headers and response receipt time. Old captures do not retroactively acquire
+missing provenance. No capture is qualified; publication/recovery/restore and
+remaining venue failures are still open work under the active goal.

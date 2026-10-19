@@ -16,6 +16,7 @@ use std::{
 const MAGIC: &[u8; 8] = b"MFSF1\0\0\0";
 const HEADER_LEN: u64 = 48;
 const MAX_RECORD: usize = 32 * 1024 * 1024;
+const MAX_TRANSACTION: usize = 64 * 1024 * 1024;
 fn err(s: impl ToString) -> RecordingError {
     RecordingError::Io(s.to_string())
 }
@@ -29,6 +30,11 @@ pub struct FeedCursor {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", content = "data", rename_all = "snake_case")]
 pub enum FeedRecord {
+    /// Public reproduction inputs, embedded once and content hashed by readers.
+    Artifact {
+        role: String,
+        payload_base64: String,
+    },
     Seal {
         schema_version: u16,
         now_ns: i64,
@@ -43,6 +49,7 @@ pub enum FeedRecord {
         request_body: String,
         status: u16,
         body_base64: String,
+        provenance: Option<CatalogHttpProvenance>,
     },
     Frame {
         session: SessionId,
@@ -80,6 +87,16 @@ pub enum FeedRecord {
         event: SystemEvent,
     },
 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogHttpProvenance {
+    pub url: String,
+    pub method: String,
+    pub request_body_base64: String,
+    pub request_headers: Vec<(String, String)>,
+    pub response_headers: Vec<(String, String)>,
+    pub received_at_ns: i64,
+}
 // Preserve raw variant content until its schema is known. Serde's generic
 // buffered enum content can route large integers through f64 without this
 // boundary. Do not enable a workspace-wide JSON numeric feature to fix it.
@@ -101,6 +118,10 @@ impl<'de> Deserialize<'de> for FeedRecord {
             }};
         }
         Ok(match raw.kind.as_str() {
+            "artifact" => fields!(Artifact {
+                role: String,
+                payload_base64: String
+            }),
             "metadata" => {
                 Self::Metadata(serde_json::from_str(data).map_err(serde::de::Error::custom)?)
             }
@@ -116,6 +137,7 @@ impl<'de> Deserialize<'de> for FeedRecord {
                 request_body: String,
                 status: u16,
                 body_base64: String
+                ,provenance: Option<CatalogHttpProvenance>
             }),
             "frame" => fields!(Frame {
                 session: SessionId,
@@ -157,6 +179,12 @@ impl<'de> Deserialize<'de> for FeedRecord {
 }
 
 impl FeedRecord {
+    pub fn artifact(role: &str, bytes: &[u8]) -> Self {
+        Self::Artifact {
+            role: role.into(),
+            payload_base64: STANDARD.encode(bytes),
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn frame(
         session: SessionId,
@@ -179,6 +207,9 @@ impl FeedRecord {
     }
     pub fn payload_bytes(&self) -> Result<Option<Vec<u8>>, RecordingError> {
         match self {
+            Self::Artifact { payload_base64, .. } => {
+                STANDARD.decode(payload_base64).map(Some).map_err(err)
+            }
             Self::Frame { payload_base64, .. } => {
                 STANDARD.decode(payload_base64).map(Some).map_err(err)
             }
@@ -265,32 +296,45 @@ impl FeedWriter {
     /// Acceptance means both data and the new commit watermark were synced.
     /// Any I/O failure poisons the writer; later appends cannot bless a torn tail.
     pub fn append(&mut self, record: FeedRecord) -> Result<FeedCursor, RecordingError> {
+        self.append_many(vec![record])
+    }
+    /// Publish all records under one durable watermark. A failed transaction
+    /// leaves only an uncommitted tail; no reader can observe a partial frame.
+    pub fn append_many(&mut self, records: Vec<FeedRecord>) -> Result<FeedCursor, RecordingError> {
         if self.poisoned || self.sealed {
             return Err(err("shared feed writer poisoned or sealed"));
         }
-        let sealing = matches!(
-            record,
-            FeedRecord::Seal {
-                schema_version: 1,
-                ..
-            }
-        );
-        if matches!(record, FeedRecord::Seal { schema_version, .. } if schema_version != 1) {
-            return Err(err("unsupported feed seal"));
+        let count = records.len();
+        if count == 0 || count > 65536 {
+            return Err(err("invalid shared feed transaction count"));
         }
-        let sequence = self
-            .cursor
-            .sequence
-            .checked_add(1)
-            .ok_or_else(|| err("feed sequence overflow"))?;
-        let bytes = serde_json::to_vec(&WireRecord { sequence, record }).map_err(err)?;
-        if bytes.len() > MAX_RECORD {
-            return Err(err("shared feed record too large"));
+        let mut bytes = Vec::new();
+        let mut sequence = self.cursor.sequence;
+        let mut sealing = false;
+        for (index, record) in records.into_iter().enumerate() {
+            if let FeedRecord::Seal { schema_version, .. } = &record {
+                if *schema_version != 1 || index + 1 != count {
+                    return Err(err("unsupported or non-final feed seal"));
+                }
+                sealing = true;
+            }
+            sequence = sequence
+                .checked_add(1)
+                .ok_or_else(|| err("feed sequence overflow"))?;
+            let body = serde_json::to_vec(&WireRecord { sequence, record }).map_err(err)?;
+            if body.len() > MAX_RECORD
+                || bytes.len().saturating_add(body.len() + 8) > MAX_TRANSACTION
+            {
+                return Err(err("shared feed record or transaction too large"));
+            }
+            bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(&crc32c(&body).to_le_bytes());
+            bytes.extend_from_slice(&body);
         }
         let end = self
             .cursor
             .offset
-            .checked_add(bytes.len() as u64 + 8)
+            .checked_add(bytes.len() as u64)
             .ok_or_else(|| err("feed byte overflow"))?;
         if end > self.max_bytes {
             self.poisoned = true;
@@ -298,8 +342,6 @@ impl FeedWriter {
         }
         let previous = self.cursor.clone();
         let result = (|| -> Result<(), RecordingError> {
-            self.file.write_all(&(bytes.len() as u32).to_le_bytes())?;
-            self.file.write_all(&crc32c(&bytes).to_le_bytes())?;
             self.file.write_all(&bytes)?;
             self.file.sync_data()?;
             self.cursor.sequence = sequence;
@@ -345,6 +387,12 @@ impl FeedHandle {
             .lock()
             .map_err(|_| err("shared feed lock poisoned"))?
             .append(record)
+    }
+    pub fn append_many(&self, records: Vec<FeedRecord>) -> Result<FeedCursor, RecordingError> {
+        self.0
+            .lock()
+            .map_err(|_| err("shared feed lock poisoned"))?
+            .append_many(records)
     }
 }
 #[derive(Debug)]

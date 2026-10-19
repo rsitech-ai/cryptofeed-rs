@@ -156,3 +156,27 @@ fn a_seal_is_final_and_cannot_be_followed_by_more_records() {
     ));
     assert!(reader.read_next().unwrap().is_none());
 }
+
+#[test]
+fn multi_record_budget_or_publish_failure_exposes_none_of_the_transaction() {
+    for publication_failure in [false, true] {
+        let t = tempfile::tempdir().unwrap();
+        let dir = t.path().join("feed");
+        let mut w =
+            FeedWriter::create(&dir, if publication_failure { 10000 } else { 500 }).unwrap();
+        w.append(state("prior")).unwrap();
+        let committed = w.cursor().clone();
+        if publication_failure {
+            fs::write(dir.join("committed.tmp"), b"failure").unwrap();
+        }
+        assert!(
+            w.append_many(vec![state("first"), state(&"large".repeat(100))])
+                .is_err()
+        );
+        assert_eq!(w.cursor(), &committed);
+        assert!(w.append(state("late")).is_err());
+        let mut r = FeedReader::open(&dir, None).unwrap();
+        assert!(r.read_next().unwrap().is_some());
+        assert!(r.read_next().unwrap().is_none());
+    }
+}

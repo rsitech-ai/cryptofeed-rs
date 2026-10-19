@@ -105,7 +105,9 @@ fn definition(
         settlement,
         price_scale,
         quantity_scale: qty,
-        price_increment: Fixed::new(1, price_scale),
+        // Five significant digits plus a decimal-place cap is magnitude
+        // dependent. Advertising 10^-price_scale as an executable tick is false.
+        price_increment: Fixed::new(0, price_scale),
         quantity_increment: Fixed::new(1, qty),
         min_quantity: None,
         max_quantity: None,

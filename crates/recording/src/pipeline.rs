@@ -38,6 +38,9 @@ pub type FreeSpaceProbe = Box<dyn FnMut(&Path) -> Option<u64> + Send>;
 pub struct PipelineConfig {
     pub directory: PathBuf,
     pub queue_capacity: usize,
+    /// Per lane: ingress and the single consumer each have this byte bound.
+    /// The aggregate queued payload bound is twice this value.
+    pub queue_byte_capacity: usize,
     pub overflow: OverflowPolicy,
     pub rotation: RotationConfig,
     pub min_free_bytes: u64,
@@ -48,6 +51,7 @@ impl Default for PipelineConfig {
         Self {
             directory: PathBuf::from("./raw"),
             queue_capacity: 8192,
+            queue_byte_capacity: 128 * 1024 * 1024,
             overflow: OverflowPolicy::FailEngine,
             rotation: RotationConfig::default(),
             min_free_bytes: 0,
@@ -74,6 +78,7 @@ pub struct RecordingPipeline {
     pub segments_opened: u64,
     pub rotations: u64,
     metadata: Vec<MetadataRecord>,
+    poisoned: bool,
 }
 
 /// Thread-safe producer/drain handle for one process-wide recording pipeline.
@@ -115,7 +120,11 @@ pub struct RecordingSnapshot {
 impl RecordingHandle {
     pub fn new(pipeline: RecordingPipeline) -> Self {
         let ingress = RecordingIngress {
-            queue: RecordingQueue::new(pipeline.cfg.queue_capacity, pipeline.cfg.overflow),
+            queue: RecordingQueue::with_byte_capacity(
+                pipeline.cfg.queue_capacity,
+                pipeline.cfg.queue_byte_capacity,
+                pipeline.cfg.overflow,
+            ),
             last_reported_dropped: 0,
         };
         Self {
@@ -159,6 +168,7 @@ impl RecordingHandle {
         flags: u8,
         payload: &[u8],
     ) -> Result<EnqueueOutcome, RecordingError> {
+        RecordingQueue::validate_payload(payload)?;
         let frame = PendingFrame {
             session,
             frame_seq,
@@ -173,9 +183,11 @@ impl RecordingHandle {
     }
 
     pub fn flush_pending(&self, max: usize) -> Result<usize, RecordingError> {
-        let incoming = self.lock_ingress()?.queue.drain_front(max);
         let mut consumer = self.lock_consumer()?;
-        consumer.pending.extend(incoming);
+        if consumer.pending.is_empty() {
+            let incoming = self.lock_ingress()?.queue.drain_front(max);
+            consumer.pending.extend(incoming);
+        }
         let mut written = 0;
         while written < max {
             let Some(frame) = consumer.pending.front().cloned() else {
@@ -199,9 +211,11 @@ impl RecordingHandle {
                     remaining: self.snapshot()?.queue_len,
                 });
             }
-            let moved = self.lock_ingress()?.queue.drain_front(4096);
             let mut consumer = self.lock_consumer()?;
-            consumer.pending.extend(moved);
+            if consumer.pending.is_empty() {
+                let moved = self.lock_ingress()?.queue.drain_front(4096);
+                consumer.pending.extend(moved);
+            }
             let Some(frame) = consumer.pending.front().cloned() else {
                 consumer.pipeline.flush_writer()?;
                 return Ok(());
@@ -258,14 +272,18 @@ impl RecordingPipeline {
         cfg: PipelineConfig,
         metadata: Vec<MetadataRecord>,
     ) -> Result<Self, RecordingError> {
-        if cfg.queue_capacity == 0 {
+        if cfg.queue_capacity == 0 || cfg.queue_byte_capacity == 0 {
             return Err(RecordingError::Io("queue_capacity must be > 0".into()));
         }
         validate_metadata_registry(&metadata)?;
         create_dir_all(&cfg.directory)?;
         probe_directory_writable(&cfg.directory)?;
         Ok(Self {
-            queue: RecordingQueue::new(cfg.queue_capacity, cfg.overflow),
+            queue: RecordingQueue::with_byte_capacity(
+                cfg.queue_capacity,
+                cfg.queue_byte_capacity,
+                cfg.overflow,
+            ),
             cfg,
             writer: None,
             current_path: None,
@@ -282,10 +300,12 @@ impl RecordingPipeline {
             segments_opened: 0,
             rotations: 0,
             metadata,
+            poisoned: false,
         })
     }
 
     pub fn register_metadata(&mut self, metadata: MetadataRecord) -> Result<(), RecordingError> {
+        self.ensure_healthy()?;
         let key = metadata.stable_key();
         if let Some(existing) = self
             .metadata
@@ -300,11 +320,13 @@ impl RecordingPipeline {
         }
         let encoded_len = encode_metadata(&metadata)?.len();
         if let Some(writer) = self.writer.as_mut() {
+            self.poisoned = true;
             let start_ts_ns = self.current_start_ts_ns.unwrap_or_default();
             writer.write_metadata(&metadata, start_ts_ns)?;
             self.segment_bytes = self
                 .segment_bytes
                 .saturating_add((4 + RAW_HEADER_BODY_LEN + encoded_len) as u64);
+            self.poisoned = false;
         }
         self.metadata.push(metadata);
         Ok(())
@@ -354,6 +376,8 @@ impl RecordingPipeline {
         flags: u8,
         payload: &[u8],
     ) -> Result<EnqueueOutcome, RecordingError> {
+        self.ensure_healthy()?;
+        RecordingQueue::validate_payload(payload)?;
         self.refresh_disk_pressure()?;
         self.fail_closed_if_disk_full()?;
         let outcome = self.queue.push(PendingFrame {
@@ -378,10 +402,11 @@ impl RecordingPipeline {
         while n < max {
             self.refresh_disk_pressure()?;
             self.fail_closed_if_disk_full()?;
-            let Some(frame) = self.queue.pop_front() else {
+            let Some(frame) = self.queue.front().cloned() else {
                 break;
             };
             self.write_frame(frame)?;
+            self.queue.pop_front();
             n += 1;
         }
         Ok(n)
@@ -398,10 +423,7 @@ impl RecordingPipeline {
             }
             self.flush_pending(64)?;
         }
-        if let Some(w) = self.writer.as_mut() {
-            w.flush()?;
-            w.get_ref().get_ref().sync_data()?;
-        }
+        self.flush_writer()?;
         self.system_events.push(SystemEvent::ShutdownCompleted);
         Ok(())
     }
@@ -413,15 +435,19 @@ impl RecordingPipeline {
     }
 
     fn flush_writer(&mut self) -> Result<(), RecordingError> {
+        self.ensure_healthy()?;
+        self.poisoned = true;
         if let Some(writer) = self.writer.as_mut() {
             writer.flush()?;
             writer.get_ref().get_ref().sync_data()?;
         }
+        self.poisoned = false;
         Ok(())
     }
 
     /// Force-rotate the current segment (no-op if none open).
     pub fn rotate_now(&mut self, start_ts_ns: i64) -> Result<(), RecordingError> {
+        self.ensure_healthy()?;
         if self.writer.is_some() {
             self.close_segment()?;
             self.rotations += 1;
@@ -431,6 +457,7 @@ impl RecordingPipeline {
     }
 
     fn write_frame(&mut self, frame: PendingFrame) -> Result<(), RecordingError> {
+        self.ensure_healthy()?;
         self.refresh_disk_pressure()?;
         self.fail_closed_if_disk_full()?;
         self.ensure_segment(frame.receive_ts_ns)?;
@@ -441,6 +468,7 @@ impl RecordingPipeline {
             .writer
             .as_mut()
             .ok_or_else(|| RecordingError::Io("no open segment".into()))?;
+        self.poisoned = true;
         w.write_record(
             frame.session,
             frame.frame_seq,
@@ -455,6 +483,7 @@ impl RecordingPipeline {
         let written = 4 + crate::format::RAW_HEADER_BODY_LEN + frame.payload.len();
         self.segment_bytes += written as u64;
         self.records_written += 1;
+        self.poisoned = false;
         if self.should_rotate_after_write() {
             // close; next write opens fresh
             self.close_segment()?;
@@ -472,6 +501,8 @@ impl RecordingPipeline {
     }
 
     fn open_segment(&mut self, start_ts_ns: i64) -> Result<(), RecordingError> {
+        self.ensure_healthy()?;
+        self.poisoned = true;
         create_dir_all(&self.cfg.directory)?;
         let name = format!("seg-{}-{:06}.mfr1", start_ts_ns, self.segment_seq);
         let path = self.cfg.directory.join(name);
@@ -495,10 +526,13 @@ impl RecordingPipeline {
         self.segment_started = Instant::now();
         self.segment_seq += 1;
         self.segments_opened += 1;
+        self.poisoned = false;
         Ok(())
     }
 
     fn close_segment(&mut self) -> Result<(), RecordingError> {
+        self.ensure_healthy()?;
+        self.poisoned = true;
         if let Some(mut w) = self.writer.take() {
             w.flush()?;
             w.get_ref().get_ref().sync_data()?;
@@ -506,6 +540,16 @@ impl RecordingPipeline {
         self.current_path = None;
         self.current_start_ts_ns = None;
         self.segment_bytes = 0;
+        self.poisoned = false;
+        Ok(())
+    }
+
+    fn ensure_healthy(&self) -> Result<(), RecordingError> {
+        if self.poisoned {
+            return Err(RecordingError::Io(
+                "recording pipeline poisoned; start a new capture".into(),
+            ));
+        }
         Ok(())
     }
 
@@ -636,6 +680,7 @@ mod tests {
         PipelineConfig {
             directory: dir,
             queue_capacity: 64,
+            queue_byte_capacity: 128 * 1024 * 1024,
             overflow: OverflowPolicy::FailEngine,
             rotation: RotationConfig {
                 max_bytes,

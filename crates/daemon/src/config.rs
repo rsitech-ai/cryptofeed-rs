@@ -369,6 +369,8 @@ pub struct RawRecordingConfig {
     pub segment_duration: String,
     #[serde(default = "default_queue_capacity")]
     pub queue_capacity: usize,
+    #[serde(default = "default_queue_byte_capacity")]
+    pub queue_byte_capacity: usize,
     #[serde(default = "default_overflow")]
     pub overflow: String,
     /// Human size or integer bytes; `0` disables.
@@ -387,6 +389,9 @@ fn default_segment_duration() -> String {
 }
 fn default_queue_capacity() -> usize {
     8192
+}
+fn default_queue_byte_capacity() -> usize {
+    128 * 1024 * 1024
 }
 const MAX_DAEMON_QUEUE_CAPACITY: usize = 1_048_576;
 const MAX_DAEMON_SINKS: usize = 64;
@@ -410,6 +415,7 @@ impl Default for RawRecordingConfig {
             segment_size: default_segment_size(),
             segment_duration: default_segment_duration(),
             queue_capacity: default_queue_capacity(),
+            queue_byte_capacity: default_queue_byte_capacity(),
             overflow: default_overflow(),
             min_free_space: default_min_free(),
         }
@@ -872,6 +878,52 @@ impl DaemonConfig {
         Self::from_toml_str(&text)
     }
 
+    /// Canonical parsed public configuration. Comments are not reproduction
+    /// inputs and may contain arbitrary private notes, so never archive them.
+    pub fn public_capture_configuration(text: &str) -> Result<Vec<u8>, ConfigError> {
+        let cfg = Self::from_toml_str(text)?;
+        if cfg.private.binance_spot.enabled
+            || cfg.private.okx_spot.enabled
+            || cfg.private.bybit_spot.enabled
+        {
+            return Err(ConfigError::Validation(
+                "shared capture requires public sessions only".into(),
+            ));
+        }
+        let value: toml::Value =
+            toml::from_str(text).map_err(|e| ConfigError::Parse(e.to_string()))?;
+        fn public(value: &toml::Value) -> bool {
+            match value {
+                toml::Value::Table(table) => table.iter().all(|(key, value)| {
+                    let key = key.to_ascii_lowercase();
+                    ![
+                        "password",
+                        "secret",
+                        "api_key",
+                        "apikey",
+                        "authorization",
+                        "signature",
+                        "passphrase",
+                    ]
+                    .iter()
+                    .any(|word| key.contains(word))
+                        && public(value)
+                }),
+                toml::Value::Array(values) => values.iter().all(public),
+                toml::Value::String(s) if s.contains("://") => !s.contains('@') && !s.contains('?'),
+                _ => true,
+            }
+        }
+        if !public(&value) {
+            return Err(ConfigError::Validation(
+                "shared configuration contains a credential key or nonpublic URL".into(),
+            ));
+        }
+        toml::to_string(&value)
+            .map(String::into_bytes)
+            .map_err(|e| ConfigError::Parse(e.to_string()))
+    }
+
     pub fn bind_addr(&self) -> Result<SocketAddr, ConfigError> {
         SocketAddr::from_str(&self.telemetry.bind)
             .map_err(|e| ConfigError::Validation(format!("telemetry.bind: {e}")))
@@ -949,6 +1001,13 @@ impl DaemonConfig {
             if self.recording.raw.queue_capacity == 0 {
                 return Err(ConfigError::Validation(
                     "recording.raw.queue_capacity must be > 0".into(),
+                ));
+            }
+            if self.recording.raw.queue_byte_capacity == 0
+                || self.recording.raw.queue_byte_capacity > 1024 * 1024 * 1024
+            {
+                return Err(ConfigError::Validation(
+                    "recording.raw.queue_byte_capacity must be 1..1073741824".into(),
                 ));
             }
             if self.recording.raw.queue_capacity > MAX_DAEMON_QUEUE_CAPACITY {

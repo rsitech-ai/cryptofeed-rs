@@ -19,6 +19,17 @@ rows of a frame validate before emission; an invalid late row rejects the whole
 frame. Native hashes, order counts, candle end/count and extra source fields
 remain in the original payload and shared native protocol types. Candle updates
 are not labelled confirmed merely because their scheduled end has passed.
+The first trade delivery per coin and connection generation is explicitly
+flagged `INITIAL_DELIVERY`; it contains history in observed live responses.
+Every trade retains `ACQUISITION_ORIGIN_UNVERIFIED` because the native message
+does not identify live versus historical origin. Overlapping sightings remain
+in the archive. Native side-token agreement is not maker/taker proof.
+
+`price_scale` is a decimal-place cap. `price_increment` is zero, meaning no
+constant executable tick can be represented: Hyperliquid also enforces a
+magnitude-dependent significant-digit rule. Consumers must use the native
+price rule for execution. One-sided BBO emits `QuoteInvalidated`; normalized
+consumers must discard any preceding full quote on that event.
 
 ## Collector and shared consumer
 
@@ -44,12 +55,16 @@ at 200 native subscriptions per session to respect engine queue capacity. Daemon
 configuration checks the combined 1000 spot/perp subscription budget. Rolling
 connection and outgoing-message limits are shared within this collector process;
 other applications behind the same IP need their own coordination.
+Readiness also requires initial data for every native subscription. Required
+books and contexts expire after 60 seconds without their own progress; pongs
+cannot refresh them. Trade/BBO silence alone cannot distinguish inactivity
+from loss, and readiness never proves trade completeness.
 
 ## Evidence and remaining gates
 
 Contract tests cover exactness, atomic batches, identities, metadata, request
 budgets, acknowledgements, heartbeat, snapshots and disconnect invalidation.
-`python 3 scripts/audit_shared_feed.py CAPTURE_DIRECTORY` independently compares
+`python3 scripts/audit_shared_feed.py CAPTURE_DIRECTORY` independently compares
 original trade tokens with canonical values. The implementation ledger records
 bounded live pilots and failed gates. This is development/alpha evidence:
 reconnects do not prove missing trades were recovered. Strict dataset admission,

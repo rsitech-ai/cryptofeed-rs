@@ -10,6 +10,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+serde_json.workspace = true
 bytes = { workspace = true }
 marketfeed-adapter-api = { workspace = true }
 marketfeed-dispatch = { workspace = true }

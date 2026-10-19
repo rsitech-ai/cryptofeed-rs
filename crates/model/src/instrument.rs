@@ -51,6 +51,8 @@ pub struct Instrument {
     pub settlement: Option<AssetCode>,
     pub price_scale: u8,
     pub quantity_scale: u8,
+    /// Constant executable tick, or zero when no constant tick is representable.
+    /// A zero value must never be used to validate or round an order price.
     pub price_increment: Fixed,
     pub quantity_increment: Fixed,
     pub min_quantity: Option<Fixed>,
@@ -72,6 +74,7 @@ pub struct InstrumentDefinition {
     pub settlement: Option<AssetCode>,
     pub price_scale: u8,
     pub quantity_scale: u8,
+    /// Zero means the native nonuniform price rule is not representable here.
     pub price_increment: Fixed,
     pub quantity_increment: Fixed,
     pub min_quantity: Option<Fixed>,

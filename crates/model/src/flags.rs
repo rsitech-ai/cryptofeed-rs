@@ -16,6 +16,11 @@ impl EventFlags {
     pub const SOURCE_TIMESTAMP_MISSING: Self = Self(1 << 6);
     pub const SYNTHETIC: Self = Self(1 << 7);
     pub const RAW_REFERENCE_AVAILABLE: Self = Self(1 << 8);
+    /// First trade delivery for an instrument in a connection generation.
+    /// May mix historical and forward executions; never infer forward origin.
+    pub const INITIAL_DELIVERY: Self = Self(1 << 9);
+    /// Source does not provide a reliable live/history acquisition marker.
+    pub const ACQUISITION_ORIGIN_UNVERIFIED: Self = Self(1 << 10);
 
     #[inline]
     pub const fn empty() -> Self {

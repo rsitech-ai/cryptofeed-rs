@@ -116,6 +116,9 @@ pub struct SessionRunner {
     actions: ActionBuffer,
     recorder: Option<RawSegmentWriter<Cursor<Vec<u8>>>>,
     recording_pipeline: Option<RecordingHandle>,
+    /// Canonical outputs remain private until every action of an input succeeds.
+    feed_transaction: Option<Vec<marketfeed_recording::shared_feed::FeedRecord>>,
+    feed_transaction_bytes: usize,
     pub lifecycle: SessionLifecycle,
     /// Wire-level inbound frame sequence (recording / transport order).
     inbound_frame_seq: u64,
@@ -250,6 +253,8 @@ impl SessionRunner {
             actions: ActionBuffer::with_capacity(action_buffer_capacity),
             recorder,
             recording_pipeline,
+            feed_transaction: None,
+            feed_transaction_bytes: 0,
             lifecycle: SessionLifecycle::Planned,
             inbound_frame_seq: 0,
             market_batches: Vec::new(),
@@ -341,14 +346,7 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        let out = self.apply_actions(received.receive_ts).and_then(|()| {
-            self.record_feed(
-                marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
-                    session: self.cfg.session,
-                    frame_seq,
-                },
-            )
-        });
+        let out = self.apply_frame_actions(frame_seq, received.receive_ts);
         self.metrics
             .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
         out
@@ -380,14 +378,7 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        let out = self.apply_actions(received.receive_ts).and_then(|()| {
-            self.record_feed(
-                marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
-                    session: self.cfg.session,
-                    frame_seq,
-                },
-            )
-        });
+        let out = self.apply_frame_actions(frame_seq, received.receive_ts);
         self.metrics
             .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
         out
@@ -464,12 +455,50 @@ impl SessionRunner {
     }
 
     fn record_feed(
-        &self,
+        &mut self,
         record: marketfeed_recording::shared_feed::FeedRecord,
     ) -> Result<(), EngineError> {
+        if let Some(records) = &mut self.feed_transaction {
+            self.feed_transaction_bytes = self.feed_transaction_bytes.saturating_add(
+                serde_json::to_vec(&record)
+                    .map_err(|e| EngineError::Internal(e.to_string()))?
+                    .len()
+                    + 64,
+            );
+            if self.feed_transaction_bytes > 64 * 1024 * 1024 || records.len() >= 65535 {
+                return Err(EngineError::Internal(
+                    "shared feed input transaction budget exhausted".into(),
+                ));
+            }
+            records.push(record);
+            return Ok(());
+        }
         if let Some(feed) = &self.cfg.shared_feed {
             feed.append(record)?;
         }
+        Ok(())
+    }
+
+    fn apply_frame_actions(&mut self, frame_seq: u64, now: TimestampNs) -> Result<(), EngineError> {
+        if self.cfg.shared_feed.is_none() {
+            return self.apply_actions(now);
+        }
+        self.feed_transaction = Some(Vec::new());
+        self.feed_transaction_bytes = 0;
+        let result = self.apply_actions(now);
+        let mut records = self.feed_transaction.take().expect("input transaction");
+        result?;
+        records.push(
+            marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
+                session: self.cfg.session,
+                frame_seq,
+            },
+        );
+        self.cfg
+            .shared_feed
+            .as_ref()
+            .expect("shared feed")
+            .append_many(records)?;
         Ok(())
     }
 
@@ -619,7 +648,7 @@ impl SessionRunner {
         self.metrics
             .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
         self.note_action_buffer_drops()?;
-        self.apply_actions(received.receive_ts)
+        self.apply_frame_actions(frame_seq, received.receive_ts)
     }
 
     pub fn on_transport_lost(
@@ -627,6 +656,13 @@ impl SessionRunner {
         reason: DisconnectReason,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
+            session: self.cfg.session,
+            connection: self.cfg.connection,
+            now_ns: now.0,
+            connected: false,
+            reason: Some(format!("{reason:?};continuity_unverified")),
+        })?;
         self.lifecycle = SessionLifecycle::Backoff;
         self.invalidate_live_readiness();
         self.timers.clear();
@@ -719,6 +755,10 @@ impl SessionRunner {
     }
 
     pub fn push_system(&mut self, ev: SystemEvent) -> Result<(), EngineError> {
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
+            session: self.cfg.session,
+            event: ev.clone(),
+        })?;
         self.trace_system_event(&ev);
         self.metrics
             .observe_system_for_session(self.cfg.session, &ev);
@@ -791,6 +831,9 @@ impl SessionRunner {
             self.metrics
                 .events_normalized
                 .fetch_add(batch.events.len() as u64, Ordering::Relaxed);
+            self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+                batch.clone(),
+            ))?;
             let outcome = self.dispatch.push_batch(batch.clone())?;
             match outcome {
                 PushOutcome::Accepted => {
@@ -838,6 +881,9 @@ impl SessionRunner {
         self.metrics
             .events_normalized
             .fetch_add(1, Ordering::Relaxed);
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+            batch.clone(),
+        ))?;
         let outcome = self.dispatch.push_batch(batch.clone())?;
         match outcome {
             PushOutcome::Accepted => {
@@ -966,6 +1012,7 @@ impl SessionRunner {
         system_failures_fatal: bool,
     ) -> Result<(), EngineError> {
         let actions: Vec<_> = self.actions.drain().collect();
+        let mut next_event_index: u32 = 0;
         for action in actions {
             match action {
                 SessionAction::EmitBatch(mut batch) => {
@@ -978,6 +1025,10 @@ impl SessionRunner {
                         event.session = self.cfg.session;
                         event.connection = self.cfg.connection;
                         event.frame_seq = self.inbound_frame_seq;
+                        event.event_index = u16::try_from(next_event_index).map_err(|_| {
+                            EngineError::Internal("too many events in one input".into())
+                        })?;
+                        next_event_index += 1;
                     }
                     self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
                         batch.clone(),
@@ -1139,6 +1190,10 @@ impl SessionRunner {
             count,
             detail: detail.to_string(),
         };
+        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
+            session: self.cfg.session,
+            event: ev.clone(),
+        })?;
         self.trace_system_event(&ev);
         match self.dispatch.push_system(ev.clone()) {
             Ok(PushOutcome::Accepted) => self.push_mirror_system(ev),
@@ -1264,7 +1319,7 @@ impl SessionRunner {
         self.record_frame(
             self.inbound_frame_seq,
             now.0,
-            now.0 as u64,
+            0, // No transport monotonic stamp exists for this send attempt.
             Direction::Outbound,
             opcode,
             payload,
@@ -1277,14 +1332,17 @@ impl SessionRunner {
         wire: &SubscriptionWireAction,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
-        if self.recording_pipeline.is_none() && self.recorder.is_none() {
+        if self.recording_pipeline.is_none()
+            && self.recorder.is_none()
+            && self.cfg.shared_feed.is_none()
+        {
             return Ok(());
         }
         let payload = encode_subscription_command(command, wire)?;
         self.record_frame(
             self.inbound_frame_seq,
             now.0,
-            u64::try_from(now.0).unwrap_or_default(),
+            0, // Control acceptance has no transport monotonic stamp.
             Direction::Inbound,
             RecOpcode::SubscriptionCommand,
             &payload,
@@ -1554,6 +1612,39 @@ mod tests {
                 command,
                 SubscriptionWireAction::Text(Bytes::from_static(b"wire-subscribe"))
             )
+        );
+    }
+
+    #[test]
+    fn shared_only_dynamic_subscription_command_is_recorded() {
+        use marketfeed_recording::shared_feed::*;
+        let temp = tempfile::tempdir().unwrap();
+        let dir = temp.path().join("feed");
+        let mut runner = SessionRunner::new(
+            Box::new(DynamicSubscriptionMachine),
+            SessionRunnerConfig {
+                record: false,
+                shared_feed: Some(FeedHandle::new(FeedWriter::create(&dir, 100000).unwrap())),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        runner
+            .deliver_control(
+                SessionCommand::Subscribe(vec!["BTC-USD".into()]),
+                TimestampNs(42),
+            )
+            .unwrap();
+        let mut reader = FeedReader::open(dir, None).unwrap();
+        let record = reader.read_next().unwrap().unwrap();
+        assert!(
+            matches!(record, FeedRecord::Frame { opcode, .. } if opcode == RecordedOpcode::SubscriptionCommand as u8)
+        );
+        assert_eq!(
+            decode_subscription_command(&record.payload_bytes().unwrap().unwrap())
+                .unwrap()
+                .0,
+            SessionCommand::Subscribe(vec!["BTC-USD".into()])
         );
     }
 

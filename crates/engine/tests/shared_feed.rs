@@ -74,7 +74,7 @@ fn runtime_identity_original_ordinal_and_reconnect_generation_are_recorded() {
     assert_ne!(event.connection, ConnectionId(999));
     let first = event.connection;
     runner
-        .on_disconnected(DisconnectReason::RemoteClose, TimestampNs(30))
+        .on_transport_lost(DisconnectReason::RemoteClose, TimestampNs(30))
         .unwrap();
     runner.on_connected(TimestampNs(40)).unwrap();
     runner.drain_dispatch();
@@ -87,6 +87,7 @@ fn runtime_identity_original_ordinal_and_reconnect_generation_are_recorded() {
     let mut original = false;
     let mut accepted = false;
     let mut batches = 0;
+    let mut disconnects = 0;
     while let Some(record) = reader.read_next().unwrap() {
         match record {
             FeedRecord::Frame {
@@ -107,14 +108,22 @@ fn runtime_identity_original_ordinal_and_reconnect_generation_are_recorded() {
                 assert_eq!(session, SessionId(33));
                 accepted = true;
             }
-            FeedRecord::Batch(b) => {
+            FeedRecord::Batch(b)
+                if b.events
+                    .iter()
+                    .any(|e| matches!(e.payload, MarketEvent::Trade(_))) =>
+            {
                 assert!(original);
                 assert_eq!(b.session, SessionId(33));
                 batches += 1;
             }
+            FeedRecord::Connection {
+                connected: false, ..
+            } => disconnects += 1,
             _ => {}
         }
     }
+    assert_eq!(disconnects, 1);
     assert!(accepted);
     assert_eq!(batches, 2);
 }
@@ -150,10 +159,14 @@ fn exhausted_archive_budget_prevents_native_frame_acceptance() {
     assert!(runner.market_batches.is_empty());
     let mut reader = FeedReader::open(&dir, None).unwrap();
     while let Some(record) = reader.read_next().unwrap() {
-        assert!(!matches!(
-            record,
-            FeedRecord::FrameAccepted { .. } | FeedRecord::Batch(_)
-        ));
+        assert!(!matches!(record, FeedRecord::FrameAccepted { .. }));
+        if let FeedRecord::Batch(b) = record {
+            assert!(
+                !b.events
+                    .iter()
+                    .any(|e| matches!(e.payload, MarketEvent::Trade(_)))
+            );
+        }
     }
 }
 
@@ -228,4 +241,95 @@ async fn continuously_ready_input_does_not_starve_parent_health_and_stop() {
         observed < 10_000,
         "continuously ready transport starved its parent until the burst ended"
     );
+}
+
+struct TwoBatches;
+impl SessionMachine for TwoBatches {
+    fn on_input(
+        &mut self,
+        input: SessionInput<'_>,
+        out: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        let text = matches!(input, SessionInput::TextFrame { .. });
+        WrongIdentity.on_input(input, out)?;
+        if text {
+            out.push(out.as_slice()[0].clone());
+        }
+        Ok(())
+    }
+}
+#[test]
+fn failing_late_action_does_not_publish_partial_frame_outputs() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().join("feed");
+    let mut runner = SessionRunner::new(
+        Box::new(TwoBatches),
+        SessionRunnerConfig {
+            shared_feed: Some(FeedHandle::new(
+                FeedWriter::create(&dir, 1_000_000).unwrap(),
+            )),
+            dispatch_capacity: 1,
+            mirror_capacity: 0,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    runner.on_connected(TimestampNs(1)).unwrap();
+    runner.drain_dispatch();
+    assert!(
+        runner
+            .on_text_frame(
+                &mut b"source".to_vec(),
+                FrameStamp {
+                    receive_ts: TimestampNs(2),
+                    mono_ns: 2
+                }
+            )
+            .is_err()
+    );
+    let mut reader = FeedReader::open(&dir, None).unwrap();
+    let mut raw = false;
+    while let Some(record) = reader.read_next().unwrap() {
+        match record {
+            FeedRecord::Frame {
+                opcode: 1,
+                direction: 0,
+                ..
+            } => raw = true,
+            FeedRecord::FrameAccepted { .. } => panic!("failed input accepted"),
+            FeedRecord::Batch(b) => assert!(
+                !b.events
+                    .iter()
+                    .any(|e| matches!(e.payload, MarketEvent::Trade(_)))
+            ),
+            _ => {}
+        }
+    }
+    assert!(raw, "failed source bytes must remain evidence");
+}
+#[test]
+fn engine_owned_system_events_are_journaled() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().join("feed");
+    let mut runner = SessionRunner::new(
+        Box::new(WrongIdentity),
+        SessionRunnerConfig {
+            shared_feed: Some(FeedHandle::new(
+                FeedWriter::create(&dir, 1_000_000).unwrap(),
+            )),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    runner
+        .push_system(SystemEvent::ClockJump { delta_ns: -100 })
+        .unwrap();
+    let mut reader = FeedReader::open(dir, None).unwrap();
+    assert!(matches!(
+        reader.read_next().unwrap(),
+        Some(FeedRecord::System {
+            event: SystemEvent::ClockJump { delta_ns: -100 },
+            ..
+        })
+    ));
 }

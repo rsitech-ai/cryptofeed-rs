@@ -381,7 +381,8 @@ impl EngineMetrics {
             | SystemEvent::ClockJump { .. }
             | SystemEvent::SinkStateChanged { .. }
             | SystemEvent::ShutdownStarted
-            | SystemEvent::ShutdownCompleted => {}
+            | SystemEvent::ShutdownCompleted
+            | SystemEvent::QuoteInvalidated { .. } => {}
         }
     }
 

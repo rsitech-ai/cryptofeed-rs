@@ -14,6 +14,8 @@ from pathlib import Path
 import struct
 from audit_trade_capture import crc32c
 getcontext().prec = 1000
+if not __debug__:
+    raise RuntimeError("audit requires Python assertions enabled")
 
 
 def scan(directory):
@@ -47,12 +49,15 @@ def fixed(value):
 def audit(directory):
     counts, channels, trades, errors = Counter(), Counter(), Counter(), []
     metadata, originals, accepted, native, normalized = {}, {}, set(), {}, {}
+    initial_seen, initial_rows, flagged_initial_rows = set(), 0, 0
     for record in scan(directory):
         kind, data = record['kind'], record['data']
         counts[kind] += 1
         if kind == 'metadata' and data['kind'] == 'session':
             assert data['session_id'] not in metadata, 'redefined session'
             metadata[data['session_id']] = data
+        elif kind == 'connection' and data['connected']:
+            initial_seen = {key for key in initial_seen if key[0] != data['session']}
         elif kind == 'frame' and data['direction'] == 0 and data['opcode'] == 1:
             key = data['session'], data['frame_seq']
             assert key not in originals, 'duplicate original frame ordinal'
@@ -64,9 +69,12 @@ def audit(directory):
             frame = json.loads(base64.b64decode(originals[key]['payload_base64']), parse_float=Decimal)
             channels[frame['channel']] += 1
             if frame['channel'] == 'trades':
+                initial_coins = {t['coin'] for t in frame['data'] if (key[0], t['coin']) not in initial_seen}
+                initial_rows += sum(t['coin'] in initial_coins for t in frame['data'])
+                initial_seen.update((key[0], t['coin']) for t in frame['data'])
                 for index, trade in enumerate(frame['data']):
                     identity = f"{trade['coin']}:{trade['time']}:{trade['tid']}"
-                    native[key + (index,)] = (identity, Decimal(trade['px']), Decimal(trade['sz']),
+                    native[key + (index,)] = (trade['coin'], identity, Decimal(trade['px']), Decimal(trade['sz']),
                                               {'B': 'Buy', 'A': 'Sell'}[trade['side']], trade['time'] * 1000000)
         elif kind == 'batch':
             for event in data['events']:
@@ -80,7 +88,12 @@ def audit(directory):
                     trade = event['payload']['Trade']
                     identity = key + (event['event_index'],)
                     assert identity not in normalized
-                    normalized[identity] = (trade['trade_id'], fixed(trade['price']), fixed(trade['quantity']),
+                    catalog = {i['instrument_id']: i['native_symbol'] for i in session['catalog']} if session else {}
+                    coin = catalog.get(event['instrument'])
+                    if coin is None:
+                        errors.append('trade instrument absent from session catalog')
+                    flagged_initial_rows += bool(event['flags'] & (1 << 9))
+                    normalized[identity] = (coin, trade['trade_id'], fixed(trade['price']), fixed(trade['quantity']),
                                             trade['aggressor'], event['exchange_ts'])
                     trades[str(event['venue'])] += 1
                     original = originals.get(key)
@@ -95,7 +108,9 @@ def audit(directory):
     result = {'schema_version': 1, 'records': dict(counts), 'accepted_channels': dict(channels),
               'session_venues': {str(k): v['venue_id'] for k, v in metadata.items()},
               'normalized_trades_by_venue': dict(trades), 'native_trade_rows': len(native), 'unaccepted_text_frames': len(missing_acceptance),
-              'normalized_trade_rows': len(normalized), 'trade_difference_count': len(differences),
+              'normalized_trade_rows': len(normalized), 'initial_trade_delivery_rows': initial_rows,
+              'canonical_flagged_initial_rows': flagged_initial_rows,
+              'other_trade_delivery_rows': len(native) - initial_rows, 'trade_difference_count': len(differences),
               'trade_difference_examples': differences[:10], 'errors': errors,
               'checks_passed': not differences and not errors,
               'continuity': 'unverified; finite capture and recent overlap cannot prove lossless exchange coverage',

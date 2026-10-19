@@ -943,6 +943,7 @@ dependencies = [
  "marketfeed-replay",
  "marketfeed-sinks",
  "marketfeed-transport",
+ "serde_json",
  "tempfile",
  "thiserror",
  "tokio",

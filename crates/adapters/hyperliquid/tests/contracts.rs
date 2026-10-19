@@ -217,7 +217,7 @@ fn readiness_needs_all_acks_and_reconnect_exposes_gap() {
     send(&mut *m,r#"{"channel":"subscriptionResponse","data":{"method":"subscribe","subscription":{"type":"trades","coin":"BTC"}}}"#,&mut out).unwrap();
     assert!(!out.as_slice().contains(&SessionAction::MarkLive));
     send(&mut *m,r#"{"channel":"subscriptionResponse","data":{"method":"subscribe","subscription":{"type":"bbo","coin":"BTC"}}}"#,&mut out).unwrap();
-    assert!(out.as_slice().contains(&SessionAction::MarkLive));
+    assert!(!out.as_slice().contains(&SessionAction::MarkLive));
     out.clear();
     m.on_input(
         SessionInput::Disconnected {
@@ -333,7 +333,7 @@ fn live_book_ack_defaults_are_equivalent_but_precision_changes_are_not() {
         .is_err()
     );
     send(&mut *m, ack, &mut out).unwrap();
-    assert!(out.as_slice().contains(&SessionAction::MarkLive));
+    assert!(!out.as_slice().contains(&SessionAction::MarkLive));
 }
 
 #[test]
@@ -473,4 +473,140 @@ fn snapshots_register_valid_books_and_disconnect_invalidates_control_queries() {
         a,
         SessionAction::EmitSystem(SystemEvent::BookInvalidated { .. })
     )));
+}
+
+#[test]
+fn initial_trade_origin_resets_each_connection_and_preserves_overlap() {
+    let f = HyperliquidFactory::perps();
+    let c = catalog(false);
+    let r = ConcreteSubscriptionSet {
+        items: vec![request(Channel::Trades)],
+    };
+    let mut m = f
+        .create_session(f.plan(&r, &c).unwrap().remove(0), c)
+        .unwrap();
+    let frame = r#"{"channel":"trades","data":[{"coin":"BTC","side":"B","px":"10","sz":"1","hash":"h","time":1,"tid":1}]}"#;
+    let mut out = ActionBuffer::new();
+    for generation in 0..2 {
+        m.on_input(
+            SessionInput::Connected {
+                now: TimestampNs(generation),
+            },
+            &mut out,
+        )
+        .unwrap();
+        for delivery in 0..2 {
+            out.clear();
+            send(&mut *m, frame, &mut out).unwrap();
+            let batch = out
+                .as_slice()
+                .iter()
+                .find_map(|a| {
+                    if let SessionAction::EmitBatch(b) = a {
+                        Some(b)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let event = &batch.events[0];
+            assert_eq!(
+                event.flags.contains(EventFlags::INITIAL_DELIVERY),
+                delivery == 0
+            );
+            assert!(
+                event
+                    .flags
+                    .contains(EventFlags::ACQUISITION_ORIGIN_UNVERIFIED)
+            );
+        }
+    }
+}
+#[test]
+fn acknowledgements_and_pongs_cannot_prove_required_stream_progress() {
+    let f = HyperliquidFactory::perps();
+    let c = catalog(false);
+    let r = ConcreteSubscriptionSet {
+        items: vec![request(Channel::L2Book {
+            depth: None,
+            cadence: None,
+        })],
+    };
+    let mut m = f
+        .create_session(f.plan(&r, &c).unwrap().remove(0), c)
+        .unwrap();
+    let mut out = ActionBuffer::new();
+    m.on_input(
+        SessionInput::Connected {
+            now: TimestampNs(0),
+        },
+        &mut out,
+    )
+    .unwrap();
+    out.clear();
+    send(&mut *m, r#"{"channel":"subscriptionResponse","data":{"method":"subscribe","subscription":{"type":"l2Book","coin":"BTC"}}}"#, &mut out).unwrap();
+    send(&mut *m, r#"{"channel":"pong"}"#, &mut out).unwrap();
+    assert!(!out.as_slice().contains(&SessionAction::MarkLive));
+    out.clear();
+    m.on_input(
+        SessionInput::Timer {
+            timer_id: 1,
+            now: TimestampNs(21_000_000_000),
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert!(
+        out.as_slice()
+            .contains(&SessionAction::Reconnect(ReconnectReason::Heartbeat))
+    );
+}
+#[test]
+fn disappearing_bbo_side_invalidates_the_previous_canonical_quote() {
+    let f = HyperliquidFactory::perps();
+    let c = catalog(false);
+    let r = ConcreteSubscriptionSet {
+        items: vec![request(Channel::Quote)],
+    };
+    let mut m = f
+        .create_session(f.plan(&r, &c).unwrap().remove(0), c)
+        .unwrap();
+    let mut out = ActionBuffer::new();
+    m.on_input(
+        SessionInput::Connected {
+            now: TimestampNs(0),
+        },
+        &mut out,
+    )
+    .unwrap();
+    let level = r#"{"px":"10","sz":"1","n":1}"#;
+    let ask = r#"{"px":"11","sz":"1","n":1}"#;
+    for (bid, ask, unavailable) in [
+        (level, ask, false),
+        ("null", ask, true),
+        ("null", "null", true),
+        (level, ask, false),
+    ] {
+        out.clear();
+        send(
+            &mut *m,
+            &format!(r#"{{"channel":"bbo","data":{{"coin":"BTC","time":1,"bbo":[{bid},{ask}]}}}}"#),
+            &mut out,
+        )
+        .unwrap();
+        assert_eq!(
+            out.as_slice().iter().any(|a| matches!(
+                a,
+                SessionAction::EmitSystem(SystemEvent::QuoteInvalidated { .. })
+            )),
+            unavailable
+        );
+        assert_eq!(
+            out.as_slice()
+                .iter()
+                .any(|a| matches!(a, SessionAction::EmitBatch(_))),
+            !unavailable
+        );
+    }
+    assert_eq!(catalog(false).instruments[0].price_increment.coefficient, 0);
 }

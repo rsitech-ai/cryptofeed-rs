@@ -85,6 +85,7 @@ impl DaemonState {
                 PipelineConfig {
                     directory: raw.directory.clone().into(),
                     queue_capacity: raw.queue_capacity,
+                    queue_byte_capacity: raw.queue_byte_capacity,
                     overflow: raw.overflow_policy().map_err(|e| e.to_string())?,
                     rotation: RotationConfig {
                         max_bytes: raw.segment_size_bytes().map_err(|e| e.to_string())?,
@@ -116,6 +117,11 @@ impl DaemonState {
                 let feed = marketfeed_recording::shared_feed::FeedHandle::new(writer);
                 feed.append(marketfeed_recording::shared_feed::FeedRecord::Metadata(
                     marketfeed_recording::MetadataRecord::current_build(),
+                ))
+                .map_err(|e| e.to_string())?;
+                feed.append(marketfeed_recording::shared_feed::FeedRecord::artifact(
+                    "cargo_lock",
+                    include_bytes!("../../../Cargo.lock"),
                 ))
                 .map_err(|e| e.to_string())?;
                 Ok::<_, String>(feed)
