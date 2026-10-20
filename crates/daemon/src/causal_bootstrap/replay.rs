@@ -7,6 +7,9 @@ use marketfeed_engine::{CaptureDrainPolicy, CaptureInput, EngineError};
 use marketfeed_model::{ConnectionId, InstrumentId, TimestampNs};
 use std::path::Path;
 
+mod multi;
+pub use multi::*;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ReplayError {
     #[error(transparent)]
@@ -55,8 +58,7 @@ pub struct ReplayStep {
 /// owners. Historical artifacts require their matching executable/recipe.
 pub struct HistoryReplay {
     reader: FeedReader,
-    history: OwnerHistory,
-    capture: CaptureSession,
+    owner: OwnerReplayState,
     sealed: bool,
     poisoned: bool,
 }
@@ -105,24 +107,14 @@ impl HistoryReplay {
         }) {
             return Err(ReplayError::Invalid("resume boundary crosses bootstrap"));
         }
-        // Bounds, supported factory/catalog/policies and artifact are checked
-        // before any factory creation. No prescan for later metadata occurs.
-        if envelope.payload()?.len() > limits.max_record_bytes {
-            return Err(CodecError::TooLarge.into());
-        }
-        let history = OwnerHistory::from_bootstrap(&envelope, limits)?;
-        let dto = decode_bootstrap(&envelope)?;
-        validate_supported(&dto)?;
-        if dto.build != current_build()? {
-            return Err(
-                BootstrapError::Unsupported("replay build or actual executable mismatch").into(),
-            );
-        }
-        let capture = capture_from_supported(&dto)?;
+        let (history, dto) = verified_bootstrap(&envelope, limits)?;
+        let owner = OwnerReplayState {
+            history,
+            capture: capture_from_supported(&dto)?,
+        };
         Ok(Self {
             reader,
-            history,
-            capture,
+            owner,
             sealed: false,
             poisoned: false,
         })
@@ -161,12 +153,12 @@ impl HistoryReplay {
         }
         Ok(ReplayProgress {
             cursor: self.reader.cursor().clone(),
-            journal_ordinal: self.history.ordinal(),
-            native_ordinal: self.history.native_ordinal(),
-            pending_inputs: self.history.pending_inputs(),
-            terminal: self.history.is_terminal(),
+            journal_ordinal: self.owner.history.ordinal(),
+            native_ordinal: self.owner.history.native_ordinal(),
+            pending_inputs: self.owner.history.pending_inputs(),
+            terminal: self.owner.history.is_terminal(),
             sealed: self.sealed,
-            uncertainties: self.history.uncertainties(),
+            uncertainties: self.owner.history.uncertainties(),
         })
     }
     /// None means caught up to the durable prefix. A later append may supply
@@ -202,24 +194,8 @@ impl HistoryReplay {
                 }
                 // Validate ingress/permit/order/source/bounds before executing
                 // any untrusted completion. A subsequent mismatch is terminal.
-                let handoff = self.history.apply(&envelope)?;
-                if envelope.phase == CausalPhase::Operation {
-                    let dto = decode_owner_history(&envelope, self.history.identity())?;
-                    let OwnerEventDto::ExecutionCompleted { operation, .. } = dto.event else {
-                        return Err(ReplayError::Invalid("expected MFCJ3 completion"));
-                    };
-                    let native = self.capture.execute_turn(
-                        owner_input(&operation.input)?,
-                        CaptureDrainPolicy::NullDispatchTakeOutbound,
-                    )?;
-                    let actual = OperationDto::from_capture(&native, self.history.identity())?;
-                    if actual != *operation {
-                        return Err(ReplayError::NativeMismatch {
-                            journal_ordinal: envelope.route.ordinal,
-                            native_ordinal: operation.route.ordinal,
-                        });
-                    }
-                }
+                let handoff = self.owner.history.apply(&envelope)?;
+                self.owner.verify_native(&envelope)?;
                 handoff
             }
             FeedRecord::Seal { .. } => {
@@ -232,6 +208,60 @@ impl HistoryReplay {
             cursor: self.reader.cursor().clone(),
             handoff,
         }))
+    }
+}
+
+/// Shared pure bootstrap checks. Aggregate admission happens after these checks
+/// and before capture_from_supported creates any native factory/session.
+fn verified_bootstrap(
+    envelope: &CausalEnvelope,
+    limits: OwnerHistoryLimits,
+) -> Result<(OwnerHistory, BootstrapDto), ReplayError> {
+    if envelope.phase != CausalPhase::Bootstrap
+        || envelope.route.ordinal != 0
+        || envelope.route.generation != 0
+    {
+        return Err(ReplayError::Invalid("expected fresh owner bootstrap"));
+    }
+    if envelope.payload()?.len() > limits.max_record_bytes {
+        return Err(CodecError::TooLarge.into());
+    }
+    let history = OwnerHistory::from_bootstrap(envelope, limits)?;
+    let dto = decode_bootstrap(envelope)?;
+    validate_supported(&dto)?;
+    if dto.build != current_build()? {
+        return Err(
+            BootstrapError::Unsupported("replay build or actual executable mismatch").into(),
+        );
+    }
+    Ok((history, dto))
+}
+struct OwnerReplayState {
+    history: OwnerHistory,
+    capture: CaptureSession,
+}
+impl OwnerReplayState {
+    /// Called only after structural admission and any aggregate reader budget
+    /// checks. No callback is retried, including a matching typed native error.
+    fn verify_native(&mut self, envelope: &CausalEnvelope) -> Result<(), ReplayError> {
+        if envelope.phase == CausalPhase::Operation {
+            let dto = decode_owner_history(envelope, self.history.identity())?;
+            let OwnerEventDto::ExecutionCompleted { operation, .. } = dto.event else {
+                return Err(ReplayError::Invalid("expected MFCJ3 completion"));
+            };
+            let native = self.capture.execute_turn(
+                owner_input(&operation.input)?,
+                CaptureDrainPolicy::NullDispatchTakeOutbound,
+            )?;
+            let actual = OperationDto::from_capture(&native, self.history.identity())?;
+            if actual != *operation {
+                return Err(ReplayError::NativeMismatch {
+                    journal_ordinal: envelope.route.ordinal,
+                    native_ordinal: operation.route.ordinal,
+                });
+            }
+        }
+        Ok(())
     }
 }
 
@@ -430,6 +460,20 @@ mod tests {
                     max_retained_input_bytes: 1,
                     max_input_bytes: 1,
                     max_record_bytes: 1
+                }
+            ),
+            Err(ReplayError::Invalid("causal-journal feature disabled"))
+        ));
+        assert!(matches!(
+            MultiHistoryReplay::open(
+                "missing-causal-feed",
+                MultiReplayLimits {
+                    per_owner: OwnerHistoryLimits {
+                        max_retained_input_bytes: 1,
+                        max_input_bytes: 1,
+                        max_record_bytes: 1
+                    },
+                    maximum: ReplayResources::default(),
                 }
             ),
             Err(ReplayError::Invalid("causal-journal feature disabled"))

@@ -508,8 +508,19 @@ pub struct OwnerHistoryLimits {
     pub max_input_bytes: usize,
     pub max_record_bytes: usize,
 }
+/// Logical quantities retained by this structural ledger. Canonical bytes are
+/// serialized lengths, not allocator usage. The native machine and temporary
+/// decoding/comparison work are outside these counters.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct OwnerHistoryRetention {
+    pub pending_inputs: usize,
+    pub pending_input_bytes: usize,
+    pub active_operation_and_state_bytes: usize,
+    pub source_owned_pending_inputs: usize,
+    pub source_owned_pending_bytes: usize,
+}
 impl OwnerHistoryLimits {
-    fn validate(&self) -> Result<(), CodecError> {
+    pub fn validate(&self) -> Result<(), CodecError> {
         if self.max_retained_input_bytes == 0
             || self.max_retained_input_bytes > 128 * 1024 * 1024
             || self.max_input_bytes == 0
@@ -591,6 +602,51 @@ impl OwnerHistory {
     }
     pub fn pending_inputs(&self) -> usize {
         self.pending.len()
+    }
+    /// Count the active operation and separately retained previous state as
+    /// well as pending inputs. Counting serializes into a bounded counter,
+    /// without allocating another operation-sized buffer or cloning histories.
+    pub fn retention(&self) -> Result<OwnerHistoryRetention, CodecError> {
+        struct Count(usize);
+        impl Write for Count {
+            fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+                self.0 = self
+                    .0
+                    .checked_add(bytes.len())
+                    .filter(|n| *n <= MAX_OPERATION_BYTES)
+                    .ok_or_else(|| io::Error::other("owner canonical retention overflow"))?;
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        fn size(value: &impl Serialize) -> Result<usize, CodecError> {
+            let mut count = Count(0);
+            serde_json::to_writer(&mut count, value)?;
+            Ok(count.0)
+        }
+        let active = self
+            .active
+            .as_ref()
+            .map(|a| size(&a.operation))
+            .transpose()?
+            .unwrap_or(0);
+        let previous = self
+            .previous_after
+            .as_ref()
+            .map(size)
+            .transpose()?
+            .unwrap_or(0);
+        Ok(OwnerHistoryRetention {
+            pending_inputs: self.pending.len(),
+            pending_input_bytes: self.pending_bytes,
+            active_operation_and_state_bytes: active
+                .checked_add(previous)
+                .ok_or_else(|| invalid("owner canonical retention sum overflow"))?,
+            source_owned_pending_inputs: self.native_pending_operations,
+            source_owned_pending_bytes: self.pending_owned_bytes,
+        })
     }
     pub fn is_terminal(&self) -> bool {
         self.terminal

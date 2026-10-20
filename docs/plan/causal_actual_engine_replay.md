@@ -44,8 +44,12 @@ Rollback is reverting this opt-in reader and its scoped tests/docs.
 Status: implementation and verification in progress. Owner scheduling decisions
 (deadlines, preflight refusal and revocation) are structurally validated declared
 observations; this reader does not independently reproduce wall-clock scheduling.
-Bounded multi-owner replay, committed compatibility
-projection, complete failure/admission retention, bound external I/O,
+The opt-in [multi-owner reader](causal_multi_owner_replay.md) extends this with
+one physical cursor, independent persistent owners and explicit aggregate
+retention/reservation limits. Its current source is undergoing full qualification;
+the published single-owner receipts exclude that later candidate. The existing
+single-owner API continues to reject additional owner bootstraps.
+Committed compatibility projection, complete failure/admission retention, bound external I/O,
 daemon/live/control/supervisor migration and native checkpoints remain required.
 The registered ingress comparison stays failed and is not rerun in this slice.
 Rsibot owns strategy context/features/models/ETF research and decisions;

@@ -104,9 +104,14 @@ there may be at most 200 native subscriptions per session. Shared asset-context
 channels remain distinct semantic requests on one native subscription. The
 Bybit complete-bundle policy and serialized spelling remain unchanged.
 
+The opt-in [multi-owner replay extension](causal_multi_owner_replay.md) now has
+independent native owner state in physical journal order, exact global resume
+and explicit aggregate canonical/reservation limits. Full qualification of this
+new source remains in progress; existing single-owner receipts exclude it.
+
 Complete failure/admission retention, deliberate committed
-compatibility projection, bound external I/O intents/completions, bounded
-multi-owner replay and native checkpoints remain required. Migrate daemon/live/control/
+compatibility projection, bound external I/O intents/completions and native
+checkpoints remain required. Migrate daemon/live/control/
 supervisor callers and shared consumers only with exact schema/identity/timing
 proof. Then repeat the unchanged registered ingress workload with its original
 caps, schedule and abort rules. Its existing failure remains failed.
