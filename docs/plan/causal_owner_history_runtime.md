@@ -1,7 +1,7 @@
 # Private durable owner runtime
 
 The MFCJ3 profile implements actual ordered owner observations for the opt-in
-Bybit disk/null library owner. It follows the [MFCJ2 structural validator](causal_owner_history.md)
+Bybit and Hyperliquid spot/perps disk/null library owners. It follows the [MFCJ2 structural validator](causal_owner_history.md)
 and its revocation-during-callback review. Qualification is source-specific;
 the goal remains active until the integration and failure gates below pass.
 The normal daemon CLI and live Hyperliquid collection have not migrated to this
@@ -79,8 +79,18 @@ exercise CaptureSession's inner catch, not an injected outer-worker panic.
 
 ## Remaining integration gates
 
-This owner is a private disk/null foundation. Complete Hyperliquid bootstrap
-factory support, complete failure/admission retention, deliberate committed
+This owner is a private disk/null foundation. Hyperliquid bootstrap binds the
+selected market, full metadata-derived catalog, selected semantic channels and
+ordered deduplicated native subscriptions. Original successful spotMeta body
+bytes use `hyperliquid-spot-meta-v1`; perps additionally require the successful
+perpetual discovery body in `hyperliquid-perp-metas-v1` to bind collateral token
+identity. These are reproduction inputs, not independently authenticated exchange
+responses. Snapshot/BBO delivery must be enabled, exchange deltas disabled, and
+there may be at most 200 native subscriptions per session. Shared asset-context
+channels remain distinct semantic requests on one native subscription. The
+Bybit complete-bundle policy and serialized spelling remain unchanged.
+
+Complete failure/admission retention, deliberate committed
 compatibility projection, bound external I/O intents/completions and actual-engine
 physical-order replay/checkpoints remain required. Migrate daemon/live/control/
 supervisor callers and shared consumers only with exact schema/identity/timing

@@ -15,6 +15,35 @@ impl HyperliquidFactory {
     pub fn perps() -> Self {
         Self { spot: false }
     }
+    /// Ordered, deduplicated native subscription objects for this exact
+    /// session, using the same conversion as `Connected`. These are control
+    /// messages only; financial values never pass through untyped JSON.
+    pub fn public_plan_topics(
+        spot: bool,
+        spec: &SessionSpec,
+        catalog: &CatalogView,
+    ) -> Result<Vec<String>, AdapterError> {
+        let venue = if spot {
+            HYPERLIQUID_SPOT_VENUE_ID
+        } else {
+            HYPERLIQUID_PERPS_VENUE_ID
+        };
+        if catalog.venue != venue || spec.endpoint_name != WS_URL {
+            return Err(AdapterError::Subscription(
+                "Hyperliquid session venue/endpoint mismatch".into(),
+            ));
+        }
+        let wire = crate::session::subscriptions(&spec.subscriptions, catalog, spot)?;
+        // Every Connected enqueues one subscribe per native wire group.
+        // Retain the planner's bound, including when create_session is called
+        // directly rather than with a plan() result.
+        if wire.is_empty() || wire.len() > 200 {
+            return Err(AdapterError::Subscription(
+                "Hyperliquid session requires 1..200 native subscriptions".into(),
+            ));
+        }
+        Ok(wire.into_iter().map(|value| value.to_string()).collect())
+    }
 }
 impl VenueFactory for HyperliquidFactory {
     fn specification(&self) -> &'static VenueSpecification {
@@ -110,7 +139,7 @@ impl VenueFactory for HyperliquidFactory {
                 "unknown Hyperliquid endpoint".into(),
             ));
         }
-        self.plan(&spec.subscriptions, &catalog)?;
+        Self::public_plan_topics(self.spot, &spec, &catalog)?;
         Ok(Box::new(HyperliquidSession::new(
             self.spot,
             spec.subscriptions,

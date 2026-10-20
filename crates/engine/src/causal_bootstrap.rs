@@ -56,7 +56,20 @@ pub enum FactoryDto {
         category: BybitCategoryDto,
         enable_l2: bool,
     },
+    HyperliquidPublic {
+        market: HyperliquidMarketDto,
+    },
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HyperliquidMarketDto {
+    Spot,
+    Perps,
+}
+/// Original public discovery response bodies. Perpetual discovery also needs
+/// spot token metadata to bind the collateral asset by native token index.
+pub const HYPERLIQUID_SPOT_META_ROLE: &str = "hyperliquid-spot-meta-v1";
+pub const HYPERLIQUID_PERP_METAS_ROLE: &str = "hyperliquid-perp-metas-v1";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BootstrapEnvironmentDto {
@@ -71,9 +84,13 @@ pub enum OutputProfileDto {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BybitEmissionPolicyDto {
+pub enum AdapterEmissionPolicyDto {
     CompleteNativeBundleV1,
+    HyperliquidSelectedChannelsV1,
 }
+/// Source compatibility for existing Bybit bootstrap callers. Serialized
+/// Bybit policy bytes retain their original spelling.
+pub type BybitEmissionPolicyDto = AdapterEmissionPolicyDto;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DurationDto {
@@ -436,7 +453,7 @@ pub struct BootstrapDto {
     pub factory: FactoryDto,
     pub environment: BootstrapEnvironmentDto,
     pub output_profile: OutputProfileDto,
-    pub adapter_policy: BybitEmissionPolicyDto,
+    pub adapter_policy: AdapterEmissionPolicyDto,
     pub protocol_topics: Vec<String>,
     pub session: SessionSpecDto,
     pub catalog: CatalogDto,
@@ -502,6 +519,18 @@ impl BootstrapDto {
     }
     pub fn validate(&self) -> Result<(), CodecError> {
         let c = self.capture.config()?;
+        if !matches!(
+            (&self.factory, self.adapter_policy),
+            (
+                FactoryDto::BybitPublic { .. },
+                AdapterEmissionPolicyDto::CompleteNativeBundleV1
+            ) | (
+                FactoryDto::HyperliquidPublic { .. },
+                AdapterEmissionPolicyDto::HyperliquidSelectedChannelsV1
+            )
+        ) {
+            return Err(invalid("factory/emission policy mismatch"));
+        }
         if !matches!(
             (self.schema_version, self.owner_policy.is_some()),
             (1, false) | (2, true)

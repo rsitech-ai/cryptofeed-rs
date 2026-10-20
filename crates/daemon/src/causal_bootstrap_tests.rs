@@ -133,9 +133,15 @@ fn stamp() -> FrameStamp {
     }
 }
 fn invalidation_capture(dto: &BootstrapDto) -> CapturedOperation {
-    let FactoryDto::BybitPublic { enable_l2, .. } = dto.factory;
+    let FactoryDto::BybitPublic {
+        enable_l2,
+        category: selected,
+    } = dto.factory
+    else {
+        panic!("Bybit fixture")
+    };
     let factory = BybitFactory {
-        category: category(&dto.factory),
+        category: category(selected),
         enable_l2,
     };
     let machine = factory
@@ -368,6 +374,16 @@ fn artifact_observation_hashes_actual_file_and_records_selected_features() {
         marketfeed_adapter_bybit::compiled_features()
     );
     assert!(observed.compiled.source_files > 100);
+    assert_eq!(
+        observed
+            .compiled
+            .package_features
+            .iter()
+            .find(|f| f.package == "marketfeed-adapter-hyperliquid")
+            .unwrap()
+            .features,
+        marketfeed_adapter_hyperliquid::compiled_features()
+    );
 }
 
 #[test]
@@ -662,7 +678,7 @@ fn every_supported_category_constructs_only_after_real_bootstrap_commit() {
             });
         }
         dto.protocol_topics = BybitFactory::public_plan_topics(
-            super::category(&dto.factory),
+            super::category(category),
             true,
             &dto.session.session_spec().unwrap(),
             &dto.catalog.catalog().unwrap(),

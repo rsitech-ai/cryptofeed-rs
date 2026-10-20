@@ -1,9 +1,12 @@
-//! First supported causal factory profile: public Bybit, disk/null dispatch.
+//! Supported causal factories: public Bybit and Hyperliquid, disk/null dispatch.
 //! Bootstrap must pass actual-artifact/config verification and a post-barrier
 //! actor receipt before any factory/machine is created. No live loop is wired.
 use marketfeed_adapter_api::{Capability, VenueFactory};
 use marketfeed_adapter_bybit::{
     BYBIT_INVERSE_SPEC, BYBIT_LINEAR_SPEC, BYBIT_SPOT_SPEC, BybitCategory, BybitFactory,
+};
+use marketfeed_adapter_hyperliquid::{
+    HYPERLIQUID_PERPS_SPEC, HYPERLIQUID_SPOT_SPEC, HyperliquidFactory,
 };
 use marketfeed_engine::{CaptureSession, causal::*};
 use marketfeed_recording::{RecordingError, shared_batch::*, shared_feed::*};
@@ -49,6 +52,10 @@ pub fn current_build() -> Result<BootstrapBuildDto, BootstrapError> {
         PackageFeaturesDto {
             package: "marketfeed-adapter-bybit".into(),
             features: marketfeed_adapter_bybit::compiled_features(),
+        },
+        PackageFeaturesDto {
+            package: "marketfeed-adapter-hyperliquid".into(),
+            features: marketfeed_adapter_hyperliquid::compiled_features(),
         },
         PackageFeaturesDto {
             package: "marketfeed-engine".into(),
@@ -97,13 +104,11 @@ pub fn current_build() -> Result<BootstrapBuildDto, BootstrapError> {
     })
 }
 
-fn category(factory: &FactoryDto) -> BybitCategory {
-    match factory {
-        FactoryDto::BybitPublic { category, .. } => match category {
-            BybitCategoryDto::Linear => BybitCategory::Linear,
-            BybitCategoryDto::Spot => BybitCategory::Spot,
-            BybitCategoryDto::Inverse => BybitCategory::Inverse,
-        },
+fn category(category: BybitCategoryDto) -> BybitCategory {
+    match category {
+        BybitCategoryDto::Linear => BybitCategory::Linear,
+        BybitCategoryDto::Spot => BybitCategory::Spot,
+        BybitCategoryDto::Inverse => BybitCategory::Inverse,
     }
 }
 fn validate_supported(dto: &BootstrapDto) -> Result<(), BootstrapError> {
@@ -112,10 +117,22 @@ fn validate_supported(dto: &BootstrapDto) -> Result<(), BootstrapError> {
         || dto.session.subscriptions.is_empty()
     {
         return Err(BootstrapError::Unsupported(
-            "only explicit nonempty production public Bybit plans",
+            "only explicit nonempty production public plans",
         ));
     }
-    let category = category(&dto.factory);
+    match dto.factory {
+        FactoryDto::BybitPublic {
+            category: selected,
+            enable_l2,
+        } => validate_bybit(dto, category(selected), enable_l2),
+        FactoryDto::HyperliquidPublic { market } => validate_hyperliquid(dto, market),
+    }
+}
+fn validate_bybit(
+    dto: &BootstrapDto,
+    category: BybitCategory,
+    enable_l2: bool,
+) -> Result<(), BootstrapError> {
     let spec = match category {
         BybitCategory::Linear => &BYBIT_LINEAR_SPEC,
         BybitCategory::Spot => &BYBIT_SPOT_SPEC,
@@ -186,11 +203,10 @@ fn validate_supported(dto: &BootstrapDto) -> Result<(), BootstrapError> {
             ));
         }
     }
-    let FactoryDto::BybitPublic { enable_l2, .. } = &dto.factory;
-    validate_complete_bundle(dto, category)?;
+    validate_complete_bundle(dto, category, enable_l2)?;
     let topics = BybitFactory::public_plan_topics(
         category,
-        *enable_l2,
+        enable_l2,
         &dto.session.session_spec()?,
         &dto.catalog.catalog()?,
     )
@@ -210,6 +226,7 @@ fn validate_supported(dto: &BootstrapDto) -> Result<(), BootstrapError> {
 fn validate_complete_bundle(
     dto: &BootstrapDto,
     category: BybitCategory,
+    enable_l2: bool,
 ) -> Result<(), BootstrapError> {
     let mut groups = std::collections::BTreeMap::<u32, Vec<&SubscriptionDto>>::new();
     for s in &dto.session.subscriptions {
@@ -220,7 +237,6 @@ fn validate_complete_bundle(
         }
         groups.entry(s.instrument).or_default().push(s);
     }
-    let FactoryDto::BybitPublic { enable_l2, .. } = dto.factory;
     let mut base = vec![
         ChannelDto::Trades,
         ChannelDto::Quote,
@@ -278,6 +294,127 @@ fn validate_complete_bundle(
         } else {
             expected_shape = Some(remaining);
         }
+    }
+    Ok(())
+}
+
+/// Hyperliquid emits selected semantic channels. Native asset-context requests
+/// are deduplicated, while each requested mark/index/funding/OI/stats event stays
+/// explicit in the bootstrap. L2 is a snapshot stream, never exchange deltas.
+fn validate_hyperliquid(
+    dto: &BootstrapDto,
+    market: HyperliquidMarketDto,
+) -> Result<(), BootstrapError> {
+    let spot = market == HyperliquidMarketDto::Spot;
+    let spec = if spot {
+        &HYPERLIQUID_SPOT_SPEC
+    } else {
+        &HYPERLIQUID_PERPS_SPEC
+    };
+    if dto.capture.venue != spec.id.0 {
+        return Err(BootstrapError::Unsupported(
+            "Hyperliquid market/venue mismatch",
+        ));
+    }
+    // Both markets use the same endpoint and native subscription shape. A
+    // declared spot venue alone cannot distinguish @12 from a perp such as
+    // BTC. Re-derive the catalog from hash-bound native discovery bytes before
+    // any session is constructed; symbol/topic edits must not change market.
+    let metadata = |role: &str| -> Result<marketfeed_adapter_api::HttpResponse, BootstrapError> {
+        let mut inputs = dto.public_inputs.iter().filter(|input| input.role == role);
+        let input = inputs.next().ok_or(BootstrapError::Unsupported(
+            "missing Hyperliquid discovery input",
+        ))?;
+        if inputs.next().is_some() {
+            return Err(BootstrapError::Unsupported(
+                "duplicate Hyperliquid discovery input",
+            ));
+        }
+        Ok(marketfeed_adapter_api::HttpResponse {
+            status: 200,
+            headers: Vec::new(),
+            body: input.payload.bytes()?.into(),
+        })
+    };
+    let mut responses = vec![metadata(HYPERLIQUID_SPOT_META_ROLE)?];
+    if !spot {
+        responses.push(metadata(HYPERLIQUID_PERP_METAS_ROLE)?);
+    }
+    let definitions =
+        marketfeed_adapter_hyperliquid::instruments::parse_instruments(&responses, spot)
+            .map_err(|e| BootstrapError::Factory(e.to_string()))?;
+    if definitions.len() != dto.catalog.instruments.len() {
+        return Err(BootstrapError::Unsupported(
+            "Hyperliquid discovery/catalog coverage mismatch",
+        ));
+    }
+    let definitions: std::collections::BTreeMap<_, _> = definitions
+        .into_iter()
+        .map(|definition| (definition.key.native_symbol.clone(), definition))
+        .collect();
+    let mut ids = BTreeSet::new();
+    let mut symbols = BTreeSet::new();
+    for row in &dto.catalog.instruments {
+        if row.id == 0
+            || !ids.insert(row.id)
+            || !symbols.insert(&row.key.native_symbol)
+            || row.key.venue != spec.code
+            || row.inverse
+            || row.key.kind
+                != if spot {
+                    InstrumentKindDto::Spot
+                } else {
+                    InstrumentKindDto::PerpetualLinear
+                }
+        {
+            return Err(BootstrapError::Unsupported(
+                "ambiguous or wrong-product Hyperliquid catalog",
+            ));
+        }
+        let expected =
+            definitions
+                .get(&row.key.native_symbol)
+                .ok_or(BootstrapError::Unsupported(
+                    "Hyperliquid coin absent from market discovery",
+                ))?;
+        if expected.clone().into_instrument(
+            marketfeed_model::InstrumentId(row.id),
+            marketfeed_model::CatalogVersion(row.catalog_version),
+        ) != row.instrument()?
+        {
+            return Err(BootstrapError::Unsupported(
+                "Hyperliquid instrument differs from native discovery",
+            ));
+        }
+    }
+    let mut requested = BTreeSet::new();
+    for subscription in &dto.session.subscriptions {
+        // The adapter always emits snapshots/quotes for their explicit native
+        // channels. Reject negative delivery promises instead of recording a
+        // configuration whose meaning differs from actual execution.
+        if subscription.delivery.emit_book_deltas
+            || !subscription.delivery.emit_book_snapshots
+            || !subscription.delivery.emit_bbo
+            || !requested.insert((
+                subscription.instrument,
+                serde_json::to_string(&subscription.channel).map_err(CodecError::from)?,
+            ))
+        {
+            return Err(BootstrapError::Unsupported(
+                "Hyperliquid selected channels require snapshots/BBO, no deltas or duplicate channels",
+            ));
+        }
+    }
+    let topics = HyperliquidFactory::public_plan_topics(
+        spot,
+        &dto.session.session_spec()?,
+        &dto.catalog.catalog()?,
+    )
+    .map_err(|e| BootstrapError::Factory(e.to_string()))?;
+    if dto.protocol_topics != topics {
+        return Err(BootstrapError::Unsupported(
+            "effective ordered Hyperliquid subscriptions mismatch",
+        ));
     }
     Ok(())
 }
@@ -432,10 +569,17 @@ impl CommittedBootstrap {
                 "artifact changed while awaiting bootstrap commit",
             ));
         }
-        let FactoryDto::BybitPublic { enable_l2, .. } = &self.dto.factory;
-        let factory = BybitFactory {
-            category: category(&self.dto.factory),
-            enable_l2: *enable_l2,
+        let factory: Box<dyn VenueFactory> = match self.dto.factory {
+            FactoryDto::BybitPublic {
+                category: selected,
+                enable_l2,
+            } => Box::new(BybitFactory {
+                category: category(selected),
+                enable_l2,
+            }),
+            FactoryDto::HyperliquidPublic { market } => Box::new(HyperliquidFactory {
+                spot: market == HyperliquidMarketDto::Spot,
+            }),
         };
         let machine = factory
             .create_session(
