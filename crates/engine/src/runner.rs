@@ -9,6 +9,15 @@
 //!   `SystemEvent::EventsDropped` (never silent).
 //! - `mirror_capacity == 0` disables mirrors (production live loops).
 
+#[path = "operation.rs"]
+mod operation;
+pub use operation::{
+    ActionDisposition, BufferedAction, CallbackOutcome, CaptureCompleteness, CaptureConfig,
+    CaptureEntry, CaptureErrorClass, CaptureFault, CaptureInput, CaptureOutcome, CaptureQueueItem,
+    CaptureQueueLane, CaptureSession, CapturedOperation, CapturedState, InvocationKind,
+};
+use operation::{ActiveCapture, QueueItemRef};
+
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::Arc;
@@ -119,6 +128,7 @@ pub struct SessionRunner {
     /// Canonical outputs remain private until every action of an input succeeds.
     feed_transaction: Option<Vec<marketfeed_recording::shared_feed::FeedRecord>>,
     feed_transaction_bytes: usize,
+    operation_capture: Option<ActiveCapture>,
     pub lifecycle: SessionLifecycle,
     /// Wire-level inbound frame sequence (recording / transport order).
     inbound_frame_seq: u64,
@@ -255,6 +265,7 @@ impl SessionRunner {
             recording_pipeline,
             feed_transaction: None,
             feed_transaction_bytes: 0,
+            operation_capture: None,
             lifecycle: SessionLifecycle::Planned,
             inbound_frame_seq: 0,
             market_batches: Vec::new(),
@@ -286,7 +297,16 @@ impl SessionRunner {
     /// An adapter error cannot leave an old readiness admission in effect.
     /// Partial callback actions are discarded rather than applying a prefix.
     fn deliver_machine_input(&mut self, input: SessionInput<'_>) -> Result<(), EngineError> {
-        if let Err(error) = self.machine.on_input(input, &mut self.actions) {
+        let kind = self
+            .operation_capture
+            .as_mut()
+            .and_then(|capture| capture.invocation_kind(&input));
+        let dropped_before = self.actions.dropped();
+        let result = self.machine.on_input(input, &mut self.actions);
+        if let (Some(capture), Some(kind)) = (&mut self.operation_capture, kind) {
+            capture.invocation(kind, &self.actions, dropped_before, &result);
+        }
+        if let Err(error) = result {
             self.invalidate_live_readiness();
             self.lifecycle = SessionLifecycle::Degraded;
             self.actions.clear();
@@ -296,15 +316,27 @@ impl SessionRunner {
     }
 
     pub fn on_connected(&mut self, now: TimestampNs) -> Result<(), EngineError> {
+        self.on_connected_identity(now, None)
+    }
+
+    fn on_connected_identity(
+        &mut self,
+        now: TimestampNs,
+        recorded_identity: Option<ConnectionId>,
+    ) -> Result<(), EngineError> {
         let result = (|| {
             // Revoke the previous physical connection before any fallible work.
             self.invalidate_live_readiness();
             self.lifecycle = SessionLifecycle::Connected;
-            self.cfg.connection = ConnectionId(
-                NEXT_RUNTIME_CONNECTION
-                    .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
-                    .map_err(|_| EngineError::Internal("connection ID exhausted".into()))?,
-            );
+            self.cfg.connection = if let Some(identity) = recorded_identity {
+                identity
+            } else {
+                ConnectionId(
+                    NEXT_RUNTIME_CONNECTION
+                        .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |id| id.checked_add(1))
+                        .map_err(|_| EngineError::Internal("connection ID exhausted".into()))?,
+                )
+            };
             self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
                 session: self.cfg.session,
                 connection: self.cfg.connection,
@@ -498,6 +530,10 @@ impl SessionRunner {
         &mut self,
         record: marketfeed_recording::shared_feed::FeedRecord,
     ) -> Result<(), EngineError> {
+        if let Some(capture) = &mut self.operation_capture {
+            capture.produced_record(record);
+            return Ok(());
+        }
         if let Some(records) = &mut self.feed_transaction {
             self.feed_transaction_bytes = self.feed_transaction_bytes.saturating_add(
                 serde_json::to_vec(&record)
@@ -520,6 +556,15 @@ impl SessionRunner {
     }
 
     fn apply_frame_actions(&mut self, frame_seq: u64, now: TimestampNs) -> Result<(), EngineError> {
+        if self.operation_capture.is_some() {
+            self.apply_actions(now)?;
+            return self.record_feed(
+                marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
+                    session: self.cfg.session,
+                    frame_seq,
+                },
+            );
+        }
         if self.cfg.shared_feed.is_none() {
             return self.apply_actions(now);
         }
@@ -770,11 +815,21 @@ impl SessionRunner {
         // state is committed.
         // A refused, side-effect-free preparation does not revoke the existing
         // feed's admission. Failures after preparation are operational errors.
-        let wire = self.machine.prepare_dynamic_subscription(&command)?;
+        let prepared = self.machine.prepare_dynamic_subscription(&command);
+        if let Some(capture) = &mut self.operation_capture {
+            capture.subscription_prepared(&prepared);
+        }
+        let wire = prepared?;
         let result = (|| {
-            if self.pending_writes.len() >= MAX_PENDING_WRITES {
-                return Err(DispatchError::FailEngine.into());
+            let reservation = if self.pending_writes.len() >= MAX_PENDING_WRITES {
+                Err(DispatchError::FailEngine)
+            } else {
+                Ok(())
+            };
+            if let Some(capture) = &mut self.operation_capture {
+                capture.subscription_reservation(&reservation);
             }
+            reservation?;
             let (pending, mirror) = match &wire {
                 SubscriptionWireAction::Text(payload) => (
                     OutboundFrame {
@@ -799,8 +854,17 @@ impl SessionRunner {
                 ),
             };
             self.record_subscription_command(&command, &wire, now)?;
+            let capture_index = self.operation_capture.as_mut().and_then(|capture| {
+                capture.queue_start(CaptureQueueLane::Write, QueueItemRef::Write(&pending), None)
+            });
             self.pending_writes.push(pending);
+            if let Some(capture) = &mut self.operation_capture {
+                capture.queue_finished(capture_index, &Ok(PushOutcome::Accepted));
+            }
             self.machine.commit_dynamic_subscription(&command);
+            if let Some(capture) = &mut self.operation_capture {
+                capture.subscription_committed();
+            }
 
             // Mirrors remain diagnostic: once the authoritative frame is queued
             // and adapter state committed, mirror saturation cannot roll it back.
@@ -819,7 +883,7 @@ impl SessionRunner {
         self.trace_system_event(&ev);
         self.metrics
             .observe_system_for_session(self.cfg.session, &ev);
-        let outcome = self.dispatch.push_system(ev.clone())?;
+        let outcome = self.push_dispatch_system(ev.clone())?;
         match outcome {
             PushOutcome::Accepted => self.push_mirror_system(ev),
             PushOutcome::DroppedNewest => self.note_push_outcome("dispatch_system", outcome),
@@ -917,7 +981,7 @@ impl SessionRunner {
             self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
                 batch.clone(),
             ))?;
-            let outcome = self.dispatch.push_batch(batch.clone())?;
+            let outcome = self.push_dispatch_batch(batch.clone())?;
             match outcome {
                 PushOutcome::Accepted => {
                     self.metrics.record_batch_dispatched();
@@ -967,7 +1031,7 @@ impl SessionRunner {
         self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
             batch.clone(),
         ))?;
-        let outcome = self.dispatch.push_batch(batch.clone())?;
+        let outcome = self.push_dispatch_batch(batch.clone())?;
         match outcome {
             PushOutcome::Accepted => {
                 self.metrics.record_batch_dispatched();
@@ -988,6 +1052,9 @@ impl SessionRunner {
 
     fn note_action_buffer_drops(&mut self) -> Result<(), EngineError> {
         let dropped = self.actions.take_dropped();
+        if let Some(capture) = &mut self.operation_capture {
+            capture.drops(dropped);
+        }
         if dropped > 0 {
             // ActionBuffer is always DropNewest; never metrics-only (spec §3.5).
             self.metrics.record_action_buffer_overflow(dropped);
@@ -1005,6 +1072,50 @@ impl SessionRunner {
         );
     }
 
+    fn push_dispatch_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, DispatchError> {
+        let index = self.operation_capture.as_mut().and_then(|capture| {
+            let lane = self.dispatch.batches();
+            let evicted =
+                if lane.policy() == OverflowPolicy::DropOldest && lane.len() == lane.capacity() {
+                    lane.front().map(QueueItemRef::Market)
+                } else {
+                    None
+                };
+            capture.queue_start(
+                CaptureQueueLane::Market,
+                QueueItemRef::Market(&batch),
+                evicted,
+            )
+        });
+        let result = self.dispatch.push_batch(batch);
+        if let Some(capture) = &mut self.operation_capture {
+            capture.queue_finished(index, &result.clone().map_err(EngineError::from));
+        }
+        result
+    }
+
+    fn push_dispatch_system(&mut self, event: SystemEvent) -> Result<PushOutcome, DispatchError> {
+        let index = self.operation_capture.as_mut().and_then(|capture| {
+            let lane = self.dispatch.systems();
+            let evicted =
+                if lane.policy() == OverflowPolicy::DropOldest && lane.len() == lane.capacity() {
+                    lane.front().map(QueueItemRef::System)
+                } else {
+                    None
+                };
+            capture.queue_start(
+                CaptureQueueLane::System,
+                QueueItemRef::System(&event),
+                evicted,
+            )
+        });
+        let result = self.dispatch.push_system(event);
+        if let Some(capture) = &mut self.operation_capture {
+            capture.queue_finished(index, &result.clone().map_err(EngineError::from));
+        }
+        result
+    }
+
     fn note_push_outcome(&mut self, lane: &str, outcome: PushOutcome) -> Result<(), EngineError> {
         match outcome {
             PushOutcome::Accepted => Ok(()),
@@ -1020,12 +1131,30 @@ impl SessionRunner {
     }
 
     fn enqueue_pending_write(&mut self, frame: OutboundFrame) -> Result<(), EngineError> {
-        match Self::enqueue_bounded(
+        let index = self.operation_capture.as_mut().and_then(|capture| {
+            let evicted = if self.cfg.overflow == OverflowPolicy::DropOldest
+                && self.pending_writes.len() == MAX_PENDING_WRITES
+            {
+                self.pending_writes.first().map(QueueItemRef::Write)
+            } else {
+                None
+            };
+            capture.queue_start(
+                CaptureQueueLane::Write,
+                QueueItemRef::Write(&frame),
+                evicted,
+            )
+        });
+        let result = Self::enqueue_bounded(
             &mut self.pending_writes,
             frame,
             MAX_PENDING_WRITES,
             self.cfg.overflow,
-        )? {
+        );
+        if let Some(capture) = &mut self.operation_capture {
+            capture.queue_finished(index, &result);
+        }
+        match result? {
             PushOutcome::Accepted => Ok(()),
             PushOutcome::DroppedNewest => self.emit_events_dropped(1, "pending_writes DropNewest"),
             PushOutcome::DroppedOldest { dropped } => {
@@ -1035,12 +1164,26 @@ impl SessionRunner {
     }
 
     fn enqueue_pending_http(&mut self, spec: HttpRequestSpec) -> Result<(), EngineError> {
-        match Self::enqueue_bounded(
+        let index = self.operation_capture.as_mut().and_then(|capture| {
+            let evicted = if self.cfg.overflow == OverflowPolicy::DropOldest
+                && self.pending_http.len() == MAX_PENDING_HTTP
+            {
+                self.pending_http.first().map(QueueItemRef::Http)
+            } else {
+                None
+            };
+            capture.queue_start(CaptureQueueLane::Http, QueueItemRef::Http(&spec), evicted)
+        });
+        let result = Self::enqueue_bounded(
             &mut self.pending_http,
             spec,
             MAX_PENDING_HTTP,
             self.cfg.overflow,
-        )? {
+        );
+        if let Some(capture) = &mut self.operation_capture {
+            capture.queue_finished(index, &result);
+        }
+        match result? {
             PushOutcome::Accepted => Ok(()),
             PushOutcome::DroppedNewest => self.emit_events_dropped(1, "pending_http DropNewest"),
             PushOutcome::DroppedOldest { dropped } => {
@@ -1096,170 +1239,182 @@ impl SessionRunner {
     ) -> Result<(), EngineError> {
         let actions: Vec<_> = self.actions.drain().collect();
         let mut next_event_index: u32 = 0;
-        for action in actions {
-            match action {
-                SessionAction::EmitBatch(mut batch) => {
-                    // Adapters do not own runtime transport identity or the raw
-                    // input ordinal. Assign these once at the collector boundary.
-                    batch.session = self.cfg.session;
-                    batch.frame_seq = self.inbound_frame_seq;
-                    for event in &mut batch.events {
-                        event.venue = self.cfg.venue;
-                        event.session = self.cfg.session;
-                        event.connection = self.cfg.connection;
-                        event.frame_seq = self.inbound_frame_seq;
-                        event.event_index = u16::try_from(next_event_index).map_err(|_| {
-                            EngineError::Internal("too many events in one input".into())
-                        })?;
-                        next_event_index += 1;
-                    }
-                    self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
-                        batch.clone(),
-                    ))?;
-                    let n = batch.events.len() as u64;
-                    self.metrics
-                        .events_normalized
-                        .fetch_add(n, Ordering::Relaxed);
-                    let outcome = self.dispatch.push_batch(batch.clone())?;
-                    match outcome {
-                        PushOutcome::Accepted => {
-                            self.metrics.record_batch_dispatched();
-                            self.push_mirror_batch(batch)?;
-                        }
-                        PushOutcome::DroppedNewest => {
-                            self.note_push_outcome("dispatch_batch", outcome)?;
-                        }
-                        PushOutcome::DroppedOldest { dropped: _ } => {
-                            self.metrics.record_batch_dispatched();
-                            self.note_push_outcome("dispatch_batch", outcome)?;
-                            self.push_mirror_batch(batch)?;
-                        }
-                    }
-                    self.refresh_queue_gauges();
-                }
-                SessionAction::EmitSystem(mut ev) => {
-                    self.stamp_system_event(&mut ev);
-                    self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
-                        session: self.cfg.session,
-                        event: ev.clone(),
-                    })?;
-                    self.trace_system_event(&ev);
-                    self.metrics
-                        .observe_system_for_session(self.cfg.session, &ev);
-                    let result = match self.dispatch.push_system(ev.clone()) {
-                        Ok(PushOutcome::Accepted) => self.push_mirror_system(ev),
-                        Ok(PushOutcome::DroppedNewest) => {
-                            self.note_push_outcome("dispatch_system", PushOutcome::DroppedNewest)
-                        }
-                        Ok(PushOutcome::DroppedOldest { dropped }) => self
-                            .note_push_outcome(
-                                "dispatch_system",
-                                PushOutcome::DroppedOldest { dropped },
-                            )
-                            .and_then(|()| self.push_mirror_system(ev)),
-                        Err(error) => Err(error.into()),
-                    };
-                    self.settle_diagnostic_result(result, system_failures_fatal)?;
-                }
-                SessionAction::SendText(payload) => {
-                    self.record_outbound(RecOpcode::Text, &payload, now)?;
-                    self.enqueue_pending_write(OutboundFrame {
-                        opcode: FrameOpcode::Text,
-                        payload: payload.to_vec(),
-                    })?;
-                    let result = self.push_mirror_action(SessionAction::SendText(payload));
-                    self.settle_diagnostic_result(result, system_failures_fatal)?;
-                }
-                SessionAction::SendSensitiveText(payload) => {
-                    self.enqueue_pending_write(OutboundFrame {
-                        opcode: FrameOpcode::Text,
-                        payload: payload.into_inner().to_vec(),
-                    })?;
-                }
-                SessionAction::SendBinary(payload) => {
-                    self.record_outbound(RecOpcode::Binary, &payload, now)?;
-                    self.enqueue_pending_write(OutboundFrame {
-                        opcode: FrameOpcode::Binary,
-                        payload: payload.to_vec(),
-                    })?;
-                    let result = self.push_mirror_action(SessionAction::SendBinary(payload));
-                    self.settle_diagnostic_result(result, system_failures_fatal)?;
-                }
-                SessionAction::SendPing(payload) => {
-                    self.record_outbound(RecOpcode::Ping, &payload, now)?;
-                    self.enqueue_pending_write(OutboundFrame {
-                        opcode: FrameOpcode::Ping,
-                        payload: payload.to_vec(),
-                    })?;
-                    let result = self.push_mirror_action(SessionAction::SendPing(payload));
-                    self.settle_diagnostic_result(result, system_failures_fatal)?;
-                }
-                SessionAction::RequestHttp(spec) => {
-                    self.enqueue_pending_http(spec.clone())?;
-                    let result = self.push_mirror_action(SessionAction::RequestHttp(spec));
-                    self.settle_diagnostic_result(result, system_failures_fatal)?;
-                }
-                SessionAction::ScheduleTimer(spec) => {
-                    let replacing = self.timers.contains_key(&spec.timer_id);
-                    if !replacing && self.timers.len() >= MAX_SESSION_TIMERS {
-                        // ponytail: drop when map full; ceiling = 32 timers/session;
-                        // upgrade = hierarchical wheel + explicit eviction policy.
-                        tracing::warn!(
-                            timer_id = spec.timer_id,
-                            max = MAX_SESSION_TIMERS,
-                            "dropping ScheduleTimer; session timer map full"
-                        );
-                        self.emit_events_dropped(1, "schedule_timer map full")?;
-                    } else {
-                        self.timers.insert(spec.timer_id, spec.fire_at);
-                    }
-                    self.push_mirror_action(SessionAction::ScheduleTimer(spec))?;
-                }
-                SessionAction::CancelTimer(timer_id) => {
-                    self.timers.remove(&timer_id);
-                    self.push_mirror_action(SessionAction::CancelTimer(timer_id))?;
-                }
-                SessionAction::MarkLive => {
-                    self.lifecycle = SessionLifecycle::Live;
-                    self.set_live_signal(true);
-                    self.push_mirror_action(SessionAction::MarkLive)?;
-                    self.emit_venue_status("live", now)?;
-                }
-                SessionAction::MarkDegraded => {
-                    self.lifecycle = SessionLifecycle::Degraded;
-                    self.set_live_signal(false);
-                    self.push_mirror_action(SessionAction::MarkDegraded)?;
-                    self.emit_venue_status("degraded", now)?;
-                }
-                SessionAction::Reconnect(_) => {
-                    self.reconnect_requested = true;
-                    self.lifecycle = SessionLifecycle::Backoff;
-                    self.invalidate_live_readiness();
-                    self.push_mirror_action(action)?;
-                }
-                SessionAction::StopSession(_) => {
-                    self.stop_requested = true;
-                    self.invalidate_live_readiness();
-                    self.push_mirror_action(action)?;
-                }
-                other => {
-                    let result = self.push_mirror_action(other);
-                    self.settle_diagnostic_result(result, system_failures_fatal)?;
-                }
+        for (action_index, action) in actions.into_iter().enumerate() {
+            if let Some(capture) = &mut self.operation_capture {
+                capture.action_started(action_index);
             }
+            let result = (|| {
+                match action {
+                    SessionAction::EmitBatch(mut batch) => {
+                        // Adapters do not own runtime transport identity or the raw
+                        // input ordinal. Assign these once at the collector boundary.
+                        batch.session = self.cfg.session;
+                        batch.frame_seq = self.inbound_frame_seq;
+                        for event in &mut batch.events {
+                            event.venue = self.cfg.venue;
+                            event.session = self.cfg.session;
+                            event.connection = self.cfg.connection;
+                            event.frame_seq = self.inbound_frame_seq;
+                            event.event_index = u16::try_from(next_event_index).map_err(|_| {
+                                EngineError::Internal("too many events in one input".into())
+                            })?;
+                            next_event_index += 1;
+                        }
+                        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+                            batch.clone(),
+                        ))?;
+                        let n = batch.events.len() as u64;
+                        self.metrics
+                            .events_normalized
+                            .fetch_add(n, Ordering::Relaxed);
+                        let outcome = self.push_dispatch_batch(batch.clone())?;
+                        match outcome {
+                            PushOutcome::Accepted => {
+                                self.metrics.record_batch_dispatched();
+                                self.push_mirror_batch(batch)?;
+                            }
+                            PushOutcome::DroppedNewest => {
+                                self.note_push_outcome("dispatch_batch", outcome)?;
+                            }
+                            PushOutcome::DroppedOldest { dropped: _ } => {
+                                self.metrics.record_batch_dispatched();
+                                self.note_push_outcome("dispatch_batch", outcome)?;
+                                self.push_mirror_batch(batch)?;
+                            }
+                        }
+                        self.refresh_queue_gauges();
+                    }
+                    SessionAction::EmitSystem(mut ev) => {
+                        self.stamp_system_event(&mut ev);
+                        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::System {
+                            session: self.cfg.session,
+                            event: ev.clone(),
+                        })?;
+                        self.trace_system_event(&ev);
+                        self.metrics
+                            .observe_system_for_session(self.cfg.session, &ev);
+                        let result = match self.push_dispatch_system(ev.clone()) {
+                            Ok(PushOutcome::Accepted) => self.push_mirror_system(ev),
+                            Ok(PushOutcome::DroppedNewest) => self
+                                .note_push_outcome("dispatch_system", PushOutcome::DroppedNewest),
+                            Ok(PushOutcome::DroppedOldest { dropped }) => self
+                                .note_push_outcome(
+                                    "dispatch_system",
+                                    PushOutcome::DroppedOldest { dropped },
+                                )
+                                .and_then(|()| self.push_mirror_system(ev)),
+                            Err(error) => Err(error.into()),
+                        };
+                        self.settle_diagnostic_result(result, system_failures_fatal)?;
+                    }
+                    SessionAction::SendText(payload) => {
+                        self.record_outbound(RecOpcode::Text, &payload, now)?;
+                        self.enqueue_pending_write(OutboundFrame {
+                            opcode: FrameOpcode::Text,
+                            payload: payload.to_vec(),
+                        })?;
+                        let result = self.push_mirror_action(SessionAction::SendText(payload));
+                        self.settle_diagnostic_result(result, system_failures_fatal)?;
+                    }
+                    SessionAction::SendSensitiveText(payload) => {
+                        self.enqueue_pending_write(OutboundFrame {
+                            opcode: FrameOpcode::Text,
+                            payload: payload.into_inner().to_vec(),
+                        })?;
+                    }
+                    SessionAction::SendBinary(payload) => {
+                        self.record_outbound(RecOpcode::Binary, &payload, now)?;
+                        self.enqueue_pending_write(OutboundFrame {
+                            opcode: FrameOpcode::Binary,
+                            payload: payload.to_vec(),
+                        })?;
+                        let result = self.push_mirror_action(SessionAction::SendBinary(payload));
+                        self.settle_diagnostic_result(result, system_failures_fatal)?;
+                    }
+                    SessionAction::SendPing(payload) => {
+                        self.record_outbound(RecOpcode::Ping, &payload, now)?;
+                        self.enqueue_pending_write(OutboundFrame {
+                            opcode: FrameOpcode::Ping,
+                            payload: payload.to_vec(),
+                        })?;
+                        let result = self.push_mirror_action(SessionAction::SendPing(payload));
+                        self.settle_diagnostic_result(result, system_failures_fatal)?;
+                    }
+                    SessionAction::RequestHttp(spec) => {
+                        self.enqueue_pending_http(spec.clone())?;
+                        let result = self.push_mirror_action(SessionAction::RequestHttp(spec));
+                        self.settle_diagnostic_result(result, system_failures_fatal)?;
+                    }
+                    SessionAction::ScheduleTimer(spec) => {
+                        let replacing = self.timers.contains_key(&spec.timer_id);
+                        if !replacing && self.timers.len() >= MAX_SESSION_TIMERS {
+                            // ponytail: drop when map full; ceiling = 32 timers/session;
+                            // upgrade = hierarchical wheel + explicit eviction policy.
+                            tracing::warn!(
+                                timer_id = spec.timer_id,
+                                max = MAX_SESSION_TIMERS,
+                                "dropping ScheduleTimer; session timer map full"
+                            );
+                            self.emit_events_dropped(1, "schedule_timer map full")?;
+                        } else {
+                            self.timers.insert(spec.timer_id, spec.fire_at);
+                        }
+                        self.push_mirror_action(SessionAction::ScheduleTimer(spec))?;
+                    }
+                    SessionAction::CancelTimer(timer_id) => {
+                        self.timers.remove(&timer_id);
+                        self.push_mirror_action(SessionAction::CancelTimer(timer_id))?;
+                    }
+                    SessionAction::MarkLive => {
+                        self.lifecycle = SessionLifecycle::Live;
+                        self.set_live_signal(true);
+                        self.push_mirror_action(SessionAction::MarkLive)?;
+                        self.emit_venue_status("live", now)?;
+                    }
+                    SessionAction::MarkDegraded => {
+                        self.lifecycle = SessionLifecycle::Degraded;
+                        self.set_live_signal(false);
+                        self.push_mirror_action(SessionAction::MarkDegraded)?;
+                        self.emit_venue_status("degraded", now)?;
+                    }
+                    SessionAction::Reconnect(_) => {
+                        self.reconnect_requested = true;
+                        self.lifecycle = SessionLifecycle::Backoff;
+                        self.invalidate_live_readiness();
+                        self.push_mirror_action(action)?;
+                    }
+                    SessionAction::StopSession(_) => {
+                        self.stop_requested = true;
+                        self.invalidate_live_readiness();
+                        self.push_mirror_action(action)?;
+                    }
+                    other => {
+                        let result = self.push_mirror_action(other);
+                        self.settle_diagnostic_result(result, system_failures_fatal)?;
+                    }
+                }
+                Ok(())
+            })();
+            if let Some(capture) = &mut self.operation_capture {
+                capture.action_finished(action_index, &result);
+            }
+            result?;
         }
         Ok(())
     }
 
     fn settle_diagnostic_result(
-        &self,
+        &mut self,
         result: Result<(), EngineError>,
         failures_fatal: bool,
     ) -> Result<(), EngineError> {
         match result {
             Ok(()) => Ok(()),
             Err(error) if failures_fatal => Err(error),
-            Err(_) => {
+            Err(error) => {
+                if let Some(capture) = &mut self.operation_capture {
+                    capture.suppressed(&error);
+                }
                 self.metrics.record_queue_overflow();
                 self.metrics.record_events_dropped(1);
                 Ok(())
@@ -1279,7 +1434,7 @@ impl SessionRunner {
             event: ev.clone(),
         })?;
         self.trace_system_event(&ev);
-        match self.dispatch.push_system(ev.clone()) {
+        match self.push_dispatch_system(ev.clone()) {
             Ok(PushOutcome::Accepted) => self.push_mirror_system(ev),
             Ok(PushOutcome::DroppedNewest) => {
                 // ponytail: no recursive EventsDropped; metric already recorded original loss.
@@ -1419,6 +1574,7 @@ impl SessionRunner {
         if self.recording_pipeline.is_none()
             && self.recorder.is_none()
             && self.cfg.shared_feed.is_none()
+            && self.operation_capture.is_none()
         {
             return Ok(());
         }

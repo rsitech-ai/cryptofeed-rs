@@ -74,6 +74,11 @@ cargo deny check
 cargo audit --deny warnings
 ```
 
-The new actor source needs its own hosted CI. Earlier timestamp source `7bef521`
-completed all 17 jobs; its complete tested merge tree equals that source. Those
-results are retained separately and do not qualify the actor change.
+Hosted CI for actor source `c8c1378` has now completed all 17 jobs successfully.
+Its complete tested merge tree equals that source: Linux 1,336 cases on each
+architecture, macOS 1,335 and Windows 1,333, with zero failed/56 ignored across
+153 suites per platform. Hosted Windows directory-durability checks pass 104
+cases across 11 suites. The exact trees, run and log hashes are retained in
+`ci-qualification.json`. This qualifies that actor source only; later capture
+changes and the unfinished live integration need their own checks. Earlier
+timestamp results remain separately scoped to source `7bef521`.

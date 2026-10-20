@@ -338,6 +338,26 @@ commit-gated externally readable state and release, and actual-engine replay
 before comparing the same registered workload. Shared consumers require a
 coordinated source pin and their existing parity/security/attribution gates.
 
+### Private actual-runner capture seam
+
+`CaptureSession` now owns a private actual runner and persistent machine, executes
+typed public-evidence inputs and observes original mutable input, callback buffers
+and outcomes, action-prefix application, produced-versus-admitted effects,
+suppressed diagnostics, dynamic subscription phases, timer polls and injected
+connection identity/generation. Capture faults and native outcomes stay separate;
+incomplete operations poison further execution. Eighteen focused tests and an
+independent review cover failure/partial-mutation behavior, bounds, sensitive
+actions, panic and exact i128 values. See the
+[capture evidence](../evidence/engine-operation-capture-20261020/README.md).
+
+This in-memory executor has no durable transaction/release API and is not used by
+the live collector. Effect-parent attribution, metadata/bootstrap, drains,
+negotiated causal storage, actor integration and commit-gated release/replay
+remain required. It does not close D5 or repair the failed ingress workload.
+Strategy features/models/ETF/context and decision research remain rsibot-owned;
+the next owner slice remains an opt-in shared-feed/context reader and deterministic
+availability checks through existing contracts, without a second collector.
+
 ## Timestamp advisory repair with compatible bytes
 
 The three direct `time` users have migrated: EventPulse uses already-locked

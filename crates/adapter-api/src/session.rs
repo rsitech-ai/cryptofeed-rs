@@ -47,8 +47,9 @@ pub trait SessionMachine: Send + 'static {
         ))
     }
 
-    /// Commit adapter-local state after the prepared wire frame is durably
-    /// accepted by the runner's pending-write queue.
+    /// Commit adapter-local state after the prepared frame passes recording and
+    /// pending-write admission. Queue admission is not a durable publication
+    /// receipt; journaled owners must gate external release on commit.
     ///
     /// Implementations that override [`Self::prepare_dynamic_subscription`]
     /// should keep this phase infallible and must not emit additional actions.
@@ -298,6 +299,12 @@ impl ActionBuffer {
 
     pub fn take_dropped(&mut self) -> u64 {
         std::mem::replace(&mut self.dropped, 0)
+    }
+
+    /// Observe overflow without consuming it. Capture/replay must not change
+    /// when the runner subsequently reports and resets the counter.
+    pub fn dropped(&self) -> u64 {
+        self.dropped
     }
 
     pub fn clear(&mut self) {

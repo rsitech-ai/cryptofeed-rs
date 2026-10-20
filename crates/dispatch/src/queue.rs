@@ -68,6 +68,11 @@ impl<T> BoundedQueue<T> {
         self.items.front()
     }
 
+    /// Read-only physical queue order, including the retained rejected front.
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = &T> + DoubleEndedIterator {
+        self.items.iter()
+    }
+
     /// Non-blocking push respecting OverflowPolicy.
     pub fn try_push(&mut self, item: T) -> Result<PushOutcome, DispatchError> {
         if self.items.len() < self.capacity {
