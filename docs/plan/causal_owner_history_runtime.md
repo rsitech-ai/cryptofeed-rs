@@ -79,6 +79,20 @@ exercise CaptureSession's inner catch, not an injected outer-worker panic.
 
 ## Remaining integration gates
 
+The opt-in [actual-engine disk reader](causal_actual_engine_replay.md) now
+implements single-owner MFCJ3 native replay. It verifies the first physical
+bootstrap, supported configuration, reader bounds and current artifact before
+one pure factory construction. Complete operations reexecute on that persistent
+CaptureSession, including reconnects and actual null/outbound drains; full typed
+DTO inequality poisons replay. Only an observed handoff can return matched
+drained items. Owner timing/refusal/revocation decisions remain structurally
+validated declared observations, rather than independently reproduced scheduling.
+Unknown permits stay unknown even with a storage seal. Resume reconstructs the
+complete engine prefix to an exact initially committed cursor and discards its
+historical handoffs. This is not native checkpoint restoration or restart
+authority. New-source qualification is recorded separately; earlier source
+receipts retain their original scope.
+
 This owner is a private disk/null foundation. Hyperliquid bootstrap binds the
 selected market, full metadata-derived catalog, selected semantic channels and
 ordered deduplicated native subscriptions. Original successful spotMeta body
@@ -91,8 +105,8 @@ channels remain distinct semantic requests on one native subscription. The
 Bybit complete-bundle policy and serialized spelling remain unchanged.
 
 Complete failure/admission retention, deliberate committed
-compatibility projection, bound external I/O intents/completions and actual-engine
-physical-order replay/checkpoints remain required. Migrate daemon/live/control/
+compatibility projection, bound external I/O intents/completions, bounded
+multi-owner replay and native checkpoints remain required. Migrate daemon/live/control/
 supervisor callers and shared consumers only with exact schema/identity/timing
 proof. Then repeat the unchanged registered ingress workload with its original
 caps, schedule and abort rules. Its existing failure remains failed.

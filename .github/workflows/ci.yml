@@ -161,6 +161,7 @@ jobs:
           cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --lib causal_bootstrap
           cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test causal_bootstrap
           cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test causal_owner
+          cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test hyperliquid_causal
       - name: Offline dataset tool MSRV (Parquet 60)
         run: |
           rustup toolchain install 1.88 --profile minimal

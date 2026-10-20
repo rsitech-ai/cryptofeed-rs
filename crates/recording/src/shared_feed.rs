@@ -768,6 +768,12 @@ impl FeedReader {
     pub fn cursor(&self) -> &FeedCursor {
         &self.cursor
     }
+    /// Last validated durable watermark observed by this reader. At open this
+    /// is the initial committed bound; it is not an engine checkpoint. Later
+    /// read_next calls may advance it as collection publishes more records.
+    pub fn observed_commit(&self) -> &FeedCursor {
+        &self.seen_commit
+    }
     fn watermark(directory: &Path) -> Result<FeedCursor, RecordingError> {
         let f = File::open(directory.join("committed.json"))?;
         let w: Watermark = serde_json::from_reader(f.take(4097)).map_err(err)?;

@@ -18,6 +18,7 @@ use std::{
 };
 
 pub mod owner;
+pub mod replay;
 
 #[derive(Debug, thiserror::Error)]
 pub enum BootstrapError {
@@ -569,26 +570,7 @@ impl CommittedBootstrap {
                 "artifact changed while awaiting bootstrap commit",
             ));
         }
-        let factory: Box<dyn VenueFactory> = match self.dto.factory {
-            FactoryDto::BybitPublic {
-                category: selected,
-                enable_l2,
-            } => Box::new(BybitFactory {
-                category: category(selected),
-                enable_l2,
-            }),
-            FactoryDto::HyperliquidPublic { market } => Box::new(HyperliquidFactory {
-                spot: market == HyperliquidMarketDto::Spot,
-            }),
-        };
-        let machine = factory
-            .create_session(
-                self.dto.session.session_spec()?,
-                self.dto.catalog.catalog()?,
-            )
-            .map_err(|e| BootstrapError::Factory(e.to_string()))?;
-        let capture = CaptureSession::new(machine, self.dto.capture.config()?)
-            .map_err(|e| BootstrapError::Factory(e.to_string()))?;
+        let capture = capture_from_supported(&self.dto)?;
         let history_policy = if self
             .dto
             .public_inputs
@@ -608,6 +590,28 @@ impl CommittedBootstrap {
             history_policy,
         })
     }
+}
+/// Pure construction shared by receipt-gated live start and verified disk
+/// replay. Callers verify configuration and the current artifact first. Replay
+/// never manufactures a live receipt or re-admits an existing bootstrap.
+fn capture_from_supported(dto: &BootstrapDto) -> Result<CaptureSession, BootstrapError> {
+    let factory: Box<dyn VenueFactory> = match dto.factory {
+        FactoryDto::BybitPublic {
+            category: selected,
+            enable_l2,
+        } => Box::new(BybitFactory {
+            category: category(selected),
+            enable_l2,
+        }),
+        FactoryDto::HyperliquidPublic { market } => Box::new(HyperliquidFactory {
+            spot: market == HyperliquidMarketDto::Spot,
+        }),
+    };
+    let machine = factory
+        .create_session(dto.session.session_spec()?, dto.catalog.catalog()?)
+        .map_err(|e| BootstrapError::Factory(e.to_string()))?;
+    CaptureSession::new(machine, dto.capture.config()?)
+        .map_err(|e| BootstrapError::Factory(e.to_string()))
 }
 /// Opaque initial owner. No mutable machine, state, metrics/readiness, stop,
 /// books or output handles escape. Operation admission/release is the next layer.

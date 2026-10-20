@@ -1,0 +1,255 @@
+{
+  "schema_version": 1,
+  "status": "Pass for exact b1ec hosted main/native/archive checks, with skipped and operational gates explicit",
+  "repository": "rsitech-ai/hlscreen",
+  "source_head": "b1ecfba1700fd354c4f736fb3b1d2392c7813f51",
+  "producer_pin": "56b733dfdce0b865ad121d49c4d71d720b305733",
+  "source_tree": "a4fb8b12432460c51527dcda686fa94b01a65dd3",
+  "tested_merge": "25c00564aedd1d6a957523579a4623cd1395c1d1",
+  "source_and_tested_merge_trees_identical": true,
+  "independent_receipt_sha256": "8e8475c7b433f35b0b54b1c7dcfd90bd43f5de3b9c4807436b8edad51bce912b",
+  "main_ci": {
+    "run": 39417386911,
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "conclusion": "success",
+        "id": 118609607332,
+        "name": "GitHub Actions security",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118609607437,
+        "name": "PTY TUI (ubuntu-24.04)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118609607582,
+        "name": "PTY TUI (macos-15)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118609607627,
+        "name": "Dependency license and source policy",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118609607659,
+        "name": "Rust workspace",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118609607908,
+        "name": "RustSec advisory scan",
+        "status": "completed"
+      },
+      {
+        "conclusion": "skipped",
+        "id": 118609609105,
+        "name": "Scheduled public API contract smoke",
+        "status": "completed"
+      }
+    ],
+    "rust_executions": 567,
+    "rust_unique_tests": 544,
+    "rust_suites": 82,
+    "python_suites": [
+      8,
+      4
+    ],
+    "failed": 0,
+    "ignored": 0,
+    "exact_security_tools_and_steps": "cargo-audit0.22.2; cargo-deny0.20.2; cargo-about0.9.1; licenses/sources and attribution pass; audit scans432crate dependencies",
+    "scheduled_public_API_smoke": "skipped; pull_request event"
+  },
+  "artifact_ci": {
+    "run": 39417386916,
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "conclusion": "success",
+        "id": 118609607145,
+        "name": "Plan release",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118611009241,
+        "name": "build-local-artifacts (x86_64-pc-windows-msvc)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118611009321,
+        "name": "build-local-artifacts (x86_64-unknown-linux-gnu)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118611009362,
+        "name": "build-local-artifacts (aarch64-apple-darwin)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118611009413,
+        "name": "build-local-artifacts (x86_64-apple-darwin)",
+        "status": "completed"
+      },
+      {
+        "conclusion": "success",
+        "id": 118622292221,
+        "name": "Build global artifacts",
+        "status": "completed"
+      },
+      {
+        "conclusion": "skipped",
+        "id": 118623004223,
+        "name": "Publish tag artifacts",
+        "status": "completed"
+      },
+      {
+        "conclusion": "skipped",
+        "id": 118623005364,
+        "name": "Confirm release announcement",
+        "status": "completed"
+      }
+    ],
+    "all4_inner_checksums_build_global_and_aggregate_agree": true,
+    "source_archive_exact_source_git_export": true,
+    "publication": "skipped",
+    "announcement": "skipped"
+  },
+  "native_validations": [
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "job_id": 118611009321,
+      "checkout_merge": "25c00564aedd1d6a957523579a4623cd1395c1d1",
+      "job_and_validation_step": "success",
+      "no_hidden_utf8_reader_errors": true,
+      "raw_log_sha256": "540083bcb458c0ec8a7548b558b230adb3710ca81865a89558f57aafcbe401b3"
+    },
+    {
+      "target": "x86_64-pc-windows-msvc",
+      "job_id": 118611009241,
+      "checkout_merge": "25c00564aedd1d6a957523579a4623cd1395c1d1",
+      "job_and_validation_step": "success",
+      "no_hidden_utf8_reader_errors": true,
+      "raw_log_sha256": "10cc11a3260d7662da2e21a3b3ceda61e9e58d80a35b046cdd24398f97ec86e8"
+    },
+    {
+      "target": "aarch64-apple-darwin",
+      "job_id": 118611009362,
+      "checkout_merge": "25c00564aedd1d6a957523579a4623cd1395c1d1",
+      "job_and_validation_step": "success",
+      "no_hidden_utf8_reader_errors": true,
+      "raw_log_sha256": "e4c4936dda3988b923943cc62ae76039dd5d64af8e93325eb119a5a366ddf400"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "job_id": 118611009413,
+      "checkout_merge": "25c00564aedd1d6a957523579a4623cd1395c1d1",
+      "job_and_validation_step": "success",
+      "no_hidden_utf8_reader_errors": true,
+      "raw_log_sha256": "6d4f03257b4a6aec99ea45644bf3d873fc6dbd7f0b69dc039601d637dfd45583"
+    }
+  ],
+  "workflow_archives": [
+    {
+      "artifact_id": 12263975197,
+      "artifact_name": "artifacts-build-global",
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "workflow_zip_sha256": "6ae39e5eb51090fc3a7cc3442c455b8f561522ec174a84e35fe1239cced25727",
+      "source_archive": {
+        "all_paths_and_bytes_match_exact_source_git_archive": true,
+        "bytes": 537904,
+        "exported_files": 311,
+        "file_hash_manifest_sha256": "6124916b1a7d22b8b62c74240fd222f75866808b3bb629121529c38a67938a89",
+        "name": "source.tar.gz",
+        "sha256": "90fb925330e3c9ff99de577ba6a6ed1bfb47336a51b63b0092e197f613e3aa6d"
+      }
+    },
+    {
+      "artifact_id": 12263409585,
+      "artifact_name": "artifacts-build-local-x86_64-apple-darwin",
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "workflow_zip_sha256": "4b32ce1d1035abbf08ccea10a674df289e2d6299e22e8c29eb6e7bafbdee37b9",
+      "target": "x86_64-apple-darwin",
+      "native_archive": "hls-cli-x86_64-apple-darwin.tar.xz",
+      "native_archive_sha256": "b72037877210f22ba641a1b4083074e3352f844507bdd262a5cf0ce635f559f0",
+      "native_archive_bytes": 7211388,
+      "inner_checksum_build_global_and_aggregate_match": true,
+      "packaged_docs_equal_exact_source_after_line_ending_normalization": true
+    },
+    {
+      "artifact_id": 12263330819,
+      "artifact_name": "artifacts-build-local-x86_64-unknown-linux-gnu",
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "workflow_zip_sha256": "91dbc669af3d7c7106d0c131f254b00c9fc94eb3c397d2c275fd256dd71bfa49",
+      "target": "x86_64-unknown-linux-gnu",
+      "native_archive": "hls-cli-x86_64-unknown-linux-gnu.tar.xz",
+      "native_archive_sha256": "9d05cddb4f5dec0df70122554092af2bc2a3771251e1747cd0e2fa1d6d8446f1",
+      "native_archive_bytes": 7652080,
+      "inner_checksum_build_global_and_aggregate_match": true,
+      "packaged_docs_equal_exact_source_after_line_ending_normalization": true
+    },
+    {
+      "artifact_id": 12263312127,
+      "artifact_name": "artifacts-build-local-x86_64-pc-windows-msvc",
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "workflow_zip_sha256": "3597570c88762d301f66792e3d5c5fe6c51abda44b8367a990f81896c777483b",
+      "target": "x86_64-pc-windows-msvc",
+      "native_archive": "hls-cli-x86_64-pc-windows-msvc.zip",
+      "native_archive_sha256": "4928d81278c7c355b9e20321a043d1f0c953e36173b0bbfcf15801d538cf3b9d",
+      "native_archive_bytes": 9772064,
+      "inner_checksum_build_global_and_aggregate_match": true,
+      "packaged_docs_equal_exact_source_after_line_ending_normalization": true
+    },
+    {
+      "artifact_id": 12262345416,
+      "artifact_name": "artifacts-plan-dist-manifest",
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "workflow_zip_sha256": "310880f392578860b900646065cda580807ce79e4e39765f9376ffe29e2828c4"
+    },
+    {
+      "artifact_id": 12262197680,
+      "artifact_name": "artifacts-build-local-aarch64-apple-darwin",
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "workflow_zip_sha256": "ac173603c6e97557d0cfff2359b9e5bbd7d1a5e2d5f969d3bf76392494c492ee",
+      "target": "aarch64-apple-darwin",
+      "native_archive": "hls-cli-aarch64-apple-darwin.tar.xz",
+      "native_archive_sha256": "b647a50e126434dc1f5b6590915cc9db41a7def5d95b757c2250b15bacde7472",
+      "native_archive_bytes": 6146940,
+      "inner_checksum_build_global_and_aggregate_match": true,
+      "packaged_docs_equal_exact_source_after_line_ending_normalization": true
+    }
+  ],
+  "local_dependency_qualification": {
+    "public_validation_sha256": "91d352cb4df6aafdfce85a13512668c9753e70645a469251e8b58976ba763023",
+    "patched_registry_records": 26,
+    "registry_total": 419,
+    "unchanged_complete_registry_records": 393,
+    "resolved_nodes": 432,
+    "scope": "Local dependency/MSRV/attribution/rawrun/binary/savedprefix review remains separately source-bound; native binaries are independently built CI artifacts, not relabeled local debug binary."
+  },
+  "remaining_limits": [
+    "Scheduled public API smoke, tag publication and announcement skipped; these checks do not establish exchange continuity, live operation, strict dataset admission, registered-workload repair or economics.",
+    "MFSF1 compatibility and explicit MFCJ1/MFCJ2/MFCJ3 rejection do not provide HLS causal consumption, actual-engine production replay, committed projection or daemon/CLI/live integration.",
+    "Exact HLS checkout tree and workflow artifact checks do not assert whole producer equivalence, complete transitive build-input closure, reproducible builds or loaded-image attestation.",
+    "Existing Wasm execution/contract tests are not compiler-advisory exploit regressions or a proof arbitrary Wasm is safe; fresh source-scoped native cargo-audit bin validation passed."
+  ],
+  "newer_source_excluded": "These checks cover hlscreen b1ecfba and its producer56b733d pin. They do not qualify the newer 530-input actual-engine replay candidate or a subsequent hlscreen repin."
+}

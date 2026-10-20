@@ -21,6 +21,91 @@ use std::{
 
 const WATCHDOG: Duration = Duration::from_secs(10);
 
+#[test]
+fn bybit_history_replays_actual_persistent_engine_through_transport_reconnect() {
+    use marketfeed_daemon::causal_bootstrap::replay::HistoryReplay;
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("replay-bybit");
+    let mut dto = fixture(41);
+    // This MFCJ3 fixture binds its actual small public inputs to the 256KiB
+    // canonical record budget; the legacy fixture's 128KiB cap is too large.
+    dto.owner_policy.as_mut().unwrap().max_input_bytes = 8192;
+    dto.bind_history_policy(HistoryRuntimePolicyDto {
+        schema_version: 1,
+        max_pending_observations: 32,
+        max_pending_observation_bytes: 4 << 20,
+        max_record_bytes: 256 << 10,
+        max_finalization_age: Duration::from_secs(2).into(),
+    })
+    .unwrap();
+    let actor = FeedBatchActor::spawn(
+        FeedWriter::create_profile(&path, 64 << 20, FeedProfile::EngineCausalV3).unwrap(),
+        BatchConfig {
+            max_pending_operations: 32,
+            max_pending_bytes: 8 << 20,
+            max_group_operations: 32,
+            max_group_bytes: 8 << 20,
+            max_age: Duration::from_millis(1),
+        },
+    )
+    .unwrap();
+    let session = PreparedBootstrap::new_history(dto, MAX_OPERATION_BYTES)
+        .unwrap()
+        .try_admit(&actor.handle())
+        .unwrap()
+        .wait()
+        .unwrap()
+        .instantiate()
+        .unwrap();
+    let owner = session.spawn_history_owner().unwrap();
+    for (connection, input) in [
+        (1, connected(1)),
+        (1, trade()),
+        (
+            1,
+            CaptureInput::TransportLost {
+                reason: DisconnectReason::TransportError,
+                now: TimestampNs(2),
+            },
+        ),
+        (2, connected(2)),
+        (2, trade()),
+    ] {
+        assert!(matches!(
+            owner
+                .ingress()
+                .try_submit(ConnectionId(connection), input)
+                .unwrap()
+                .wait(),
+            InputSettlement::Committed { .. }
+        ));
+        wait_until(|| owner.try_next().is_some());
+    }
+    owner.close_ingress();
+    wait_until(|| owner.status().owner.phase == OwnerPhase::Stopped);
+    assert!(owner.shutdown().owner.failure.is_none());
+    actor.shutdown().unwrap();
+    let mut replay = HistoryReplay::open(
+        path,
+        OwnerHistoryLimits {
+            max_retained_input_bytes: 4 << 20,
+            max_input_bytes: 256 << 10,
+            max_record_bytes: 256 << 10,
+        },
+    )
+    .unwrap();
+    let mut handoffs = 0;
+    while let Some(step) = replay.read_next().unwrap() {
+        if step.handoff.is_some() {
+            handoffs += 1;
+        }
+    }
+    assert_eq!(handoffs, 5);
+    let progress = replay.progress().unwrap();
+    assert_eq!(progress.native_ordinal, 5);
+    assert!(progress.uncertainties.is_empty());
+}
+
 fn owner_policy() -> JournalOwnerPolicyDto {
     JournalOwnerPolicyDto {
         max_pending_operations: 16,

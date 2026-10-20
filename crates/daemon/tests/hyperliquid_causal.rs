@@ -21,6 +21,8 @@ use std::{
 const SPOT: &[u8] = br#"{"tokens":[{"name":"USDC","szDecimals":8,"weiDecimals":8,"index":0,"tokenId":"0x0"},{"name":"PURR","szDecimals":0,"weiDecimals":5,"index":7,"tokenId":"0x7"}],"universe":[{"name":"@12","tokens":[7,0],"index":12}]}"#;
 const PERPS: &[u8] = br#"[{"collateralToken":0,"universe":[{"name":"BTC","szDecimals":5}]}]"#;
 const WAIT: Duration = Duration::from_secs(15);
+#[path = "support/hyperliquid_replay.rs"]
+mod replay_tests;
 fn fixture(spot: bool) -> BootstrapDto {
     static BUILD: OnceLock<BootstrapBuildDto> = OnceLock::new();
     let factory = HyperliquidFactory { spot };
@@ -427,6 +429,27 @@ fn malformed_late_trade_is_durable_failure_without_partial_trade_release() {
         assert_eq!(handoffs, 1);
         assert!(history.is_terminal());
         assert!(history.uncertainties().is_empty());
+        // A matching complete native Err is valid replay evidence. It must
+        // not be mistaken for a replay mismatch or release its partial rows.
+        let mut replay = marketfeed_daemon::causal_bootstrap::replay::HistoryReplay::open(
+            &path,
+            OwnerHistoryLimits {
+                max_retained_input_bytes: 4 << 20,
+                max_input_bytes: 256 << 10,
+                max_record_bytes: 256 << 10,
+            },
+        )
+        .unwrap();
+        let mut replayed_handoffs = 0;
+        while let Some(step) = replay.read_next().unwrap() {
+            if step.handoff.is_some() {
+                replayed_handoffs += 1;
+            }
+        }
+        let progress = replay.progress().unwrap();
+        assert_eq!(progress.native_ordinal, 2);
+        assert_eq!(replayed_handoffs, 1);
+        assert!(progress.terminal && progress.uncertainties.is_empty());
     }
 }
 
