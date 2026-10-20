@@ -358,6 +358,29 @@ Strategy features/models/ETF/context and decision research remain rsibot-owned;
 the next owner slice remains an opt-in shared-feed/context reader and deterministic
 availability checks through existing contracts, without a second collector.
 
+### Explicit effect origins and actual drain boundaries
+
+The follow-up capture slice adds runner/callback/action origins and the actual
+null-dispatch, write/HTTP take-all and scripted native sink-completion boundaries.
+Successful compound turns can execute their deterministic drains in the same
+operation; failed entries retain the unconsumed prefix. Capture limits and
+sensitive faults never authorize release. Sink completion preserves actual
+accepted prefixes, rejected fronts and separately queued drop diagnostics.
+Twenty-eight focused and independent tests pass, including i128 drain/sink
+boundaries, timer origins, compound reexecution and a fault during drains. See the
+[drain capture evidence](../evidence/engine-drain-capture-20261020/README.md).
+
+This still has no durable receipt/release or live caller. The next required path
+is the [causal journal integration contract](causal_journal_integration_contract.md):
+engine-owned exact DTOs and distinct negotiated envelope/profile, lossless
+bootstrap committed before execution, retained same-operation admission retry,
+private commit-gated owner, committed release projection and actual-engine
+durable replay. Supplied sink outcomes need prior committed intent/item binding.
+Only then compare the unchanged registered ingress workload. Shared package
+sources remain identical to the consumer's existing pin in this engine-only
+slice; static-source equivalence is not build/environment or whole-producer
+equivalence. Original native/strict/rsibot/calendar gates remain open.
+
 ## Timestamp advisory repair with compatible bytes
 
 The three direct `time` users have migrated: EventPulse uses already-locked

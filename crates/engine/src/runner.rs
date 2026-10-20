@@ -13,10 +13,11 @@
 mod operation;
 pub use operation::{
     ActionDisposition, BufferedAction, CallbackOutcome, CaptureCompleteness, CaptureConfig,
-    CaptureEntry, CaptureErrorClass, CaptureFault, CaptureInput, CaptureOutcome, CaptureQueueItem,
-    CaptureQueueLane, CaptureSession, CapturedOperation, CapturedState, InvocationKind,
+    CaptureDrainPolicy, CaptureEntry, CaptureErrorClass, CaptureFault, CaptureInput, CaptureOrigin,
+    CaptureOutcome, CaptureQueueItem, CaptureQueueLane, CaptureSession, CaptureTraceEntry,
+    CapturedOperation, CapturedState, InvocationKind,
 };
-use operation::{ActiveCapture, QueueItemRef};
+use operation::{ActiveCapture, CapturingSink, QueueItemRef};
 
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -161,8 +162,24 @@ impl SessionRunner {
 
     /// Drain bounded dispatch lanes (batches + system events) into local vecs.
     pub fn drain_dispatch(&mut self) -> (usize, usize) {
+        let market_capture = self.operation_capture.as_mut().and_then(|c| {
+            c.drain_start(
+                CaptureQueueLane::Market,
+                self.dispatch.batches().iter().map(QueueItemRef::Market),
+            )
+        });
+        let system_capture = self.operation_capture.as_mut().and_then(|c| {
+            c.drain_start(
+                CaptureQueueLane::System,
+                self.dispatch.systems().iter().map(QueueItemRef::System),
+            )
+        });
         let batches = self.dispatch.drain_batches();
         let systems = self.dispatch.drain_systems();
+        if let Some(capture) = &mut self.operation_capture {
+            capture.drain_finished(market_capture);
+            capture.drain_finished(system_capture);
+        }
         let nb = batches.len();
         let ns = systems.len();
         let cap = self.mirror_capacity();
@@ -191,7 +208,8 @@ impl SessionRunner {
 
     /// Forward dispatch into `sink`, or null-drain (mirrors) when `sink` is `None`.
     ///
-    /// Always empties the dispatcher so `FailEngine` queues cannot fill without a consumer.
+    /// Null draining empties both lanes. Sink failure preserves its rejected
+    /// front item and unattempted suffix; successful earlier pushes stay removed.
     pub fn consume_dispatch<S: EventSink + ?Sized>(
         &mut self,
         sink: Option<&mut S>,
@@ -199,7 +217,12 @@ impl SessionRunner {
         match sink {
             Some(s) => {
                 let t0 = std::time::Instant::now();
-                let out = forward_dispatcher(&mut self.dispatch, s).map_err(sink_to_engine);
+                let out = if let Some(capture) = &mut self.operation_capture {
+                    forward_dispatcher(&mut self.dispatch, &mut CapturingSink { sink: s, capture })
+                } else {
+                    forward_dispatcher(&mut self.dispatch, s)
+                }
+                .map_err(sink_to_engine);
                 self.metrics
                     .observe_sink_write_ns(t0.elapsed().as_nanos() as u64);
                 let report = out?;
@@ -307,6 +330,9 @@ impl SessionRunner {
             capture.invocation(kind, &self.actions, dropped_before, &result);
         }
         if let Err(error) = result {
+            if let Some(capture) = &mut self.operation_capture {
+                capture.finish_invocation();
+            }
             self.invalidate_live_readiness();
             self.lifecycle = SessionLifecycle::Degraded;
             self.actions.clear();
@@ -635,7 +661,16 @@ impl SessionRunner {
     }
 
     pub fn take_pending_writes(&mut self) -> Vec<OutboundFrame> {
+        let index = self.operation_capture.as_mut().and_then(|c| {
+            c.drain_start(
+                CaptureQueueLane::Write,
+                self.pending_writes.iter().map(QueueItemRef::Write),
+            )
+        });
         let writes = std::mem::take(&mut self.pending_writes);
+        if let Some(capture) = &mut self.operation_capture {
+            capture.drain_finished(index);
+        }
         for w in &writes {
             self.metrics.record_frame_sent(w.payload.len());
         }
@@ -643,7 +678,17 @@ impl SessionRunner {
     }
 
     pub fn take_pending_http(&mut self) -> Vec<HttpRequestSpec> {
-        std::mem::take(&mut self.pending_http)
+        let index = self.operation_capture.as_mut().and_then(|c| {
+            c.drain_start(
+                CaptureQueueLane::Http,
+                self.pending_http.iter().map(QueueItemRef::Http),
+            )
+        });
+        let http = std::mem::take(&mut self.pending_http);
+        if let Some(capture) = &mut self.operation_capture {
+            capture.drain_finished(index);
+        }
+        http
     }
 
     pub fn next_timer_deadline(&self) -> Option<TimestampNs> {
@@ -1233,6 +1278,18 @@ impl SessionRunner {
     }
 
     fn apply_actions_with_system_policy(
+        &mut self,
+        now: TimestampNs,
+        system_failures_fatal: bool,
+    ) -> Result<(), EngineError> {
+        let result = self.apply_captured_actions(now, system_failures_fatal);
+        if let Some(capture) = &mut self.operation_capture {
+            capture.finish_invocation();
+        }
+        result
+    }
+
+    fn apply_captured_actions(
         &mut self,
         now: TimestampNs,
         system_failures_fatal: bool,

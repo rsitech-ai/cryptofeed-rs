@@ -70,6 +70,14 @@ pub enum CaptureInput {
         response: HttpResponse,
         received: FrameStamp,
     },
+    /// Pure observation of previously performed sink calls, in actual native
+    /// forwarding order. A future live owner must commit an intent before I/O.
+    ForwardDispatch {
+        results: Vec<Result<PushOutcome, SinkError>>,
+    },
+    NullDispatch,
+    TakeWrites,
+    TakeHttp,
     TimerPoll {
         now: TimestampNs,
     },
@@ -189,6 +197,20 @@ impl QueueItemRef<'_> {
         }
     }
 }
+/// An origin is local to one operation. Invocation ordinals follow actual
+/// callback order (including repeated timer firings); action indices refer to
+/// the retained buffer in that invocation. Runner effects are outside callbacks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureOrigin {
+    Runner,
+    Invocation { ordinal: u64 },
+    Action { invocation: u64, index: usize },
+}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaptureTraceEntry {
+    pub origin: CaptureOrigin,
+    pub effect: CaptureEntry,
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaptureEntry {
     /// Exact FeedRecord JSON before any queue decision; never called admission.
@@ -206,6 +228,16 @@ pub enum CaptureEntry {
         incoming: CaptureQueueItem,
         evicted_front: Option<CaptureQueueItem>,
         result: Option<Result<PushOutcome, EngineError>>,
+    },
+    QueueDrain {
+        lane: CaptureQueueLane,
+        items: Vec<CaptureQueueItem>,
+        completed: bool,
+    },
+    SinkAttempt {
+        lane: CaptureQueueLane,
+        incoming: CaptureQueueItem,
+        result: Option<Result<PushOutcome, SinkError>>,
     },
     ActionBufferDropsConsumed(u64),
     SuppressedDiagnostic(EngineError),
@@ -272,13 +304,21 @@ pub struct CapturedState {
     /// Absent on incomplete capture; counts/flags above still show partial state.
     pub queues: Option<Vec<(CaptureQueueLane, Vec<CaptureQueueItem>)>>,
 }
+/// Deterministic drains performed in the SAME captured turn after a successful
+/// entry. Removed values remain capture evidence, not permission for external I/O.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CaptureDrainPolicy {
+    Retain,
+    NullDispatchTakeOutbound,
+}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedOperation {
     pub ordinal: u64,
     pub generation: u64,
     pub original_input: CaptureInput,
+    pub drain_policy: CaptureDrainPolicy,
     pub before: CapturedState,
-    pub entries: Vec<CaptureEntry>,
+    pub entries: Vec<CaptureTraceEntry>,
     pub outcome: CaptureOutcome,
     pub after: CapturedState,
     pub completeness: CaptureCompleteness,
@@ -340,6 +380,14 @@ impl CaptureSession {
     /// preflight inputs leave the machine untouched. Incomplete capture is
     /// terminal for this owner and is never a prepared durable transaction.
     pub fn execute(&mut self, input: CaptureInput) -> Result<CapturedOperation, EngineError> {
+        self.execute_turn(input, CaptureDrainPolicy::Retain)
+    }
+
+    pub fn execute_turn(
+        &mut self,
+        input: CaptureInput,
+        drain_policy: CaptureDrainPolicy,
+    ) -> Result<CapturedOperation, EngineError> {
         if self.poisoned {
             return Err(EngineError::Stopped);
         }
@@ -356,6 +404,19 @@ impl CaptureSession {
             return Err(EngineError::Internal(
                 "capture connection identity must be nonzero".into(),
             ));
+        }
+        if let CaptureInput::ForwardDispatch { results } = &input {
+            let pending = self.runner.dispatch_pending();
+            let available = pending.0 + pending.1;
+            let needed = results
+                .iter()
+                .position(Result::is_err)
+                .map_or(available, |i| i + 1);
+            if results.len() != needed || needed > available {
+                return Err(EngineError::Internal(
+                    "sink completion count/order does not match pending prefix".into(),
+                ));
+            }
         }
         let mut capture = ActiveCapture::new(self.config);
         let cost = input_cost(&input);
@@ -384,7 +445,15 @@ impl CaptureSession {
         self.generation = generation;
         self.runner.operation_capture = Some(capture);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            execute(&mut self.runner, &input)
+            let result = execute(&mut self.runner, &input);
+            if result.is_ok() && drain_policy == CaptureDrainPolicy::NullDispatchTakeOutbound {
+                // Execute the actual take/drain methods; no synthetic queue clear
+                // and no external I/O. They now record exact removed items.
+                self.runner.drain_dispatch();
+                self.runner.take_pending_writes();
+                self.runner.take_pending_http();
+            }
+            result
         }));
         let mut capture = self
             .runner
@@ -411,6 +480,7 @@ impl CaptureSession {
             ordinal,
             generation,
             original_input: input,
+            drain_policy,
             before,
             entries: capture.entries,
             outcome,
@@ -445,6 +515,24 @@ fn execute(runner: &mut SessionRunner, input: &CaptureInput) -> Result<(), Engin
             response,
             received,
         } => runner.on_http_response(*request_id, response, *received),
+        CaptureInput::ForwardDispatch { results } => {
+            let mut sink = ScriptedSink { results, next: 0 };
+            let result = runner.consume_dispatch(Some(&mut sink));
+            assert_eq!(sink.next, results.len(), "prevalidated native sink prefix");
+            result
+        }
+        CaptureInput::NullDispatch => {
+            runner.drain_dispatch();
+            Ok(())
+        }
+        CaptureInput::TakeWrites => {
+            runner.take_pending_writes();
+            Ok(())
+        }
+        CaptureInput::TakeHttp => {
+            runner.take_pending_http();
+            Ok(())
+        }
         CaptureInput::TimerPoll { now } => runner.poll_timers(*now),
         CaptureInput::Control { command, now } => runner.deliver_control(command.clone(), *now),
         CaptureInput::System(event) => runner.push_system(event.clone()),
@@ -465,16 +553,22 @@ fn execute(runner: &mut SessionRunner, input: &CaptureInput) -> Result<(), Engin
 }
 
 pub(super) struct ActiveCapture {
-    entries: Vec<CaptureEntry>,
+    entries: Vec<CaptureTraceEntry>,
     used: usize,
     limit: usize,
     max_entries: usize,
     observed_entries: u64,
     fault: Option<CaptureFault>,
     invocation_index: Option<usize>,
+    invocation_ordinal: u64,
+    origin: CaptureOrigin,
 }
 impl ActiveCapture {
     pub(super) fn invocation_kind(&mut self, input: &SessionInput<'_>) -> Option<InvocationKind> {
+        self.invocation_ordinal += 1; // native timer polls cap callbacks at 64
+        self.origin = CaptureOrigin::Invocation {
+            ordinal: self.invocation_ordinal,
+        };
         let cost = match input {
             SessionInput::Control { command } => command_cost(command),
             _ => 256,
@@ -490,6 +584,8 @@ impl ActiveCapture {
             observed_entries: 0,
             fault: None,
             invocation_index: None,
+            invocation_ordinal: 0,
+            origin: CaptureOrigin::Runner,
         }
     }
     fn fail(&mut self, fault: CaptureFault) {
@@ -532,8 +628,7 @@ impl ActiveCapture {
             return;
         }
         self.used += buffer.bytes.len();
-        self.entries
-            .push(CaptureEntry::ProducedRecord(buffer.bytes));
+        self.push_entry(CaptureEntry::ProducedRecord(buffer.bytes));
     }
     pub(super) fn invocation(
         &mut self,
@@ -566,7 +661,7 @@ impl ActiveCapture {
             ActionDisposition::DiscardedAfterCallbackError
         };
         self.invocation_index = Some(self.entries.len());
-        self.entries.push(CaptureEntry::Invocation {
+        self.push_entry(CaptureEntry::Invocation {
             kind,
             retained_actions: actions.len(),
             dropped_before,
@@ -582,9 +677,25 @@ impl ActiveCapture {
             outcome: CallbackOutcome::Returned(result.clone()),
         });
     }
+    fn push_entry(&mut self, effect: CaptureEntry) {
+        self.entries.push(CaptureTraceEntry {
+            origin: self.origin,
+            effect,
+        });
+    }
+    pub(super) fn finish_invocation(&mut self) {
+        self.origin = CaptureOrigin::Runner;
+        self.invocation_index = None;
+    }
     pub(super) fn action_started(&mut self, index: usize) {
-        if let Some(CaptureEntry::Invocation { actions, .. }) =
-            self.invocation_index.and_then(|i| self.entries.get_mut(i))
+        self.origin = CaptureOrigin::Action {
+            invocation: self.invocation_ordinal,
+            index,
+        };
+        if let Some(CaptureEntry::Invocation { actions, .. }) = self
+            .invocation_index
+            .and_then(|i| self.entries.get_mut(i))
+            .map(|entry| &mut entry.effect)
         {
             if let Some(action) = actions.get_mut(index) {
                 action.disposition = ActionDisposition::Started;
@@ -592,11 +703,16 @@ impl ActiveCapture {
         }
     }
     pub(super) fn action_finished(&mut self, index: usize, result: &Result<(), EngineError>) {
+        self.origin = CaptureOrigin::Invocation {
+            ordinal: self.invocation_ordinal,
+        };
         if !self.charge(result.as_ref().err().map_or(0, error_cost)) {
             return;
         }
-        if let Some(CaptureEntry::Invocation { actions, .. }) =
-            self.invocation_index.and_then(|i| self.entries.get_mut(i))
+        if let Some(CaptureEntry::Invocation { actions, .. }) = self
+            .invocation_index
+            .and_then(|i| self.entries.get_mut(i))
+            .map(|entry| &mut entry.effect)
         {
             if let Some(action) = actions.get_mut(index) {
                 action.disposition = ActionDisposition::Completed(result.clone());
@@ -605,14 +721,12 @@ impl ActiveCapture {
     }
     pub(super) fn drops(&mut self, count: u64) {
         if self.reserve_entry(0) {
-            self.entries
-                .push(CaptureEntry::ActionBufferDropsConsumed(count));
+            self.push_entry(CaptureEntry::ActionBufferDropsConsumed(count));
         }
     }
     pub(super) fn suppressed(&mut self, error: &EngineError) {
         if self.reserve_entry(error_cost(error)) {
-            self.entries
-                .push(CaptureEntry::SuppressedDiagnostic(error.clone()));
+            self.push_entry(CaptureEntry::SuppressedDiagnostic(error.clone()));
         }
     }
     pub(super) fn subscription_prepared(
@@ -628,19 +742,17 @@ impl ActiveCapture {
             Err(e) => adapter_error_cost(e),
         };
         if self.reserve_entry(bytes) {
-            self.entries
-                .push(CaptureEntry::SubscriptionPrepared(prepared.clone()));
+            self.push_entry(CaptureEntry::SubscriptionPrepared(prepared.clone()));
         }
     }
     pub(super) fn subscription_committed(&mut self) {
         if self.reserve_entry(0) {
-            self.entries.push(CaptureEntry::SubscriptionCommitted);
+            self.push_entry(CaptureEntry::SubscriptionCommitted);
         }
     }
     pub(super) fn subscription_reservation(&mut self, result: &Result<(), DispatchError>) {
         if self.reserve_entry(256) {
-            self.entries
-                .push(CaptureEntry::SubscriptionReservation(result.clone()));
+            self.push_entry(CaptureEntry::SubscriptionReservation(result.clone()));
         }
     }
     pub(super) fn queue_start(
@@ -656,7 +768,7 @@ impl ActiveCapture {
             return None;
         }
         let index = self.entries.len();
-        self.entries.push(CaptureEntry::QueueAttempt {
+        self.push_entry(CaptureEntry::QueueAttempt {
             lane,
             incoming: incoming.owned(),
             evicted_front: evicted.map(QueueItemRef::owned),
@@ -664,13 +776,68 @@ impl ActiveCapture {
         });
         Some(index)
     }
+    pub(super) fn drain_start<'a>(
+        &mut self,
+        lane: CaptureQueueLane,
+        items: impl Iterator<Item = QueueItemRef<'a>>,
+    ) -> Option<usize> {
+        if !self.reserve_entry(0) {
+            return None;
+        }
+        let mut retained = Vec::new();
+        for item in items {
+            if !self.charge(item.cost()) {
+                return None;
+            }
+            retained.push(item.owned());
+        }
+        let index = self.entries.len();
+        self.push_entry(CaptureEntry::QueueDrain {
+            lane,
+            items: retained,
+            completed: false,
+        });
+        Some(index)
+    }
+    pub(super) fn drain_finished(&mut self, index: Option<usize>) {
+        if let Some(CaptureEntry::QueueDrain { completed, .. }) = index
+            .and_then(|i| self.entries.get_mut(i))
+            .map(|entry| &mut entry.effect)
+        {
+            *completed = true;
+        }
+    }
+    fn sink_start(&mut self, lane: CaptureQueueLane, incoming: QueueItemRef<'_>) -> Option<usize> {
+        if !self.reserve_entry(incoming.cost()) {
+            return None;
+        }
+        let index = self.entries.len();
+        self.push_entry(CaptureEntry::SinkAttempt {
+            lane,
+            incoming: incoming.owned(),
+            result: None,
+        });
+        Some(index)
+    }
+    fn sink_finished(&mut self, index: Option<usize>, result: &Result<PushOutcome, SinkError>) {
+        if !self.charge(result.as_ref().err().map_or(0, sink_error_cost)) {
+            return;
+        }
+        if let Some(CaptureEntry::SinkAttempt { result: target, .. }) = index
+            .and_then(|i| self.entries.get_mut(i))
+            .map(|entry| &mut entry.effect)
+        {
+            *target = Some(result.clone());
+        }
+    }
     pub(super) fn queue_finished(
         &mut self,
         index: Option<usize>,
         result: &Result<PushOutcome, EngineError>,
     ) {
-        if let Some(CaptureEntry::QueueAttempt { result: target, .. }) =
-            index.and_then(|i| self.entries.get_mut(i))
+        if let Some(CaptureEntry::QueueAttempt { result: target, .. }) = index
+            .and_then(|i| self.entries.get_mut(i))
+            .map(|entry| &mut entry.effect)
         {
             *target = Some(result.clone());
         }
@@ -761,6 +928,10 @@ fn command_cost(command: &SessionCommand) -> usize {
 }
 fn input_cost(input: &CaptureInput) -> usize {
     match input {
+        CaptureInput::ForwardDispatch { results } => results
+            .iter()
+            .map(|r| r.as_ref().err().map_or(256, sink_error_cost))
+            .fold(256usize, usize::saturating_add),
         CaptureInput::Text { payload, .. }
         | CaptureInput::Binary { payload, .. }
         | CaptureInput::Ping { payload, .. }
@@ -792,6 +963,57 @@ fn input_cost(input: &CaptureInput) -> usize {
         _ => 256,
     }
 }
+fn sink_error_cost(error: &SinkError) -> usize {
+    match error {
+        SinkError::Io(s) => s.len().saturating_add(256),
+        SinkError::Unsupported(s) => s.len().saturating_add(256),
+        _ => 256,
+    }
+}
+
+struct ScriptedSink<'a> {
+    results: &'a [Result<PushOutcome, SinkError>],
+    next: usize,
+}
+impl ScriptedSink<'_> {
+    fn next(&mut self) -> Result<PushOutcome, SinkError> {
+        let result = self.results[self.next].clone();
+        self.next += 1;
+        result
+    }
+}
+impl EventSink for ScriptedSink<'_> {
+    fn push_batch(&mut self, _: EventBatch) -> Result<PushOutcome, SinkError> {
+        self.next()
+    }
+    fn push_system(&mut self, _: SystemEvent) -> Result<PushOutcome, SinkError> {
+        self.next()
+    }
+}
+
+pub(super) struct CapturingSink<'a, S: EventSink + ?Sized> {
+    pub(super) sink: &'a mut S,
+    pub(super) capture: &'a mut ActiveCapture,
+}
+impl<S: EventSink + ?Sized> EventSink for CapturingSink<'_, S> {
+    fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, SinkError> {
+        let index = self
+            .capture
+            .sink_start(CaptureQueueLane::Market, QueueItemRef::Market(&batch));
+        let result = self.sink.push_batch(batch);
+        self.capture.sink_finished(index, &result);
+        result
+    }
+    fn push_system(&mut self, event: SystemEvent) -> Result<PushOutcome, SinkError> {
+        let index = self
+            .capture
+            .sink_start(CaptureQueueLane::System, QueueItemRef::System(&event));
+        let result = self.sink.push_system(event);
+        self.capture.sink_finished(index, &result);
+        result
+    }
+}
+
 fn adapter_error_cost(error: &AdapterError) -> usize {
     match error {
         AdapterError::UnsupportedCapability(s)

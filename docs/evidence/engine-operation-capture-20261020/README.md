@@ -68,3 +68,11 @@ cargo +1.85.0 test --locked --workspace --exclude marketfeed-datasets --lib
 cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc --locked --workspace --all-features --no-deps
 ```
+
+Hosted CI for this original capture source `ba512ad` has now completed all 17
+jobs successfully. Its tested merge has the identical complete source tree:
+Linux 1,354 cases on each architecture, macOS 1,353 and Windows 1,351, with zero
+failed/56 ignored across 153 suites per platform; hosted Windows durability
+passes 104 cases across 11 suites. Exact trees, run and raw-log hashes are bound
+in `ci-qualification.json`. These results qualify `ba512ad` only, not later
+attribution/drain changes or the unfinished live owner and ingress repair.
