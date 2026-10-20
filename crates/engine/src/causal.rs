@@ -20,8 +20,11 @@ use std::io::{self, Write};
 #[path = "causal_catalog.rs"]
 mod catalog;
 pub use catalog::*;
+#[path = "causal_bootstrap.rs"]
+mod bootstrap;
 #[path = "causal_convert.rs"]
 mod convert;
+pub use bootstrap::*;
 #[cfg(test)]
 #[path = "causal_tests.rs"]
 mod tests;

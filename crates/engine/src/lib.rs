@@ -3,6 +3,18 @@
 // deny (not forbid): latency_runtime::affinity needs sched_setaffinity on Linux.
 #![deny(unsafe_code)]
 
+/// Enabled features in this compiled package, for exact bootstrap bindings.
+pub fn compiled_features() -> Vec<String> {
+    [
+        ("default", cfg!(feature = "default")),
+        ("latency-runtime", cfg!(feature = "latency-runtime")),
+    ]
+    .into_iter()
+    .filter(|(_, active)| *active)
+    .map(|(name, _)| name.to_owned())
+    .collect()
+}
+
 pub mod causal;
 mod control;
 mod error;

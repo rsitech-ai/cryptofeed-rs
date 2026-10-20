@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 pub mod catalog_discover;
+pub mod causal_bootstrap;
 pub mod cli;
 pub mod config;
 pub mod http;

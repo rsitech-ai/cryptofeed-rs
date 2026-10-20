@@ -14,8 +14,8 @@ mod operation;
 pub use operation::{
     ActionDisposition, BufferedAction, CallbackOutcome, CaptureCompleteness, CaptureConfig,
     CaptureDrainPolicy, CaptureEntry, CaptureErrorClass, CaptureFault, CaptureInput, CaptureOrigin,
-    CaptureOutcome, CaptureQueueItem, CaptureQueueLane, CaptureSession, CaptureTraceEntry,
-    CapturedOperation, CapturedState, InvocationKind,
+    CaptureOutcome, CaptureQueueItem, CaptureQueueLane, CaptureRuntimePolicy, CaptureSession,
+    CaptureTraceEntry, CapturedOperation, CapturedState, InvocationKind,
 };
 use operation::{ActiveCapture, CapturingSink, QueueItemRef};
 

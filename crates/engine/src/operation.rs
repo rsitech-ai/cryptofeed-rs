@@ -31,6 +31,60 @@ pub struct CaptureConfig {
     pub max_entries: usize,
 }
 
+impl CaptureConfig {
+    /// Validate without creating a factory or machine. Bootstrap admission must
+    /// reject impossible bounds before executing any adapter code.
+    pub fn validate(&self) -> Result<(), EngineError> {
+        if self.venue.0 == 0
+            || self.session.0 == 0
+            || self.dispatch_capacity == 0
+            || self.dispatch_capacity > MAX_CAPTURE_ENTRIES
+            || self.max_bytes < OUTCOME_RESERVE * 2
+            || self.max_bytes > MAX_CAPTURE_BYTES
+            || self.max_entries == 0
+            || self.max_entries > MAX_CAPTURE_ENTRIES
+        {
+            return Err(EngineError::Internal(
+                "invalid capture limits or identity".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Exact effective policy of the private capture runner, including fixed
+    /// limits otherwise hidden behind SessionRunnerConfig defaults.
+    pub fn runtime_policy(&self) -> CaptureRuntimePolicy {
+        CaptureRuntimePolicy {
+            initial_connection: SessionRunnerConfig::default().connection.0,
+            action_buffer_capacity: self
+                .dispatch_capacity
+                .saturating_mul(4)
+                .max(DEFAULT_ACTION_BUFFER_CAPACITY) as u64,
+            max_timers: MAX_SESSION_TIMERS as u64,
+            max_timer_fires_per_poll: MAX_TIMER_FIRES_PER_POLL as u64,
+            max_pending_writes: MAX_PENDING_WRITES as u64,
+            max_pending_http: MAX_PENDING_HTTP as u64,
+            record: false,
+            mirror_capacity: 0,
+            external_handles: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CaptureRuntimePolicy {
+    pub initial_connection: u64,
+    pub action_buffer_capacity: u64,
+    pub max_timers: u64,
+    pub max_timer_fires_per_poll: u64,
+    pub max_pending_writes: u64,
+    pub max_pending_http: u64,
+    pub record: bool,
+    pub mirror_capacity: u64,
+    pub external_handles: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaptureInput {
     Connected {
@@ -346,15 +400,7 @@ impl CaptureSession {
         machine: Box<dyn SessionMachine>,
         config: CaptureConfig,
     ) -> Result<Self, EngineError> {
-        if config.dispatch_capacity == 0
-            || config.dispatch_capacity > MAX_CAPTURE_ENTRIES
-            || config.max_bytes < OUTCOME_RESERVE * 2
-            || config.max_bytes > MAX_CAPTURE_BYTES
-            || config.max_entries == 0
-            || config.max_entries > MAX_CAPTURE_ENTRIES
-        {
-            return Err(EngineError::Internal("invalid capture limits".into()));
-        }
+        config.validate()?;
         let runner = SessionRunner::new(
             machine,
             SessionRunnerConfig {

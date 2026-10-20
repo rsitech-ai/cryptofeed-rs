@@ -78,6 +78,68 @@ impl Default for BybitSessionConfig {
     }
 }
 
+impl BybitSessionConfig {
+    /// Pure protocol preflight; allocates topics but creates no machine or I/O.
+    pub fn subscription_topics(&self) -> Result<Vec<String>, AdapterError> {
+        let mut topics = Vec::new();
+        let mut seen_symbols = BTreeSet::new();
+        if self.symbols.is_empty()
+            || self.symbols.len() != self.instrument_ids.len()
+            || self.candle_intervals.len() > 5
+        {
+            return Err(AdapterError::Protocol(
+                "Bybit selected symbols/catalog must match and be nonempty".into(),
+            ));
+        }
+        for symbol in &self.symbols {
+            if symbol.is_empty()
+                || symbol.len() > 256
+                || symbol.contains('.')
+                || symbol.chars().any(|c| c.is_whitespace() || c.is_control())
+                || !seen_symbols.insert(symbol)
+                || !self.instrument_ids.contains_key(symbol)
+            {
+                return Err(AdapterError::Protocol(
+                    "invalid or duplicate Bybit subscription symbol".into(),
+                ));
+            }
+            topics.push(format!("publicTrade.{symbol}"));
+            topics.push(format!("orderbook.1.{symbol}"));
+            if self.enable_l2 {
+                if !matches!(self.l2_depth, 50 | 200 | 1000) {
+                    return Err(AdapterError::Protocol("unsupported Bybit L2 depth".into()));
+                }
+                topics.push(format!("orderbook.{}.{symbol}", self.l2_depth));
+            }
+            topics.push(format!("tickers.{symbol}"));
+            if !matches!(self.category, BybitCategory::Spot) {
+                topics.push(format!("allLiquidation.{symbol}"));
+            }
+            for interval in &self.candle_intervals {
+                topics.push(format!(
+                    "kline.{}.{symbol}",
+                    kline_topic_interval(*interval)
+                ));
+            }
+            if serde_json::to_vec(&topics)
+                .map_err(|e| AdapterError::Protocol(e.to_string()))?
+                .len()
+                > MAX_CONNECTION_ARGS_BYTES
+            {
+                return Err(AdapterError::Protocol(
+                    "Bybit connection args exceed local21000 JSON-byte bound".into(),
+                ));
+            }
+        }
+        if topics.iter().collect::<BTreeSet<_>>().len() != topics.len() {
+            return Err(AdapterError::Protocol(
+                "duplicate native Bybit subscription topic".into(),
+            ));
+        }
+        Ok(topics)
+    }
+}
+
 #[derive(Debug)]
 struct SymbolBook {
     sync: BookSynchronizer,
@@ -90,9 +152,9 @@ pub struct BybitSession {
     catalog: CatalogView,
     cfg: BybitSessionConfig,
     frame_seq: u64,
-    books: HashMap<String, SymbolBook>,
+    books: BTreeMap<String, SymbolBook>,
     /// Best bid/ask from orderbook.1 for quote emission.
-    quotes: HashMap<String, (Option<(Price, Quantity)>, Option<(Price, Quantity)>)>,
+    quotes: BTreeMap<String, (Option<(Price, Quantity)>, Option<(Price, Quantity)>)>,
     live: bool,
     running: bool,
     failed: bool,
@@ -105,7 +167,7 @@ pub struct BybitSession {
 impl BybitSession {
     pub fn new(spec: SessionSpec, catalog: CatalogView, cfg: BybitSessionConfig) -> Self {
         let _ = spec;
-        let mut books = HashMap::new();
+        let mut books = BTreeMap::new();
         if cfg.enable_l2 {
             for (sym, id) in &cfg.instrument_ids {
                 let (price_scale, qty_scale) = cfg
@@ -130,7 +192,7 @@ impl BybitSession {
             cfg,
             frame_seq: 0,
             books,
-            quotes: HashMap::new(),
+            quotes: BTreeMap::new(),
             live: false,
             running: false,
             failed: false,
@@ -222,62 +284,7 @@ impl BybitSession {
     }
 
     fn subscription_topics(&self) -> Result<Vec<String>, AdapterError> {
-        let mut topics = Vec::new();
-        let mut seen_symbols = BTreeSet::new();
-        if self.cfg.symbols.is_empty()
-            || self.cfg.symbols.len() != self.cfg.instrument_ids.len()
-            || self.cfg.candle_intervals.len() > 5
-        {
-            return Err(AdapterError::Protocol(
-                "Bybit selected symbols/catalog must match and be nonempty".into(),
-            ));
-        }
-        for symbol in &self.cfg.symbols {
-            if symbol.is_empty()
-                || symbol.len() > 256
-                || symbol.contains('.')
-                || symbol.chars().any(|c| c.is_whitespace() || c.is_control())
-                || !seen_symbols.insert(symbol)
-                || self.instrument_for(symbol).is_none()
-            {
-                return Err(AdapterError::Protocol(
-                    "invalid or duplicate Bybit subscription symbol".into(),
-                ));
-            }
-            topics.push(format!("publicTrade.{symbol}"));
-            topics.push(format!("orderbook.1.{symbol}"));
-            if self.cfg.enable_l2 {
-                if !matches!(self.cfg.l2_depth, 50 | 200 | 1000) {
-                    return Err(AdapterError::Protocol("unsupported Bybit L2 depth".into()));
-                }
-                topics.push(format!("orderbook.{}.{symbol}", self.cfg.l2_depth));
-            }
-            topics.push(format!("tickers.{symbol}"));
-            if !matches!(self.cfg.category, BybitCategory::Spot) {
-                topics.push(format!("allLiquidation.{symbol}"));
-            }
-            for interval in &self.cfg.candle_intervals {
-                topics.push(format!(
-                    "kline.{}.{symbol}",
-                    kline_topic_interval(*interval)
-                ));
-            }
-            if serde_json::to_vec(&topics)
-                .map_err(|e| AdapterError::Protocol(e.to_string()))?
-                .len()
-                > MAX_CONNECTION_ARGS_BYTES
-            {
-                return Err(AdapterError::Protocol(
-                    "Bybit connection args exceed local21000 JSON-byte bound".into(),
-                ));
-            }
-        }
-        if topics.iter().collect::<BTreeSet<_>>().len() != topics.len() {
-            return Err(AdapterError::Protocol(
-                "duplicate native Bybit subscription topic".into(),
-            ));
-        }
-        Ok(topics)
+        self.cfg.subscription_topics()
     }
 
     fn arm_startup(

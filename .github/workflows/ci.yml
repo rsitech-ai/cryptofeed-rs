@@ -156,6 +156,10 @@ jobs:
         run: rustup toolchain install 1.85 --profile minimal
       # ponytail: MSRV = compile+lib tests only; full --workspace --all-targets stays on pin toolchain.
       - run: cargo +1.85 test --locked --workspace --exclude marketfeed-datasets --lib
+      - name: Opt-in causal bootstrap on Rust 1.85
+        run: |
+          cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --lib causal_bootstrap
+          cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test causal_bootstrap
       - name: Offline dataset tool MSRV (Parquet 60)
         run: |
           rustup toolchain install 1.88 --profile minimal

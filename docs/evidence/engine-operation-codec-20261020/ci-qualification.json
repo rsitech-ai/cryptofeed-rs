@@ -1,0 +1,53 @@
+{
+  "schema": "marketfeed.engine_operation_codec_platform_ci.v1",
+  "source_commit": "d1ab485fc5f7f44cb3e9a0a2c2e35775ed70e218",
+  "actual_merge": "65e54c5e6241d479270c0f935d979e7f019f2556",
+  "source_tree": "7ca7e7b3d0c72b641ea008da0eb1ee414ab309ab",
+  "merge_tree": "7ca7e7b3d0c72b641ea008da0eb1ee414ab309ab",
+  "complete_tree_equal": true,
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39376610117",
+  "successful_jobs": 17,
+  "jobs": [
+    {
+      "platform": "linux",
+      "passed": 1395,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 155
+    },
+    {
+      "platform": "linux-arm",
+      "passed": 1395,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 155
+    },
+    {
+      "platform": "macos",
+      "passed": 1394,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 155
+    },
+    {
+      "platform": "windows",
+      "passed": 1392,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 155
+    },
+    {
+      "platform": "native-windows",
+      "passed": 120,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 12
+    }
+  ],
+  "full_log_sha256": "18e5822ad45ee334d4bcd496a8f4e64726bb68d402c99e2d1a317d41ae0edd30",
+  "does_not_establish": [
+    "later bootstrap/factory/native-ordering source qualification",
+    "operation commit/release, committed consumer projection, actual-engine replay/live migration or registered ingress repair",
+    "native continuity/strict data/rsibot/calendar/hardware/economics/operational promotion"
+  ]
+}

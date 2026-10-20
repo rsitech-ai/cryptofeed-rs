@@ -1,0 +1,85 @@
+{
+  "schema": "marketfeed.bootstrap_observed_build_binding.v1",
+  "independent_receipt_sha256": "bbe50e14d5148ece5c19daef8035532f45c17a421b2077e1df9697d0bedc3333",
+  "source_snapshot_sha256": "87c34f45e9936da231cccc887a58f9b105dc8dac14bcbefb22ba58d635c06f8d",
+  "source_files": 520,
+  "source_inventory_hash_stat_second_pass_identical": true,
+  "all17_frozen_source_hashes_match": true,
+  "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+  "method": {
+    "roots": [
+      "Cargo.toml",
+      "Cargo.lock",
+      "rust-toolchain.toml",
+      "crates",
+      "ui/dist",
+      ".cargo"
+    ],
+    "recursive_regular_files_only": true,
+    "symlinks_rejected": true,
+    "sort": "normalized UTF-8 path byte order",
+    "sha256_framing": "domain marketfeed-source-snapshot-v1 NUL; repeated u64le UTF8 path length, path bytes, u64le file length, original file bytes",
+    "stability": "complete source inventory including per-file stat+hash compared before and after generated-recipe and binary examination; each read stat-checked"
+  },
+  "observed_retained_binary": {
+    "sha256": "5d3698e6c5f1a45e29c4a06a18b86c48a62e68da2252abfd24deb2ff2a9bbb2a",
+    "bytes": 48688400,
+    "fd_and_path_metadata_stable_during_inspection": true,
+    "exact_recipe_literal_offsets": [
+      19382244
+    ]
+  },
+  "matching_generated_recipes": {
+    "count": 2,
+    "json_sha256": "f98f67eed392bb97e8f93c7531e2f630ac110f6a062f0015e25f4c327099998b",
+    "json_bytes": 787,
+    "recipe": {
+      "debug": "true",
+      "encoded_rustflags": "",
+      "git_commit": "d1ab485fc5f7f44cb3e9a0a2c2e35775ed70e218",
+      "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+      "opt_level": "0",
+      "package_features": [
+        {
+          "features": [
+            "causal-journal",
+            "default",
+            "kafka",
+            "nats",
+            "ui",
+            "ui-api"
+          ],
+          "package": "marketfeed-daemon"
+        }
+      ],
+      "package_version": "0.1.0-alpha.1",
+      "profile": "debug",
+      "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+      "schema_version": 1,
+      "source_files": 520,
+      "source_scheme": "sha256-path-length-and-bytes-v1",
+      "source_sha256": "87c34f45e9936da231cccc887a58f9b105dc8dac14bcbefb22ba58d635c06f8d",
+      "target": "aarch64-apple-darwin"
+    }
+  },
+  "older_and_disabled_candidates": "Retained separately in independent receipt; not relabeled current",
+  "review": {
+    "feature_disabled": "build.rs writes null and returns before workspace assertion/traversal; current_build returns explicit Unsupported before parsing null. Ordinary artifact layout remains supported without opt-in feature.",
+    "selected_package_feature_binding": "daemon CARGO_FEATURE variables plus cfg! lists in Bybit/engine/sinks at runtime, sorted before exact DTO equality.",
+    "admission_binding": "PreparedBootstrap new/from_envelope compare whole DTO build to current_build; instantiate repeats comparison after durable receipt before constructing factory/machine.",
+    "findings": []
+  },
+  "limits": [
+    "Source roots are the explicit recipe scope, not the complete transitive external build-input closure. Registry/git dependency source trees, global Cargo config/environment, linker and wrapper binaries are not separately captured by this recipe. Cargo.lock and actual preserved executable bytes are bound.",
+    "Enabled feature lists name selected daemon, Bybit, engine and sinks packages; they are not a whole third-party feature-resolution graph.",
+    "The executable fingerprint observes the preserved current_exe path file. Length/mtime checks detect ordinary replacement/change, not hostile same-metadata substitution, OS loaded-image equivalence, signed attestation, or reproducible-build proof.",
+    "Exact literal containment establishes the observed retained binary contains these recipe bytes; it does not alone prove historical execution or code reachability. The source uses include_str! for this exact generated recipe.",
+    "Operational commit/release/replay/live loop, live source freshness and universal data coverage are outside this receipt."
+  ],
+  "earlier_source_audit": {
+    "receipt_sha256": "081dba719e05c7de26a7a9f2a174622d38fdc571b56683445cbe69df6ad2317b",
+    "source_snapshot_sha256": "e4879ba5688e5d9db8f02d35910ace102e655f0040486432ad36d8b6f32ad155",
+    "scope": "Earlier snapshot01 before two independently reviewed lint fixes. Preserved unchanged, not relabeled final."
+  },
+  "final_delta_review": "Equivalent map-membership predicate and boxing of the private retained PreparedBootstrap; same immutable DTO/identity/transaction recovered on admission rejection. No material finding."
+}

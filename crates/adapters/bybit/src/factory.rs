@@ -29,6 +29,23 @@ impl Default for BybitFactory {
     }
 }
 
+impl BybitFactory {
+    /// Pure preflight for a public plan. This creates neither a factory instance
+    /// nor a machine, so journal owners can reject it before bootstrap commit.
+    pub fn public_plan_topics(
+        category: BybitCategory,
+        enable_l2: bool,
+        spec: &SessionSpec,
+        catalog: &CatalogView,
+    ) -> Result<Vec<String>, AdapterError> {
+        if catalog.venue != category.venue_id() {
+            return Err(AdapterError::Catalog("Bybit plan venue mismatch".into()));
+        }
+        session_config_from_catalog(catalog, &spec.subscriptions, category, enable_l2)?
+            .subscription_topics()
+    }
+}
+
 fn candle_intervals_from(request: &ConcreteSubscriptionSet) -> Vec<CandleInterval> {
     let mut out = Vec::new();
     for item in &request.items {

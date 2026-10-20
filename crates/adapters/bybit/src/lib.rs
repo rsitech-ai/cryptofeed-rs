@@ -46,6 +46,20 @@
 
 #![forbid(unsafe_code)]
 
+/// Actual decoder feature in this compiled adapter, independent of a caller's
+/// Cargo flags. Used by lossless causal bootstrap reproduction bindings.
+/// Enabled features in this compiled package, for exact bootstrap bindings.
+pub fn compiled_features() -> Vec<String> {
+    [
+        ("default", cfg!(feature = "default")),
+        ("simd-json", cfg!(feature = "simd-json")),
+    ]
+    .into_iter()
+    .filter(|(_, active)| *active)
+    .map(|(name, _)| name.to_owned())
+    .collect()
+}
+
 mod factory;
 mod instruments;
 mod json;
