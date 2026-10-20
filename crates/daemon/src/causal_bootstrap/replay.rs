@@ -64,17 +64,33 @@ pub struct HistoryReplay {
 }
 impl HistoryReplay {
     pub fn open(path: impl AsRef<Path>, limits: OwnerHistoryLimits) -> Result<Self, ReplayError> {
-        Self::open_bound(path, limits, None)
+        Self::open_profile(path, limits, FeedProfile::EngineCausalV3)
+    }
+    pub fn open_profile(
+        path: impl AsRef<Path>,
+        limits: OwnerHistoryLimits,
+        profile: FeedProfile,
+    ) -> Result<Self, ReplayError> {
+        Self::open_bound(path, limits, profile, None)
     }
     fn open_bound(
         path: impl AsRef<Path>,
         limits: OwnerHistoryLimits,
+        profile: FeedProfile,
         target: Option<&FeedCursor>,
     ) -> Result<Self, ReplayError> {
         if !cfg!(feature = "causal-journal") {
             return Err(ReplayError::Invalid("causal-journal feature disabled"));
         }
-        let mut reader = FeedReader::open_profile(path, None, FeedProfile::EngineCausalV3)?;
+        if !matches!(
+            profile,
+            FeedProfile::EngineCausalV3 | FeedProfile::EngineCausalV4
+        ) {
+            return Err(ReplayError::Invalid(
+                "unsupported actual owner replay profile",
+            ));
+        }
+        let mut reader = FeedReader::open_profile(path, None, profile)?;
         if let Some(target) = target {
             let bound = reader.observed_commit();
             if target.feed_id != bound.feed_id
@@ -128,10 +144,18 @@ impl HistoryReplay {
         target: FeedCursor,
         limits: OwnerHistoryLimits,
     ) -> Result<Self, ReplayError> {
+        Self::resume_profile(path, target, limits, FeedProfile::EngineCausalV3)
+    }
+    pub fn resume_profile(
+        path: impl AsRef<Path>,
+        target: FeedCursor,
+        limits: OwnerHistoryLimits,
+        profile: FeedProfile,
+    ) -> Result<Self, ReplayError> {
         if target.sequence == 0 {
             return Err(ReplayError::Invalid("resume cursor precedes bootstrap"));
         }
-        let mut replay = Self::open_bound(path, limits, Some(&target))?;
+        let mut replay = Self::open_bound(path, limits, profile, Some(&target))?;
         while replay.reader.cursor().sequence < target.sequence {
             if replay.advance(Some(&target))?.is_none() {
                 return Err(ReplayError::Invalid("resume exceeds committed prefix"));
@@ -253,8 +277,7 @@ impl OwnerReplayState {
                 owner_input(&operation.input)?,
                 CaptureDrainPolicy::NullDispatchTakeOutbound,
             )?;
-            let actual = OperationDto::from_capture(&native, self.history.identity())?;
-            if actual != *operation {
+            if !operation.matches_capture(&native, self.history.identity())? {
                 return Err(ReplayError::NativeMismatch {
                     journal_ordinal: envelope.route.ordinal,
                     native_ordinal: operation.route.ordinal,

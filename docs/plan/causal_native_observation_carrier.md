@@ -2,9 +2,10 @@
 
 This implements the in-memory market unit required by the
 [committed projection contract](causal_native_observation_projection.md).
-The enriched durable profile, acknowledged consumer projection and consumer
-migrations are still required. This carrier alone grants no live, durable or
-economic publication authority.
+The [MFCJ4 history layer](causal_native_observation_history.md) now extends this
+carrier through an explicitly negotiated durable profile and actual replay.
+Acknowledged consumer projection and consumer migrations are still required.
+This carrier alone grants no live or economic publication authority.
 
 ## Source and data retained
 
@@ -60,14 +61,16 @@ canonical dispatcher/sink APIs and `EventBatch` wire shape remain available.
 
 ## Compatibility and unfinished integration
 
-Existing Hyperliquid factories remain canonical-only. The legacy shared-feed
-runner refuses enriched units before dispatch or frame acceptance. Existing
-causal codecs reject enriched actions and retained queues; both legacy raw
-replay APIs reject the new action. The private-account pump also rejects it.
-Frozen recordings are never reinterpreted as enriched histories.
+Existing default Hyperliquid factories remain canonical-only. The legacy
+shared-feed runner refuses enriched units before dispatch or frame acceptance.
+Legacy causal profiles reject enriched actions and retained queues; both legacy
+raw replay APIs reject the new action. The private-account pump also rejects it.
+Only the explicit MFCJ4 bootstrap policy selects the receipt-gated observed
+factory and operation schema. Frozen recordings are never reinterpreted as
+enriched histories.
 
-The next step is a negotiated enriched bootstrap/profile and exact DTO codec,
-followed by native replay equality and projection only from acknowledged,
+MFCJ4 implements the negotiated enriched bootstrap/profile, exact DTO codec and
+native replay equality. The next step is projection only from acknowledged,
 matched `HandoffObserved`. The committed source view must carry original
 catalog/subscriptions, controls, clocks and cursors. Target groups must commit
 their values and source checkpoint atomically under bounded backpressure.

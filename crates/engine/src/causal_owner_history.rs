@@ -215,7 +215,7 @@ fn same_owner(route: &CausalRoute, identity: &OperationIdentity) -> bool {
 }
 impl OwnerHistoryDto {
     fn validate(&self, identity: &OperationIdentity) -> Result<(), CodecError> {
-        if !matches!(self.schema_version, 1 | 2)
+        if !matches!(self.schema_version, 1..=3)
             || self.route.ordinal == 0
             || !same_owner(&self.route, identity)
         {
@@ -230,7 +230,7 @@ impl OwnerHistoryDto {
                 | OwnerEventDto::Revoked { .. }
         );
         if (self.schema_version == 1 && modern)
-            || (self.schema_version == 2
+            || (self.schema_version >= 2
                 && matches!(
                     self.event,
                     OwnerEventDto::Executed { .. } | OwnerEventDto::Fence { .. }
@@ -273,6 +273,9 @@ impl OwnerHistoryDto {
                     || operation.route.generation != self.route.generation
                 {
                     return Err(invalid("owner-history native identity mismatch"));
+                }
+                if operation.schema_version != if self.schema_version == 3 { 2 } else { 1 } {
+                    return Err(invalid("operation requires matching owner-history profile"));
                 }
                 operation.validate()?;
             }
@@ -351,10 +354,11 @@ pub fn encode_owner_history(
         });
     }
     Ok(CausalEnvelope::for_profile(
-        if dto.schema_version == 1 {
-            FeedProfile::EngineCausalV2
-        } else {
-            FeedProfile::EngineCausalV3
+        match dto.schema_version {
+            1 => FeedProfile::EngineCausalV2,
+            2 => FeedProfile::EngineCausalV3,
+            3 => FeedProfile::EngineCausalV4,
+            _ => unreachable!("validated owner-history version"),
         },
         if matches!(
             dto.event,
@@ -379,7 +383,7 @@ fn decode_limited(
     identity: &OperationIdentity,
     max_bytes: usize,
 ) -> Result<OwnerHistoryDto, CodecError> {
-    if !matches!(envelope.schema_version, 2 | 3) || envelope.phase == CausalPhase::Bootstrap {
+    if !matches!(envelope.schema_version, 2..=4) || envelope.phase == CausalPhase::Bootstrap {
         return Err(invalid("expected negotiated owner-history record"));
     }
     let payload = envelope.payload()?;
@@ -480,6 +484,7 @@ pub struct OwnerHistory {
     limits: OwnerHistoryLimits,
     capture: CaptureConfigDto,
     runner_policy: CaptureRuntimePolicy,
+    observation_policy: Option<NativeObservationPolicyDto>,
     ordinal: u64,
     native_ordinal: u64,
     generation: u64,
@@ -540,14 +545,19 @@ impl OwnerHistory {
         limits: OwnerHistoryLimits,
     ) -> Result<Self, CodecError> {
         limits.validate()?;
-        if !matches!(envelope.schema_version, 2 | 3) {
+        if !matches!(envelope.schema_version, 2..=4) {
             return Err(invalid("owner history requires negotiated bootstrap"));
         }
         let dto = decode_bootstrap(envelope)?;
+        let observation_policy = if envelope.schema_version == 4 {
+            Some(dto.observation_policy()?)
+        } else {
+            None
+        };
         if dto.schema_version != 2 {
             return Err(invalid("owner history requires bound owner policy"));
         }
-        let record_bytes = if envelope.schema_version == 3 {
+        let record_bytes = if envelope.schema_version >= 3 {
             dto.history_policy()?.max_record_bytes as usize
         } else {
             dto.owner_policy
@@ -570,6 +580,7 @@ impl OwnerHistory {
             limits,
             capture: dto.capture,
             runner_policy: dto.runner_policy,
+            observation_policy,
             ordinal: 0,
             native_ordinal: 0,
             generation: 0,
@@ -830,7 +841,7 @@ impl OwnerHistory {
                     } => (input_id, operation, Some(permit_ordinal)),
                     _ => unreachable!(),
                 };
-                if self.envelope_version == 3
+                if self.envelope_version >= 3
                     && self.permit.as_ref().is_none_or(|p| {
                         p.indeterminate
                             || p.input_id != input_id
@@ -845,6 +856,7 @@ impl OwnerHistory {
                     .pending
                     .get(&input_id)
                     .ok_or_else(|| invalid("operation without ingress"))?;
+                operation.validate_observation_policy(self.observation_policy)?;
                 if (self.envelope_version == 2 && self.terminal)
                     || self.active.is_some()
                     || operation.retained_bytes_bound > self.capture.max_bytes
@@ -1093,7 +1105,7 @@ impl OwnerHistory {
                     .ok_or_else(|| invalid("nonexecution without ingress"))?;
                 if self.active.is_some()
                     || self.permit.as_ref().is_some_and(|p| p.input_id == input_id)
-                    || (!(self.envelope_version == 3
+                    || (!(self.envelope_version >= 3
                         && self.terminal
                         && cause == OwnerNotExecutedCause::Terminal)
                         && self.pending.first_key_value().map(|(id, _)| *id) != Some(input_id))

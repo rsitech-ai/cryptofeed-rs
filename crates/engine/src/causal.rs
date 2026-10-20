@@ -24,6 +24,9 @@ pub use catalog::*;
 mod bootstrap;
 #[path = "causal_convert.rs"]
 mod convert;
+#[path = "causal_observations.rs"]
+mod observations;
+pub use observations::ObservedBatchJson;
 #[path = "causal_owner_history.rs"]
 mod owner_history;
 pub use bootstrap::*;
@@ -395,6 +398,7 @@ pub enum ActionDto {
     ScheduleTimer { timer_id: u64, fire_at: i64 },
     CancelTimer(u64),
     EmitBatch(BatchJson),
+    EmitObservedBatch(ObservedBatchJson),
     EmitSystem(SystemJson),
     MarkLive,
     MarkDegraded,
@@ -431,6 +435,7 @@ pub struct BufferedDto {
 )]
 pub enum ItemDto {
     Market(BatchJson),
+    ObservedMarket(ObservedBatchJson),
     System(SystemJson),
     Write(WriteDto),
     Http(HttpRequestDto),
@@ -702,7 +707,12 @@ impl OperationDto {
         capture: &CapturedOperation,
         identity: &OperationIdentity,
     ) -> Result<bool, CodecError> {
-        Ok(self == &Self::from_capture(capture, identity)?)
+        Ok(self
+            == &match self.schema_version {
+                1 => Self::from_capture(capture, identity)?,
+                2 => Self::from_observed_capture(capture, identity)?,
+                _ => return Err(invalid("unsupported operation schema")),
+            })
     }
 }
 struct CappedBuffer {

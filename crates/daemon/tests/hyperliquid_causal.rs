@@ -23,6 +23,8 @@ const PERPS: &[u8] = br#"[{"collateralToken":0,"universe":[{"name":"BTC","szDeci
 const WAIT: Duration = Duration::from_secs(15);
 #[path = "support/multi_owner_replay.rs"]
 mod multi_owner_tests;
+#[path = "support/native_history.rs"]
+mod native_history_tests;
 #[path = "support/hyperliquid_replay.rs"]
 mod replay_tests;
 fn fixture(spot: bool) -> BootstrapDto {

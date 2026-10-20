@@ -70,6 +70,27 @@ pub enum HyperliquidMarketDto {
 /// spot token metadata to bind the collateral asset by native token index.
 pub const HYPERLIQUID_SPOT_META_ROLE: &str = "hyperliquid-spot-meta-v1";
 pub const HYPERLIQUID_PERP_METAS_ROLE: &str = "hyperliquid-perp-metas-v1";
+pub const NATIVE_OBSERVATION_POLICY_ROLE: &str = "native-observation-policy-v1";
+
+/// MFCJ4 requires an explicit policy for every owner, including canonical-only
+/// Bybit owners in a mixed feed. No profile or limit is inferred from frames.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum NativeObservationPolicyDto {
+    CanonicalOnlyV1,
+    HyperliquidV1 { limits: ObservedBatchLimits },
+}
+impl NativeObservationPolicyDto {
+    fn validate(self, factory: &FactoryDto) -> Result<(), CodecError> {
+        match (self, factory) {
+            (Self::CanonicalOnlyV1, FactoryDto::BybitPublic { .. }) => Ok(()),
+            (Self::HyperliquidV1 { limits }, FactoryDto::HyperliquidPublic { .. }) => {
+                limits.validate().map_err(|e| invalid(&e.to_string()))
+            }
+            _ => Err(invalid("native observation policy/factory mismatch")),
+        }
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BootstrapEnvironmentDto {
@@ -466,6 +487,46 @@ pub struct BootstrapDto {
     pub public_inputs: Vec<PublicReproductionInputDto>,
 }
 impl BootstrapDto {
+    pub fn bind_observation_policy(
+        &mut self,
+        policy: NativeObservationPolicyDto,
+    ) -> Result<(), CodecError> {
+        if self
+            .public_inputs
+            .iter()
+            .any(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE)
+        {
+            return Err(invalid("duplicate native observation policy"));
+        }
+        policy.validate(&self.factory)?;
+        self.public_inputs.push(PublicReproductionInputDto::new(
+            NATIVE_OBSERVATION_POLICY_ROLE,
+            &serde_json::to_vec(&policy)?,
+        ));
+        Ok(())
+    }
+    pub fn observation_policy(&self) -> Result<NativeObservationPolicyDto, CodecError> {
+        let mut rows = self
+            .public_inputs
+            .iter()
+            .filter(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE);
+        let row = rows
+            .next()
+            .ok_or_else(|| invalid("missing native observation policy"))?;
+        if rows.next().is_some() || row.bytes > 4096 || row.payload.0.len() > 5464 {
+            return Err(invalid("duplicate or oversized native observation policy"));
+        }
+        let bytes = row.payload.bytes()?;
+        if bytes.len() as u64 != row.bytes || bootstrap_sha256(&bytes) != row.sha256 {
+            return Err(invalid("native observation policy bytes/digest mismatch"));
+        }
+        let policy: NativeObservationPolicyDto = serde_json::from_slice(&bytes)?;
+        policy.validate(&self.factory)?;
+        if serde_json::to_vec(&policy)? != bytes {
+            return Err(invalid("noncanonical native observation policy"));
+        }
+        Ok(policy)
+    }
     pub fn bind_history_policy(
         &mut self,
         policy: HistoryRuntimePolicyDto,
@@ -653,6 +714,15 @@ pub fn encode_bootstrap_for_profile(
     )?)
 }
 fn validate_bootstrap_profile(dto: &BootstrapDto, profile: FeedProfile) -> Result<(), CodecError> {
+    let native = dto
+        .public_inputs
+        .iter()
+        .any(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE);
+    if native != (profile == FeedProfile::EngineCausalV4) {
+        return Err(invalid(
+            "native observations require explicit MFCJ4 policy negotiation",
+        ));
+    }
     let has_runtime_policy = dto
         .public_inputs
         .iter()
@@ -661,6 +731,10 @@ fn validate_bootstrap_profile(dto: &BootstrapDto, profile: FeedProfile) -> Resul
         FeedProfile::EngineCausalV1 if !has_runtime_policy => Ok(()),
         FeedProfile::EngineCausalV2 if dto.schema_version == 2 && !has_runtime_policy => Ok(()),
         FeedProfile::EngineCausalV3 if dto.schema_version == 2 => dto.history_policy().map(|_| ()),
+        FeedProfile::EngineCausalV4 if dto.schema_version == 2 => {
+            dto.history_policy()?;
+            dto.observation_policy().map(|_| ())
+        }
         _ => Err(invalid(
             "bootstrap/profile or explicit runtime policy mismatch",
         )),
@@ -682,6 +756,7 @@ pub fn decode_bootstrap(envelope: &CausalEnvelope) -> Result<BootstrapDto, Codec
             1 => FeedProfile::EngineCausalV1,
             2 => FeedProfile::EngineCausalV2,
             3 => FeedProfile::EngineCausalV3,
+            4 => FeedProfile::EngineCausalV4,
             _ => return Err(invalid("unsupported bootstrap envelope")),
         },
     )?;

@@ -95,6 +95,7 @@ impl PreparedFeedTransaction {
                         1 => FeedProfile::EngineCausalV1,
                         2 => FeedProfile::EngineCausalV2,
                         3 => FeedProfile::EngineCausalV3,
+                        4 => FeedProfile::EngineCausalV4,
                         _ => unreachable!("validated causal version"),
                     })
                 }

@@ -130,11 +130,26 @@ impl MultiHistoryReplay {
     /// Starts at the physical header. Encountering a bootstrap on read_next
     /// creates its factory once; no later records are prescanned for metadata.
     pub fn open(path: impl AsRef<Path>, limits: MultiReplayLimits) -> Result<Self, ReplayError> {
+        Self::open_profile(path, limits, FeedProfile::EngineCausalV3)
+    }
+    pub fn open_profile(
+        path: impl AsRef<Path>,
+        limits: MultiReplayLimits,
+        profile: FeedProfile,
+    ) -> Result<Self, ReplayError> {
         if !cfg!(feature = "causal-journal") {
             return Err(ReplayError::Invalid("causal-journal feature disabled"));
         }
         limits.validate()?;
-        let reader = FeedReader::open_profile(path, None, FeedProfile::EngineCausalV3)?;
+        if !matches!(
+            profile,
+            FeedProfile::EngineCausalV3 | FeedProfile::EngineCausalV4
+        ) {
+            return Err(ReplayError::Invalid(
+                "unsupported actual owner replay profile",
+            ));
+        }
+        let reader = FeedReader::open_profile(path, None, profile)?;
         Ok(Self {
             reader,
             owners: BTreeMap::new(),
@@ -151,7 +166,15 @@ impl MultiHistoryReplay {
         target: FeedCursor,
         limits: MultiReplayLimits,
     ) -> Result<Self, ReplayError> {
-        let mut replay = Self::open(path, limits)?;
+        Self::resume_profile(path, target, limits, FeedProfile::EngineCausalV3)
+    }
+    pub fn resume_profile(
+        path: impl AsRef<Path>,
+        target: FeedCursor,
+        limits: MultiReplayLimits,
+        profile: FeedProfile,
+    ) -> Result<Self, ReplayError> {
+        let mut replay = Self::open_profile(path, limits, profile)?;
         let initial = replay.reader.cursor();
         let bound = replay.reader.observed_commit();
         if target.feed_id != bound.feed_id

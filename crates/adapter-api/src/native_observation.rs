@@ -123,6 +123,9 @@ impl ObservedEventBatch {
     pub fn source(&self) -> ObservedBatchSource {
         self.source
     }
+    pub fn limits(&self) -> ObservedBatchLimits {
+        self.limits
+    }
 }
 
 impl<'de> Deserialize<'de> for ObservedEventBatch {

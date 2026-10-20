@@ -2,13 +2,14 @@
 
 This is the next implementation contract after bounded multi-owner replay.
 It extends the [causal integration contract](causal_journal_integration_contract.md).
-The enriched durable APIs and profiles described below remain required work,
-not an implemented or qualified consumer path. The isolated
-[in-memory carrier](causal_native_observation_carrier.md) now retains typed
-native fields, outer source clocks and canonical queue fate; it does not grant
-durable projection authority. The current HLS735 reader still uses legacy accepted
-raw frames. The current multi-owner candidate only verifies native disk/null
-owner histories; it does not implement this projection.
+The [in-memory carrier](causal_native_observation_carrier.md) retains typed native
+fields, outer source clocks and canonical queue fate. The explicit
+[MFCJ4 history layer](causal_native_observation_history.md) now adds durable native
+owner captures and exact actual-engine replay for five Hyperliquid families.
+The verified source view, target projection and consumer migration described
+below remain required work. The current HLS735 reader still uses legacy accepted
+raw frames. Passing disk/null owner-history replay does not qualify this
+projection or its consumers.
 
 ## Ownership and publication authority
 

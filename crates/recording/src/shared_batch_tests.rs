@@ -33,6 +33,7 @@ fn preparation_rejects_mixed_causal_versions_and_admits_owner_profile() {
                     1 => FeedProfile::EngineCausalV1,
                     2 => FeedProfile::EngineCausalV2,
                     3 => FeedProfile::EngineCausalV3,
+                    4 => FeedProfile::EngineCausalV4,
                     _ => unreachable!(),
                 },
                 CausalPhase::Bootstrap,
@@ -52,9 +53,14 @@ fn preparation_rejects_mixed_causal_versions_and_admits_owner_profile() {
     assert!(PreparedFeedTransaction::new(vec![envelope(2), envelope(1)]).is_err());
     assert!(PreparedFeedTransaction::new(vec![envelope(2), envelope(3)]).is_err());
     assert!(PreparedFeedTransaction::new(vec![envelope(3), envelope(1)]).is_err());
+    for old in 1..4 {
+        assert!(PreparedFeedTransaction::new(vec![envelope(old), envelope(4)]).is_err());
+        assert!(PreparedFeedTransaction::new(vec![envelope(4), envelope(old)]).is_err());
+    }
     for (profile, version) in [
         (FeedProfile::EngineCausalV2, 2),
         (FeedProfile::EngineCausalV3, 3),
+        (FeedProfile::EngineCausalV4, 4),
     ] {
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("owner");

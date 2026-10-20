@@ -72,6 +72,7 @@ struct Data {
 struct HistoryShared {
     writer: BatchFeedHandle,
     identity: OperationIdentity,
+    schema_version: u16,
     policy: JournalOwnerPolicyDto,
     history: HistoryRuntimePolicyDto,
     origin: Instant,
@@ -575,6 +576,7 @@ impl BootstrappedSession {
         let shared = Arc::new(HistoryShared {
             writer: self.handle,
             identity: self.identity,
+            schema_version: if self.native_profile { 3 } else { 2 },
             policy,
             history,
             origin: Instant::now(),
@@ -908,11 +910,14 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         permit,
                         operation,
                     } => {
-                        let original = OwnerEventDto::executed(id, &operation, &shared.identity)
-                            .map_err(|e| e.to_string())?;
-                        let OwnerEventDto::Executed { operation, .. } = original else {
-                            unreachable!()
-                        };
+                        let operation = Box::new(
+                            if shared.schema_version == 3 {
+                                OperationDto::from_observed_capture(&operation, &shared.identity)
+                            } else {
+                                OperationDto::from_capture(&operation, &shared.identity)
+                            }
+                            .map_err(|e| e.to_string())?,
+                        );
                         OwnerEventDto::ExecutionCompleted {
                             input_id: id,
                             permit_ordinal: permit,
@@ -927,7 +932,7 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                     _ => generation,
                 };
                 let dto = OwnerHistoryDto {
-                    schema_version: 2,
+                    schema_version: shared.schema_version,
                     route: CausalRoute {
                         venue: shared.identity.venue,
                         session: shared.identity.session,
@@ -958,7 +963,7 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         return;
                     };
                     let dto = OwnerHistoryDto {
-                        schema_version: 2,
+                        schema_version: shared.schema_version,
                         route: CausalRoute {
                             venue: shared.identity.venue,
                             session: shared.identity.session,

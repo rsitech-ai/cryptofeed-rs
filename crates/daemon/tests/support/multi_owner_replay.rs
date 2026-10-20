@@ -7,7 +7,7 @@ use std::{
     path::Path,
 };
 
-fn limits() -> MultiReplayLimits {
+pub(super) fn limits() -> MultiReplayLimits {
     MultiReplayLimits {
         per_owner: OwnerHistoryLimits {
             max_retained_input_bytes: 4 << 20,
@@ -128,7 +128,7 @@ fn multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_fac
     assert!(replay.read_next().is_err());
 }
 
-fn bybit_fixture() -> BootstrapDto {
+pub(super) fn bybit_fixture() -> BootstrapDto {
     let mut dto = fixture(true);
     let catalog = CatalogView::with_instruments(
         VenueId(6),
