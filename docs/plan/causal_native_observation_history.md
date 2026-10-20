@@ -87,12 +87,13 @@ uncertainty unresolved.
 
 ## Remaining integration
 
-The next layer must expose the verified original bootstrap/control/clock/source
-cursor view and atomically publish bounded target groups, including each source
-after-cursor. Healthy target backpressure must retain the same prepared group;
-unknown settlement must stop publication. hlscreen and rsibot need negotiated
-readers for that projection. Their existing integrations are not qualified by a
-passing MFCJ4 history test.
+The immutable [verified source view](causal_verified_source_view.md) now exposes
+original bootstrap/control/clock/source cursors and acknowledged matched
+handoffs. The next layer must atomically publish bounded target groups, including
+each source after-cursor. Healthy target backpressure must retain the same
+prepared group; unknown settlement must stop publication. hlscreen and rsibot
+need negotiated readers for that projection. Their existing integrations are
+not qualified by a passing MFCJ4 history test.
 
 All-mids scope/subscription/catalog admission, real daemon/CLI/live/control and
 external I/O migration, native continuity, strict real datasets, native restart

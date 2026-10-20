@@ -120,6 +120,7 @@ pub struct MultiReplayStep {
 /// transport, external delivery, native checkpoint or writable feed exists here.
 pub struct MultiHistoryReplay {
     reader: FeedReader,
+    profile: FeedProfile,
     owners: BTreeMap<u64, OwnerReplayState>,
     limits: MultiReplayLimits,
     resources: ReplayResources,
@@ -152,6 +153,7 @@ impl MultiHistoryReplay {
         let reader = FeedReader::open_profile(path, None, profile)?;
         Ok(Self {
             reader,
+            profile,
             owners: BTreeMap::new(),
             limits,
             resources: ReplayResources::default(),
@@ -209,16 +211,7 @@ impl MultiHistoryReplay {
         let owners = self
             .owners
             .values()
-            .map(|o| {
-                Ok(OwnerReplayProgress {
-                    identity: o.history.identity().clone(),
-                    journal_ordinal: o.history.ordinal(),
-                    native_ordinal: o.history.native_ordinal(),
-                    terminal: o.history.is_terminal(),
-                    retention: o.history.retention()?,
-                    uncertainties: o.history.uncertainties(),
-                })
-            })
+            .map(owner_progress)
             .collect::<Result<_, ReplayError>>()?;
         Ok(MultiReplayProgress {
             cursor: self.reader.cursor().clone(),
@@ -228,6 +221,13 @@ impl MultiHistoryReplay {
         })
     }
     pub fn read_next(&mut self) -> Result<Option<MultiReplayStep>, ReplayError> {
+        self.read_next_verified()
+            .map(|step| step.map(VerifiedSourceStep::into_replay_step))
+    }
+    /// Exact before/after cursors, original metadata/control/clocks and only
+    /// acknowledged native-matched handoffs. No prescan or projector wall time.
+    /// Caller-owned output is not retained in aggregate reader counters.
+    pub fn read_next_verified(&mut self) -> Result<Option<VerifiedSourceStep>, ReplayError> {
         if self.poisoned {
             return Err(ReplayError::Poisoned);
         }
@@ -245,7 +245,8 @@ impl MultiHistoryReplay {
     fn advance(
         &mut self,
         ceiling: Option<&FeedCursor>,
-    ) -> Result<Option<MultiReplayStep>, ReplayError> {
+    ) -> Result<Option<VerifiedSourceStep>, ReplayError> {
+        let before = self.reader.cursor().clone();
         let Some(record) = self.reader.read_next()? else {
             return Ok(None);
         };
@@ -257,7 +258,7 @@ impl MultiHistoryReplay {
         }) {
             return Err(ReplayError::Invalid("record crosses exact resume boundary"));
         }
-        let (owner, handoff) =
+        let (owner, handoff, record, clock) =
             match record {
                 FeedRecord::Causal(envelope) if envelope.phase == CausalPhase::Bootstrap => {
                     if self.owners.contains_key(&envelope.route.session) {
@@ -275,10 +276,21 @@ impl MultiHistoryReplay {
                     // All aggregate checks precede the one pure native construction.
                     let capture = capture_from_supported(&dto)?;
                     let identity = history.identity().clone();
-                    self.owners
-                        .insert(identity.session, OwnerReplayState { history, capture });
+                    self.owners.insert(
+                        identity.session,
+                        OwnerReplayState {
+                            history,
+                            capture,
+                            started_unix_ns: None,
+                        },
+                    );
                     self.resources = candidate;
-                    (Some(identity), None)
+                    (
+                        Some(identity),
+                        None,
+                        VerifiedSourceRecord::Bootstrap(Box::new(dto)),
+                        VerifiedSourceClock::Unstarted,
+                    )
                 }
                 FeedRecord::Causal(envelope) => {
                     let owner = self.owners.get_mut(&envelope.route.session).ok_or(
@@ -294,21 +306,78 @@ impl MultiHistoryReplay {
                         ));
                     }
                     owner.verify_native(&envelope)?;
+                    // The same bounded, canonical source bytes were already
+                    // structurally admitted and, for completions, compared.
+                    // This temporary DTO/output copy is not reader retention.
+                    let observation = decode_owner_history(&envelope, owner.history.identity())?;
+                    if let OwnerEventDto::Started { unix_ns } = &observation.event {
+                        owner.started_unix_ns = Some(*unix_ns);
+                    }
+                    let clock = VerifiedSourceClock::owner(
+                        owner.started_unix_ns.ok_or(ReplayError::Invalid(
+                            "verified owner record has no Started origin",
+                        ))?,
+                        observation.observed_ns,
+                    );
+                    let after = owner_progress(owner)?;
                     self.resources = candidate;
-                    (Some(owner.history.identity().clone()), handoff)
+                    (
+                        Some(owner.history.identity().clone()),
+                        handoff,
+                        VerifiedSourceRecord::Owner {
+                            observation: Box::new(observation),
+                            after,
+                        },
+                        clock,
+                    )
                 }
-                FeedRecord::Seal { .. } => {
+                FeedRecord::Seal {
+                    schema_version,
+                    now_ns,
+                    reason,
+                } => {
                     self.sealed = true;
-                    (None, None)
+                    (
+                        None,
+                        None,
+                        VerifiedSourceRecord::Seal {
+                            schema_version,
+                            now_ns,
+                            reason,
+                            owners: self
+                                .owners
+                                .values()
+                                .map(owner_progress)
+                                .collect::<Result<_, _>>()?,
+                        },
+                        VerifiedSourceClock::StorageSeal {
+                            recorded_now_ns: now_ns,
+                        },
+                    )
                 }
                 _ => return Err(ReplayError::Invalid("non-owner record in owner journal")),
             };
-        Ok(Some(MultiReplayStep {
-            cursor: self.reader.cursor().clone(),
+        Ok(Some(VerifiedSourceStep {
+            profile: self.profile,
+            before,
+            after: self.reader.cursor().clone(),
             owner,
             handoff,
+            record,
+            clock,
         }))
     }
+}
+
+fn owner_progress(owner: &OwnerReplayState) -> Result<OwnerReplayProgress, ReplayError> {
+    Ok(OwnerReplayProgress {
+        identity: owner.history.identity().clone(),
+        journal_ordinal: owner.history.ordinal(),
+        native_ordinal: owner.history.native_ordinal(),
+        terminal: owner.history.is_terminal(),
+        retention: owner.history.retention()?,
+        uncertainties: owner.history.uncertainties(),
+    })
 }
 
 fn bootstrap_reservation(

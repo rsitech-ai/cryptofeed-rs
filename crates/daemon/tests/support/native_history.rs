@@ -24,7 +24,7 @@ fn reader_limits() -> OwnerHistoryLimits {
         max_record_bytes: 256 << 10,
     }
 }
-fn native_fixture(spot: bool) -> BootstrapDto {
+pub(super) fn native_fixture(spot: bool) -> BootstrapDto {
     let mut dto = fixture(spot);
     dto.bind_observation_policy(NativeObservationPolicyDto::HyperliquidV1 { limits: layout() })
         .unwrap();
@@ -119,7 +119,7 @@ fn observed_inputs(dto: &BootstrapDto) -> Vec<(u64, CaptureInput)> {
     }));
     result
 }
-fn recorded(spot: bool) -> (tempfile::TempDir, Vec<FeedRecord>, Vec<OperationDto>) {
+pub(super) fn recorded(spot: bool) -> (tempfile::TempDir, Vec<FeedRecord>, Vec<OperationDto>) {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("original");
     let dto = native_fixture(spot);

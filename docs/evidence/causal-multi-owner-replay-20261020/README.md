@@ -31,7 +31,14 @@ failures remain retained and unqualified. The complete source and raw evidence
 are retained locally. Independent final evidence review passed with no material
 findings, receipt SHA256
 `eebd2886abc750bccb832a45be2a7237e6ac9f80cab5899ef07e99aa89fc0f74`.
-This report does not yet qualify this new source's hosted checks.
+The local report above does not establish hosted results. The separate
+[producer e2 hosted qualification](producer-e2-hosted.json) now independently
+verifies all 17 successful jobs against the published e2 tree and all 532 frozen
+source inputs. All native platforms execute the exact 29 Hyperliquid, 11 Bybit
+owner and 18 Hyperliquid contract tests, including all 13 new regressions.
+Original job-log byte ranges account for aggregate-only archive members. This
+qualifies e2 only; later MFCJ4, native carrier and verified-source-view changes
+are explicitly excluded. Neither report establishes live/consumer readiness.
 
 [Producer95 hosted qualification](producer95-hosted.json) independently verifies
 all 17 jobs and immutable 530-input source identity for the published parent.

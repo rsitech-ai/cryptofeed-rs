@@ -27,6 +27,8 @@ mod multi_owner_tests;
 mod native_history_tests;
 #[path = "support/hyperliquid_replay.rs"]
 mod replay_tests;
+#[path = "support/source_view.rs"]
+mod source_view_tests;
 fn fixture(spot: bool) -> BootstrapDto {
     static BUILD: OnceLock<BootstrapBuildDto> = OnceLock::new();
     let factory = HyperliquidFactory { spot };

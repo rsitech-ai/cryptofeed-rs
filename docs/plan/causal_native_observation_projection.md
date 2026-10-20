@@ -6,10 +6,12 @@ The [in-memory carrier](causal_native_observation_carrier.md) retains typed nati
 fields, outer source clocks and canonical queue fate. The explicit
 [MFCJ4 history layer](causal_native_observation_history.md) now adds durable native
 owner captures and exact actual-engine replay for five Hyperliquid families.
-The verified source view, target projection and consumer migration described
-below remain required work. The current HLS735 reader still uses legacy accepted
-raw frames. Passing disk/null owner-history replay does not qualify this
-projection or its consumers.
+The immutable [verified source view](causal_verified_source_view.md) now exposes
+the original physical metadata, controls, clocks, uncertainty and matched
+handoffs. Target projection and consumer migration described below remain
+required work. The current HLS735 reader still uses legacy accepted raw frames.
+Passing disk/null owner-history replay does not qualify this projection or its
+consumers.
 
 ## Ownership and publication authority
 

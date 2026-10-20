@@ -352,14 +352,16 @@ fn multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_
     let mut previous_state_bytes = BTreeMap::new();
     for record in &records {
         writer.append(record.clone()).unwrap();
-        let step = replay.read_next().unwrap().unwrap();
+        let before = replay.progress().unwrap().cursor;
+        let step = replay.read_next_verified().unwrap().unwrap();
+        assert_eq!(step.before_cursor(), &before);
         if let Some(r) = resumed.as_mut() {
-            assert_eq!(r.read_next().unwrap().unwrap(), step);
+            assert_eq!(r.read_next_verified().unwrap().unwrap(), step);
             assert!(r.read_next().unwrap().is_none());
         }
         match record {
             FeedRecord::Causal(e) if e.phase == CausalPhase::Bootstrap => {
-                assert_eq!(step.owner.as_ref().unwrap().session, e.route.session);
+                assert_eq!(step.owner().unwrap().session, e.route.session);
                 assert!(
                     expected
                         .insert(
@@ -385,10 +387,11 @@ fn multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_
             }
             _ => {}
         }
-        if let Some(h) = step.handoff {
-            actual.push((step.owner.unwrap(), h));
+        if let Some(h) = step.handoff() {
+            actual.push((step.owner().unwrap().clone(), h.clone()));
         }
         let progress = replay.progress().unwrap();
+        assert_eq!(step.after_cursor(), &progress.cursor);
         assert_eq!(progress.owners.len(), expected.len());
         for owner in &progress.owners {
             let ledger = &expected[&owner.identity.session];

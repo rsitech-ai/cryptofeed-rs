@@ -9,6 +9,8 @@ use std::path::Path;
 
 mod multi;
 pub use multi::*;
+mod source;
+pub use source::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ReplayError {
@@ -127,6 +129,7 @@ impl HistoryReplay {
         let owner = OwnerReplayState {
             history,
             capture: capture_from_supported(&dto)?,
+            started_unix_ns: None,
         };
         Ok(Self {
             reader,
@@ -263,6 +266,8 @@ fn verified_bootstrap(
 struct OwnerReplayState {
     history: OwnerHistory,
     capture: CaptureSession,
+    /// Retained only for verified multi-owner source clocks; never local time.
+    started_unix_ns: Option<i64>,
 }
 impl OwnerReplayState {
     /// Called only after structural admission and any aggregate reader budget
