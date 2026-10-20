@@ -8,10 +8,13 @@ fields, outer source clocks and canonical queue fate. The explicit
 owner captures and exact actual-engine replay for five Hyperliquid families.
 The immutable [verified source view](causal_verified_source_view.md) now exposes
 the original physical metadata, controls, clocks, uncertainty and matched
-handoffs. Target projection and consumer migration described below remain
-required work. The current HLS735 reader still uses legacy accepted raw frames.
-Passing disk/null owner-history replay does not qualify this projection or its
-consumers.
+handoffs. The local MFOP1 candidate now implements atomic target groups, a typed
+structural reader and comparison with the verified source. Its exact-source
+[local qualification](../evidence/atomic-observation-projection-20261020/README.md)
+passes all ten commands; final independent evidence audit also passes and
+consumer migration remains required. The current
+HLS735 reader still uses legacy accepted raw frames. Passing disk/null
+owner-history replay does not qualify this projection or its consumers.
 
 ## Ownership and publication authority
 
@@ -122,6 +125,45 @@ verified protocol before existing target-cursor continuity is promised.
 
 Keep projection outside owner execution. Slow consumers may lag a bounded
 durable source; they cannot silently change producer queue/drop outcomes.
+
+## Local MFOP1 implementation boundary
+
+`ProjectionPump::create` consumes a fresh verified MFCJ3/MFCJ4 source reader and
+creates a new MFOP1 target. One source record becomes one indivisible target
+group, including bootstrap, controls, uncertainty and final source seal. The
+final group itself seals the target; an independent legacy seal is refused
+before actor admission. Policy identity and original source before/after cursors
+travel with every group. Writes and HTTP requests retain their original output
+positions as separately labeled evidence, without becoming market observations.
+
+`ProjectionReader` returns one complete typed group and original per-session
+metadata. It checks source ordering, owner/permit/release lineage, exact clock
+policy, source reservation count/declared bytes, selected instrument and native
+association scope, and unresolved execution at seal. Pending references retain
+only fixed-size fields and the owner's Resync/Stop control subset. Connection
+and frame checks distinguish the fresh runner's configured connection from the
+physical transport connection, including valid pre-Connected timers/controls;
+frame numbering persists across reconnects. Current-input market receipt checks
+rely on this profile's fresh queues and successful-turn null dispatch. They do
+not generalize to retained queues or external sinks.
+
+This reader checks structure, not authenticity of rewritten financial values.
+`compare_with_source` consumes fresh readers and deterministically compares the
+complete logical target with actual native-verified source steps through the
+target's initial observed durable bound. Later live growth cannot extend that
+one-shot proof. The original source executable binding still applies. A target
+checksum, policy hash or standalone reader does not replace that comparison.
+
+Reader resume rebuilds metadata/validation state at an exact target/source cursor
+pair. It does not restore consumer features or grant writer takeover. HLS and
+rsibot must separately bind whole-group application and feature checkpoints to
+that pair. Logical encoded/layout/count limits are not process RSS or latency
+measurements; transient decoding/comparison and caller-owned returned groups are
+additional memory. Consumer availability remains unknown where not measured.
+
+The local candidate does not yet migrate HLS, implement rsibot strategy context,
+admit all-mids, repair real daemon/CLI/live/external-I/O integration or qualify
+restart/continuity. The original failed ingress workload has not been rerun.
 
 ## Required integration proof
 

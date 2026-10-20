@@ -413,7 +413,8 @@ fn decode_limited(
     Ok(dto)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum OwnerPrefixUncertainty {
     /// An ingress record alone cannot prove whether a callback ran before crash.
     ExecutionUnknown {

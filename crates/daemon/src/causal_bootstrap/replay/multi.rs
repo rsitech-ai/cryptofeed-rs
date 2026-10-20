@@ -128,6 +128,9 @@ pub struct MultiHistoryReplay {
     poisoned: bool,
 }
 impl MultiHistoryReplay {
+    pub fn profile(&self) -> FeedProfile {
+        self.profile
+    }
     /// Starts at the physical header. Encountering a bootstrap on read_next
     /// creates its factory once; no later records are prescanned for metadata.
     pub fn open(path: impl AsRef<Path>, limits: MultiReplayLimits) -> Result<Self, ReplayError> {

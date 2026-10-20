@@ -25,17 +25,27 @@ const WAIT: Duration = Duration::from_secs(15);
 mod multi_owner_tests;
 #[path = "support/native_history.rs"]
 mod native_history_tests;
+#[path = "support/projection.rs"]
+mod projection_tests;
 #[path = "support/hyperliquid_replay.rs"]
 mod replay_tests;
 #[path = "support/source_view.rs"]
 mod source_view_tests;
 fn fixture(spot: bool) -> BootstrapDto {
+    fixture_with_meta(spot, SPOT, PERPS, &[1])
+}
+fn fixture_with_meta(
+    spot: bool,
+    spot_meta: &[u8],
+    perp_meta: &[u8],
+    selected: &[u32],
+) -> BootstrapDto {
     static BUILD: OnceLock<BootstrapBuildDto> = OnceLock::new();
     let factory = HyperliquidFactory { spot };
     let mut definitions = Vec::new();
     factory
         .parse_instruments(
-            &[SPOT, PERPS].map(|bytes| HttpResponse {
+            &[spot_meta, perp_meta].map(|bytes| HttpResponse {
                 status: 200,
                 headers: vec![],
                 body: bytes.to_vec().into(),
@@ -70,15 +80,17 @@ fn fixture(spot: bool) -> BootstrapDto {
     }
     let request = ConcreteSubscriptionSet {
         items: channels
-            .into_iter()
-            .map(|channel| ConcreteSubscription {
-                instrument: InstrumentId(1),
-                channel,
-                delivery: DeliveryOptions {
-                    emit_book_snapshots: true,
-                    emit_book_deltas: false,
-                    emit_bbo: true,
-                },
+            .iter()
+            .flat_map(|channel| {
+                selected.iter().map(move |instrument| ConcreteSubscription {
+                    instrument: InstrumentId(*instrument),
+                    channel: channel.clone(),
+                    delivery: DeliveryOptions {
+                        emit_book_snapshots: true,
+                        emit_book_deltas: false,
+                        emit_bbo: true,
+                    },
+                })
             })
             .collect(),
     };
@@ -120,8 +132,8 @@ fn fixture(spot: bool) -> BootstrapDto {
             receipt_poll_interval: Duration::from_millis(1).into(),
         }),
         public_inputs: vec![
-            PublicReproductionInputDto::new(HYPERLIQUID_SPOT_META_ROLE, SPOT),
-            PublicReproductionInputDto::new(HYPERLIQUID_PERP_METAS_ROLE, PERPS),
+            PublicReproductionInputDto::new(HYPERLIQUID_SPOT_META_ROLE, spot_meta),
+            PublicReproductionInputDto::new(HYPERLIQUID_PERP_METAS_ROLE, perp_meta),
         ],
     };
     dto.bind_history_policy(HistoryRuntimePolicyDto {

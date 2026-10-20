@@ -230,3 +230,131 @@ fn native_record_byte_cap_and_bootstrap_family_limits_are_exact() {
         Err(CodecError::TooLarge)
     ));
 }
+
+#[test]
+fn projection_codec_preserves_independent_financial_extrema_and_exact_byte_caps() {
+    use crate::causal::projection::*;
+    let route = CausalRoute {
+        venue: 21,
+        session: 77,
+        ordinal: 1,
+        generation: 1,
+        bootstrap_id: identity().bootstrap_id,
+    };
+    let policy = ProjectionPolicy {
+        schema_version: 1,
+        source_profile: 4,
+        clock_policy: ProjectionClockPolicy::PerOwnerStartedPhysicalOrderV1,
+        limits: ProjectionLimits {
+            max_group_bytes: 1 << 20,
+            max_items: 16,
+            max_owners: 1,
+            max_bootstrap_bytes: 1 << 20,
+            max_catalog_entries: 1,
+            max_pending_inputs: 1,
+        },
+    };
+    let source_before = FeedCursor {
+        feed_id: "b".repeat(40),
+        sequence: 0,
+        offset: 48,
+    };
+    let source_after = FeedCursor {
+        sequence: 1,
+        offset: 49,
+        ..source_before.clone()
+    };
+    // Codec-only shape: independent golden financial leaves, no source or
+    // owner admission claim. Five families, including native-only BBO.
+    let mut group = ProjectionGroup {
+        schema_version: 1,
+        policy_id: policy.id().unwrap(),
+        policy,
+        source_before,
+        source_after,
+        owner: Some(identity()),
+        clock: ProjectionClock::owner(i64::MIN, u64::MAX),
+        source: ProjectionSource::Owner {
+            route: route.clone(),
+            observed_ns: u64::MAX,
+            event: ProjectionOwnerEvent::HandoffObserved {
+                input_id: 1,
+                intent_ordinal: 1,
+            },
+            after: Box::new(ProjectionOwnerProgress {
+                identity: identity(),
+                journal_ordinal: 1,
+                native_ordinal: 1,
+                terminal: false,
+                uncertainties: vec![],
+            }),
+        },
+        release: Some(ProjectionRelease {
+            input_id: 1,
+            intent_ordinal: 1,
+            observed_ns: u64::MAX,
+            outputs_eligible: true,
+            operation_route: route,
+        }),
+        items: vec![ItemDto::ObservedMarket(
+            ObservedBatchJson::new(&unit(false)).unwrap(),
+        )],
+        item_positions: vec![0],
+        outbound_evidence: vec![],
+    };
+    for _ in 0..4 {
+        group.policy.limits.max_group_bytes = serde_json::to_vec(&group).unwrap().len();
+        group.policy_id = group.policy.id().unwrap();
+    }
+    let bytes = serde_json::to_vec(&group).unwrap();
+    assert_eq!(bytes.len(), group.policy.limits.max_group_bytes);
+    let envelope = group.encode().unwrap();
+    assert_eq!(envelope.payload().unwrap(), bytes);
+    let restored = ProjectionGroup::decode(&envelope, bytes.len()).unwrap();
+    assert_eq!(restored, group);
+    let ItemDto::ObservedMarket(leaf) = &restored.items[0] else {
+        panic!()
+    };
+    assert_eq!(leaf.batch().unwrap(), unit(false));
+    assert!(matches!(
+        ProjectionGroup::decode(&envelope, bytes.len() - 1),
+        Err(CodecError::TooLarge)
+    ));
+    group.policy.limits.max_group_bytes -= 1;
+    group.policy_id = group.policy.id().unwrap();
+    assert!(matches!(group.encode(), Err(CodecError::TooLarge)));
+    let raw = format!(" {}", String::from_utf8(bytes).unwrap());
+    let spaced = ProjectionEnvelope::new(
+        envelope.source_before.clone(),
+        envelope.source_after.clone(),
+        false,
+        raw.as_bytes(),
+    )
+    .unwrap();
+    assert!(ProjectionGroup::decode(&spaced, raw.len()).is_err());
+}
+
+#[test]
+fn projection_control_codec_only_admits_fixed_size_owner_commands() {
+    use crate::causal::projection::*;
+    for command in [
+        CommandDto::Subscribe(vec!["x".repeat(65536)]),
+        CommandDto::Unsubscribe(vec!["x".into()]),
+        CommandDto::Replace(vec![]),
+    ] {
+        assert!(ProjectionInput::from_input(&InputDto::Control { command, now: 1 }).is_err());
+    }
+    for command in [CommandDto::Resync(u32::MAX), CommandDto::Stop] {
+        let input = ProjectionInput::from_input(&InputDto::Control {
+            command,
+            now: i64::MIN,
+        })
+        .unwrap();
+        let bytes = serde_json::to_vec(&input).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<ProjectionInput>(&bytes).unwrap(),
+            input
+        );
+        assert!(bytes.len() < 128);
+    }
+}

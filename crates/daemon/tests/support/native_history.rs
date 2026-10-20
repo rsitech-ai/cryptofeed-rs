@@ -109,6 +109,48 @@ fn observed_inputs(dto: &BootstrapDto) -> Vec<(u64, CaptureInput)> {
     }
     // Add a native-only unit after all five families, then a reconnect. Its
     // regressing receive clock must never be replaced by the projector's clock.
+    // A multi-symbol fixture also needs its selected book/context snapshots
+    // before the existing timeout poll; otherwise that poll correctly fences
+    // the incomplete second symbol rather than exercising a valid release.
+    let timer = result
+        .iter()
+        .position(|(_, input)| matches!(input, CaptureInput::TimerPoll { .. }))
+        .unwrap();
+    let mut extra = Vec::new();
+    for other in dto.catalog.instruments.iter().skip(1).filter(|instrument| {
+        dto.session
+            .subscriptions
+            .iter()
+            .any(|s| s.instrument == instrument.id)
+    }) {
+        for (connection, input) in &result[..timer] {
+            let CaptureInput::Text { payload, received } = input else {
+                continue;
+            };
+            let wire = std::str::from_utf8(payload).unwrap();
+            if wire.contains(&format!(r#""coin":"{coin}""#))
+                || wire.contains(&format!(r#""s":"{coin}""#))
+            {
+                extra.push((
+                    *connection,
+                    CaptureInput::Text {
+                        payload: wire
+                            .replace(
+                                &format!(r#""coin":"{coin}""#),
+                                &format!(r#""coin":"{}""#, other.key.native_symbol),
+                            )
+                            .replace(
+                                &format!(r#""s":"{coin}""#),
+                                &format!(r#""s":"{}""#, other.key.native_symbol),
+                            )
+                            .into_bytes(),
+                        received: *received,
+                    },
+                ));
+            }
+        }
+    }
+    result.splice(timer..timer, extra);
     let position = result
         .iter()
         .position(|(_, input)| matches!(input, CaptureInput::TransportLost { .. }))
@@ -120,9 +162,50 @@ fn observed_inputs(dto: &BootstrapDto) -> Vec<(u64, CaptureInput)> {
     result
 }
 pub(super) fn recorded(spot: bool) -> (tempfile::TempDir, Vec<FeedRecord>, Vec<OperationDto>) {
+    recorded_dto(native_fixture(spot))
+}
+pub(super) fn recorded_two_symbols() -> (tempfile::TempDir, Vec<FeedRecord>, Vec<OperationDto>) {
+    let perps = br#"[{"collateralToken":0,"universe":[{"name":"BTC","szDecimals":5},{"name":"ETH","szDecimals":4}]}]"#;
+    let mut dto = fixture_with_meta(false, SPOT, perps, &[1, 2]);
+    dto.bind_observation_policy(NativeObservationPolicyDto::HyperliquidV1 { limits: layout() })
+        .unwrap();
+    recorded_dto(dto)
+}
+fn recorded_dto(dto: BootstrapDto) -> (tempfile::TempDir, Vec<FeedRecord>, Vec<OperationDto>) {
+    recorded_with_prefix(dto, Vec::new())
+}
+pub(super) fn recorded_preconnected() -> (tempfile::TempDir, Vec<FeedRecord>, Vec<OperationDto>) {
+    recorded_with_prefix(
+        native_fixture(true),
+        vec![
+            (
+                0,
+                CaptureInput::TimerPoll {
+                    now: TimestampNs(1),
+                },
+            ),
+            (
+                0,
+                CaptureInput::Control {
+                    command: SessionCommand::Resync(InstrumentId(1)),
+                    now: TimestampNs(2),
+                },
+            ),
+        ],
+    )
+}
+fn recorded_with_prefix(
+    dto: BootstrapDto,
+    mut prefix: Vec<(u64, CaptureInput)>,
+) -> (tempfile::TempDir, Vec<FeedRecord>, Vec<OperationDto>) {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("original");
-    let dto = native_fixture(spot);
+    let spot = matches!(
+        dto.factory,
+        FactoryDto::HyperliquidPublic {
+            market: HyperliquidMarketDto::Spot
+        }
+    );
     let mut reference = CaptureSession::new(
         Box::new(
             marketfeed_adapter_hyperliquid::HyperliquidSession::new_with_observations(
@@ -139,7 +222,8 @@ pub(super) fn recorded(spot: bool) -> (tempfile::TempDir, Vec<FeedRecord>, Vec<O
     let actor = actor(&path);
     let (owner, identity) = start(dto.clone(), &actor);
     let mut expected = Vec::new();
-    for (connection, input) in observed_inputs(&dto) {
+    prefix.extend(observed_inputs(&dto));
+    for (connection, input) in prefix {
         let native = reference
             .execute_turn(input.clone(), CaptureDrainPolicy::NullDispatchTakeOutbound)
             .unwrap();
@@ -430,8 +514,7 @@ fn native_only_field_mutations_pass_structure_but_poison_actual_replay() {
     }
 }
 
-#[test]
-fn native_multi_owner_negotiates_spot_perps_and_canonical_bybit_without_crossing_scope() {
+pub(super) fn mixed_recorded(seal: bool) -> (tempfile::TempDir, std::path::PathBuf) {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("mixed");
     let actor = actor(&path);
@@ -473,7 +556,28 @@ fn native_multi_owner_negotiates_spot_perps_and_canonical_bybit_without_crossing
     for owner in owners {
         finish(owner);
     }
+    if seal {
+        actor
+            .handle()
+            .try_submit(
+                PreparedFeedTransaction::new(vec![FeedRecord::Seal {
+                    schema_version: 1,
+                    now_ns: 999,
+                    reason: "mixed closed".into(),
+                }])
+                .unwrap(),
+            )
+            .unwrap()
+            .wait()
+            .unwrap();
+    }
     actor.shutdown().unwrap();
+    (temp, path)
+}
+
+#[test]
+fn native_multi_owner_negotiates_spot_perps_and_canonical_bybit_without_crossing_scope() {
+    let (_temp, path) = mixed_recorded(false);
     let mut replay =
         MultiHistoryReplay::open_profile(&path, multi_owner_tests::limits(), PROFILE).unwrap();
     let mut native = Vec::new();

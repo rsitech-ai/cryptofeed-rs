@@ -25,6 +25,12 @@ pub use causal::{
     CausalEnvelope, CausalPhase, CausalRoute, FeedProfile, MAX_CAUSAL_ENCODED_PAYLOAD,
     MAX_CAUSAL_ROUTES,
 };
+#[path = "shared_projection.rs"]
+mod projection;
+pub use projection::{MAX_PROJECTION_PAYLOAD, ProjectionEnvelope};
+#[cfg(test)]
+#[path = "shared_projection_tests.rs"]
+mod projection_tests;
 const HEADER_LEN: u64 = 48;
 pub(crate) const MAX_RECORD: usize = 32 * 1024 * 1024;
 pub(crate) const MAX_TRANSACTION: usize = 64 * 1024 * 1024;
@@ -41,6 +47,9 @@ pub struct FeedCursor {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", content = "data", rename_all = "snake_case")]
 pub enum FeedRecord {
+    /// One complete typed consumer group and source after-cursor. No record
+    /// splitting or independent checkpoint publication is allowed.
+    Projection(ProjectionEnvelope),
     /// Opaque engine DTO, allowed only in the negotiated causal profile.
     Causal(CausalEnvelope),
     /// Public reproduction inputs, embedded once and content hashed by readers.
@@ -131,6 +140,9 @@ impl<'de> Deserialize<'de> for FeedRecord {
             }};
         }
         Ok(match raw.kind.as_str() {
+            "projection" => {
+                Self::Projection(serde_json::from_str(data).map_err(serde::de::Error::custom)?)
+            }
             "causal" => Self::Causal(serde_json::from_str(data).map_err(serde::de::Error::custom)?),
             "artifact" => fields!(Artifact {
                 role: String,
@@ -193,6 +205,19 @@ impl<'de> Deserialize<'de> for FeedRecord {
 }
 
 impl FeedRecord {
+    pub(crate) fn seals_feed(&self) -> Result<bool, RecordingError> {
+        match self {
+            Self::Seal {
+                schema_version: 1, ..
+            } => Ok(true),
+            Self::Seal { .. } => Err(err("unsupported feed seal")),
+            Self::Projection(envelope) => {
+                envelope.validate()?;
+                Ok(envelope.source_sealed)
+            }
+            _ => Ok(false),
+        }
+    }
     pub fn artifact(role: &str, bytes: &[u8]) -> Self {
         Self::Artifact {
             role: role.into(),
@@ -457,8 +482,8 @@ impl FeedWriter {
             let mut sequence = initial_sequence;
             let mut sealing = false;
             for (index, record) in records.into_iter().enumerate() {
-                if let FeedRecord::Seal { schema_version, .. } = &record {
-                    if *schema_version != 1 || index + 1 != count {
+                if record.seals_feed()? {
+                    if index + 1 != count {
                         return Err(err("unsupported or non-final feed seal"));
                     }
                     sealing = true;
@@ -686,11 +711,8 @@ impl<'a> SealedFeedReader<'a> {
             return Err(err("journal sequence gap"));
         }
         let routes = self.routes.prepare(self.profile, [&wire.record])?;
-        if let FeedRecord::Seal { schema_version, .. } = &wire.record {
-            if *schema_version != 1
-                || end as u64 != self.checkpoint.offset
-                || wire.sequence != self.checkpoint.sequence
-            {
+        if wire.record.seals_feed()? {
+            if end as u64 != self.checkpoint.offset || wire.sequence != self.checkpoint.sequence {
                 return Err(err("invalid journal seal"));
             }
             self.sealed = true;
@@ -825,8 +847,8 @@ impl FeedReader {
             return Err(err("shared feed sequence gap"));
         }
         let routes = self.routes.prepare(self.profile, [&wire.record])?;
-        if let FeedRecord::Seal { schema_version, .. } = &wire.record {
-            if *schema_version != 1 || end != w.offset || wire.sequence != w.sequence {
+        if wire.record.seals_feed()? {
+            if end != w.offset || wire.sequence != w.sequence {
                 return Err(err("invalid or non-final shared feed seal"));
             }
             self.sealed = true;

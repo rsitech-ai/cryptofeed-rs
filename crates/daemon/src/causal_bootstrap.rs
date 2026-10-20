@@ -18,6 +18,7 @@ use std::{
 };
 
 pub mod owner;
+pub mod projection;
 pub mod replay;
 
 #[derive(Debug, thiserror::Error)]

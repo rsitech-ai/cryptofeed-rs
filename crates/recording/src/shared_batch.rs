@@ -47,7 +47,8 @@ pub struct BatchConfig {
     pub max_age: Duration,
 }
 impl BatchConfig {
-    fn validate(self) -> Result<(), RecordingError> {
+    /// Validate bounds before creating a destination or transferring its writer.
+    pub fn validate(self) -> Result<(), RecordingError> {
         if self.max_pending_operations == 0
             || self.max_group_operations == 0
             || self.max_group_operations > self.max_pending_operations
@@ -89,6 +90,10 @@ impl PreparedFeedTransaction {
         let mut profile = None;
         for (index, record) in records.iter().enumerate() {
             let record_profile = match record {
+                FeedRecord::Projection(envelope) => {
+                    envelope.validate()?;
+                    Some(FeedProfile::ObservationProjectionV1)
+                }
                 FeedRecord::Causal(envelope) => {
                     envelope.validate()?;
                     Some(match envelope.schema_version {
@@ -108,8 +113,13 @@ impl PreparedFeedTransaction {
                 }
                 profile = Some(record_profile);
             }
-            if let FeedRecord::Seal { schema_version, .. } = record {
-                if *schema_version != 1 || index + 1 != records.len() {
+            if record.seals_feed()? {
+                if matches!(record, FeedRecord::Seal { .. })
+                    && profile == Some(FeedProfile::ObservationProjectionV1)
+                {
+                    return Err(error("standalone seal in prepared projection feed"));
+                }
+                if index + 1 != records.len() {
                     return Err(error("unsupported or non-final prepared seal"));
                 }
                 sealing = true;
@@ -145,6 +155,10 @@ impl PreparedFeedTransaction {
     }
     pub fn record_count(&self) -> usize {
         self.records.len()
+    }
+    /// Immutable prepared content; retry callers cannot alter it after sizing.
+    pub fn records(&self) -> &[FeedRecord] {
+        &self.records
     }
 }
 struct CappedCounter {
@@ -347,7 +361,10 @@ impl BatchFeedHandle {
             Some(AdmissionFailure::Failed(failure.clone()))
         } else if state.status.closed {
             Some(AdmissionFailure::Closed)
-        } else if transaction.profile.is_some_and(|p| p != self.inner.profile) {
+        } else if transaction.profile.is_some_and(|p| p != self.inner.profile)
+            || (self.inner.profile == FeedProfile::ObservationProjectionV1
+                && transaction.profile != Some(FeedProfile::ObservationProjectionV1))
+        {
             Some(AdmissionFailure::ProfileMismatch)
         } else if transaction.bytes > cfg.max_group_bytes {
             Some(AdmissionFailure::TransactionTooLarge)

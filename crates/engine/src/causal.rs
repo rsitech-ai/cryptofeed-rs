@@ -31,6 +31,8 @@ pub use observations::ObservedBatchJson;
 mod owner_history;
 pub use bootstrap::*;
 pub use owner_history::*;
+#[path = "causal_projection.rs"]
+pub mod projection;
 #[cfg(test)]
 #[path = "causal_tests.rs"]
 mod tests;
@@ -99,7 +101,7 @@ impl RecordJson {
     }
     fn validate(&self) -> Result<(), CodecError> {
         let record = self.record()?;
-        if matches!(record, FeedRecord::Causal(_)) {
+        if matches!(record, FeedRecord::Causal(_) | FeedRecord::Projection(_)) {
             return Err(invalid("recursive causal record"));
         }
         let mut check = Canonical {
