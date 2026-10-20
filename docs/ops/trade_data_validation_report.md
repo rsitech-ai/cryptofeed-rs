@@ -494,3 +494,24 @@ is retained. This sample provides no inverse-trade delivery, whole-source
 continuity, strict dataset or operational qualification. Compact evidence is in
 docs/evidence/bybit-catalog-2026-10-19; remaining metadata settlement/expiry/units,
 liquidation and exact readiness findings remain open.
+
+## Reanalysis: lagging Bybit source prefixes (2026-10-20)
+
+The two retained failed pilots do not establish a full 30-second exchange-time
+observation interval. Independent raw/shared reanalysis finds book publisher
+time advancing only 5.52–13.06 seconds during roughly 27–28 seconds of local
+receipts across all three venues. UTC and monotonic receipt spans agree within
+0.17 ms; final publisher-to-receipt ages reach 14.6–22.3 seconds under clock
+alignment. The inverse trade channel is subscribed and acknowledged, but zero
+original inverse trade frames are saved. CRC/raw parity and accepted callbacks
+therefore do not establish freshness, source completeness or 30 seconds of quiet
+inverse trading. No post-recording inverse decoder loss is demonstrated.
+
+Root cause remains unresolved between source replay/delay, network buffering and
+local processing. Synchronous durable publication in the reader callback is a
+credible mechanism, not an attribution. The next required diagnostic compares a
+registered paced local transport with and without the durable shared writer and
+separately times read return, callback, mutex and sync/commit stages. It is not
+yet executed. Preserve durability and all original failed artifacts. See
+[reproducible non-passing evidence](../evidence/bybit-capture-freshness-20261020/).
+No new capture, complete causal replay or strict dataset admission is claimed.

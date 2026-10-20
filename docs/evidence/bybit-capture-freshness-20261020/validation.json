@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "status": "non-passing source freshness and inverse-trade coverage; root cause unresolved",
+  "analysis_helper_sha256": "28802255de77a7056526133347eacb6b09853204c26669fb344d0823722edfd0",
+  "analysis_result_sha256": "8162e8c7530e622baec700aacfa05ad780c4c2d5526766a7df40cc5d232cacf0",
+  "imported_audit_source_sha256": {
+    "scripts/audit_shared_feed.py": "bc57600e09faeaa80c2f121e126f04cec01718c2e7e0ffcd21cd0e5f3c5a494e",
+    "scripts/audit_trade_capture.py": "8b6b942dac7839cf66238a3974163b1b6b35932038aac26444a847f1f3096dd8"
+  },
+  "independent_reviewer": "/root/venue_sources",
+  "parent_reproduction": {
+    "command": "python3 -B .local/evidence/hyperliquid-integration-review/bybit-lag-analysis-01.py",
+    "exit_code": 0,
+    "semantic_and_complete_output_equal": true,
+    "log_path": ".local/evidence/hyperliquid-integration-review/bybit-lag-analysis-parent-01.json",
+    "log_sha256": "8162e8c7530e622baec700aacfa05ad780c4c2d5526766a7df40cc5d232cacf0"
+  },
+  "new_live_capture": false,
+  "benchmark_executed": false,
+  "cause_attributed": false,
+  "dataset_admitted": false,
+  "public_helper_reproduction": {
+    "command": "python3 -B docs/evidence/bybit-capture-freshness-20261020/analyze.py",
+    "exit_code": 0,
+    "complete_output_matches_independent_analysis": true,
+    "log_sha256": "8162e8c7530e622baec700aacfa05ad780c4c2d5526766a7df40cc5d232cacf0"
+  },
+  "staged_oss_check": {
+    "exit_code": 0,
+    "gitleaks_version": "8.30.1",
+    "log_path": ".local/evidence/hyperliquid-integration-review/capture-freshness-oss-staged-01.log",
+    "log_sha256": "a84fd9a9203edee8dde2cd1512930535a6227229a83fc0b68d6748daa4293694"
+  }
+}

@@ -17,5 +17,11 @@
     "hlscreen": "Shared-feed consumer and presentation"
   },
   "handoff": "One authoritative cryptofeed source with independently progressing consumers; versioned schemas, instrument identity, provenance, cursors and dataset manifests. Each consumer checks freshness/quality and reports unavailable inputs. No second collector or strategy engine.",
-  "known_dependency_advisories": "Minimal compatible lock repairs verified: devalue5.9.4/source-map-js1.2.2 (full npm audit0findings,174tests/build pass), quinn-proto0.11.18/chacha200.10.2 (full-lock Rust scan only existing time0.3.41 exception remains). Workspace-wide RFC2822 source guard passes23Rust1.85 regression tests. Original failed scans retained; default-branch alerts await reviewed integration. See docs/evidence/dependency-advisories-2026-10-19.json."
+  "known_dependency_advisories": "Minimal compatible lock repairs verified: devalue5.9.4/source-map-js1.2.2 (full npm audit0findings,174tests/build pass), quinn-proto0.11.18/chacha200.10.2 (full-lock Rust scan only existing time0.3.41 exception remains). Workspace-wide RFC2822 source guard passes23Rust1.85 regression tests. Original failed scans retained; default-branch alerts await reviewed integration. See docs/evidence/dependency-advisories-2026-10-19.json.",
+  "next_required_work": [
+    "Diagnose growing Bybit publisher-to-receipt lag with a registered finite offline paced-ingress comparison before another capture; preserve exact durability and failed pilots. Source freshness and inverse trade coverage remain unqualified.",
+    "Implement complete D5 causal milestone B using actual privately owned engine state, versioned atomic operations/outcomes, generations, timer-poll and drain boundaries; legacy milestone A remains insufficient.",
+    "Remove the remaining time advisory through inspected narrow Chrono migration while preserving coreRust1.85, exact timestamp guards/bytes and frozen datasets; future exporter source/revision lineage must remain honest.",
+    "Complete current source/consumer CI and required live/calendar/native-unit/continuity/strict-admission/rsibot-owner gates without treating historical or skipped evidence as new qualification."
+  ]
 }

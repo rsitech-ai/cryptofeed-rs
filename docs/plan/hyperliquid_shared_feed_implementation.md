@@ -1230,3 +1230,22 @@ to `244f40c`, not automatically to this changed engine.
 This changes only engine code/tests. All five shared package trees remain equal
 to `244f40c`, so hlscreen keeps its tested pin. General catalog validity, native
 units, strict datasets and complete causal milestone B remain open.
+
+## Source-freshness audit changes the next diagnostic (2026-10-20)
+
+Independent reanalysis and an exact parent reproduction show growing publisher-
+to-receipt lag across both retained Bybit pilots, including active L2 streams on
+all three venues. The native source span is much shorter than the local capture
+interval. Zero original inverse trade frames plus correct topic/ACK do not prove
+30 seconds of quiet trading. Source freshness remains unqualified, with no
+attributed root cause. A finite paced-ingress comparison and stage timings must
+precede another capture; synchronous durable publication is only a hypothesis.
+See [evidence and proposed diagnostic](../evidence/bybit-capture-freshness-20261020/).
+Original capture bytes and failed gates remain unchanged.
+
+A separate read-only dependency audit finds that the remaining time advisory can
+be removed using already-locked Chrono without raising core Rust 1.85. Migration
+requires unchanged strict RFC3339 lexical rules, offset/year and negative-epoch
+bounds, microsecond EventPulse versus shortest-nanosecond dataset spelling, and
+unchanged frozen bytes. Changing exporter source legitimately changes future
+decoder/revision lineage. This migration is not yet implemented or qualified.
