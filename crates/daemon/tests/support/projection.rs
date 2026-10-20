@@ -3,7 +3,7 @@ use marketfeed_daemon::causal_bootstrap::{projection::*, replay::*};
 use marketfeed_engine::causal::projection::*;
 use std::path::Path;
 const PROFILE: FeedProfile = FeedProfile::EngineCausalV4;
-fn limits() -> ProjectionLimits {
+pub(super) fn limits() -> ProjectionLimits {
     ProjectionLimits {
         max_group_bytes: 1 << 20,
         max_items: 1024,
@@ -34,7 +34,7 @@ fn source(path: &Path) -> MultiHistoryReplay {
     MultiHistoryReplay::open_profile(path, multi_owner_tests::limits(), PROFILE).unwrap()
 }
 #[track_caller]
-fn project(path: &Path, target: &Path) -> ProjectionCheckpoint {
+pub(super) fn project(path: &Path, target: &Path) -> ProjectionCheckpoint {
     let caller = std::panic::Location::caller();
     let mut pump =
         ProjectionPump::create(source(path), policy(), target, 64 << 20, batch()).unwrap();
@@ -96,7 +96,7 @@ fn project(path: &Path, target: &Path) -> ProjectionCheckpoint {
     pump.shutdown().unwrap();
     checkpoint
 }
-fn groups(path: &Path) -> Vec<ProjectionGroup> {
+pub(super) fn groups(path: &Path) -> Vec<ProjectionGroup> {
     let mut r = ProjectionReader::open(path, limits()).unwrap();
     let mut out = Vec::new();
     while let Some(g) = r.read_next().unwrap() {

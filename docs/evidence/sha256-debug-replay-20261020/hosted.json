@@ -1,0 +1,435 @@
+{
+  "schema_version": 1,
+  "scope": "Source-specific hosted supplement after immutable original local performance qualification; current reader/transport candidates excluded.",
+  "independent_receipt": {
+    "file": "sha-profile-hosted-independent-01.json",
+    "bytes": 47990,
+    "sha256": "73183832f3795b14ef1a2ba8b8cec93d359b561dffc91dc7fbdf11ce43c7851a"
+  },
+  "producer": {
+    "author": "696525da1669f48337cc12bf10604c17e2c74575",
+    "actual_checkout": "9fb7cf0a67702880969f2ca0074869a9a06e3303",
+    "tree": "43e511ee5dbd940e0b4623ed24dcf8f3f2aad7bd",
+    "complete_tree_equality": true,
+    "source_files": 548,
+    "source_digest": "3339ba13f42d723ae1f82615f7256e6c90d9eb42f5ce98925eed6dc3df67389c",
+    "run_id": 39476322018,
+    "conclusion": "success",
+    "job_counts": {
+      "success": 17
+    },
+    "jobs": [
+      {
+        "id": 118813560398,
+        "name": "sbom",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813560849,
+        "name": "rustfmt",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813560876,
+        "name": "Windows directory durability",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813560882,
+        "name": "simd-json (marketfeed-adapter-okx)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813560893,
+        "name": "test (macos-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813560960,
+        "name": "simd-json (marketfeed-adapter-kraken)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561016,
+        "name": "msrv (1.85)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561022,
+        "name": "docs",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561036,
+        "name": "simd-json (marketfeed-adapter-deribit)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561066,
+        "name": "cargo-deny",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561100,
+        "name": "C header and ABI exports",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561105,
+        "name": "test (ubuntu-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561126,
+        "name": "clippy",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561133,
+        "name": "test (windows-latest)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561389,
+        "name": "simd-json (marketfeed-adapter-bybit)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561426,
+        "name": "simd-json (marketfeed-adapter-binance)",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "id": 118813561574,
+        "name": "test (ubuntu-24.04-arm)",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ],
+    "platforms": {
+      "Linuxx64": {
+        "counts": {
+          "summaries": 159,
+          "passed": 1574,
+          "failed": 0,
+          "ignored": 56
+        },
+        "actual_checkout": "9fb7cf0a67702880969f2ca0074869a9a06e3303",
+        "log": {
+          "bytes": 287736,
+          "sha256": "1d088ee63b9145fc3bad6d62a83d8cc1ec18eb43c4206dadd7ffa5115e3d4a64"
+        },
+        "hyperliquid_target": {
+          "passed": 48,
+          "failed": 0,
+          "ignored": 0,
+          "elapsed_seconds": 45.95,
+          "original_watchdog_case_passes_current_source": true
+        }
+      },
+      "macOS": {
+        "counts": {
+          "summaries": 159,
+          "passed": 1573,
+          "failed": 0,
+          "ignored": 56
+        },
+        "actual_checkout": "9fb7cf0a67702880969f2ca0074869a9a06e3303",
+        "log": {
+          "bytes": 287327,
+          "sha256": "42ea17bc3abd142d649313b67db2acb93f318f3b40f002c2d7125d4b3a2ee22c"
+        },
+        "hyperliquid_target": {
+          "passed": 48,
+          "failed": 0,
+          "ignored": 0,
+          "elapsed_seconds": 90.57,
+          "original_watchdog_case_passes_current_source": true
+        }
+      },
+      "Windows": {
+        "counts": {
+          "summaries": 159,
+          "passed": 1571,
+          "failed": 0,
+          "ignored": 56
+        },
+        "actual_checkout": "9fb7cf0a67702880969f2ca0074869a9a06e3303",
+        "log": {
+          "bytes": 291194,
+          "sha256": "b7f83ee85907821256b6e40614888767059def12f04aa3faf246fb4909d6c350"
+        },
+        "hyperliquid_target": {
+          "passed": 48,
+          "failed": 0,
+          "ignored": 0,
+          "elapsed_seconds": 103.78,
+          "original_watchdog_case_passes_current_source": true
+        }
+      },
+      "LinuxARM": {
+        "counts": {
+          "summaries": 159,
+          "passed": 1574,
+          "failed": 0,
+          "ignored": 56
+        },
+        "actual_checkout": "9fb7cf0a67702880969f2ca0074869a9a06e3303",
+        "log": {
+          "bytes": 288193,
+          "sha256": "74a9446d9572c7eb0fcfe66bc80709d72feba3ec26fd742e3aee0f84741778b2"
+        },
+        "hyperliquid_target": {
+          "passed": 48,
+          "failed": 0,
+          "ignored": 0,
+          "elapsed_seconds": 153.79,
+          "original_watchdog_case_passes_current_source": true
+        }
+      }
+    },
+    "msrv": {
+      "all_job_counts": {
+        "summaries": 40,
+        "passed": 717,
+        "failed": 0,
+        "ignored": 0
+      },
+      "Rust1.85.1_core": {
+        "summaries": 30,
+        "passed": 577,
+        "failed": 0,
+        "ignored": 0
+      },
+      "Rust1.85.1_bootstrap_public": {
+        "summaries": 4,
+        "passed": 120,
+        "failed": 0,
+        "ignored": 0
+      },
+      "Rust1.88_datasets": {
+        "summaries": 6,
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0
+      },
+      "hyperliquid_elapsed_seconds": 70.56,
+      "scope": "Mixed-version job; do not attribute dataset20 to1.85.",
+      "log": {
+        "bytes": 157604,
+        "sha256": "81b714ce942e514ef82257cac9a15d0d1f842d8e82b229b4960eed3ee431ac63"
+      }
+    }
+  },
+  "hls": {
+    "author": "d7fa9a25502a6eed5a9c8d278b5bca87e0748bbf",
+    "actual_checkout": "6d2eab636e9cab0bf7876f3fa020f66653e19cac",
+    "tree": "a218cd421e1ce903c0300f96885b1f90d34da748",
+    "complete_tree_equality": true,
+    "source_files": 283,
+    "export_paths": 321,
+    "source_digest": "eeb2de34cd741b55904adb189665dc31659e66d774530f28fd5a8924620e8a9e",
+    "runs": {
+      "hls-ci": {
+        "run_id": 39472143765,
+        "head": "d7fa9a25502a6eed5a9c8d278b5bca87e0748bbf",
+        "event": "pull_request",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 118798651331,
+            "name": "RustSec advisory scan",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118798651747,
+            "name": "PTY TUI (macos-15)",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 1,
+              "passed": 6,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118798651753,
+            "name": "Rust workspace",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 85,
+              "passed": 580,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118798651890,
+            "name": "GitHub Actions security",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118798652012,
+            "name": "PTY TUI (ubuntu-24.04)",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 1,
+              "passed": 6,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118798652050,
+            "name": "Dependency license and source policy",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118798654076,
+            "name": "Scheduled public API contract smoke",
+            "status": "completed",
+            "conclusion": "skipped"
+          }
+        ]
+      },
+      "hls-native": {
+        "run_id": 39472143753,
+        "head": "d7fa9a25502a6eed5a9c8d278b5bca87e0748bbf",
+        "event": "pull_request",
+        "conclusion": "success",
+        "jobs": [
+          {
+            "id": 118798652970,
+            "name": "Plan release",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118799995265,
+            "name": "build-local-artifacts (x86_64-pc-windows-msvc)",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118799995313,
+            "name": "build-local-artifacts (aarch64-apple-darwin)",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118799995374,
+            "name": "build-local-artifacts (x86_64-apple-darwin)",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118799995405,
+            "name": "build-local-artifacts (x86_64-unknown-linux-gnu)",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118814294794,
+            "name": "Build global artifacts",
+            "status": "completed",
+            "conclusion": "success",
+            "counts": {
+              "summaries": 0,
+              "passed": 0,
+              "failed": 0,
+              "ignored": 0
+            }
+          },
+          {
+            "id": 118815143846,
+            "name": "Publish tag artifacts",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "id": 118815145032,
+            "name": "Confirm release announcement",
+            "status": "completed",
+            "conclusion": "skipped"
+          }
+        ]
+      }
+    }
+  },
+  "limits": [
+    "Earlier original and diagnostic source failures/cancellations are preserved; successor passes do not prove every earlier failure cause.",
+    "HLS remains pinned to producer e812e44; hosted producer696 results cannot qualify this dependency indirectly.",
+    "Hosted HLS artifact metadata verified; independent ZIP-content audit timed out and remains incomplete. Local archive proof is separately source-scoped.",
+    "No release publication, deployment, live soak, economics or operational promotion."
+  ]
+}

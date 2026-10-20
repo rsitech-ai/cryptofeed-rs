@@ -21,6 +21,8 @@ use std::{
 const SPOT: &[u8] = br#"{"tokens":[{"name":"USDC","szDecimals":8,"weiDecimals":8,"index":0,"tokenId":"0x0"},{"name":"PURR","szDecimals":0,"weiDecimals":5,"index":7,"tokenId":"0x7"}],"universe":[{"name":"@12","tokens":[7,0],"index":12}]}"#;
 const PERPS: &[u8] = br#"[{"collateralToken":0,"universe":[{"name":"BTC","szDecimals":5}]}]"#;
 const WAIT: Duration = Duration::from_secs(15);
+#[path = "support/projection_bridge.rs"]
+mod bridge_tests;
 #[path = "support/multi_owner_replay.rs"]
 mod multi_owner_tests;
 #[path = "support/native_history.rs"]

@@ -1,0 +1,480 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-10-20T19:13:25.360724+00:00",
+  "parent": "696525da1669f48337cc12bf10604c17e2c74575",
+  "source_files": 550,
+  "source_sha256": "0a25563a511e018cb22b19520b66465ed5066d195130797aebce86e8ee5a1ce8",
+  "source_inventory_sha256": "23f33a16c686b11e46c138c9088645574cd5a23c3cf5bb1797f50bc9931efe81",
+  "scope": "Read-only structural MFOP1 bridge and opt-in Quants client/diagnostic observer. Synthetic actual-native fixtures; no live transport/feature-state persistence/admission/economics or operational qualification.",
+  "gates": {
+    "source_sha256": "0a25563a511e018cb22b19520b66465ed5066d195130797aebce86e8ee5a1ce8",
+    "checks": [
+      {
+        "name": "fmt",
+        "argv": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-stable-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 0.808015166,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "source_unchanged": true,
+        "test_totals": null,
+        "test_summaries": 0,
+        "log_bytes": 0
+      },
+      {
+        "name": "diff",
+        "argv": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-stable-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 0.011918209000000068,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "source_unchanged": true,
+        "test_totals": null,
+        "test_summaries": 0,
+        "log_bytes": 0
+      },
+      {
+        "name": "workspace",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--all-features"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-stable-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 168.45640262499998,
+        "log_sha256": "5c03c4f2c979987e9d3e06b2d17cec409112ecbe45c5ebb9d74718b3aa9d6c18",
+        "source_unchanged": true,
+        "test_totals": [
+          1580,
+          0,
+          56
+        ],
+        "test_summaries": 160,
+        "log_bytes": 164083
+      },
+      {
+        "name": "clippy",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-stable-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 2.6745889999999974,
+        "log_sha256": "7e28f2c277306daa45444743be564e4da3bbf8af0692fe88f7e06a4919f56653",
+        "source_unchanged": true,
+        "test_totals": null,
+        "test_summaries": 0,
+        "log_bytes": 188
+      },
+      {
+        "name": "msrv-native",
+        "argv": [
+          "cargo",
+          "+1.85.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--lib",
+          "causal_bootstrap::"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-msrv-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 13.265528625000002,
+        "log_sha256": "5c1fd4cda14821a4d8bd650b5e39a9664c6292d85aeeae423644d0aac567b135",
+        "source_unchanged": true,
+        "test_totals": [
+          57,
+          0,
+          0
+        ],
+        "test_summaries": 1,
+        "log_bytes": 7184
+      },
+      {
+        "name": "msrv-public",
+        "argv": [
+          "cargo",
+          "+1.85.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--test",
+          "hyperliquid_causal",
+          "--test",
+          "causal_bootstrap",
+          "--test",
+          "causal_owner"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-msrv-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 60.40677791599998,
+        "log_sha256": "f2bc244c9680e93fe4061f7967a448344f577e0078796386df87dda5d17d22ef",
+        "source_unchanged": true,
+        "test_totals": [
+          67,
+          0,
+          0
+        ],
+        "test_summaries": 3,
+        "log_bytes": 7429
+      },
+      {
+        "name": "docs",
+        "argv": [
+          "cargo",
+          "doc",
+          "--locked",
+          "--workspace",
+          "--all-features",
+          "--no-deps"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-stable-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "RUSTDOCFLAGS": "-D warnings"
+        },
+        "exit_code": 0,
+        "seconds": 3.7190278330000126,
+        "log_sha256": "970344a20fc4833795c61c58f4e2cd04cee657a9ce87eb66b1bc65c36fea93aa",
+        "source_unchanged": true,
+        "test_totals": null,
+        "test_summaries": 0,
+        "log_bytes": 468
+      },
+      {
+        "name": "default-cli",
+        "argv": [
+          "cargo",
+          "run",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--",
+          "validate",
+          "--config",
+          "crates/daemon/config.offline.toml"
+        ],
+        "env": {
+          "CARGO_TARGET_DIR": "<isolated-stable-target>",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 0.8149298339999973,
+        "log_sha256": "1834e58e97fdccb9a298e184d3c5cd56df7b5879d7ef069e81e9ba92e3f01fe0",
+        "source_unchanged": true,
+        "test_totals": null,
+        "test_summaries": 0,
+        "log_bytes": 210
+      }
+    ]
+  },
+  "actual_gate_runner_exit": 0,
+  "runner_log": {
+    "file": "projection-bridge-runner-03.log",
+    "bytes": 4466,
+    "sha256": "b572c744b417b17a91daaa27f4fd3f7136538d0661f6d37c47bc748bf8023f75"
+  },
+  "retained_reader": {
+    "bytes": 7798704,
+    "sha256": "3251e2fa1ddabacb854f475ed3c90482d7b1ea3995db9a03157b197b18c91801",
+    "mode": "0555",
+    "compiled_profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": false
+    },
+    "identity_scope": "Actual Cargo artifact/file hash and frozen source; no embedded recipe or loaded-image/full-transitive attestation claimed for this structural binary."
+  },
+  "actual_rust_bridge_markets": [
+    "hyperliquid_spot",
+    "hyperliquid_perps"
+  ],
+  "real_python_fixture_market": "hyperliquid_perps",
+  "synthetic_native_fixture": {
+    "build": {
+      "compiled": {
+        "debug": "false",
+        "encoded_rustflags": "",
+        "git_commit": "696525da1669f48337cc12bf10604c17e2c74575",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "default"
+            ],
+            "package": "marketfeed-adapter-bybit"
+          },
+          {
+            "features": [],
+            "package": "marketfeed-adapter-hyperliquid"
+          },
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          },
+          {
+            "features": [
+              "default"
+            ],
+            "package": "marketfeed-engine"
+          },
+          {
+            "features": [
+              "default",
+              "kafka",
+              "nats"
+            ],
+            "package": "marketfeed-sinks"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 550,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "0a25563a511e018cb22b19520b66465ed5066d195130797aebce86e8ee5a1ce8",
+        "target": "aarch64-apple-darwin"
+      },
+      "executable_bytes": 22218800,
+      "executable_sha256": "1d4f5343a5b40511667183bd986945172ef5cf3c06b8911e36c83ccfddb25a4d"
+    },
+    "economics_supported": false,
+    "groups": 78,
+    "historical_availability_qualified": false,
+    "purpose": "offline synthetic native-to-Quants boundary",
+    "schema_version": 1,
+    "source_comparison_verified_at_creation": true
+  },
+  "fixture_log": {
+    "file": "projection-bridge-frozen-native-fixture-03.log",
+    "bytes": 193891,
+    "sha256": "9c7b66efd7f9216494cda8a4d1671287b29dab8dcbecae3d7ce28d83531d5f6d"
+  },
+  "real_quants_boundary": {
+    "schema_version": 1,
+    "kind": "actual synthetic native fixture through real Rust bridge to Quants Python",
+    "binary": "<retained-reader>",
+    "binary_bytes": 7798704,
+    "binary_sha256": "3251e2fa1ddabacb854f475ed3c90482d7b1ea3995db9a03157b197b18c91801",
+    "fixture": "<synthetic-native-fixture>",
+    "fixture_metadata_sha256": "f7fd3c7cfa5d5b2ce964332316985de7991f956a309ad292a850a227d445829f",
+    "expected_groups_sha256": "4f0733be86520feedf36e25ed2393c2c6a99a29558830081d94527285def0d33",
+    "groups": 78,
+    "paired_resume_boundaries": 79,
+    "callback_failure_preserves_prior_ack": true,
+    "async_callback_rejected_before_ack": true,
+    "stream_seconds": 1.030420291237533,
+    "total_seconds": 3.344478000421077,
+    "native_source_comparison_performed_by_fixture_at_creation": true,
+    "reader_reports_only_structure": true,
+    "availability_time_ns": null,
+    "economics_supported": false,
+    "consumer_feature_state_persisted": false,
+    "quants_source_sha256": "d43147b3083651446f83f9a38f0c7c3cbd51c41aaa172face54f6682696bf6c9",
+    "fixture_market": "hyperliquid_perps",
+    "resume_verification_scope": "Each of all 79 paired cursor boundaries reopens and checks exactly one next group (or final sealed idle); this is not a full remaining-suffix replay."
+  },
+  "real_quants_log": {
+    "file": "projection-bridge-real-quants-03.log",
+    "bytes": 185,
+    "sha256": "166dde14f14e2fc1119da91b5d618f8f0d58c63cdfe288facc37e4a3e611731a"
+  },
+  "real_quants_script": {
+    "file": "projection-bridge-real-quants-03.py",
+    "bytes": 3695,
+    "sha256": "701ffc0b8c3471a4827fbeb307ba023726047e215d1e54b3cca7482fcfb8f7b6"
+  },
+  "quants_base_head": "97e034c0106dd6c4831ab5ce55672c92e45735e6",
+  "quants_sources": {
+    "core/market_observations/cryptofeed_projection.py": {
+      "bytes": 20347,
+      "sha256": "d43147b3083651446f83f9a38f0c7c3cbd51c41aaa172face54f6682696bf6c9"
+    },
+    "scripts/data/observe_cryptofeed_projection.py": {
+      "bytes": 11430,
+      "sha256": "d9de953b1b6e5d29a901ef9f279d75527e3e0315cd18f8744ec2c90f41e8a0e8"
+    },
+    "tests/market_observations/test_cryptofeed_projection.py": {
+      "bytes": 20788,
+      "sha256": "cf703157687f6ef1e20894491dcd7c0bbde42c6a73d1cea743b3a5806b9794e1"
+    },
+    "tests/market_observations/test_cryptofeed_projection_observer.py": {
+      "bytes": 13315,
+      "sha256": "944d3fdca135f66638b279a2e92e0fc9f4c6d12d1ce3e60c7d7ed2cbf970f18b"
+    }
+  },
+  "quants_tests": {
+    "client_and_manifest": 27,
+    "combined_client_manifest_observer": 37,
+    "failed": 0,
+    "skipped": 0,
+    "client_receipt": {
+      "file": "validation-04.json",
+      "bytes": 17092,
+      "sha256": "4a48b5abba70ad5ecd47cf75ddb3ef567a641c9dfe888d2331f3a63568e2934d"
+    },
+    "observer_receipt": {
+      "file": "validation-01.json",
+      "bytes": 6116,
+      "sha256": "a828d405d4ea6960f794c5602e92bc8d92613812305ba6927fd597cb6ef5c2d0"
+    },
+    "formatters": {
+      "black": "25.9.0",
+      "isort": "6.1.0"
+    }
+  },
+  "independent_reviews": [
+    {
+      "file": "projection-bridge-final-independent-02.json",
+      "bytes": 18791,
+      "sha256": "10c98d5d22f072ff3a92f4ed10767640d7b592734aa4394204c044930aee6745"
+    },
+    {
+      "file": "quants-observer-native-boundary-independent-02.json",
+      "bytes": 11785,
+      "sha256": "f96029013b3360d03ad221d201a7dacbcba6ac1ec64d4c00b8270929352c5d41"
+    },
+    {
+      "file": "rsibot-observations-bridge-cross-language-independent-03.json",
+      "bytes": 4619,
+      "sha256": "c548ac3f2d258e27ae9eccdd8c1e138803d72eed534e6d8ce1080240fc89e8ab"
+    },
+    {
+      "file": "quants-projection-observer-independent-01.json",
+      "bytes": 5681,
+      "sha256": "1d94a6820ed45b847855e466d9fe35571f29d372d88ad9d18693ab6243a36fbc"
+    }
+  ],
+  "preserved_failures": {
+    "present_null_sibling": {
+      "red_exit": 101,
+      "green_exit": 0,
+      "red": {
+        "file": "projection-bridge-null-command-red-01.log",
+        "bytes": 1084,
+        "sha256": "f3920a1853231ed2aed13b2a23d225b9e91c8a21e4a5e96ee214863412717c26"
+      },
+      "green": {
+        "file": "projection-bridge-null-command-green-01.log",
+        "bytes": 689,
+        "sha256": "bf7bc1b630c3879c5aeba07e98e93d8e434d445c23302e229684e4aca177ebf6"
+      },
+      "old_source": "48041688648da09b7bf7ee6a0f727183b347640214abc663dad16d4af6eb1a12"
+    },
+    "legacy_cli_ambiguity": {
+      "red_exit": 101,
+      "green_exit": 0,
+      "red": {
+        "file": "projection-bridge-legacy-default-red-01.log",
+        "bytes": 195,
+        "sha256": "570e25b4312cdb1d92d3eef044b8abe273840f955e115671e42228baedaa374b"
+      },
+      "green": {
+        "file": "projection-bridge-legacy-default-green-01.log",
+        "bytes": 338,
+        "sha256": "005f6c9f850e59132159989502b7339dcf40b49f9c1e5c9eeddf4caf72e86389"
+      }
+    },
+    "callback_false_ack": {
+      "old_receipts_preserved": true,
+      "contract": "Exact None synchronous callback return required before ACK; prior async/generator false-ACK finding retained."
+    }
+  },
+  "limits": [
+    "Current candidate own hosted qualification pending at evidence creation; predecessor hosted success is source-specific.",
+    "No native-source authenticity follows from structural reader labels. Native comparison is separately performed when creating synthetic fixture.",
+    "All historical availability remains null; sealed captures are not live soaks or qualified datasets.",
+    "Resume reconstructs Rust validator only; caller must bind/restored feature state, recipe/config and cursor atomically before strategy work.",
+    "Per-exchange file fingerprint cost retained; no throughput/RSS/uninterruptible OS I/O guarantee.",
+    "Quants changes remain local; no push/PR or root gitlink changes.",
+    "Live causal application-write protocol and actual daemon transport, joint consumer pins, unchanged failed-ingress rerun and extended Razer checks remain required."
+  ],
+  "qualified_workflow_sha256": "691fc0521d95dacd535c03cacd9f15da89ab246b14906ce60111f3db4f96d021",
+  "publication_workflow_sha256": "ddb2be5ad4ae82a3e5f3da9cd54ba250e21b886131441111a8b044adfe004ff3",
+  "publication_constraint": {
+    "implementation_source_unchanged": true,
+    "workflow_reverted_to_parent": true,
+    "new_hosted_default_cli_step": false,
+    "local_default_cli_actual_exit": 0,
+    "rejected_push": {
+      "actual_tool_session": 67488,
+      "actual_exit_code": 1,
+      "remote_ref_updated": false,
+      "cause": "OAuth App lacks workflow scope",
+      "preserved_unpublished_branch": "codex/reader-ci-local-20261020",
+      "receipt_sha256": "5a9735df6db2e18220ad5f02d48a3f39ccd75b36046fd1e2e042fcb32210c9be"
+    },
+    "qualification_scope": "All eight local checks still bind unchanged 550 compiled inputs. Their frozen workflow hash records the proposed extra CLI step; publication retains the parent workflow, without that extra hosted step. No credential scope/permission change or force push."
+  }
+}

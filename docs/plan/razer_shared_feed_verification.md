@@ -7,9 +7,10 @@ test loop is not an exchange-data soak or operational promotion.
 
 ## Before the handoff
 
-1. Resolve the producer Linux watchdog failure with source-bound evidence, and
-   finish macOS/Linux native checks for the actual successor. Do not inherit a
-   predecessor's result. Keep original failures and cancelled coverage visible.
+1. Producer 696525da now passes all 17 hosted jobs, including required Mac/Linux
+   hosts. Preserve the earlier watchdog failures and cancelled coverage; their
+   full causes remain unproven. Requalify every later source revision on its own
+   hosts rather than inheriting this predecessor result.
 2. Finish the opt-in causal live transport and its durable outbound intent/result
    protocol. Captured null-drain writes are not authorization to send over a
    socket. One privately owned native session must drive acquisition, control,
@@ -18,7 +19,8 @@ test loop is not an exchange-data soak or operational promotion.
    groups, preserve independent consumer cursors, and settle owners and target
    publication before sealing. Recovery creates a fresh writer lifetime; never
    silently take over an existing feed directory.
-4. Finish the direct Quants reader. Bind cursor pairs to the consumer's restored
+4. The direct Quants reader and diagnostic observer are implemented and under
+   final source qualification. Bind cursor pairs to the consumer's restored
    state/config/version; acknowledging a feed does not persist feature state.
    Structural MFOP validation is separate from native source comparison and
    research dataset admission. Unknown usable time stays unavailable.

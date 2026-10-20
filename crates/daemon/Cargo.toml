@@ -9,6 +9,7 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 build = "build.rs"
+default-run = "marketfeed"
 
 [[bin]]
 name = "marketfeed"
