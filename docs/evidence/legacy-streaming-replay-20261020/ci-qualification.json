@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "producer_source": "244f40c7e7d84db4cbf6cb2d35e1a5b7b24d7cdf",
+  "run_id": 39353044076,
+  "status": "completed",
+  "conclusion": "success",
+  "all17jobs_successful": true,
+  "jobs": [
+    {
+      "job_id": 118401446356,
+      "name": "rustfmt",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446450,
+      "name": "Windows directory durability",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446554,
+      "name": "test (macos-latest)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446589,
+      "name": "msrv (1.85)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446601,
+      "name": "cargo-deny",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446619,
+      "name": "test (ubuntu-24.04-arm)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446666,
+      "name": "clippy",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446678,
+      "name": "docs",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446692,
+      "name": "C header and ABI exports",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446717,
+      "name": "test (ubuntu-latest)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446720,
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446752,
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446778,
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446796,
+      "name": "sbom",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446819,
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446833,
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "conclusion": "success"
+    },
+    {
+      "job_id": 118401446895,
+      "name": "test (windows-latest)",
+      "conclusion": "success"
+    }
+  ],
+  "actual_checkout": {
+    "producer_source": "244f40c7e7d84db4cbf6cb2d35e1a5b7b24d7cdf",
+    "actual_tested_merge": "e8dc1ec4b09441d4cb4d07c0ec8c01a5dd327c6b",
+    "complete_tree_equal": true,
+    "tree_oid": "74a5a675635f3ed70de9da83be892903c1cec701"
+  },
+  "platforms": [
+    {
+      "platform": "linux-x86_64",
+      "job_id": 118401446717,
+      "result": {
+        "passed": 1303,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 150
+      },
+      "new_streaming_cases_passed": 22,
+      "strict_reader_regression_passed": true,
+      "log_path": ".local/evidence/hyperliquid-integration-review/stream-source-linux-job.log",
+      "log_sha256": "fd6962ab44e3c1a7520551b6e8ea871787ab9c0ebe21cf2a1b636907c5bf45e9"
+    },
+    {
+      "platform": "linux-aarch64",
+      "job_id": 118401446619,
+      "result": {
+        "passed": 1303,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 150
+      },
+      "new_streaming_cases_passed": 22,
+      "strict_reader_regression_passed": true,
+      "log_path": ".local/evidence/hyperliquid-integration-review/stream-source-linux-arm-job.log",
+      "log_sha256": "4be02ee733075e2c933081c06eb48d533b117ef34850641f907e58cde0e54662"
+    },
+    {
+      "platform": "macos",
+      "job_id": 118401446554,
+      "result": {
+        "passed": 1302,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 150
+      },
+      "new_streaming_cases_passed": 22,
+      "strict_reader_regression_passed": true,
+      "log_path": ".local/evidence/hyperliquid-integration-review/stream-source-macos-job.log",
+      "log_sha256": "2a73d0dea1cf9f9acd314befe0afafd363eb5b16fa3044b87cf1dc8796c0b12e"
+    },
+    {
+      "platform": "windows",
+      "job_id": 118401446895,
+      "result": {
+        "passed": 1300,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 150
+      },
+      "new_streaming_cases_passed": 22,
+      "strict_reader_regression_passed": true,
+      "log_path": ".local/evidence/hyperliquid-integration-review/stream-source-windows-job.log",
+      "log_sha256": "c3cfa9d543bd7702b7918b1117c59e446c114f4cdde1a9d71bc03f2e24c74d3a"
+    }
+  ],
+  "native_windows": {
+    "job_id": 118401446450,
+    "result": {
+      "passed": 82,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 11
+    },
+    "strict_reader_regression_passed": true,
+    "log_path": ".local/evidence/hyperliquid-integration-review/stream-source-windows-durability-job.log",
+    "log_sha256": "8f8b46595b5dc4e431cb3c5d5b8611141a82ef33a35c7964669627bc0e51533f",
+    "scope": "same administrative-token hosted NTFS qualification; no ordinary-user or hardware guarantee"
+  },
+  "status_log_sha256": "887697e4f9af1a9ff4368c9bdf890e1b8edbb5a0468fed27810ac54670b02810",
+  "scope": "qualifies source244f runtime and matching complete merge tree; later catalog engine guard has separate checks and requires its new full CI; no live/soak/strict admission",
+  "independent_review": {
+    "reviewer": "/root/trade_review",
+    "edits": false,
+    "findings": [],
+    "verified": "all five raw log hashes/totals;22actual streaming cases and reader regression all4platforms;82native cases;17distinct successful jobs; actual merge checkout and complete-tree equality; excludes later catalog changes/B/live/strict claims"
+  }
+}

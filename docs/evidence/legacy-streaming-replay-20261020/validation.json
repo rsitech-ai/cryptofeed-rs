@@ -189,7 +189,7 @@
     "rsibot live strategy context or economics",
     "release/deployment/operational promotion"
   ],
-  "ci_status": "not yet run for these changes",
+  "ci_status": "source244f CI39353044076 completed successfully, all17jobs/fourplatform suites; see ci-qualification.json",
   "source_commit": "244f40c7e7d84db4cbf6cb2d35e1a5b7b24d7cdf",
   "independent_receipt_review": {
     "reviewer": "/root/consumer_review",

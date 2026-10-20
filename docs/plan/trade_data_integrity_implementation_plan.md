@@ -227,3 +227,30 @@ Observed-availability replay is additionally blocked by D5. Qualified publicatio
 needs P1–P3. Actual strict OKX compatibility needs C1/C2. Operational promotion
 needs O1 and the source-specific calendar evidence. Every scope resolves to
 passing evidence or an explicit non-passing disposition, not a single green box.
+
+## Remaining advisory: compatible timestamp backend migration
+
+The read-only dependency audit identifies only three direct `time` users:
+EventPulse, prospective capture and dataset export. Already-locked Chrono 0.4.45
+has MSRV 1.62, so a narrow migration can remove the vulnerable package without
+raising core Rust 1.85. This is not implemented yet. Preserve existing strict
+ASCII/uppercase RFC3339 guards and offset/leap-second rejection; Chrono's parser
+alone accepts aliases currently refused by the owner contract.
+
+Reuse an EventPulse UTC microsecond helper for capture, retaining year 0000 core
+acceptance and separate stricter manifest rules. Year 9999 is valid in microseconds
+but not i64 nanoseconds; avoid `timestamp_nanos_opt` or i64 multiplication.
+Preserve UTC formatting refusal outside years 0..9999 when offsets cross a year
+boundary, and Euclidean handling of negative nanoseconds including i64::MIN.
+Dataset export separately preserves shortest nanosecond spelling; Chrono AutoSi
+would pad fractions and change bytes. Existing golden/EPIN/capture-v4 byte/hash
+tests must remain unchanged, with exact offset/fraction/year/negative-extrema
+challenges. Read existing frozen datasets without rewriting any object.
+
+Exporter source participates in decoder provenance, so future revision IDs may
+legitimately change after a source edit. Compare timestamp and economic-field
+semantics, preserve old manifests/objects, and record new lineage rather than
+regenerate frozen hashes. Remove all three time edges and its exact deny exception
+only after full graph inspection, Rust 1.85 core checks, dataset checks and a clean
+full-lock RustSec scan prove the migration. No new shared crate or dataset-to-
+EventPulse dependency is required.

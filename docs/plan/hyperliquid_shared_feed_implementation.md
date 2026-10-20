@@ -1249,3 +1249,13 @@ requires unchanged strict RFC3339 lexical rules, offset/year and negative-epoch
 bounds, microsecond EventPulse versus shortest-nanosecond dataset spelling, and
 unchanged frozen bytes. Changing exporter source legitimately changes future
 decoder/revision lineage. This migration is not yet implemented or qualified.
+
+Source `244f40c` CI39353044076 now completes with all 17 jobs passing. Raw platform
+logs prove 1,303 passes on each Linux target, 1,302 macOS and 1,300 Windows
+(0 failed/56 ignored, 150 suites each); all 22 streaming cases and the reader
+regression pass everywhere. The native Windows job passes 82. Actual merge
+`e8dc1ec` complete tree `74a5a675` equals source244f, not an assumed head checkout.
+See the milestone's `ci-qualification.json`. Hlscreen `176ce44` main CI39353618168
+also completes successfully with six successes and one scheduled API skip;
+release39353618179 artifact jobs are still running. The engine-only catalog
+guard's full CI remains a separate next-head gate.

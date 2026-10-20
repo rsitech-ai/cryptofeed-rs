@@ -39,3 +39,12 @@ receipt does not claim their completion.
 
 See [API contract](../../spec/legacy_streaming_replay.md) and
 [D5 completion contract](../../plan/trade_data_integrity_implementation_plan.md#d5-delivery-milestones-and-remaining-causal-replay).
+
+Source `244f40c` subsequently completes CI39353044076 with all 17 jobs passing.
+Raw full-platform logs report Linux x86_64/aarch64 1,303, macOS 1,302 and Windows
+1,300 passes (0 failed/56 ignored/150 suites each), with all 22 new streaming
+cases and the torn-header regression actually passing on every platform. The
+focused Windows job separately passes 82. Actual checkout is PR merge `e8dc1ec`;
+its complete tree `74a5a675` equals source244f. See `ci-qualification.json` for
+exact IDs and log hashes. The later engine-only catalog guard is a separate
+follow-up and its full CI is not inferred from this completed run.
