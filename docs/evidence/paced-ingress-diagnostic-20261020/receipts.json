@@ -1,0 +1,18 @@
+[
+  {
+    "arm": "baseline",
+    "exit": 0,
+    "watchdog_fired": false,
+    "wall_ns": 10155986041,
+    "stdout_sha256": "89583a74828f077af07f37deb8e6f4034f9bcbe657383ec486e32be59ce83b83",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "arm": "durable",
+    "exit": 1,
+    "watchdog_fired": false,
+    "wall_ns": 4167654583,
+    "stdout_sha256": "e405366b0bfddb710e2113f301d55c77004f7b5f85a09471a2087bce4dcee344",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+]

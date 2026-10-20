@@ -1,0 +1,8 @@
+{
+  "arm": "baseline",
+  "exit": 2,
+  "watchdog_fired": false,
+  "wall_ns": 501974959,
+  "stdout_sha256": "7874e01a5377239d71dfc1113c730de98d352768fa3a80281766e7de63fd2492",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

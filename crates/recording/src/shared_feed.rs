@@ -12,6 +12,7 @@ use std::{
     io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
+    time::Instant,
 };
 const MAGIC: &[u8; 8] = b"MFSF1\0\0\0";
 const HEADER_LEN: u64 = 48;
@@ -240,9 +241,65 @@ pub struct FeedWriter {
     max_bytes: u64,
     poisoned: bool,
     sealed: bool,
+    timings: FeedIoTimings,
     #[cfg(test)]
     fail_publication_barrier: bool,
 }
+
+/// Cumulative local monotonic durations; no source/receipt timestamps or
+/// durability decisions are changed. Stage counters include completed calls
+/// (including failed I/O), while append includes every returned attempt.
+/// Bootstrap publication is excluded. These are observations, not latency SLAs.
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct FeedIoTimings {
+    pub append_attempts: u64,
+    pub accepted_transactions: u64,
+    pub accepted_records: u64,
+    pub failed_attempts: u64,
+    /// Successfully acquired locks only. Poisoned locks make the snapshot
+    /// unavailable; callers must preserve that error rather than infer zero wait.
+    pub lock_wait: IoStageTiming,
+    pub append: IoStageTiming,
+    pub encode: IoStageTiming,
+    pub write: IoStageTiming,
+    pub data_sync: IoStageTiming,
+    pub watermark_write_sync: IoStageTiming,
+    pub replace: IoStageTiming,
+    pub directory_sync: IoStageTiming,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct IoStageTiming {
+    pub completed_calls: u64,
+    pub errors: u64,
+    pub total_ns: u64,
+    pub max_ns: u64,
+    /// <10us, <100us, <1ms, <10ms, <100ms, >=100ms. Fixed storage, no samples retained.
+    pub latency_buckets: [u64; 6],
+}
+
+impl IoStageTiming {
+    fn observe(&mut self, started: Instant, error: bool) {
+        let ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        self.completed_calls = self.completed_calls.saturating_add(1);
+        self.errors = self.errors.saturating_add(u64::from(error));
+        self.total_ns = self.total_ns.saturating_add(ns);
+        self.max_ns = self.max_ns.max(ns);
+        let bucket = [10_000, 100_000, 1_000_000, 10_000_000, 100_000_000]
+            .iter()
+            .position(|limit| ns < *limit)
+            .unwrap_or(5);
+        self.latency_buckets[bucket] = self.latency_buckets[bucket].saturating_add(1);
+    }
+}
+
+fn timed<T, E>(stage: &mut IoStageTiming, call: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+    let start = Instant::now();
+    let result = call();
+    stage.observe(start, result.is_err());
+    result
+}
+
 impl FeedWriter {
     /// Refuses an existing directory, preventing overwrite and concurrent owners.
     /// max_bytes includes headers and framing and must be explicitly bounded.
@@ -278,12 +335,14 @@ impl FeedWriter {
             max_bytes,
             poisoned: false,
             sealed: false,
+            timings: FeedIoTimings::default(),
             #[cfg(test)]
             fail_publication_barrier: false,
         };
         writer.publish()?;
         crate::durability::sync_directory_ancestry(&writer.directory)
             .map_err(|e| RecordingError::PublicationIndeterminate(e.to_string()))?;
+        writer.timings = FeedIoTimings::default();
         Ok(writer)
     }
     /// Last successfully acknowledged durable cursor. After an indeterminate
@@ -303,6 +362,25 @@ impl FeedWriter {
     /// transaction, but no durability acknowledgment is issued. Both failures
     /// poison the writer permanently; neither exposes a partial transaction.
     pub fn append_many(&mut self, records: Vec<FeedRecord>) -> Result<FeedCursor, RecordingError> {
+        let count = records.len() as u64;
+        self.timings.append_attempts = self.timings.append_attempts.saturating_add(1);
+        let start = Instant::now();
+        let result = self.append_transaction(records);
+        self.timings.append.observe(start, result.is_err());
+        if result.is_ok() {
+            self.timings.accepted_transactions =
+                self.timings.accepted_transactions.saturating_add(1);
+            self.timings.accepted_records = self.timings.accepted_records.saturating_add(count);
+        } else {
+            self.timings.failed_attempts = self.timings.failed_attempts.saturating_add(1);
+        }
+        result
+    }
+
+    fn append_transaction(
+        &mut self,
+        records: Vec<FeedRecord>,
+    ) -> Result<FeedCursor, RecordingError> {
         if self.poisoned || self.sealed {
             return Err(err("shared feed writer poisoned or sealed"));
         }
@@ -310,29 +388,33 @@ impl FeedWriter {
         if count == 0 || count > 65536 {
             return Err(err("invalid shared feed transaction count"));
         }
-        let mut bytes = Vec::new();
-        let mut sequence = self.cursor.sequence;
-        let mut sealing = false;
-        for (index, record) in records.into_iter().enumerate() {
-            if let FeedRecord::Seal { schema_version, .. } = &record {
-                if *schema_version != 1 || index + 1 != count {
-                    return Err(err("unsupported or non-final feed seal"));
+        let initial_sequence = self.cursor.sequence;
+        let (bytes, sequence, sealing) = timed(&mut self.timings.encode, || {
+            let mut bytes = Vec::new();
+            let mut sequence = initial_sequence;
+            let mut sealing = false;
+            for (index, record) in records.into_iter().enumerate() {
+                if let FeedRecord::Seal { schema_version, .. } = &record {
+                    if *schema_version != 1 || index + 1 != count {
+                        return Err(err("unsupported or non-final feed seal"));
+                    }
+                    sealing = true;
                 }
-                sealing = true;
+                sequence = sequence
+                    .checked_add(1)
+                    .ok_or_else(|| err("feed sequence overflow"))?;
+                let body = serde_json::to_vec(&WireRecord { sequence, record }).map_err(err)?;
+                if body.len() > MAX_RECORD
+                    || bytes.len().saturating_add(body.len() + 8) > MAX_TRANSACTION
+                {
+                    return Err(err("shared feed record or transaction too large"));
+                }
+                bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
+                bytes.extend_from_slice(&crc32c(&body).to_le_bytes());
+                bytes.extend_from_slice(&body);
             }
-            sequence = sequence
-                .checked_add(1)
-                .ok_or_else(|| err("feed sequence overflow"))?;
-            let body = serde_json::to_vec(&WireRecord { sequence, record }).map_err(err)?;
-            if body.len() > MAX_RECORD
-                || bytes.len().saturating_add(body.len() + 8) > MAX_TRANSACTION
-            {
-                return Err(err("shared feed record or transaction too large"));
-            }
-            bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
-            bytes.extend_from_slice(&crc32c(&body).to_le_bytes());
-            bytes.extend_from_slice(&body);
-        }
+            Ok::<_, RecordingError>((bytes, sequence, sealing))
+        })?;
         let end = self
             .cursor
             .offset
@@ -344,8 +426,8 @@ impl FeedWriter {
         }
         let previous = self.cursor.clone();
         let result = (|| -> Result<(), RecordingError> {
-            self.file.write_all(&bytes)?;
-            self.file.sync_data()?;
+            timed(&mut self.timings.write, || self.file.write_all(&bytes))?;
+            timed(&mut self.timings.data_sync, || self.file.sync_data())?;
             self.cursor.sequence = sequence;
             self.cursor.offset = end;
             self.publish()?;
@@ -366,16 +448,28 @@ impl FeedWriter {
         })
         .map_err(err)?;
         let temp = self.directory.join("committed.tmp");
-        let mut f = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)?;
-        f.write_all(&bytes)?;
-        f.sync_all()?;
-        drop(f);
-        fs::rename(temp, self.directory.join("committed.json"))?;
-        self.sync_publication_directory()
-            .map_err(|e| RecordingError::PublicationIndeterminate(e.to_string()))?;
+        timed(
+            &mut self.timings.watermark_write_sync,
+            || -> Result<(), RecordingError> {
+                let mut f = OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&temp)?;
+                f.write_all(&bytes)?;
+                f.sync_all()?;
+                drop(f);
+                Ok(())
+            },
+        )?;
+        timed(&mut self.timings.replace, || {
+            fs::rename(temp, self.directory.join("committed.json"))
+        })?;
+        let started = Instant::now();
+        let result = self.sync_publication_directory();
+        self.timings
+            .directory_sync
+            .observe(started, result.is_err());
+        result.map_err(|e| RecordingError::PublicationIndeterminate(e.to_string()))?;
         Ok(())
     }
     fn sync_publication_directory(&self) -> std::io::Result<()> {
@@ -395,16 +489,24 @@ impl FeedHandle {
         Self(Arc::new(Mutex::new(writer)))
     }
     pub fn append(&self, record: FeedRecord) -> Result<FeedCursor, RecordingError> {
-        self.0
-            .lock()
-            .map_err(|_| err("shared feed lock poisoned"))?
-            .append(record)
+        self.append_many(vec![record])
     }
     pub fn append_many(&self, records: Vec<FeedRecord>) -> Result<FeedCursor, RecordingError> {
-        self.0
+        let started = Instant::now();
+        let mut writer = self
+            .0
+            .lock()
+            .map_err(|_| err("shared feed lock poisoned"))?;
+        writer.timings.lock_wait.observe(started, false);
+        writer.append_many(records)
+    }
+    /// Reading waits for the current append; call outside the measured hot path.
+    pub fn timings(&self) -> Result<FeedIoTimings, RecordingError> {
+        Ok(self
+            .0
             .lock()
             .map_err(|_| err("shared feed lock poisoned"))?
-            .append_many(records)
+            .timings)
     }
 }
 #[derive(Debug)]
@@ -657,6 +759,13 @@ mod publication_failure_tests {
         let watermark = fs::read(directory.join("committed.json")).unwrap();
         writer.fail_publication_barrier = false;
         assert!(writer.append(state("must-not-bless-tail")).is_err());
+        assert_eq!(writer.timings.append_attempts, 3);
+        assert_eq!(writer.timings.accepted_transactions, 1);
+        assert_eq!(writer.timings.accepted_records, 1);
+        assert_eq!(writer.timings.failed_attempts, 2);
+        assert_eq!(writer.timings.directory_sync.completed_calls, 2);
+        assert_eq!(writer.timings.directory_sync.errors, 1);
+        assert_eq!(writer.timings.write.completed_calls, 2);
         assert_eq!(writer.cursor(), &acknowledged);
         assert_eq!(fs::read(directory.join("events.mfsf")).unwrap(), data);
         assert_eq!(

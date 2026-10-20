@@ -228,6 +228,39 @@ needs P1–P3. Actual strict OKX compatibility needs C1/C2. Operational promotio
 needs O1 and the source-specific calendar evidence. Every scope resolves to
 passing evidence or an explicit non-passing disposition, not a single green box.
 
+## Registered ingress diagnostic and required repair
+
+The [paced snapshot diagnostic](../evidence/paced-ingress-diagnostic-20261020/README.md)
+now reproduces a local synchronous-writer bottleneck without a network. Raw-only
+baseline processes all4,864 scheduled inputs. Adding the authoritative durable
+writer reaches the bounded512-frame/session queues after147 load callbacks and
+stops visibly; the remaining slow arm is not run under the registered abort rule.
+The exact saved prefix passes independent CRC/native-byte/order/output checks,
+but the workload remains failed. The earlier malformed-fixture rejection and
+all failed attempts remain preserved. This does not uniquely explain the live
+Bybit samples or qualify exchange coverage.
+
+Observational stage counters preserve existing write/sync/replace/directory
+barriers and poisoned/indeterminate publication behavior. Meaningful recording,
+engine/replay, queue-release and worker-panic checks cover this slice. A separate
+review caught detached worker handles on panic; immediate shared failure signaling
+and joining both worker groups before returning now close that defect. Timing
+maxima remain cumulative, concurrent lock waits are not wall time and sealing is
+included in interval totals. No throughput/capacity SLA follows from this fixture.
+
+Next repair belongs in cryptofeed, before rsibot consumes a live context: bound
+ingress and durability work by count/bytes/time, batch only within explicit causal
+operation boundaries, retain exact native inputs and accepted canonical effects,
+and release durable acknowledgments only after the existing publication barriers.
+Register and retain the original failing workload before measuring the repair;
+test queue/full-disk/barrier/worker failures and replay ordering independently.
+Do not mask backlog with larger queues or weaker durability. Design this together
+with complete D5 milestone B: current callback/input split and mutable lifecycle
+escape paths cannot support an honest atomic-batch claim by themselves.
+
+Strategy alignment/features/models/ETF/economics remain in existing rsibot owners.
+Neither a storage repair nor this diagnostic adds a strategy-context engine here.
+
 ## Remaining advisory: compatible timestamp backend migration
 
 The read-only dependency audit identifies only three direct `time` users:

@@ -1,0 +1,1 @@
+{"error":"unknown field `kind`, expected one of `schema_version`, `session_id`, `venue_id`, `adapter`, `environment`, `endpoint`, `catalog_version`, `catalog`, `initial_subscriptions` at line 1 column 1071","passed":false,"qualified_dataset":false}

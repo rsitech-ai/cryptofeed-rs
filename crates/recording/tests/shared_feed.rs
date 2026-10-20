@@ -12,6 +12,95 @@ fn state(s: &str) -> FeedRecord {
         state: s.into(),
     }
 }
+fn check_stage(stage: IoStageTiming, calls: u64, errors: u64) {
+    assert_eq!(stage.completed_calls, calls);
+    assert_eq!(stage.errors, errors);
+    assert_eq!(stage.latency_buckets.iter().sum::<u64>(), calls);
+    assert!(stage.max_ns <= stage.total_ns);
+}
+
+#[test]
+fn io_observations_distinguish_validation_from_acknowledged_publication() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().join("feed");
+    let handle = FeedHandle::new(FeedWriter::create(&dir, 100_000).unwrap());
+    assert_eq!(handle.timings().unwrap().append_attempts, 0);
+    handle
+        .append_many(vec![state("one"), state("two")])
+        .unwrap();
+    assert!(handle.append_many(vec![]).is_err());
+    assert!(
+        handle
+            .append_many(vec![
+                FeedRecord::Seal {
+                    schema_version: 1,
+                    now_ns: 1,
+                    reason: "invalid non-final seal".into(),
+                },
+                state("after seal")
+            ])
+            .is_err()
+    );
+    handle
+        .append(FeedRecord::Seal {
+            schema_version: 1,
+            now_ns: 2,
+            reason: "complete".into(),
+        })
+        .unwrap();
+    assert!(handle.append(state("late")).is_err());
+    let timing = handle.timings().unwrap();
+    assert_eq!(timing.append_attempts, 5);
+    assert_eq!(timing.accepted_transactions, 2);
+    assert_eq!(timing.accepted_records, 3);
+    assert_eq!(timing.failed_attempts, 3);
+    check_stage(timing.lock_wait, 5, 0);
+    check_stage(timing.append, 5, 3);
+    check_stage(timing.encode, 3, 1);
+    for stage in [
+        timing.write,
+        timing.data_sync,
+        timing.watermark_write_sync,
+        timing.replace,
+        timing.directory_sync,
+    ] {
+        check_stage(stage, 2, 0);
+    }
+    let mut reader = FeedReader::open(&dir, None).unwrap();
+    for _ in 0..3 {
+        assert!(reader.read_next().unwrap().is_some());
+    }
+    assert!(reader.read_next().unwrap().is_none());
+}
+
+#[test]
+fn failed_watermark_observations_never_count_a_durable_acknowledgment() {
+    let temp = tempfile::tempdir().unwrap();
+    let dir = temp.path().join("feed");
+    let handle = FeedHandle::new(FeedWriter::create(&dir, 100_000).unwrap());
+    fs::write(dir.join("committed.tmp"), b"collision").unwrap();
+    assert!(handle.append(state("uncommitted")).is_err());
+    assert!(handle.append(state("poisoned")).is_err());
+    let timing = handle.timings().unwrap();
+    assert_eq!(timing.append_attempts, 2);
+    assert_eq!(timing.accepted_records, 0);
+    assert_eq!(timing.accepted_transactions, 0);
+    assert_eq!(timing.failed_attempts, 2);
+    check_stage(timing.append, 2, 2);
+    for stage in [timing.encode, timing.write, timing.data_sync] {
+        check_stage(stage, 1, 0);
+    }
+    check_stage(timing.watermark_write_sync, 1, 1);
+    check_stage(timing.replace, 0, 0);
+    check_stage(timing.directory_sync, 0, 0);
+    assert!(
+        FeedReader::open(&dir, None)
+            .unwrap()
+            .read_next()
+            .unwrap()
+            .is_none()
+    );
+}
 #[test]
 fn readers_only_observe_synced_prefix_and_resume_exactly() {
     let t = tempfile::tempdir().unwrap();

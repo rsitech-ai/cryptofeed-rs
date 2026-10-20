@@ -1,0 +1,25 @@
+{
+  "schema": "marketfeed.paced_ingress_execution.v1",
+  "plan_sha256": "14d0c2298b0d4c5a2a66a6517e2fdd805841bb175ca12f35a00b94d616586449",
+  "fixture_sha256": "9724ceebe10ea9f73ac6ef7012a920d6da4dbf33f85a10490404add602fd3b39",
+  "binary_sha256": "02a90880728aabec946f8c2893e6055f4e076a50e0ab62720200678f1a1fa873",
+  "build_profile": "debug",
+  "rustc": "rustc 1.91.0 (f8297e351 2025-10-28)",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "machine": "arm64",
+  "logical_cpus": 15,
+  "arm_order": [
+    "baseline",
+    "durable",
+    "slow-failure"
+  ],
+  "free_bytes_before": 16928374784,
+  "source_sha256": {
+    "crates/daemon/examples/paced_shared_feed.rs": "0f67aeeed75ad6c56088f939130e0ddd83929e8c06361cce42faa3e119a1d890",
+    "crates/recording/src/shared_feed.rs": "cffa79aab1a59fd8cc35f37a3b6cd55a15b36de047f92ffbb138efa041491adb",
+    "crates/recording/tests/shared_feed.rs": "5908ddc3f4640d7b212771a165c268308ede5151491dcf72d8a39a9c11916696"
+  },
+  "supervisor_sha256": "47f00559364dc93455cd7a47d5797284ec7cd21c63410fbf87b6a48cef4e54fb",
+  "qualified_dataset": false,
+  "independent_storage_audit_required": true
+}

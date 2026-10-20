@@ -1,0 +1,22 @@
+{
+  "helper_sha256": "22497db2bda98cccd9d28b7b395d09a589e25717cfe98b4ef09c606e59b2b186",
+  "scope": "additional in-memory probes only; no corpus modification",
+  "probes": [
+    {
+      "mutation": "coherent_after_transaction_stages_plus_one",
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "fixed_coefficient_boolean",
+      "result": "rejected",
+      "error": "AssertionError: invalid exact integer"
+    },
+    {
+      "mutation": "fixed_scale_boolean",
+      "result": "rejected",
+      "error": "AssertionError: invalid exact integer"
+    }
+  ],
+  "all_rejected": true
+}

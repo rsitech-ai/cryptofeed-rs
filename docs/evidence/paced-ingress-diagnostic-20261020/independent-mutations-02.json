@@ -1,0 +1,91 @@
+{
+  "scope": "in-memory decoded-record/report probes only; original journals and receipts unchanged",
+  "helper_sha256": "22497db2bda98cccd9d28b7b395d09a589e25717cfe98b4ef09c606e59b2b186",
+  "probes": [
+    {
+      "mutation": "flags_int_to_boolean",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: invalid exact integer"
+    },
+    {
+      "mutation": "schema_version_int_to_boolean",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: invalid exact integer"
+    },
+    {
+      "mutation": "event_index_int_to_boolean",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: invalid exact integer"
+    },
+    {
+      "mutation": "final_queue_frames_nonzero",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "peak_queue_frames_over_limit",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "peak_queue_bytes_over_limit",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "queue_frames_boolean",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: invalid exact integer"
+    },
+    {
+      "mutation": "missing_queue_entry",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "transaction_count_increment",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "accepted_record_delta_increment",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "stage_calls_increment",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "stage_error_nonzero",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "stage_histogram_mismatch",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: "
+    },
+    {
+      "mutation": "stage_histogram_boolean",
+      "touched": 1,
+      "result": "rejected",
+      "error": "AssertionError: invalid exact integer"
+    }
+  ],
+  "all_rejected": true
+}
