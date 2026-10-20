@@ -127,6 +127,16 @@ lto = "thin"
 codegen-units = 1
 panic = "unwind"
 
+# Causal replay deliberately rehashes the actual executable at each bootstrap.
+# Keep that verification affordable in debug builds, where linked artifacts can
+# be large. Retain debug information, assertions and the original I/O deadlines;
+# this optimizes the existing SHA-256 implementation, without caching identities.
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.test.package.sha2]
+opt-level = 3
+
 # Operator host-specific release (spec §30.3). Fat LTO + single CGU.
 # `target-cpu=native` is *not* a Cargo profile key — pass via RUSTFLAGS
 # (see README). Non-portable; do not use for published/CI artifacts.
