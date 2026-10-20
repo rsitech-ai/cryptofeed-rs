@@ -66,6 +66,63 @@ are hard acceptance gates. Owners are responsibilities pending named assignment.
 | Q2 / 5 / 2–4d | same components; no second downloader framework | expand one product/precision/parser family at a time; immutable new datasets | each row passes declared scope or remains failed/blocked/unsupported/not-run; no extrapolation from one liquid instrument | Q1 / venue owners+operator |
 | O1 / 6 / 2–4d engineering + calendar | existing canary/soak scripts/workflows/runbooks/metrics | trade-specific acceptance, oncall, disk retention/restore and current endpoint region checks | ≥7 scheduled runs; ≥24h/≥7d requirements per existing runbook; RSS/CPU/disk/burst budgets, injected failure accounting and restore; ops sign-off | Q1,Q2 / release captain+ops |
 
+## D5 delivery milestones and remaining causal replay
+
+D5 has two required milestones. Milestone A is bounded legacy adapter
+reconstruction in `replay/src/streaming.rs`: metadata encountered in physical
+record order, independent session machines, synchronous whole-record sink
+delivery, explicit assumed startup, cumulative input quotas and terminal failure
+positions. It preserves original mutable-parser input bytes and legacy APIs.
+MFR lacks sufficient evidence to establish engine generations, observed startup,
+queue admission or complete timer/control chronology. Milestone A cannot admit a
+strict observed-availability dataset or complete D5.
+
+Milestone B must execute the actual engine runner from a versioned causal
+operation journal. Implement it in the engine or a higher-level crate to avoid
+the existing engine-to-replay dependency cycle. Required contract and tests:
+
+- Record an independent operation ordinal, logical session, physical connection
+  generation, original bytes/timestamps and typed engine entry operations.
+  Distinguish transport loss from disconnect, and include connection, HTTP,
+  control, subscription mutation and stop operations.
+- Record timer **poll boundaries**, their sampled time and expected firings.
+  Invoke the actual timer scheduler once per poll; individual firing records
+  cannot recover callback postponement, cancellation or the 64-fire poll cap.
+- Include queue/HTTP/write drain boundaries and state changes outside adapter
+  callbacks, or reject unsupported capture profiles. Automatically draining
+  after each replay callback changes bounded-queue admission behavior.
+- Close mutation bypasses before declaring capture complete: the existing runner
+  exposes mutable lifecycle/stop/reconnect fields and `dispatch_mut`, while the
+  live loop assigns lifecycle directly and observes an external atomic stop
+  flag. A journaled owner needs a private inner runner with typed operations and
+  no mutable escape, or all callers must migrate to private instrumented state.
+  A mode flag on the current public runner does not establish complete capture.
+- Atomically publish each input, canonical output and typed terminal outcome
+  under the durable watermark. A missing outcome is incomplete evidence.
+  Reexecute failed callbacks because they may mutate adapter state before error.
+  Existing `apply_frame_actions` starts after the callback and owns/takes its
+  transaction; an outer journal must not nest it unchanged. `FrameAccepted`
+  covers only text/binary/HTTP success and is not a generic callback outcome.
+- Preserve the live machine across reconnects and reset generation-owned state
+  through the actual runner. Inject recorded connection identity rather than
+  allocate new global IDs. Verify engine-stamped output identity and ordinals.
+- Version/negotiate new wire records and migrate hlscreen deliberately: old
+  decoders reject unknown record kinds, and session-only maps cannot represent
+  generations. Keep compatibility projections from double-applying inputs.
+- Challenge mixed sessions/generations, timer polls, delayed metadata, rejected
+  callbacks, drain-dependent overload, clock changes, sink failure and prefix
+  equality against original captured engine output. Retain unsupported cases
+  as unavailable rather than fabricating missing causal evidence.
+- Bound catalog-refresh fan-out before allocation. Current
+  `publish_catalog_refresh` casts an unbounded row index to `u16`, so a
+  65,537-instrument catalog repeats index zero. Reject above 65,536 before any
+  output/state change, with boundary regressions, before strict support is claimed.
+
+Shared recording changes also require coordinated consumer source pins and the
+existing saved-feed parity, dependency and attribution gates before publication.
+Strategy features and decision admission remain rsibot-owned throughout both
+milestones; see the [ownership plan](cross_venue_observation_implementation.md).
+
 ## Cross-cutting decisions that must settle first
 
 S1 is a shared ABI/schema decision: runtime identity, raw ordinal vs adapter

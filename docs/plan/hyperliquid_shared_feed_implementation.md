@@ -1164,3 +1164,41 @@ pending snapshots are preserved alongside terminal results.
 Hlscreen6f13f02 now has12successful checks and3skips, including successful four
 target/global artifact builds; scheduled publicAPI smoke, tag publication and
 release announcement are skipped. No new live/soak/release result follows.
+
+## Bounded legacy streaming replay milestone A (2026-10-20)
+
+D5 now has a metadata-directed streaming API with separate session machines,
+physical metadata availability, explicit assumed startup and synchronous whole-
+record output delivery before the next read. The 2,048-frame fixture exceeds a
+two-action capacity without retaining histories. Exact values, colliding IDs,
+backwards clocks, rotation, late/conflicting metadata, dynamic wire equality and
+partial failures are challenged. It preserves legacy replay behavior and does
+not invent physical generations, engine identities or timer/control chronology.
+
+A reproduced reader defect treated one to three trailing length bytes as clean
+EOF. Strict `read_record` now reports truncation; recovering `read_all` retains
+incomplete-tail recovery. Independent review found and closed system-event
+budget bypass, rejected-buffer retention and weak quota-error assertions.
+Additional tests cover missing factory context, build metadata, caught panics
+and cumulative byte quotas across rotations. See
+[contract](../spec/legacy_streaming_replay.md) and
+[evidence](../evidence/legacy-streaming-replay-20261020/).
+
+Final local source passes 1,302 workspace/all-target/all-feature tests (0 failed,
+56 ignored, 150 suites); current toolchain and Rust 1.85 each pass 93 focused
+recording/replay tests. Independent review executes 32 replay cases and one
+reader regression on matching hashes. Workspace Clippy, warning-denied rustdoc,
+fmt, exact cargo-deny 0.20.2 and OSS/gitleaks 8.30.1 pass. All 269 registry records
+are unchanged; serde/serde_json add only two local replay dependency edges.
+Full-lock RustSec still reports the existing time/MSRV exception and no warnings.
+Platform CI and coordinated hlscreen migration remain separate gates.
+
+Milestone B remains required: actual engine replay from typed, atomic operation
+transactions with generations, poll boundaries, outcomes and queue drains. The
+existing public mutable runner/lifecycle/dispatch and external stop observation
+must not bypass capture. `FrameAccepted` is not a generic callback outcome, and
+its current inner transaction cannot simply nest under a new outer journal.
+The audit also finds catalog-refresh index wrapping above 65,536 instruments;
+that guard remains a concrete prerequisite to implement. These open items are
+[specified in D5](trade_data_integrity_implementation_plan.md#d5-delivery-milestones-and-remaining-causal-replay).
+No strict admission, new live/soak, economics or operational promotion follows.

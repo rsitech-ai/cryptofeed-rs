@@ -15,6 +15,8 @@ marketfeed-dispatch = { workspace = true }
 marketfeed-model = { workspace = true }
 marketfeed-recording = { workspace = true }
 thiserror = { workspace = true }
+serde_json = { workspace = true }
+serde = { workspace = true }
 
 [lints]
 workspace = true
