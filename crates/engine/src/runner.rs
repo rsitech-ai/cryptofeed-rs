@@ -607,11 +607,12 @@ impl SessionRunner {
 
     pub fn delay_until_next_timer(&self, now: TimestampNs) -> Option<Duration> {
         let next = self.next_timer_deadline()?;
-        let delta_ns = next.0.saturating_sub(now.0);
-        if delta_ns == 0 {
+        if next.0 <= now.0 {
             Some(Duration::ZERO)
         } else {
-            Some(Duration::from_nanos(delta_ns as u64))
+            // The positive difference of two i64 timestamps fits in u64 even
+            // across the signed boundary. Never cast an overdue signed delta.
+            Some(Duration::from_nanos(next.0.abs_diff(now.0)))
         }
     }
 
@@ -634,9 +635,16 @@ impl SessionRunner {
                 }
                 due.sort_unstable();
                 for timer_id in due {
-                    if self.timers.remove(&timer_id).is_none() {
+                    // An earlier callback may cancel or postpone another ID
+                    // in this snapshot. Its current deadline owns admission.
+                    if self
+                        .timers
+                        .get(&timer_id)
+                        .is_none_or(|fire_at| fire_at.0 > now.0)
+                    {
                         continue;
                     }
+                    self.timers.remove(&timer_id);
                     fired += 1;
                     self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Timer {
                         session: self.cfg.session,

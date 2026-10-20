@@ -346,8 +346,12 @@ async fn run_session_with_reconnect_to_inner<
                 continue;
             }
 
+            // Flushing writes/HTTP above can cross a timer deadline. Sample
+            // again so elapsed I/O time is not added to the next timer wait.
+            let wait_now = now_ns();
+            note_clock_jump(runner, &mut last_clock, wait_now, mono_ns())?;
             let stop_cap = Duration::from_millis(STOP_POLL_MS);
-            let wait = match runner.delay_until_next_timer(now) {
+            let wait = match runner.delay_until_next_timer(wait_now) {
                 Some(delay) if delay < stop_cap => delay,
                 Some(_) | None => stop_cap,
             };
