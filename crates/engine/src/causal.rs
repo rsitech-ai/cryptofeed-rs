@@ -24,7 +24,10 @@ pub use catalog::*;
 mod bootstrap;
 #[path = "causal_convert.rs"]
 mod convert;
+#[path = "causal_owner_history.rs"]
+mod owner_history;
 pub use bootstrap::*;
+pub use owner_history::*;
 #[cfg(test)]
 #[path = "causal_tests.rs"]
 mod tests;
@@ -663,7 +666,7 @@ pub fn decode_operation(
     envelope: &CausalEnvelope,
     identity: &OperationIdentity,
 ) -> Result<OperationDto, CodecError> {
-    if envelope.phase != CausalPhase::Operation {
+    if envelope.schema_version != 1 || envelope.phase != CausalPhase::Operation {
         return Err(invalid("expected operation phase"));
     }
     if envelope.route.venue != identity.venue

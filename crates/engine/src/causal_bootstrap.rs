@@ -497,6 +497,22 @@ pub fn encode_bootstrap(
     dto: &BootstrapDto,
     max_bytes: usize,
 ) -> Result<CausalEnvelope, CodecError> {
+    encode_bootstrap_for_profile(dto, max_bytes, FeedProfile::EngineCausalV1)
+}
+/// V2 negotiates owner observations before any records are read. This codec
+/// does not enable a daemon factory or migrate a live caller.
+pub fn encode_bootstrap_for_profile(
+    dto: &BootstrapDto,
+    max_bytes: usize,
+    profile: FeedProfile,
+) -> Result<CausalEnvelope, CodecError> {
+    if profile == FeedProfile::Legacy
+        || (profile == FeedProfile::EngineCausalV2 && dto.schema_version != 2)
+    {
+        return Err(invalid(
+            "owner journal requires an explicitly bound V2 bootstrap",
+        ));
+    }
     dto.validate()?;
     if max_bytes == 0 || max_bytes > MAX_OPERATION_BYTES {
         return Err(CodecError::TooLarge);
@@ -513,7 +529,8 @@ pub fn encode_bootstrap(
             CodecError::Json(error)
         });
     }
-    Ok(CausalEnvelope::new(
+    Ok(CausalEnvelope::for_profile(
+        profile,
         CausalPhase::Bootstrap,
         CausalRoute {
             venue: dto.capture.venue,

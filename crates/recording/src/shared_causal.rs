@@ -12,12 +12,16 @@ use std::collections::BTreeMap;
 pub enum FeedProfile {
     Legacy,
     EngineCausalV1,
+    /// Explicit owner-history negotiation. Journal ordinals include owner
+    /// observations as well as native operations; payload semantics are engine-owned.
+    EngineCausalV2,
 }
 impl FeedProfile {
     pub(super) fn magic(self) -> &'static [u8; 8] {
         match self {
             Self::Legacy => b"MFSF1\0\0\0",
             Self::EngineCausalV1 => b"MFCJ1\0\0\0",
+            Self::EngineCausalV2 => b"MFCJ2\0\0\0",
         }
     }
 }
@@ -32,6 +36,7 @@ pub const MAX_CAUSAL_ENCODED_PAYLOAD: usize = MAX_RECORD - 4096;
 pub enum CausalPhase {
     Bootstrap,
     Operation,
+    Owner,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -60,11 +65,25 @@ impl CausalEnvelope {
         route: CausalRoute,
         payload: &[u8],
     ) -> Result<Self, RecordingError> {
+        Self::for_profile(FeedProfile::EngineCausalV1, phase, route, payload)
+    }
+
+    pub fn for_profile(
+        profile: FeedProfile,
+        phase: CausalPhase,
+        route: CausalRoute,
+        payload: &[u8],
+    ) -> Result<Self, RecordingError> {
+        let schema_version = match profile {
+            FeedProfile::EngineCausalV1 => 1,
+            FeedProfile::EngineCausalV2 => 2,
+            FeedProfile::Legacy => return Err(err("causal envelope requires causal profile")),
+        };
         if payload.is_empty() || payload.len() > MAX_CAUSAL_ENCODED_PAYLOAD / 4 * 3 {
             return Err(err("causal payload byte budget"));
         }
         let envelope = Self {
-            schema_version: 1,
+            schema_version,
             phase,
             route,
             payload_base64: STANDARD.encode(payload),
@@ -94,8 +113,11 @@ impl CausalEnvelope {
     }
 
     fn validate_fields(&self) -> Result<(), RecordingError> {
-        if self.schema_version != 1 {
+        if !matches!(self.schema_version, 1 | 2) {
             return Err(RecordingError::UnsupportedVersion(self.schema_version));
+        }
+        if self.phase == CausalPhase::Owner && self.schema_version != 2 {
+            return Err(err("owner history requires causal V2"));
         }
         let id = self.route.bootstrap_id.as_bytes();
         if self.route.session == 0
@@ -112,7 +134,7 @@ impl CausalEnvelope {
         }
         if (self.phase == CausalPhase::Bootstrap
             && (self.route.ordinal != 0 || self.route.generation != 0))
-            || (self.phase == CausalPhase::Operation && self.route.ordinal == 0)
+            || (self.phase != CausalPhase::Bootstrap && self.route.ordinal == 0)
         {
             return Err(err("invalid causal phase ordinal or generation"));
         }
@@ -154,8 +176,20 @@ impl CausalRoutes {
                 Err(err("causal record in legacy feed"))
             }
             (FeedProfile::Legacy, _) | (_, FeedRecord::Seal { .. }) => Ok(()),
-            (FeedProfile::EngineCausalV1, FeedRecord::Causal(envelope)) => {
+            (
+                FeedProfile::EngineCausalV1 | FeedProfile::EngineCausalV2,
+                FeedRecord::Causal(envelope),
+            ) => {
                 envelope.validate()?;
+                if envelope.schema_version
+                    != match profile {
+                        FeedProfile::EngineCausalV1 => 1,
+                        FeedProfile::EngineCausalV2 => 2,
+                        FeedProfile::Legacy => unreachable!(),
+                    }
+                {
+                    return Err(err("causal envelope/profile version mismatch"));
+                }
                 let route = &envelope.route;
                 match envelope.phase {
                     CausalPhase::Bootstrap => {
@@ -167,7 +201,7 @@ impl CausalRoutes {
                         }
                         *new_routes += 1;
                     }
-                    CausalPhase::Operation => {
+                    CausalPhase::Operation | CausalPhase::Owner => {
                         let previous = self
                             .0
                             .get(&route.session)
@@ -178,6 +212,8 @@ impl CausalRoutes {
                             || Some(route.ordinal) != previous.ordinal.checked_add(1)
                             || (route.generation != previous.generation
                                 && Some(route.generation) != previous.generation.checked_add(1))
+                            || (envelope.phase == CausalPhase::Owner
+                                && route.generation != previous.generation)
                         {
                             return Err(err("causal route discontinuity"));
                         }
@@ -186,7 +222,9 @@ impl CausalRoutes {
                 self.0.insert(route.session, route.clone());
                 Ok(())
             }
-            (FeedProfile::EngineCausalV1, _) => Err(err("legacy record in causal feed")),
+            (FeedProfile::EngineCausalV1 | FeedProfile::EngineCausalV2, _) => {
+                Err(err("legacy record in causal feed"))
+            }
         }
     }
 }

@@ -22,6 +22,56 @@ fn seal() -> PreparedFeedTransaction {
     }])
     .unwrap()
 }
+
+#[test]
+fn preparation_rejects_mixed_causal_versions_and_admits_owner_profile() {
+    use crate::shared_feed::{CausalEnvelope, CausalPhase, CausalRoute};
+    let envelope = |version| {
+        FeedRecord::Causal(
+            CausalEnvelope::for_profile(
+                if version == 2 {
+                    FeedProfile::EngineCausalV2
+                } else {
+                    FeedProfile::EngineCausalV1
+                },
+                CausalPhase::Bootstrap,
+                CausalRoute {
+                    venue: 5,
+                    session: 1,
+                    ordinal: 0,
+                    generation: 0,
+                    bootstrap_id: "a".repeat(64),
+                },
+                b"opaque bootstrap",
+            )
+            .unwrap(),
+        )
+    };
+    assert!(PreparedFeedTransaction::new(vec![envelope(1), envelope(2)]).is_err());
+    assert!(PreparedFeedTransaction::new(vec![envelope(2), envelope(1)]).is_err());
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("owner");
+    let actor = FeedBatchActor::spawn(
+        FeedWriter::create_profile(&path, 1_000_000, FeedProfile::EngineCausalV2).unwrap(),
+        config(),
+    )
+    .unwrap();
+    let ticket = actor
+        .handle()
+        .try_submit(PreparedFeedTransaction::new(vec![envelope(2)]).unwrap())
+        .unwrap();
+    actor.handle().close();
+    assert_eq!(ticket.wait().unwrap().last_sequence, 1);
+    actor.shutdown().unwrap();
+    let mut reader = FeedReader::open_profile(&path, None, FeedProfile::EngineCausalV2).unwrap();
+    let Some(FeedRecord::Causal(actual)) = reader.read_next().unwrap() else {
+        panic!()
+    };
+    let FeedRecord::Causal(expected) = envelope(2) else {
+        panic!()
+    };
+    assert_eq!(actual, expected);
+}
 fn config() -> BatchConfig {
     BatchConfig {
         max_pending_operations: 8,

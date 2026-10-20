@@ -8,7 +8,7 @@ fn identity() -> OperationIdentity {
         bootstrap_id: "a".repeat(64),
     }
 }
-fn config(policy: OverflowPolicy) -> CaptureConfig {
+pub(super) fn config(policy: OverflowPolicy) -> CaptureConfig {
     CaptureConfig {
         venue: VenueId(21),
         session: SessionId(77),
@@ -18,7 +18,7 @@ fn config(policy: OverflowPolicy) -> CaptureConfig {
         max_entries: 8192,
     }
 }
-fn stamp() -> FrameStamp {
+pub(super) fn stamp() -> FrameStamp {
     FrameStamp {
         receive_ts: TimestampNs(i64::MIN),
         mono_ns: u64::MAX,
@@ -53,8 +53,8 @@ fn batch(value: i128, scale: u8) -> EventBatch {
         }],
     }
 }
-struct Emit {
-    fail: bool,
+pub(super) struct Emit {
+    pub(super) fail: bool,
 }
 impl SessionMachine for Emit {
     fn on_input(

@@ -101,6 +101,10 @@ observed owner availability, and consumers must not project every committed
 drain as delivered. Implement the deliberate committed-release projection and
 its timing/uncertainty contract before enabling a live reader.
 
+The separate [MFCJ2 owner-history format](causal_owner_history.md) now provides
+typed observation records and physical-order validation. The actual owner still
+uses MFCJ1; its recording/handoff path has not migrated to that format.
+
 Ingress settlement tickets are in-memory notifications, not a durable admission
 ledger. Rejected and never-executed inputs need the actual acquisition/raw path
 and its explicit loss accounting when live integration is implemented. A worker

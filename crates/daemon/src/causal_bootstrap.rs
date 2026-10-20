@@ -304,6 +304,11 @@ impl PreparedBootstrap {
     /// Physical-order replayers can verify bytes before any construction. A
     /// subsequent writer admission is still required by this live-start API.
     pub fn from_envelope(envelope: CausalEnvelope) -> Result<Self, BootstrapError> {
+        if envelope.schema_version != 1 {
+            return Err(BootstrapError::Unsupported(
+                "owner-history journal is not yet wired to the daemon owner",
+            ));
+        }
         let dto = decode_bootstrap(&envelope)?;
         validate_supported(&dto)?;
         if dto.build != current_build()? {

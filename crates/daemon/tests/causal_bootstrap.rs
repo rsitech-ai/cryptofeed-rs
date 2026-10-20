@@ -258,4 +258,135 @@ mod enabled {
         assert_eq!(observed.route, expected.route);
         assert_eq!(observed.payload_base64, expected.payload_base64);
     }
+
+    #[test]
+    fn owner_history_profile_roundtrips_actual_bound_bootstrap_and_prefix_uncertainty() {
+        let dto = fixture(55);
+        let profile = FeedProfile::EngineCausalV2;
+        let bootstrap = encode_bootstrap_for_profile(&dto, MAX_OPERATION_BYTES, profile).unwrap();
+        let limits = OwnerHistoryLimits {
+            max_retained_input_bytes: 16 * 1024 * 1024,
+            max_input_bytes: 2 * 1024 * 1024,
+            max_record_bytes: MAX_OPERATION_BYTES,
+        };
+        let mut history = OwnerHistory::from_bootstrap(&bootstrap, limits.clone()).unwrap();
+        assert!(
+            OwnerHistory::from_bootstrap(
+                &encode_bootstrap(&dto, MAX_OPERATION_BYTES).unwrap(),
+                limits.clone()
+            )
+            .is_err()
+        );
+        assert!(matches!(
+            PreparedBootstrap::from_envelope(bootstrap.clone()),
+            Err(
+                marketfeed_daemon::causal_bootstrap::BootstrapError::Unsupported(
+                    "owner-history journal is not yet wired to the daemon owner"
+                )
+            )
+        ));
+        let identity = history.identity().clone();
+        let event = |ordinal, observed_ns, event| {
+            encode_owner_history(
+                &OwnerHistoryDto {
+                    schema_version: 1,
+                    route: CausalRoute {
+                        venue: identity.venue,
+                        session: identity.session,
+                        bootstrap_id: identity.bootstrap_id.clone(),
+                        ordinal,
+                        generation: 0,
+                    },
+                    observed_ns,
+                    event,
+                },
+                &identity,
+                MAX_OPERATION_BYTES,
+            )
+            .unwrap()
+        };
+        let started = event(1, 0, OwnerEventDto::Started { unix_ns: i64::MIN });
+        let ingress = event(
+            2,
+            1,
+            OwnerEventDto::ingress(
+                1,
+                ConnectionId(99),
+                1000,
+                1024,
+                &marketfeed_engine::CaptureInput::Connected {
+                    connection: ConnectionId(99),
+                    now: TimestampNs(7),
+                },
+                &identity,
+            )
+            .unwrap(),
+        );
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("owner-profile");
+        let actor = FeedBatchActor::spawn(
+            FeedWriter::create_profile(&path, 32_000_000, profile).unwrap(),
+            BatchConfig {
+                max_pending_operations: 8,
+                max_pending_bytes: 16_000_000,
+                max_group_operations: 8,
+                max_group_bytes: 16_000_000,
+                max_age: Duration::from_secs(3600),
+            },
+        )
+        .unwrap();
+        let handle = actor.handle();
+        let ticket = handle
+            .try_submit(
+                PreparedFeedTransaction::new(vec![
+                    FeedRecord::Causal(bootstrap.clone()),
+                    FeedRecord::Causal(started),
+                    FeedRecord::Causal(ingress),
+                    FeedRecord::Seal {
+                        schema_version: 1,
+                        now_ns: 9,
+                        reason: "test".into(),
+                    },
+                ])
+                .unwrap(),
+            )
+            .unwrap();
+        handle.close();
+        let receipt = ticket.wait().unwrap();
+        assert_eq!((receipt.first_sequence, receipt.last_sequence), (1, 4));
+        actor.shutdown().unwrap();
+        let mut reader = FeedReader::open_profile(&path, None, profile).unwrap();
+        let Some(FeedRecord::Causal(observed_bootstrap)) = reader.read_next().unwrap() else {
+            panic!()
+        };
+        assert_eq!(observed_bootstrap, bootstrap);
+        let Some(FeedRecord::Causal(started)) = reader.read_next().unwrap() else {
+            panic!()
+        };
+        history.apply(&started).unwrap();
+        let checkpoint = history.clone();
+        let cursor = reader.cursor().clone();
+        let Some(FeedRecord::Causal(ingress)) = reader.read_next().unwrap() else {
+            panic!()
+        };
+        assert!(history.apply(&ingress).unwrap().is_none());
+        assert_eq!(
+            history.uncertainties(),
+            [OwnerPrefixUncertainty::ExecutionUnknown { input_id: 1 }]
+        );
+        let mut restored = checkpoint;
+        let mut resumed = FeedReader::open_profile(&path, Some(cursor), profile).unwrap();
+        let Some(FeedRecord::Causal(ingress)) = resumed.read_next().unwrap() else {
+            panic!()
+        };
+        restored.apply(&ingress).unwrap();
+        assert_eq!(restored, history);
+        let bytes = std::fs::read(path.join("events.mfsf")).unwrap();
+        let mut sealed = SealedFeedReader::new_profile(&bytes, receipt.published, profile).unwrap();
+        let mut count = 0;
+        while sealed.read_next().unwrap().is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 4);
+    }
 }

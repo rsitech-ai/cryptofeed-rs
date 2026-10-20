@@ -53,7 +53,7 @@ impl From<&OutboundFrame> for WriteDto {
     }
 }
 impl InputDto {
-    fn input(value: &CaptureInput, session: u64) -> Result<Self, CodecError> {
+    pub(super) fn input(value: &CaptureInput, session: u64) -> Result<Self, CodecError> {
         Ok(match value {
             CaptureInput::Connected { connection, now } => Self::Connected {
                 connection: connection.0,
