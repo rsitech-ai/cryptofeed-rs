@@ -1199,6 +1199,34 @@ existing public mutable runner/lifecycle/dispatch and external stop observation
 must not bypass capture. `FrameAccepted` is not a generic callback outcome, and
 its current inner transaction cannot simply nest under a new outer journal.
 The audit also finds catalog-refresh index wrapping above 65,536 instruments;
-that guard remains a concrete prerequisite to implement. These open items are
+the engine-only follow-up below closes that guard. Remaining causal items are
 [specified in D5](trade_data_integrity_implementation_plan.md#d5-delivery-milestones-and-remaining-causal-replay).
 No strict admission, new live/soak, economics or operational promotion follows.
+
+## Consumer synchronization and catalog-index follow-up (2026-10-20)
+
+Hlscreen `176ce44` pins both direct dependencies and all five shared packages to
+`244f40c`. All 419 registry records and 13 historical evidence files are unchanged.
+The full local PR gate passes 543 unique Rust cases plus eight Python binding
+regressions; packaging repeats 23 cases for 566 summed Rust executions. Full-lock
+audit, exact policy/attribution and staged public checks pass. A rebuilt debug CLI
+with an invalid exchange URL reproduces the identical 1,055-event output,
+clock/cursor/seal and archive hashes. Independent review checks actual binary,
+source/lock, logs and historical bytes. See the consumer's
+`docs/evidence/shared-feed-streaming-pin-20261020` receipt. New consumer CI is
+separate; no new capture/soak or current candidate qualification is claimed.
+
+The D5 audit's concrete catalog-refresh index defect is repaired separately.
+A behavioral red on `244f40c` accepts 65,537 rows and wraps the final u16 index.
+Preflight now rejects above 65,536 before event allocation, dispatch, metrics or
+durable publication. Tests cover exact representability, refusal, unchanged
+watermark and a valid follow-up. All 98 engine tests pass (0 failed/0 ignored),
+plus three Rust 1.85 boundary cases and three independent cases on unchanged
+hashes; targeted all-feature Clippy and formatting pass. See
+[evidence](../evidence/catalog-refresh-bounds-20261020/). Full workspace/platform
+CI for the follow-up remains required. The prior 1,302-workspace result is bound
+to `244f40c`, not automatically to this changed engine.
+
+This changes only engine code/tests. All five shared package trees remain equal
+to `244f40c`, so hlscreen keeps its tested pin. General catalog validity, native
+units, strict datasets and complete causal milestone B remain open.

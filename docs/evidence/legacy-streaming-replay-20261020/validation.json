@@ -3,7 +3,7 @@
   "generated_at": "2026-10-20T01:21:25.991336+00:00",
   "status": "legacy D5 milestone A locally verified; complete causal milestone B and full goal remain open",
   "source_base": "a63bacbafdbc42dcd5399296ed8a6baeca6f2833",
-  "source_scope": "uncommitted changes before publication; exact code hashes below",
+  "source_scope": "exact committed runtime source; subsequent receipt additions do not change these code hashes",
   "source_sha256": {
     "Cargo.lock": "00e826f90abf1e3fb15045d76f96fb0aa315f4dd300cf2b7ff58d7fa372f70c8",
     "crates/recording/src/reader.rs": "ca16f48b904784a4763f7be711e2ce4f47d81781219927362756410e996d3a9b",
@@ -102,6 +102,14 @@
         "path": ".local/evidence/hyperliquid-integration-review/stream-oss-01.log",
         "sha256": "89cd6875e93d4247fdd273f52571cc9f80888bf304c8ae118a35a1f758c3a812"
       }
+    },
+    {
+      "command": "final staged OSS/readiness with gitleaks8.30.1 on PATH",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-oss-staged-01.log",
+        "sha256": "b557f03dfcba2ccac01ca0c62399004a7ed9ad30de95b90e0a063356833c8a8e"
+      }
     }
   ],
   "independent_review": {
@@ -181,5 +189,12 @@
     "rsibot live strategy context or economics",
     "release/deployment/operational promotion"
   ],
-  "ci_status": "not yet run for these changes"
+  "ci_status": "not yet run for these changes",
+  "source_commit": "244f40c7e7d84db4cbf6cb2d35e1a5b7b24d7cdf",
+  "independent_receipt_review": {
+    "reviewer": "/root/consumer_review",
+    "edits": false,
+    "verified": "all source/log hashes, workspace/focused/MSRV/independent totals,269registry records and sole RustSec finding; no complete B/strict/HLS/current-platform-CI overclaim",
+    "finding_closed": "appended final staged OSS/readiness log, preserving earlier pass"
+  }
 }

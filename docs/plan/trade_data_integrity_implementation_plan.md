@@ -114,9 +114,12 @@ the existing engine-to-replay dependency cycle. Required contract and tests:
   equality against original captured engine output. Retain unsupported cases
   as unavailable rather than fabricating missing causal evidence.
 - Bound catalog-refresh fan-out before allocation. Current
-  `publish_catalog_refresh` casts an unbounded row index to `u16`, so a
-  65,537-instrument catalog repeats index zero. Reject above 65,536 before any
-  output/state change, with boundary regressions, before strict support is claimed.
+  `publish_catalog_refresh` at244f cast an unbounded row index to `u16`, so a
+  65,537-instrument catalog repeated index zero. The engine-only follow-up now
+  rejects above65,536 before allocation/output; exact-boundary, no-mutation and
+  durable-watermark regressions pass. See
+  [bounded repair evidence](../evidence/catalog-refresh-bounds-20261020/). This
+  closes index representability, not general catalog validity or strict support.
 
 Shared recording changes also require coordinated consumer source pins and the
 existing saved-feed parity, dependency and attribution gates before publication.

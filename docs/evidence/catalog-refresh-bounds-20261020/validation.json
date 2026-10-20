@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-20T01:28:47.136052+00:00",
+  "status": "catalog event-index boundary repaired; causal milestone B remains incomplete",
+  "source_base": "244f40c7e7d84db4cbf6cb2d35e1a5b7b24d7cdf",
+  "source_scope": "uncommitted engine-only follow-up at receipt generation; exact source hashes bound below",
+  "source_sha256": {
+    "crates/engine/src/runner.rs": "bcaeed74a98b8f20ea9b2bea4a170c16f4e09f70b09290b3bc727ddca918a992",
+    "crates/engine/tests/catalog_refresh_bounds.rs": "ba424921b5169a2927d13d975b45e7c1b0d0ad9061c2f435b69dff328b602ab1"
+  },
+  "reproduced_failure": {
+    "command": "cargo test --locked -p marketfeed-engine --test catalog_refresh_bounds oversized_catalog_refresh_rejects_before_any_dispatch_or_metrics",
+    "exit_code": 101,
+    "passed": 0,
+    "failed": 1,
+    "scope": "65537rows incorrectly returnedOk on source244f",
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-before-02.log",
+      "sha256": "8a84833d7f7faad737042cdf1140687b77a654832906d113f21069a62ef92983"
+    }
+  },
+  "exploratory_failure": {
+    "scope": "test-helper forgot to unwrap constructor Result; compilation only, not behavioral evidence",
+    "exit_code": 101,
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-before-01.log",
+      "sha256": "9ea96fd35cdc11b8f9a00a65f3ac487dddd19ea9f0b1bfd9892cb6f47eebac66"
+    }
+  },
+  "checks": [
+    {
+      "command": "cargo test --locked -p marketfeed-engine --all-targets --all-features",
+      "exit_code": 0,
+      "result": {
+        "passed": 98,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 15
+      },
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-engine-01.log",
+        "sha256": "4f5c8ef1860592a73a7573af80f1820e77f7cf7265a6c70c4774cc98402ac0e4"
+      }
+    },
+    {
+      "command": "cargo +1.85.0 test --locked -p marketfeed-engine --test catalog_refresh_bounds",
+      "exit_code": 0,
+      "result": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      },
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-msrv-01.log",
+        "sha256": "da3442e8d3bc63c2202d9886d62d87468eab518c2ed432ccbd09235b145163c2"
+      }
+    },
+    {
+      "command": "cargo clippy --locked -p marketfeed-engine --all-targets --all-features -- -D warnings",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-clippy-01.log",
+        "sha256": "b1080603d2121e86ee9dc07604149ed6ef7e3221e4cc2237ecc16053528d1eed"
+      }
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-fmt-01.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": "final staged OSS/readiness with gitleaks8.30.1",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-oss-staged-01.log",
+        "sha256": "9aa30e784de3946bff7381cb1a5298be24c048fbbec8310f2736c9b248d3999d"
+      }
+    }
+  ],
+  "independent_review": {
+    "reviewer": "/root/trade_review",
+    "edits": false,
+    "findings": [],
+    "verified": "65536rows represent0..65535;65537rejects before event allocation/publication, metrics and queues stay unchanged, valid followup works, durable watermark stays identical",
+    "command": "cargo test --locked -p marketfeed-engine --test catalog_refresh_bounds",
+    "result": {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 1
+    },
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/catalog-bounds-independent-01.log",
+      "sha256": "08ffbb8cc31a678e974448a579460e4f4bbfd030694738981696e8bef1263615"
+    }
+  },
+  "consumer_scope": "engine-only change; all five hlscreen shared package trees remain identical to244f; no new repin needed",
+  "remaining": "full workspace/platform CI for this follow-up pending; cardinality/index representability is not general catalog validity, archival byte-budget admission, native units or complete causal replay",
+  "unchanged_shared_package_trees": [
+    {
+      "path": "crates/adapter-api",
+      "git_object_oid": "047d9ed2e6758ed0b7704b29c965ebf27c34ae7d"
+    },
+    {
+      "path": "crates/adapters/hyperliquid",
+      "git_object_oid": "7e3fd1666f2bd7b127602362ba796762105e769b"
+    },
+    {
+      "path": "crates/filesystem",
+      "git_object_oid": "d84155d967f3df46e12dfbdc97f2e9e99082860f"
+    },
+    {
+      "path": "crates/model",
+      "git_object_oid": "6010258e241b33e39c8772769765a897571bc9a7"
+    },
+    {
+      "path": "crates/recording",
+      "git_object_oid": "3fbee8d10381873ecd91d1177b7eb0be2b25f1c3"
+    }
+  ]
+}

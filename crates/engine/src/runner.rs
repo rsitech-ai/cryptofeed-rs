@@ -879,6 +879,13 @@ impl SessionRunner {
         catalog: CatalogView,
         now: TimestampNs,
     ) -> Result<(), EngineError> {
+        // Reject before allocating or publishing any prefix. Every row in this
+        // single refresh needs a distinct representable event index.
+        if catalog.instruments.len() > usize::from(u16::MAX) + 1 {
+            return Err(EngineError::Internal(
+                "too many events in catalog refresh".into(),
+            ));
+        }
         let mut events = Vec::with_capacity(catalog.instruments.len());
         for (i, inst) in catalog.instruments.iter().enumerate() {
             events.push(EventEnvelope {
