@@ -525,7 +525,7 @@ impl RecordingPipeline {
         }
         writer.flush()?;
         writer.get_ref().get_ref().sync_data()?;
-        File::open(&self.cfg.directory)?.sync_all()?;
+        crate::durability::sync_directory(&self.cfg.directory)?;
         self.writer = Some(writer);
         self.current_path = Some(path);
         self.current_start_ts_ns = Some(start_ts_ns);

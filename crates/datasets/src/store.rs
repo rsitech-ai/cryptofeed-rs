@@ -41,7 +41,7 @@ pub struct Store {
     directory_barrier: fn(&Path) -> Result<()>,
 }
 fn sync_dir(path: &Path) -> Result<()> {
-    File::open(path)?.sync_all()?;
+    marketfeed_recording::durability::sync_directory(path)?;
     Ok(())
 }
 fn hash_valid(hash: &str) -> bool {

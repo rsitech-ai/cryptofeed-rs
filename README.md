@@ -136,6 +136,7 @@ place orders.
 | `crates/adapter-api`, `adapters/*` | Network-free adapter contracts and venue protocols |
 | `crates/transport`, `engine` | Rustls transport, supervision, reconnects, lifecycle |
 | `crates/recording`, `replay` | Versioned capture and deterministic replay |
+| `crates/filesystem` | Checked directory barriers; Windows local fixed NTFS support and permission limits |
 | `crates/sinks` | Memory, logging, file, UDP, Kafka, and NATS delivery |
 | `crates/daemon` | CLI, configuration, health, metrics, and orchestration |
 | `crates/facade`, `ffi` | Embedding surface and minimal C ABI |

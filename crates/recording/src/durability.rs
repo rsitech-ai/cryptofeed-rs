@@ -1,5 +1,6 @@
 //! Namespace barriers shared by recording and dataset initialization.
-use std::{fs::File, io, path::Path};
+pub use marketfeed_filesystem::sync_directory;
+use std::{io, path::Path};
 
 /// Synchronize the existing directory and its resolved ancestor chain, from
 /// child to root. Syncing only the immediate parent misses newly created
@@ -7,7 +8,7 @@ use std::{fs::File, io, path::Path};
 /// Errors are propagated; this is no substitute for a supported platform
 /// directory-sync backend or storage-device durability qualification.
 pub fn sync_directory_ancestry(directory: &Path) -> io::Result<()> {
-    sync_ancestry_with(directory, |path| File::open(path)?.sync_all())
+    sync_ancestry_with(directory, sync_directory)
 }
 
 fn sync_ancestry_with(
@@ -40,7 +41,7 @@ mod tests {
         let mut synced = Vec::new();
         sync_ancestry_with(&directory, |path| {
             synced.push(path.to_path_buf());
-            File::open(path)?.sync_all()
+            sync_directory(path)
         })
         .unwrap();
         assert_eq!(

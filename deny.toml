@@ -11,6 +11,7 @@ targets = [
     "aarch64-unknown-linux-gnu",
     "x86_64-apple-darwin",
     "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
 ]
 all-features = true
 
@@ -56,6 +57,7 @@ deny = [
     { crate = "native-tls", use-instead = "rustls" },
 ]
 skip = [
+    { crate = "windows-sys@0.59.0", reason = "fs4 0.13 Windows file locking needs bindings 0.59 while std-adjacent dependencies and the checked directory backend use 0.61; exposed by adding Windows to the audited target graph" },
     { crate = "getrandom@0.2.17", reason = "ring and proptest currently require incompatible getrandom major versions" },
     { crate = "getrandom@0.4.3", reason = "tempfile 3.27 requires getrandom 0.4 while rand and tungstenite remain on getrandom 0.3" },
     { crate = "hashbrown@0.15.5", reason = "simd-json currently requires hashbrown 0.15 while the remaining graph uses 0.17" },

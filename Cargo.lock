@@ -1269,6 +1269,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "marketfeed-filesystem"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "tempfile",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "marketfeed-model"
 version = "0.1.0-alpha.1"
 dependencies = [
@@ -1302,6 +1310,7 @@ dependencies = [
  "bytes",
  "getrandom 0.3.4",
  "marketfeed-adapter-api",
+ "marketfeed-filesystem",
  "marketfeed-model",
  "serde",
  "serde_json",

@@ -385,7 +385,7 @@ impl FeedWriter {
                 "injected publication barrier failure",
             ));
         }
-        File::open(&self.directory)?.sync_all()
+        crate::durability::sync_directory(&self.directory)
     }
 }
 #[derive(Debug, Clone)]

@@ -1043,3 +1043,37 @@ See hlscreen docs/evidence/soak-validation-20261020; new remote CI is pending.
 Producer pin410c3ca and original historical report bytes remain unchanged.
 All remaining native units/settlement, continuity, strict datasets/mixed replay,
 rsibot live context and calendar24h/7d gates stay open. Goal remains active.
+
+
+## Windows production directory backend implementation (2026-10-20)
+
+The source now routes every feed/raw/dataset directory barrier through the new
+marketfeed-filesystem crate. Unix retains checked directory fsync. Windows opens
+with write plus read-attribute access and backup semantics, checks the same
+handle's directory type, NTFS identity and GUID/fixed-volume classification,
+then performs normal sync_all. Query, permission, unsupported storage and sync
+errors remain errors. No format or regular-file ordering changes. The small
+Windows query module contains three documented unsafe calls; financial crates
+retain forbid. See docs/spec/local_filesystem_durability.md for full API,
+permission, unsafe-boundary and storage-stack limits.
+
+The earlier exact GENERIC_WRITE hosted probe is not substituted for production
+integration: the new path additionally checks std metadata and the entire
+ancestor chain, which requires actual ancestor permissions. No non-admin or
+power-loss qualification is claimed. A dedicated Windows CI job now runs the
+real backend/recording tests on Rust 1.85 and datasets on Rust 1.88 alongside the
+full OS matrix. Its 20-minute budget includes toolchain install and compilation;
+no runtime shutdown/failure deadline is relaxed. Native runtime results pending.
+
+Initial local checks pass83storage tests (0failed/0ignored),64filesystem/recording
+tests on Rust 1.85, targeted Clippy and Rust 1.85 Windows all-target cross-check.
+All registry lock records are byte-equivalent as parsed; only the new local
+filesystem package and recording→filesystem edge are added. The expanded deny
+target graph now includes Windows and initially failed on fs4's existing
+windows-sys0.59 binding. A pinned duplicate-binding disposition documents that
+incompatible edge; policy passes with advisories/licenses/sources unchanged.
+Full-lock RustSec still exits1 only on the existing time exception,0warnings.
+Original failed policy scan remains in windows-backend-deny-01.log. No advisory
+ignore was added. Local receipts use windows-backend-* under the existing
+ignored evidence root. Independent storage review found no new actionable
+safety/integration defect in this bounded source; native CI remains required.

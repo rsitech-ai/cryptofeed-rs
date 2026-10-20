@@ -15,7 +15,8 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 [dependencies]
 marketfeed-model = { workspace = true }
 
-# C ABI requires `unsafe`; workspace forbids it elsewhere.
+# C ABI requires `unsafe`; financial crates retain the workspace prohibition.
+# A separate filesystem crate confines native Windows queries to one module.
 [lints.rust]
 unsafe_code = "allow"
 
