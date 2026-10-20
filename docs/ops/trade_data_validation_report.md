@@ -1,5 +1,14 @@
 # Trade data audit: measured evidence and limits
 
+This is the **historical baseline audit**, preserved with its original findings
+and failures. Statements below about unchanged production code describe that
+original audit stage, not the later implementation branch. Current repairs,
+source-bound verification and unresolved gates are recorded in the
+[active implementation ledger](../plan/hyperliquid_shared_feed_implementation.md)
+and [goal scope](../plan/active_goal_scope.json). The
+[timer chronology repair](../evidence/timer-chronology-20261020/) is one such
+follow-up; it does not qualify the original samples or complete causal replay.
+
 Date: **2026-10-19**. Baseline: `1c668981ee2d5b456dfa6d085fbd558b1998937d`
 (`main`, initially clean). Work branch: `codex/trade-data-integrity-audit`.
 Verdict: **bounded trade receipt/value accounting observed; no newly acquired

@@ -1,5 +1,14 @@
 # Trade integrity implementation plan
 
+This document preserves the **original audit-stage plan** and its dependency
+gates. Its description of a documentation-only deliverable applies to that
+stage. Subsequent adapter, storage and engine repairs are tracked in the
+[active implementation ledger](hyperliquid_shared_feed_implementation.md) and
+[goal scope](active_goal_scope.json); work-package estimates below are not
+current completion claims. In particular, the
+[timer prerequisite repair](../evidence/timer-chronology-20261020/) does not
+complete D5 or admit strict datasets.
+
 Baseline: `1c668981ee2d5b456dfa6d085fbd558b1998937d`, 2026-10-19.
 Scope/authority: repository-process/public research verification only. No economic
 runs, orders, deployment, production migration or frozen-corpus mutation.
@@ -8,7 +17,7 @@ not implementation of every phase or qualification/promotion of a dataset.
 See [contract](../spec/trade_data_integrity_and_backtest_storage.md),
 [inventory](trade_venue_inventory.md), and [measured report](../ops/trade_data_validation_report.md).
 
-## Current deliverable and working rules
+## Original audit deliverable and working rules
 
 This PR adds audit documentation, small public fixtures and bounded verification
 tools. It does not repair adapters, add production Parquet storage, admit data,

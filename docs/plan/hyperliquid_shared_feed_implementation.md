@@ -1125,3 +1125,37 @@ The measured Windows writer defect is resolved for the stated NTFS runner scope;
 remaining native units/settlement, continuity, strict datasets/general mixed
 causal replay, rsibot live context and calendar 24h/7d qualification remain open.
 The full goal stays active and ordinary-user/hardware limits remain explicit.
+
+## Timer chronology prerequisite repair (2026-10-20)
+
+Tracing the unfinished D5 replay path exposed live scheduler defects. Overdue
+signed differences became enormous unsigned delays, and a callback could move
+another due timer into the future while the old due-ID snapshot still fired
+and persisted it. Delay calculation now handles the full signed timestamp
+range without wrap/clamping, and each delivery rechecks its current deadline.
+The 64-fire cap and ascending-ID order remain. A related live-loop wait now
+samples wall time after awaited I/O, preserving clock-jump reporting and the
+existing 250 ms stop cap. The cap already bounded the old delay's live impact.
+
+The retained initial eight-test reproduction fails four cases. The strengthened
+nine-test suite adds callback cancellation and reads actual saved Timer records,
+requiring exactly timer1 at100 then postponed timer2 at500. Independent review
+identified the live-loop sample and missing callback-cancel case; both are
+addressed. The async flushing/wake-latency boundary is source-reviewed only,
+not timing-qualified by those offline regressions. See
+`docs/evidence/timer-chronology-20261020` for exact source/check receipts.
+
+This repairs scheduler prerequisites; D5 mixed sessions/generations, late
+metadata availability and strict replay admission remain unfinished. No saved
+history is rewritten. Hlscreen retains the five shared-package pins to4c because
+this change affects only engine code/tests, not those package contracts. No new
+capture, soak, strategy feature or economic result is claimed.
+
+Final local source b72f173 passes1,279workspace tests (0failed/56ignored),
+9Rust1.85scheduler tests and9independently executed cases; Clippy/docs/fmt and
+exactcargo-deny0.20.2 pass. Linux CI passes1,280 (one additional Linux affinity
+test),0failed/56ignored; mergea5f08b9 tree equals sourceb72 completely. Current
+recorded producer snapshot is16successful jobs/fullWindows still running.
+Hlscreen6f13f02 now has12successful checks and3skips, including successful four
+target/global artifact builds; scheduled publicAPI smoke, tag publication and
+release announcement are skipped. No new live/soak/release result follows.

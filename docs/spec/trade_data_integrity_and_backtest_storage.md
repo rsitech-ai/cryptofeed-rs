@@ -1,7 +1,14 @@
 # Trade integrity and backtest storage contract
 
-Status: **specified, not implemented or operationally promoted**. Audit date:
+Status: **specified and partially implemented; strict datasets/general causal
+replay remain unqualified; no operational promotion**. Original audit date:
 2026-10-19. Source baseline `1c668981ee2d5b456dfa6d085fbd558b1998937d`.
+Architecture descriptions and proposed interfaces below preserve that baseline;
+their present-tense wording is not a current source/API inventory. Subsequent
+repairs, implemented subsets and their exact verification scopes are tracked in
+the [active implementation ledger](../plan/hyperliquid_shared_feed_implementation.md)
+and [goal scope](../plan/active_goal_scope.json). The requirements and unfinished
+acceptance gates remain in force.
 The [validation report](../ops/trade_data_validation_report.md) owns actual
 results; the [implementation plan](../plan/trade_data_integrity_implementation_plan.md)
 owns unfinished work. The [venue inventory](../plan/trade_venue_inventory.md)
@@ -32,7 +39,7 @@ Trades alone cannot validate fills, spread, queue position, fees, impact or
 slippage. Future economic backtests need separately admitted quotes/books and
 execution/latency assumptions, outside this assignment.
 
-## Existing architecture and extension points
+## Architecture at the audit baseline and extension points
 
 Reuse the pure `adapter-api::SessionMachine` and `VenueFactory`, exact model,
 transport, engine supervision, bounded dispatch, recording, replay and sinks.
