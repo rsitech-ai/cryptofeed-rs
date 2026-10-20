@@ -49,9 +49,12 @@ CI Linux passes 1,280 tests (0 failed, 56 ignored, 149 suites). The additional
 case is `latency_runtime::tests::linux_rejects_core_beyond_setsize`. Checkout
 `a5f08b9d6275544dfb0ac74c7bf3deea53462923` has exactly the same complete tree
 `adb0cdbdd8d0ae9829de5ab36b9d1bc33f38a0e8` as source `b72f173`. The captured
-CI snapshot has 16 successful jobs with the full Windows suite still running;
-later job status must be inspected directly rather than inferred from this
-historical receipt. `validation.json` records each job URL and disposition.
+initial CI snapshot has 16 successful jobs with the full Windows suite still
+running. The later terminal snapshot has all 17 jobs successful, including four
+platform suites. Full Windows passes 1,277 tests (0 failed, 56 ignored, 149 suites)
+on that same merge checkout. `validation.json` preserves both snapshots and raw
+Windows/Linux log hashes. The reviewer independently verified both totals, all
+nine scheduler cases in both logs, all 17 jobs and complete-tree equality.
 For its portable policy command, bind `${CARGO_DENY_0_20_2}` to the verified
 0.20.2 binary; the older local 0.19.0 tool is not the qualification tool.
 
@@ -61,6 +64,7 @@ the stale live-loop sample; both were addressed. It then independently executed
 the final nine-test suite on source `b72f173` (9 passed, 0 failed/ignored), checked
 the source hashes before/after, and found no residual actionable defect in this
 patch. Its raw log is `timer-independent-focused-01.log`. It did not edit source.
+The later raw CI evidence review also found no count/provenance discrepancy.
 
 ## Scope and remaining gates
 

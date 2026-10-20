@@ -1155,7 +1155,12 @@ Final local source b72f173 passes1,279workspace tests (0failed/56ignored),
 9Rust1.85scheduler tests and9independently executed cases; Clippy/docs/fmt and
 exactcargo-deny0.20.2 pass. Linux CI passes1,280 (one additional Linux affinity
 test),0failed/56ignored; mergea5f08b9 tree equals sourceb72 completely. Current
-recorded producer snapshot is16successful jobs/fullWindows still running.
+initial recorded producer snapshot is16successful jobs/fullWindows still
+running. SourceCI39348143468 subsequently completes successfully with all17jobs
+and four platform suites passing. FullWindows1277/0failed/56ignored/149suites
+uses the same merge checkout; independent review verifies raw counts, all9timer
+cases in Windows/Linux, all17jobs and exact complete-tree equality. Earlier
+pending snapshots are preserved alongside terminal results.
 Hlscreen6f13f02 now has12successful checks and3skips, including successful four
 target/global artifact builds; scheduled publicAPI smoke, tag publication and
 release announcement are skipped. No new live/soak/release result follows.
