@@ -313,6 +313,31 @@ publication failure stage and captured/reexecuted prefix equality. The actor,
 schema/reader and capture seam can be delivered independently, but none closes
 the full repair before live integration and these acceptance checks.
 
+### Bounded writer actor infrastructure
+
+The next storage slice implements `recording::shared_batch`: exclusive writer
+ownership, immutable prevalidated transactions, count/encoded-byte reservations
+including in-flight work, count/byte/record/oldest-age grouping, and separate
+admission tickets versus post-barrier receipts. Exact-full batches flush without
+waiting for another producer. Close/seal and submissions have one linearized
+order; dropped waiters cannot cancel accepted work. A failed active group and a
+never-attempted suffix have distinct typed dispositions. Actual writer fault
+hooks are test-only; no runtime failpoint or dependency is added.
+
+Nineteen focused actor tests and separate independent execution cover boundaries,
+idle/aged grouping, cancellation, races, receipt ranges, seven publication failure
+stages and panic uncertainty. A panic after real publication can leave the whole
+active group visible without an ACK; a panic before a later group preserves the
+previous ACK and settles new work as not attempted. See the
+[bounded writer evidence](../evidence/bounded-shared-writer-20261020/README.md).
+
+This actor is not yet installed in the live runner. It does not close the engine
+capture/release boundary, repair the registered ingress failure or complete D5.
+The next implementation must provide the private owner, typed complete outcomes,
+commit-gated externally readable state and release, and actual-engine replay
+before comparing the same registered workload. Shared consumers require a
+coordinated source pin and their existing parity/security/attribution gates.
+
 ## Timestamp advisory repair with compatible bytes
 
 The three direct `time` users have migrated: EventPulse uses already-locked

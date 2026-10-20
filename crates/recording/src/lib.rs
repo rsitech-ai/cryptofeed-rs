@@ -18,6 +18,7 @@ mod normalized;
 mod pipeline;
 mod queue;
 mod reader;
+pub mod shared_batch;
 pub mod shared_feed;
 mod writer;
 

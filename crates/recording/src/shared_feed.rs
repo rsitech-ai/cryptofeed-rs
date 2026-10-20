@@ -16,8 +16,8 @@ use std::{
 };
 const MAGIC: &[u8; 8] = b"MFSF1\0\0\0";
 const HEADER_LEN: u64 = 48;
-const MAX_RECORD: usize = 32 * 1024 * 1024;
-const MAX_TRANSACTION: usize = 64 * 1024 * 1024;
+pub(crate) const MAX_RECORD: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_TRANSACTION: usize = 64 * 1024 * 1024;
 fn err(s: impl ToString) -> RecordingError {
     RecordingError::Io(s.to_string())
 }
@@ -244,6 +244,31 @@ pub struct FeedWriter {
     timings: FeedIoTimings,
     #[cfg(test)]
     fail_publication_barrier: bool,
+    #[cfg(test)]
+    pub(crate) failpoint: Option<PublicationFailpoint>,
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum PublicationFailpoint {
+    Write,
+    PartialWrite,
+    DataSync,
+    WatermarkWrite,
+    WatermarkSync,
+    Replace,
+    DirectorySync,
+}
+#[cfg(test)]
+fn injected_failure(
+    at: Option<PublicationFailpoint>,
+    stage: PublicationFailpoint,
+) -> std::io::Result<()> {
+    if at == Some(stage) {
+        Err(std::io::Error::other(format!("injected {stage:?}")))
+    } else {
+        Ok(())
+    }
 }
 
 /// Cumulative local monotonic durations; no source/receipt timestamps or
@@ -338,6 +363,8 @@ impl FeedWriter {
             timings: FeedIoTimings::default(),
             #[cfg(test)]
             fail_publication_barrier: false,
+            #[cfg(test)]
+            failpoint: None,
         };
         writer.publish()?;
         crate::durability::sync_directory_ancestry(&writer.directory)
@@ -350,6 +377,10 @@ impl FeedWriter {
     /// writer cannot acknowledge or append anything further.
     pub fn cursor(&self) -> &FeedCursor {
         &self.cursor
+    }
+    /// Cumulative observations for this unique writer lifetime.
+    pub fn timings(&self) -> FeedIoTimings {
+        self.timings
     }
     /// Acceptance means both data and the new commit watermark were synced.
     /// Any I/O failure poisons the writer; later appends cannot bless a torn tail.
@@ -425,9 +456,25 @@ impl FeedWriter {
             return Err(err("shared feed byte budget exhausted"));
         }
         let previous = self.cursor.clone();
+        #[cfg(test)]
+        let failpoint = self.failpoint;
         let result = (|| -> Result<(), RecordingError> {
-            timed(&mut self.timings.write, || self.file.write_all(&bytes))?;
-            timed(&mut self.timings.data_sync, || self.file.sync_data())?;
+            timed(&mut self.timings.write, || {
+                #[cfg(test)]
+                {
+                    injected_failure(failpoint, PublicationFailpoint::Write)?;
+                    if failpoint == Some(PublicationFailpoint::PartialWrite) {
+                        self.file.write_all(&bytes[..bytes.len() / 2])?;
+                        return Err(std::io::Error::other("injected partial write"));
+                    }
+                }
+                self.file.write_all(&bytes)
+            })?;
+            timed(&mut self.timings.data_sync, || {
+                #[cfg(test)]
+                injected_failure(failpoint, PublicationFailpoint::DataSync)?;
+                self.file.sync_data()
+            })?;
             self.cursor.sequence = sequence;
             self.cursor.offset = end;
             self.publish()?;
@@ -448,6 +495,8 @@ impl FeedWriter {
         })
         .map_err(err)?;
         let temp = self.directory.join("committed.tmp");
+        #[cfg(test)]
+        let failpoint = self.failpoint;
         timed(
             &mut self.timings.watermark_write_sync,
             || -> Result<(), RecordingError> {
@@ -455,13 +504,19 @@ impl FeedWriter {
                     .write(true)
                     .create_new(true)
                     .open(&temp)?;
+                #[cfg(test)]
+                injected_failure(failpoint, PublicationFailpoint::WatermarkWrite)?;
                 f.write_all(&bytes)?;
+                #[cfg(test)]
+                injected_failure(failpoint, PublicationFailpoint::WatermarkSync)?;
                 f.sync_all()?;
                 drop(f);
                 Ok(())
             },
         )?;
         timed(&mut self.timings.replace, || {
+            #[cfg(test)]
+            injected_failure(failpoint, PublicationFailpoint::Replace)?;
             fs::rename(temp, self.directory.join("committed.json"))
         })?;
         let started = Instant::now();
@@ -473,6 +528,8 @@ impl FeedWriter {
         Ok(())
     }
     fn sync_publication_directory(&self) -> std::io::Result<()> {
+        #[cfg(test)]
+        injected_failure(self.failpoint, PublicationFailpoint::DirectorySync)?;
         #[cfg(test)]
         if self.fail_publication_barrier {
             return Err(std::io::Error::other(

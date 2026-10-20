@@ -1,0 +1,202 @@
+{
+  "schema": "marketfeed.bounded_shared_writer_validation.v1",
+  "base_source": "7bef5217b1f294caac90c4233b9e92015f45459c",
+  "checks_before_commit": true,
+  "source_sha256": {
+    "crates/recording/src/lib.rs": "a03a90eb18d06f03240170ddf5ade0e0976c560c6eed2ee18007e9f914eaab53",
+    "crates/recording/src/shared_feed.rs": "0b41defceef09a1c658eabe722a4727397098a316cefc045f968c4d635f7a65d",
+    "crates/recording/src/shared_batch.rs": "a90253954a88abf9e90f7e1700ab3cdfe837c6dd8f23bfa5cb5eefebbc0e2efa",
+    "crates/recording/src/shared_batch_tests.rs": "b90f3e6b3a9551a03b30cb6e5af98f1aab823041870a60c391226d602dcd4547"
+  },
+  "full_workspace": {
+    "passed": 1335,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 153,
+    "log_sha256": "36cda286566617adfa16100261b04bda8b954a8e5bfba8d1a5fddffa1a5f2fca"
+  },
+  "recording": {
+    "passed": 82,
+    "failed": 0,
+    "ignored": 0,
+    "library": 71,
+    "integration": 11,
+    "log_sha256": "58c35e52b1358a418e075a44b05298a75c88749bafa0015859d5e9136a5a2564"
+  },
+  "msrv_core": {
+    "rust": "1.85.0",
+    "passed": 470,
+    "failed": 0,
+    "ignored": 0,
+    "suites": 30
+  },
+  "final_checks": [
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 79.166,
+      "log_sha256": "54d1fef490246e6d47067fa9110fac7d2acd6c1622969236b7c4216ec8d76434"
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 53.624,
+      "log_sha256": "2138ef19cb5cbe730fb96ae8dd097af935a7b50ef2d01537923c89d13975d178"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 17.541,
+      "log_sha256": "458936451773dfbb440caa439133d1c8e22692420075635dff1a2af1dd92e809"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.019,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.464,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.025,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 3.818,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.767,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.015,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "rustsec": {
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    }
+  },
+  "dependency_changes": "none; root and recording manifests/lock unchanged",
+  "independent_review": {
+    "focused_passed": 19,
+    "failed": 0,
+    "ignored": 0,
+    "receipt_sha256": "d8b520793accd997b258e0b3bdc855b86bbac4a7be07a27aea6a954488e830fd",
+    "log_sha256": "b7633e34a57921ff2fdeaa17b6d448bd3d9512235992c94cba75f59203479b92",
+    "findings_closed": [
+      "exact-full flush",
+      "new-group panic phase"
+    ]
+  },
+  "frozen_store": {
+    "files": 22,
+    "all_file_bytes_sizes_modes_mtime_ctime_unchanged": true,
+    "directory_mode": "0555",
+    "scope": "preservation only; no new reader or dataset admission claim"
+  },
+  "public_check": {
+    "result": "pass",
+    "gitleaks": "8.30.1",
+    "log_sha256": "89a485cfb8a7bc6879a111feaddcddba04dabfc7e87a65557ecd3a0a17dd99ae",
+    "scope": "staged source/plans/evidence; final receipt metadata rechecked before commit"
+  },
+  "ci_status": "actor source not yet published/run; earlier timestamp source7bef521 completed all17jobs separately",
+  "consumer_status": "hlscreen1e33c1e baseline17historical receipts and both original archive files frozen; coordinated new source pin and full consumer gates required",
+  "remaining": [
+    "private engine owner and complete typed operation/outcome capture",
+    "commit-gated state,dispatch,wire/HTTP and readiness release",
+    "actual-engine causal replay B and unchanged failed-ingress comparison",
+    "native semantics/units/continuity,strict datasets,rsibot live context,calendar/native-runtime qualification"
+  ]
+}

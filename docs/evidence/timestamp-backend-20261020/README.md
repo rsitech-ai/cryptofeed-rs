@@ -81,3 +81,10 @@ cargo deny check
 Use the tool versions recorded above. `legacy-probe.rs` is reproduction source
 for the historical `82a871b` checkout, not a new dependency or example compiled
 by this workspace. Bulk datasets and full logs remain in ignored local evidence.
+
+Hosted CI for source `7bef521` subsequently completed all 17 jobs successfully.
+Actual merge `7538d1b` has the identical complete tree `cfa48db`. Linux x64/ARM
+each pass 1,317, macOS 1,316 and Windows 1,314, with zero failed, 56 ignored and
+153 suites each. The hosted Windows durability subset passes 85. Exact checkout
+and log hashes are recorded in `ci-qualification.json`. This qualifies that
+source only; the later actor and engine/ingress work require separate checks.
