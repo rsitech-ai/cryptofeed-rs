@@ -1,0 +1,382 @@
+{
+  "schema_version": 1,
+  "source": "8ba199a46f9a1e2e840d104c3da5610235ef753e",
+  "actual_tested_merge": "c5969a94b313a4d2b193488d97c89288ca3a6feb",
+  "source_tree": "0d7df68d9c33332223e0cd819ff826960335de63",
+  "merge_tree": "0d7df68d9c33332223e0cd819ff826960335de63",
+  "whole_tree_identical": true,
+  "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "docs",
+      "databaseId": 118510551922,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510551922"
+    },
+    {
+      "name": "test (windows-latest)",
+      "databaseId": 118510552099,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552099"
+    },
+    {
+      "name": "Windows directory durability",
+      "databaseId": 118510552127,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552127"
+    },
+    {
+      "name": "clippy",
+      "databaseId": 118510552171,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552171"
+    },
+    {
+      "name": "cargo-deny",
+      "databaseId": 118510552273,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552273"
+    },
+    {
+      "name": "test (ubuntu-latest)",
+      "databaseId": 118510552287,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552287"
+    },
+    {
+      "name": "sbom",
+      "databaseId": 118510552308,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552308"
+    },
+    {
+      "name": "rustfmt",
+      "databaseId": 118510552325,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552325"
+    },
+    {
+      "name": "C header and ABI exports",
+      "databaseId": 118510552352,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552352"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "databaseId": 118510552353,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552353"
+    },
+    {
+      "name": "msrv (1.85)",
+      "databaseId": 118510552358,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552358"
+    },
+    {
+      "name": "test (ubuntu-24.04-arm)",
+      "databaseId": 118510552405,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552405"
+    },
+    {
+      "name": "test (macos-latest)",
+      "databaseId": 118510552429,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552429"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "databaseId": 118510552451,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552451"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "databaseId": 118510552456,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552456"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "databaseId": 118510552460,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552460"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "databaseId": 118510552494,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552494"
+    }
+  ],
+  "all17_actual_checkout_logs": {
+    "docs": {
+      "archive_member": "docs/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "fba0bd10095daa85396a3b21f071005f2df4e031bb19513db3fcf8327351f66c",
+      "exact_merge_sha_found": true
+    },
+    "test (windows-latest)": {
+      "archive_member": "test (windows-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "f6315771ed2f57f04d392eeb9fcea17c1069ff32861ca6d03efdac023b665dc0",
+      "exact_merge_sha_found": true
+    },
+    "Windows directory durability": {
+      "archive_member": "Windows directory durability/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "a8bcd8a4f738542c1c500e843ddc6af9566e1d41707ecb8feed4cf62f2296b8b",
+      "exact_merge_sha_found": true
+    },
+    "clippy": {
+      "archive_member": "clippy/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "2e06b12ccc75236443a887507c77d635dee77edf1acd1ed2dc6c73103db5d3ef",
+      "exact_merge_sha_found": true
+    },
+    "cargo-deny": {
+      "archive_member": "cargo-deny/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "05ae2996556ed2da0f4c9aab29db20bae8d01b5463e3e4f3029a49652813b802",
+      "exact_merge_sha_found": true
+    },
+    "test (ubuntu-latest)": {
+      "archive_member": "test (ubuntu-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "7be938425a59034bf9af39d0b92248fcd06c5453cd69bf5f8add92b05612b9c9",
+      "exact_merge_sha_found": true
+    },
+    "sbom": {
+      "archive_member": "sbom/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "48855709409606de66a3fe41e2447341bae576352f950538e76f674925610d3a",
+      "exact_merge_sha_found": true
+    },
+    "rustfmt": {
+      "archive_member": "rustfmt/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "fd41fdbd9804e65ff8013036c6136b5b97b57fca4a07a162251fc791d1dafd0f",
+      "exact_merge_sha_found": true
+    },
+    "C header and ABI exports": {
+      "archive_member": "C header and ABI exports/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "d085b83216d8b0b65570c23df57c851c1e91bd26afbdf6532e82fe53486495b4",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-bybit)": {
+      "archive_member": "simd-json (marketfeed-adapter-bybit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "7dbce041150a3157367f1f920ddd10be7568b54806f567d789aedf7c730258bf",
+      "exact_merge_sha_found": true
+    },
+    "msrv (1.85)": {
+      "archive_member": "msrv (1.85)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "16e97408fe1d3e789cc656d9e43c2eaedc6598699bc6808d1499e4746ae2b162",
+      "exact_merge_sha_found": true
+    },
+    "test (ubuntu-24.04-arm)": {
+      "archive_member": "test (ubuntu-24.04-arm)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "165d807025eb1cf59d49758de281711e23a134f2707d682ba46ea74cc86e06eb",
+      "exact_merge_sha_found": true
+    },
+    "test (macos-latest)": {
+      "archive_member": "test (macos-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "a4f5a871ef3efdc77cc7a88d6f262c177fd6ac67da8cdee82fa4fd5b28e5d089",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-kraken)": {
+      "archive_member": "simd-json (marketfeed-adapter-kraken)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "a8291d446da13e9c55aa4eace133b4182c51da699dbfb6ddfb56d81f01b2270d",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-okx)": {
+      "archive_member": "simd-json (marketfeed-adapter-okx)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "5fd01432d00920d3ada2ed6018762bfef126e9134a26e8a89663738dc3186fd1",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-deribit)": {
+      "archive_member": "simd-json (marketfeed-adapter-deribit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "6c29708f6cc04ee743f117248b3f3a8cd0f79383ea11611303e5059cba01de26",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-binance)": {
+      "archive_member": "simd-json (marketfeed-adapter-binance)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "e5235f78001e54c780f7e567006a3ba5df9fd6da59b451fd918c44ceb78b42b7",
+      "exact_merge_sha_found": true
+    }
+  },
+  "platforms": {
+    "test (windows-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552099",
+      "conclusion": "success",
+      "archive_member": "test (windows-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "30fc32a393ccc843b7fefd2d102e954ebd8365ebd1a8adb873a20d289ee37903",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1440,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (ubuntu-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552287",
+      "conclusion": "success",
+      "archive_member": "test (ubuntu-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "024e48ddcd58f27d03059ab60ba3e64d8aff779238506145e6fe869cb5dee07b",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1443,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (ubuntu-24.04-arm)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552405",
+      "conclusion": "success",
+      "archive_member": "test (ubuntu-24.04-arm)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "18b5d1a8ec5f37665676dc67facfdf3e928d10030c079a8f1b20162944d8c077",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1443,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (macos-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39387440673/job/118510552429",
+      "conclusion": "success",
+      "archive_member": "test (macos-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "4f8297398a6a1aff9e338e9a593a902886b68fc5369f4a40ead7691e58a4abf0",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1442,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    }
+  },
+  "msrv": {
+    "rust1_85_core": {
+      "sha256": "7ee331f9e7f03e4b5cea8909e98a84d887af37aee14396fdb0a68890114dc3c6",
+      "counts": {
+        "passed": 528,
+        "failed": 0,
+        "ignored": 0
+      },
+      "suite_count": 30
+    },
+    "explicit_bootstrap_owner": {
+      "sha256": "8897d7ad4e321441d10552604caa406a058d43c4a24ecdebba66f2e4610b9611",
+      "counts": {
+        "passed": 45,
+        "failed": 0,
+        "ignored": 0
+      },
+      "suite_count": 3
+    },
+    "explicit_scopes": [
+      "34 bootstrap/owner unit tests",
+      "3 public bootstrap integration tests",
+      "8 public owner integration tests"
+    ],
+    "datasets_rust1_88": {
+      "sha256": "54b971a30a8c6fe9503d3f1e864e55836e2e48a3af500c4b25ebf72af7c45eb2",
+      "counts": {
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0
+      },
+      "suite_count": 6
+    }
+  },
+  "arm_bootstrap": {
+    "receipt_before_factory_test": "causal_bootstrap::tests::actual_bootstrap_receipt_precedes_factory_and_initialized_owner",
+    "pass_witness_lines": [
+      "2026-10-20T07:41:39.1453218Z test causal_bootstrap::tests::actual_bootstrap_receipt_precedes_factory_and_initialized_owner ... ok"
+    ],
+    "daemon_unit_counts": {
+      "passed": 170,
+      "failed": 0,
+      "ignored": 0
+    },
+    "phase_elapsed_diagnostics_in_raw_log": [],
+    "phase_timings_observable": false,
+    "timing_limit": "Passing libtest captured stderr is not shown. No measured receipt/factory phase timing or10-second performance claim. The post-close120s test watchdog passed for this sampled run.",
+    "published_test_source_sha256": "ee504f440675abf936db44a392893299d77552f16e928b6aba0c7b612b432a6c",
+    "pre_ack_assertions": "Still requires20ms noncompletion, committed_operations0 and no readable record before close.",
+    "watchdog_scope": "120-second post-close test completion watchdog only; not runtime/admission deadline and not10-second performance qualification."
+  },
+  "windows_durability": {
+    "counts": {
+      "passed": 123,
+      "failed": 0,
+      "ignored": 0
+    },
+    "rust1_85_filesystem_recording": {
+      "passed": 104,
+      "failed": 0,
+      "ignored": 0
+    },
+    "rust1_88_datasets": {
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0
+    },
+    "native_probe_archive_member": "Windows directory durability/3_Probe directory handles and exact write-access flush.txt",
+    "native_probe_sha256": "adce0bd7905f4982fad3813ad14802917a99483c2a8eaf747ea3fe40ec4daebc",
+    "scope": "Hosted Windows runner only; no ordinary-user machine/hardware or deployment qualification."
+  },
+  "parquet_cross_reader": {
+    "archive_member": "msrv (1.85)/7_Independent exact Parquet cross-reader.txt",
+    "sha256": "0b65be4cb3bc189688422522e858ff2d7ae2d0cfda759222c7fa4152c2372918",
+    "checks_passed": true,
+    "rows": 20,
+    "directions": [
+      "Rust-to-PyArrow",
+      "PyArrow-to-Rust"
+    ],
+    "scope": "Fixture cross-reader; not dataset/source/native completeness."
+  },
+  "raw_evidence": [
+    {
+      "name": "owner-history-producer-ci-independent-01-logs.zip",
+      "sha256": "03f5dac4af62d40ed4fb869de4b6a780212dd32af477f0b55644916862d5f6a0",
+      "bytes": 819049
+    },
+    {
+      "name": "owner-history-producer-ci-independent-01.log",
+      "sha256": "180fec8e5c1798094932ddd0dddd203da7a4548720169822e2825bd8a88adb93",
+      "bytes": 3486096
+    },
+    {
+      "name": "owner-history-producer-ci-independent-01-run.json",
+      "sha256": "66bc94499a6f3809a14f236f52f52de691ac8b8dc85420b77846b206aca7ec72",
+      "bytes": 25546
+    },
+    {
+      "name": "owner-history-producer-ci-independent-01-msrv.log",
+      "sha256": "ed6131b75df266d334c7bb26b2bacc0e931c5d45d119cb498e4a8d6681e00dbe",
+      "bytes": 139296
+    },
+    {
+      "name": "owner-history-producer-ci-independent-01-windows-durability.log",
+      "sha256": "af0bc14f6f3c4cce2bc15bce8e74e890b61d91e597499d70dee494b907ad4933",
+      "bytes": 65302
+    },
+    {
+      "name": "owner-history-producer-ci-independent-01-windows.log",
+      "sha256": "d01f799005db826072910c94347cc8abd746d8ee55b3bab7b6c988b18c5bb611",
+      "bytes": 273351
+    }
+  ],
+  "independent_receipt_sha256": "080538581865bc21bcc93fcb65d95b5d4c268aa1f30a80a6137556b7f50c8af8",
+  "old_failed2b_preserved": {
+    "run_id": 39380784187,
+    "conclusion": "failure",
+    "observed_failure": "ARM post-close10-second test watchdog Timeout remains unchanged at older source. New120s watchdog success does not erase it or establish10s performance."
+  },
+  "limits": [
+    "No loaded-image, signed attestation, reproducible build, full transitive build-input closure or artifact equivalence claim.",
+    "Hosted all17 CI success is source-scoped test evidence; no operational/live/replay/release/ingress/economic qualification.",
+    "Bootstrap phase elapsed diagnostics are only observable if present in raw log. Passing test status does not expose hidden captured stderr."
+  ],
+  "scope": "Published8ba Git objects and retained frozen source02 only. Subsequent working tree/source changes excluded. No new local execution or rerun."
+}

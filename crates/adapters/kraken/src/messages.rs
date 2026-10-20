@@ -265,6 +265,21 @@ fn decode_trades(data: &Value) -> Result<DecodedEvent, String> {
             "sell" => AggressorSide::Sell,
             _ => AggressorSide::Unknown,
         };
+        if fixed_from_json(
+            o.get("price")
+                .ok_or_else(|| "trade missing price".to_string())?,
+        )?
+        .coefficient
+            <= 0
+            || fixed_from_json(
+                o.get("qty")
+                    .ok_or_else(|| "trade missing quantity".to_string())?,
+            )?
+            .coefficient
+                <= 0
+        {
+            return Err("trade price/quantity must be positive".into());
+        }
         out.push(TradeDecoded {
             symbol,
             trade_id,
@@ -415,12 +430,17 @@ fn raw_decimal_lexeme(raw: &RawValue) -> Result<String, String> {
     }
 }
 
-/// ponytail: JSON numbers via `Number::to_string` (serde_json wire form); ceiling = f64
-/// round-trip for non-integral values; upgrade = raw-token decimal scan.
+/// Financial token DOMs retain decimal/exponent strings lexically. Integer
+/// Numbers are exact i64/u64 values; callers must not construct float Values.
 pub fn fixed_from_json(v: &Value) -> Result<Fixed, String> {
     match v {
         Value::String(s) => Fixed::parse_str(s).map_err(|e| e.to_string()),
-        Value::Number(n) => Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string()),
+        Value::Number(n) if n.is_i64() || n.is_u64() => {
+            Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string())
+        }
+        Value::Number(_) => {
+            Err("financial JSON Value already passed through floating point".into())
+        }
         _ => Err("expected number or string".into()),
     }
 }

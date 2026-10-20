@@ -66,6 +66,7 @@ mod json;
 mod messages;
 mod session;
 mod specification;
+mod trade_semantics;
 mod usdm_factory;
 mod usdm_instruments;
 mod usdm_messages;

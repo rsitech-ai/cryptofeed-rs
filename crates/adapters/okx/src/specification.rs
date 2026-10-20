@@ -24,8 +24,8 @@ pub const OKX_SPOT_VENUE_ID: VenueId = VenueId(4);
 pub const OKX_SWAP_VENUE_ID: VenueId = VenueId(9);
 pub const OKX_FUTURES_VENUE_ID: VenueId = VenueId(10);
 
-pub const PUBLIC_WS_URL: &str = "wss://ws.okx.com:8443/ws/v5/public";
-pub const BUSINESS_WS_URL: &str = "wss://ws.okx.com:8443/ws/v5/business";
+pub const PUBLIC_WS_URL: &str = "wss://ws.okx.com/ws/v5/public";
+pub const BUSINESS_WS_URL: &str = "wss://ws.okx.com/ws/v5/business";
 pub const REST_BASE: &str = "https://www.okx.com";
 
 /// OKX requires a text `pong` within ~30s of server `ping`; we also emit client pings.
@@ -39,6 +39,7 @@ pub static OKX_SPOT_SPEC: VenueSpecification = VenueSpecification {
     segments: &[MarketSegment::Spot],
     capabilities: &[
         Capability::Trades,
+        Capability::AllTrades,
         Capability::Quote,
         Capability::L2Book,
         Capability::Candles,
@@ -84,6 +85,7 @@ pub static OKX_SPOT_SPEC: VenueSpecification = VenueSpecification {
 /// Linear + inverse (`ctType`) share VenueIds; kinds differ in the catalog.
 const DERIVATIVE_CAPS: &[Capability] = &[
     Capability::Trades,
+    Capability::AllTrades,
     Capability::Quote,
     Capability::L2Book,
     Capability::Candles,

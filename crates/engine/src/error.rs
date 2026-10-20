@@ -6,7 +6,7 @@ use marketfeed_recording::RecordingError;
 use marketfeed_transport::TransportError;
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum EngineError {
     #[error(transparent)]
     Adapter(#[from] AdapterError),

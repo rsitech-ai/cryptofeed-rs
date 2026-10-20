@@ -11,9 +11,9 @@ rust-version.workspace = true
 
 [features]
 default = []
-# Optional SIMD JSON for `decode_text` (C10). Default remains serde_json.
-# Enable only after latency profiles show parse bottleneck — see src/json.rs ponytail.
-simd-json = ["dep:simd-json"]
+# Compatibility feature name; financial JSON always retains original lexical
+# tokens with RawValue. A float-based SIMD DOM is not an exact substitute.
+simd-json = []
 
 [dependencies]
 bytes = { workspace = true }
@@ -22,7 +22,6 @@ marketfeed-book = { workspace = true }
 marketfeed-model = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
-simd-json = { workspace = true, optional = true }
 
 [dev-dependencies]
 marketfeed-recording = { workspace = true }

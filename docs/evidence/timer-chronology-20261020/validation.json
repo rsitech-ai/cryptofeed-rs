@@ -1,0 +1,521 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-20T00:44:41.040811+00:00",
+  "status": "bounded scheduler repair verified; full goal active",
+  "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94",
+  "source_sha256": {
+    "crates/engine/src/runner.rs": "5fc59e37f888e14162e929e16d29f67be4cce8de96f8c26e7ac4166add999d61",
+    "crates/engine/src/live.rs": "1c20bc772ad0728ffa089493e5107dba8ed963186816599bf2c592b2abc16d4a",
+    "crates/engine/tests/schedule_timer.rs": "11d3ae26b3a3abfd10d4501dad999831346d508c747c02e9cb76f2d993368d7f"
+  },
+  "independent_review": {
+    "reviewer": "/root/trade_review",
+    "edits": false,
+    "residual_actionable_findings": [],
+    "executed_command": "cargo test --locked -p marketfeed-engine --test schedule_timer",
+    "result": {
+      "passed": 9,
+      "failed": 0,
+      "ignored": 0
+    },
+    "log_sha256": "3bc84e4df38399bfb46fa710d329ab7fb13d45abb9ed46167ac6196f13af2dc1",
+    "timing_scope": "offline runner and actual saved-feed Timer chronology; no delayed async I/O/wake-latency qualification",
+    "final_ci_review": "Independently counted Windows149/1277/0/56 and Linux149/1280/0/56; all9scheduler cases pass in both logs; verified17distinct successful jobs, completed successful source run, both actual merge checkouts and exact local/source/checkout complete-tree equality. No count/provenance discrepancy; no additional test rerun."
+  },
+  "reproduced_failure": {
+    "source_base": "a87d9888292b38151bd371f5daee438671e81bbb",
+    "test_source_scope": "initial eight-case reproduction before final fixture additions",
+    "command": "cargo test --locked -p marketfeed-engine --test schedule_timer",
+    "exit_code": 101,
+    "result": {
+      "passed": 4,
+      "failed": 4,
+      "ignored": 0,
+      "suites": 1
+    },
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-regressions-before-01.log",
+      "sha256": "f27ae7578f1d4ee9eeadd525ca6fd98e5d1ea4eda42886b3428e0c13d6fa286e"
+    }
+  },
+  "intermediate_lint_failure": {
+    "finding": "nonminimal_bool; fixed by equivalent is_none_or predicate without suppression",
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-clippy-final-01.log",
+      "sha256": "d862dfd4986a435b991d6cdb4ca91cc36de8e091339fc1d83972e4bc0d0a53f0"
+    }
+  },
+  "initial_workspace_run": {
+    "scope": "candidate before lint-only predicate simplification; final-source workspace run is separately recorded in checks",
+    "result": {
+      "passed": 1279,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 149
+    },
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-workspace-final-01.log",
+      "sha256": "5d6ce9fab3c619b52e891664fc22e0aef705053777c07acdc025acdcbcd94421"
+    }
+  },
+  "checks": [
+    {
+      "command": "cargo test --locked --workspace --all-targets --all-features",
+      "exit_code": 0,
+      "result": {
+        "passed": 1279,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 149
+      },
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-workspace-final-02.log",
+        "sha256": "77f33386290ce05d8751e4585b72b7c5ab918e8d28c23d19e440c26d8cdca7b0"
+      },
+      "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94"
+    },
+    {
+      "command": "cargo +1.85.0 test --locked -p marketfeed-engine --test schedule_timer",
+      "exit_code": 0,
+      "result": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      },
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-msrv-final-02.log",
+        "sha256": "d6a2648837b31bb76b4fa99c6da3b38c41c73997512c9fba04fe5f68eb08d98c"
+      },
+      "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94"
+    },
+    {
+      "command": "cargo test --locked -p marketfeed-engine --test schedule_timer",
+      "exit_code": 0,
+      "result": {
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      },
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-independent-focused-01.log",
+        "sha256": "3bc84e4df38399bfb46fa710d329ab7fb13d45abb9ed46167ac6196f13af2dc1"
+      },
+      "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94"
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-format-final-02.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94"
+    },
+    {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-clippy-final-02.log",
+        "sha256": "f312cbc614ed8e8005d882f3d247ddb0deccd3ae95e394aba6a2dae36044cc97"
+      },
+      "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94"
+    },
+    {
+      "command": "RUSTDOCFLAGS=\"-D warnings\" cargo doc --locked --workspace --all-features --no-deps",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-docs-final-02.log",
+        "sha256": "d2956f242069c6f125adbf50c5ad10f3fad0e5d2f6d6636b217cb2818f9d961f"
+      },
+      "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94"
+    },
+    {
+      "command": "${CARGO_DENY_0_20_2} check",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-deny-final-01.log",
+        "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+      },
+      "source_commit": "b72f173ed6d50d582203b64d66b35ff951e4ec94",
+      "tool_version": "0.20.2"
+    }
+  ],
+  "ci": {
+    "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468",
+    "tested_checkout": "a5f08b9d6275544dfb0ac74c7bf3deea53462923",
+    "source_head": "b72f173ed6d50d582203b64d66b35ff951e4ec94",
+    "equal_complete_git_tree": "adb0cdbdd8d0ae9829de5ab36b9d1bc33f38a0e8",
+    "linux_job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922063",
+    "linux_result": {
+      "passed": 1280,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 149
+    },
+    "linux_log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-linux-job-01.log",
+      "sha256": "38a7114e77dbce29b4a7106c8bbd8bafee90d07532cd4878147108b497d1dd32"
+    },
+    "linux_additional_test": "latency_runtime::tests::linux_rejects_core_beyond_setsize",
+    "jobs_snapshot": [
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922047",
+        "name": "test (macos-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922086",
+        "name": "Windows directory durability",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922012",
+        "name": "test (ubuntu-24.04-arm)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922390",
+        "name": "msrv (1.85)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922167",
+        "name": "simd-json (marketfeed-adapter-binance)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922093",
+        "name": "simd-json (marketfeed-adapter-okx)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922428",
+        "name": "test (windows-latest)",
+        "state": "IN_PROGRESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922063",
+        "name": "test (ubuntu-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922006",
+        "name": "rustfmt",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385921954",
+        "name": "simd-json (marketfeed-adapter-bybit)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922011",
+        "name": "simd-json (marketfeed-adapter-kraken)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922129",
+        "name": "simd-json (marketfeed-adapter-deribit)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922097",
+        "name": "docs",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922077",
+        "name": "C header and ABI exports",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385921674",
+        "name": "clippy",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922224",
+        "name": "cargo-deny",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922122",
+        "name": "sbom",
+        "state": "SUCCESS"
+      }
+    ],
+    "snapshot_log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-pr51-source-ci-07.json",
+      "sha256": "3edefb4117052876699be6da1553c177fa2f60b64fedd15ae3b0e3a560745ddb"
+    },
+    "final_jobs_snapshot": [
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922047",
+        "name": "test (macos-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922086",
+        "name": "Windows directory durability",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922012",
+        "name": "test (ubuntu-24.04-arm)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922390",
+        "name": "msrv (1.85)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922167",
+        "name": "simd-json (marketfeed-adapter-binance)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922093",
+        "name": "simd-json (marketfeed-adapter-okx)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922428",
+        "name": "test (windows-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922063",
+        "name": "test (ubuntu-latest)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922006",
+        "name": "rustfmt",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385921954",
+        "name": "simd-json (marketfeed-adapter-bybit)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922011",
+        "name": "simd-json (marketfeed-adapter-kraken)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922129",
+        "name": "simd-json (marketfeed-adapter-deribit)",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922097",
+        "name": "docs",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922077",
+        "name": "C header and ABI exports",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385921674",
+        "name": "clippy",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922224",
+        "name": "cargo-deny",
+        "state": "SUCCESS"
+      },
+      {
+        "link": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922122",
+        "name": "sbom",
+        "state": "SUCCESS"
+      }
+    ],
+    "final_jobs_log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-pr51-source-ci-final-09.json",
+      "sha256": "c86c6427511f6aef5b3593aee34c73a5dbd8ec78b162780b4bbecc49303c615d"
+    },
+    "run_status": "completed",
+    "run_conclusion": "success",
+    "windows_job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39348143468/job/118385922428",
+    "windows_result": {
+      "passed": 1277,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 149
+    },
+    "windows_log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-windows-job-final-02.log",
+      "sha256": "f6adf1c4e7812377c94da8858f0b474ba678b30707947ece44f63b4c52cf3451"
+    },
+    "windows_tested_checkout": "a5f08b9d6275544dfb0ac74c7bf3deea53462923",
+    "final_run_log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-source-run-final-01.json",
+      "sha256": "f32ce898590949f077c375b62640001f60efa210254888e513f5d116361b5ee5"
+    }
+  },
+  "consumer_identity": {
+    "hlscreen_head": "6f13f02813d5e39f57f1588684cb8f01a2a9c6fe",
+    "hlscreen_clean": true,
+    "lock_sha256": "91bf702f1cb4c4c673a22cb47320c1509b4bf4f6655ffed1899ad01c09dc8b33",
+    "shared_package_pins": {
+      "marketfeed-adapter-api": "git+https://github.com/rsitech-ai/cryptofeed-rs?rev=4c2bd1520d16573fd3cdc2fd7a818d126f28a12d#4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+      "marketfeed-adapter-hyperliquid": "git+https://github.com/rsitech-ai/cryptofeed-rs?rev=4c2bd1520d16573fd3cdc2fd7a818d126f28a12d#4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+      "marketfeed-filesystem": "git+https://github.com/rsitech-ai/cryptofeed-rs?rev=4c2bd1520d16573fd3cdc2fd7a818d126f28a12d#4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+      "marketfeed-model": "git+https://github.com/rsitech-ai/cryptofeed-rs?rev=4c2bd1520d16573fd3cdc2fd7a818d126f28a12d#4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+      "marketfeed-recording": "git+https://github.com/rsitech-ai/cryptofeed-rs?rev=4c2bd1520d16573fd3cdc2fd7a818d126f28a12d#4c2bd1520d16573fd3cdc2fd7a818d126f28a12d"
+    },
+    "registry_package_count": 419,
+    "producer_source": "b72f173ed6d50d582203b64d66b35ff951e4ec94",
+    "producer_shared_trees_unchanged_from": "4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+    "git_objects": [
+      {
+        "path": "crates/model",
+        "git_object_oid": "6010258e241b33e39c8772769765a897571bc9a7"
+      },
+      {
+        "path": "crates/adapter-api",
+        "git_object_oid": "047d9ed2e6758ed0b7704b29c965ebf27c34ae7d"
+      },
+      {
+        "path": "crates/adapters/hyperliquid",
+        "git_object_oid": "7e3fd1666f2bd7b127602362ba796762105e769b"
+      },
+      {
+        "path": "crates/recording",
+        "git_object_oid": "11a32cd415414b97175b360f49b109c31d6824a2"
+      },
+      {
+        "path": "crates/filesystem",
+        "git_object_oid": "d84155d967f3df46e12dfbdc97f2e9e99082860f"
+      },
+      {
+        "path": "Cargo.lock",
+        "git_object_oid": "cef0c46d20bc0f735fe1a44a1e8808d05033dc2c"
+      }
+    ],
+    "scope": "Identity check only; no new consumer tests, archived replay, capture or soak.",
+    "ci_snapshot": {
+      "jobs": [
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118390298121",
+          "name": "Confirm release announcement",
+          "state": "SKIPPED"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118390297456",
+          "name": "Publish tag artifacts",
+          "state": "SKIPPED"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118389763370",
+          "name": "Build global artifacts",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118381844498",
+          "name": "build-local-artifacts (aarch64-apple-darwin)",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118381844592",
+          "name": "build-local-artifacts (x86_64-apple-darwin)",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118381844525",
+          "name": "build-local-artifacts (x86_64-pc-windows-msvc)",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118381844518",
+          "name": "build-local-artifacts (x86_64-unknown-linux-gnu)",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548604/job/118380538026",
+          "name": "Plan release",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548589/job/118380420309",
+          "name": "PTY TUI (macos-15)",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548589/job/118380420034",
+          "name": "Dependency license and source policy",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548589/job/118380420250",
+          "name": "GitHub Actions security",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548589/job/118380420305",
+          "name": "RustSec advisory scan",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548589/job/118380420195",
+          "name": "PTY TUI (ubuntu-24.04)",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548589/job/118380420258",
+          "name": "Rust workspace",
+          "state": "SUCCESS"
+        },
+        {
+          "link": "https://github.com/rsitech-ai/hlscreen/actions/runs/39346548589/job/118380421667",
+          "name": "Scheduled public API contract smoke",
+          "state": "SKIPPED"
+        }
+      ],
+      "successful": 12,
+      "skipped": 3,
+      "scope": "PR/workflow checks and four target artifact builds; scheduled public API smoke, tag publication and release announcement skipped; no release or new live/soak qualification.",
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/timer-pr21-ci-07.json",
+        "sha256": "f160ca7d89519c0694721a1862b6ab0a2c920d55104003e9bed6fc9f280b704b"
+      }
+    }
+  },
+  "tools_log": {
+    "path": ".local/evidence/hyperliquid-integration-review/timer-tools-01.log",
+    "sha256": "81f95b728621eb8bd80b71ad681053a0da5f786c2ca1f128863f60db26bd59c9"
+  },
+  "scope_limits": [
+    "Offline scheduler fixtures and source-reviewed post-I/O wall-clock resampling; no async wake-latency or delayed-I/O timing qualification.",
+    "No new capture, archived consumer replay, soak, schema change or economic run.",
+    "56 ignored workspace cases are not live/corpus evidence.",
+    "Hlscreen code and its five shared package trees are unchanged.",
+    "Full-lock RustSec time0.3.41 exception remains; unchanged registry graph is not security clearance."
+  ],
+  "remaining_gates": [
+    "D5 bounded mixed-session/generation causal replay and late metadata availability.",
+    "Native contract units/settlement, continuity and strict dataset admission.",
+    "Rsibot live context and strategy-feature integration through existing owners.",
+    "Calendar canaries, 24h/7d qualification, ordinary-user Windows ancestor permissions and hardware failure limits."
+  ],
+  "oss_readiness": {
+    "command": "./scripts/check-oss-readiness.sh with gitleaks 8.30.1 on PATH",
+    "exit_code": 0,
+    "gitleaks_version": "8.30.1",
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/timer-evidence-oss-03.log",
+      "sha256": "2f623ee1f1ecf64d1693a600280fb319f4f6448f88e88a943dc2941b99d9dbed"
+    },
+    "initial_diagnostics": [
+      "timer-evidence-oss-01.log: gitleaks absent from default PATH; not counted as a secret scan",
+      "timer-evidence-oss-02.log and timer-gitleaks-report-01.json: generic-api-key false positive on verified adapter-api Git tree OID; receipt restructured as typed path/OID records; no allowlist/policy change"
+    ]
+  }
+}

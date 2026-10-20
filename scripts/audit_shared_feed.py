@@ -10,6 +10,7 @@ from collections import Counter
 from decimal import Decimal, getcontext
 import hashlib
 import json
+import re
 from pathlib import Path
 import struct
 from audit_trade_capture import crc32c
@@ -18,12 +19,56 @@ if not __debug__:
     raise RuntimeError("audit requires Python assertions enabled")
 
 
-def scan(directory):
+def integer(value, bits=64, signed=False):
+    minimum = -(1 << (bits-1)) if signed else 0
+    maximum = (1 << (bits-1 if signed else bits)) - 1
+    assert type(value) is int and minimum <= value <= maximum, 'invalid exact integer'
+    return value
+
+
+def strict_json(raw):
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            assert key not in result, 'duplicate JSON key'
+            result[key] = value
+        return result
+    def constant(value):
+        raise ValueError('nonfinite JSON: ' + value)
+    return json.loads(raw, parse_float=Decimal, parse_constant=constant, object_pairs_hook=pairs)
+
+
+def committed_cursor(directory):
+    with (Path(directory) / 'committed.json').open('rb') as source:
+        raw = source.read(4097)
+    assert len(raw) <= 4096, 'watermark byte cap'
+    watermark = strict_json(raw)
+    assert integer(watermark['schema_version'], 16) == 1
+    cursor = watermark['cursor']
+    assert type(cursor['feed_id']) is str and re.fullmatch('[0-9a-f]{40}', cursor['feed_id'])
+    integer(cursor['sequence'])
+    assert 48 <= integer(cursor['offset']) <= 128 * 1024 * 1024, 'audit 128 MiB cap'
+    return cursor
+
+
+def committed_identity(directory, cursor):
+    assert committed_cursor(directory) == cursor, 'committed cursor changed during audit'
+    digest = hashlib.sha256()
+    with (Path(directory) / 'events.mfsf').open('rb') as source:
+        remaining = cursor['offset']
+        while remaining:
+            chunk = source.read(min(65536, remaining))
+            assert chunk, 'truncated audited prefix'
+            digest.update(chunk)
+            remaining -= len(chunk)
+    assert committed_cursor(directory) == cursor, 'committed cursor changed during hash'
+    return {'cursor': cursor, 'committed_prefix_sha256': digest.hexdigest()}
+
+
+def scan(directory, expected_cursor=None):
     root = Path(directory)
-    watermark = json.loads((root / 'committed.json').read_bytes())
-    assert watermark['schema_version'] == 1
-    commit = watermark['cursor']
-    assert 48 <= commit['offset'] <= 128 * 1024 * 1024, 'audit 128 MiB cap'
+    commit = committed_cursor(root)
+    assert expected_cursor is None or commit == expected_cursor, 'committed cursor changed before scan'
     with (root / 'events.mfsf').open('rb') as stream:
         header = stream.read(48)
         assert header[:8] == b'MFSF1\0\0\0' and header[8:].decode() == commit['feed_id']
@@ -35,15 +80,15 @@ def scan(directory):
             assert size <= 32 * 1024 * 1024 and stream.tell() + size <= commit['offset']
             payload = stream.read(size)
             assert crc32c(payload) == crc
-            row = json.loads(payload)
+            row = strict_json(payload)
             sequence += 1
-            assert row['sequence'] == sequence
+            assert integer(row['sequence']) == sequence
             yield row['record']
         assert stream.tell() == commit['offset'] and sequence == commit['sequence']
 
 
 def fixed(value):
-    return Decimal(value['coefficient']).scaleb(-value['scale'])
+    return Decimal(integer(value['coefficient'], 128, signed=True)).scaleb(-integer(value['scale'], 8))
 
 
 def audit(directory):

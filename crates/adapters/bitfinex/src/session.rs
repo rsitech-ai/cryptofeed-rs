@@ -297,9 +297,10 @@ impl BitfinexSession {
             frame_seq,
             0,
             received,
-            Some(ms_to_ts(row.exchange_ts_ms)),
+            Some(row.exchange_ts_ns),
             EventFlags::empty(),
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: row.price,
                 quantity: row.quantity,
                 side: row.side,
@@ -338,6 +339,7 @@ impl BitfinexSession {
             Some(ms_to_ts(t.exchange_ts_ms)),
             EventFlags::empty(),
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: t.price,
                 quantity: t.quantity,
                 aggressor: t.aggressor,
@@ -367,6 +369,7 @@ impl BitfinexSession {
             None,
             EventFlags::empty(),
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: q.bid_price,
                 ask_price: q.ask_price,
                 bid_quantity: Some(q.bid_qty),
@@ -454,6 +457,7 @@ impl BitfinexSession {
                 None,
                 EventFlags::SNAPSHOT,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: book_bids,
                     asks: book_asks,
                     depth: None,
@@ -534,6 +538,7 @@ impl BitfinexSession {
                 None,
                 EventFlags::empty(),
                 MarketEvent::BookDelta(BookDelta {
+                    provenance: None,
                     changes: vec![change],
                     checksum: None,
                 }),
@@ -613,6 +618,10 @@ impl BitfinexSession {
                 self.emit_candle(
                     &symbol,
                     Candle {
+                        provenance: None,
+                        native_volume_ccy: None,
+                        is_closed: None,
+                        quote_volume: None,
                         open,
                         high,
                         low,

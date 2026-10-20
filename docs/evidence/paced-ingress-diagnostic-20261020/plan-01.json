@@ -1,0 +1,92 @@
+{
+  "schema": "marketfeed.paced_ingress_plan.v1",
+  "status": "registered-before-first-attempt",
+  "base_source": "384917297093e508e25696772820c53806523634",
+  "fixture_sha256": "b3c24dacd43be2f029076d000deb6e36060634293b3898c965ffe5f9b13fe264",
+  "original_feed": {
+    "cursor": {
+      "feed_id": "170f29174ced997888da73046bcf328edc83a00f",
+      "sequence": 3325,
+      "offset": 3187231
+    },
+    "committed_prefix_sha256": "d6d8ba9f62c9c430f1029d63cefa0c726eb9dafa84f72725b73623e6b1572966"
+  },
+  "sessions": [
+    {
+      "session": 3,
+      "venue": 5,
+      "payload_sha256": [
+        "f2fd5cce4f58762861c2c02899831806169de02ae60477198f4f95c3f17f5fea",
+        "155c711a29b88b50df5fb2ca89a4da08521ca1088427abbbe346ee7749a5c35f",
+        "eac8ca50c05b8c6d0263641c26ea8d08fbcb53b0f8638464a49c7062174b793b"
+      ],
+      "payload_bytes": [
+        192,
+        2256,
+        781
+      ]
+    },
+    {
+      "session": 2,
+      "venue": 6,
+      "payload_sha256": [
+        "a2f5bb3b72335a4e30d3f369b7288bfecaf3fdf854cd9a73c58257bbce9313d4",
+        "800f99be4887167ed6278873b2379488ce8da7aba24ccd27a46df79447acde95",
+        "7aa8fe03c3475f9698e92e10085a013f2f42e72946551621cec2800a48f12b34"
+      ],
+      "payload_bytes": [
+        202,
+        2400,
+        322
+      ]
+    },
+    {
+      "session": 1,
+      "venue": 11,
+      "payload_sha256": [
+        "6da3bd680a32f490bd9546d7d2b1b7cc906e64ef35e8bb225278951c2cea01fa",
+        "13b0f8eddcb999e0089853fdddc172055405f3f4c2ee9e9eb98aebe2e122ad59",
+        "a941bf4e19ddcfe8ab7de38b0473451b574998f4e9ae7fb782a426ac5988551d"
+      ],
+      "payload_bytes": [
+        191,
+        2118,
+        761
+      ]
+    }
+  ],
+  "arms": [
+    {
+      "name": "baseline",
+      "durable": false,
+      "delay_us": 0
+    },
+    {
+      "name": "durable",
+      "durable": true,
+      "delay_us": 0
+    },
+    {
+      "name": "slow-failure",
+      "durable": true,
+      "delay_us": 50000
+    }
+  ],
+  "order": [
+    "baseline",
+    "durable",
+    "slow-failure"
+  ],
+  "watchdog_seconds_per_arm": 25,
+  "scheduled_seconds": 10,
+  "work_and_drain_budget_seconds": 15,
+  "rate_per_session": 160,
+  "normal_total_frames": 4800,
+  "burst_total_frames": 64,
+  "queue_frames_per_session": 512,
+  "queue_bytes_per_session": 2097152,
+  "max_schedule_to_read_return_ns": 1000000000,
+  "minimum_source_span_ns": 9500000000,
+  "required_accounting": "planned == attempted == enqueued == dequeued == validated callbacks, zero rejections/drops/raw queue; independent CRC raw/shared order and canonical count reconciliation",
+  "scope": "Local synthetic paced snapshot stress only; original native bytes unchanged, synthetic ACKs, no network, native source times remain historical. Not exchange latency, continuity, capacity, real production mix or strict dataset qualification. No retries or arm selection."
+}

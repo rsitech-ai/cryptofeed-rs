@@ -1,6 +1,6 @@
-//! Bybit V5 SessionMachine with WS orderbook snapshot + contiguous `u` sync.
+//! Bybit V5 book reconstruction in observed order; source continuity is unknown.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use bytes::Bytes;
 use marketfeed_adapter_api::{
@@ -16,7 +16,8 @@ use marketfeed_model::{
 };
 
 use crate::messages::{
-    DecodedEvent, OrderbookKind, kline_topic_interval, level_op, to_book_levels, trade_id_source,
+    BookDecoded, DecodedEvent, OrderbookKind, kline_topic_interval, level_op, to_book_levels,
+    trade_id_source,
 };
 use crate::specification::{
     BYBIT_INVERSE_VENUE_ID, BYBIT_LINEAR_VENUE_ID, BYBIT_SPOT_VENUE_ID, BybitCategory,
@@ -25,6 +26,19 @@ use crate::specification::{
 const SCHEMA_VERSION: u16 = 1;
 const PING_TIMER_ID: u64 = 1;
 const PING_INTERVAL_NS: i64 = 20_000_000_000; // 20s
+const STARTUP_TIMER_ID: u64 = 2;
+const STARTUP_TIMEOUT_NS: i64 = 20_000_000_000;
+const MAX_ARGS_PER_SUBSCRIBE: usize = 10;
+// Conservative local UTF-8 JSON-byte interpretation of the native connection
+// args-character limit. Applied across all requests, not independently per chunk.
+const MAX_CONNECTION_ARGS_BYTES: usize = 21_000;
+
+#[derive(Debug)]
+struct SubscriptionRequest {
+    topics: Vec<String>,
+    acknowledged: bool,
+    ack_message: Option<String>,
+}
 
 #[derive(Debug, Clone)]
 pub struct BybitSessionConfig {
@@ -64,10 +78,72 @@ impl Default for BybitSessionConfig {
     }
 }
 
+impl BybitSessionConfig {
+    /// Pure protocol preflight; allocates topics but creates no machine or I/O.
+    pub fn subscription_topics(&self) -> Result<Vec<String>, AdapterError> {
+        let mut topics = Vec::new();
+        let mut seen_symbols = BTreeSet::new();
+        if self.symbols.is_empty()
+            || self.symbols.len() != self.instrument_ids.len()
+            || self.candle_intervals.len() > 5
+        {
+            return Err(AdapterError::Protocol(
+                "Bybit selected symbols/catalog must match and be nonempty".into(),
+            ));
+        }
+        for symbol in &self.symbols {
+            if symbol.is_empty()
+                || symbol.len() > 256
+                || symbol.contains('.')
+                || symbol.chars().any(|c| c.is_whitespace() || c.is_control())
+                || !seen_symbols.insert(symbol)
+                || !self.instrument_ids.contains_key(symbol)
+            {
+                return Err(AdapterError::Protocol(
+                    "invalid or duplicate Bybit subscription symbol".into(),
+                ));
+            }
+            topics.push(format!("publicTrade.{symbol}"));
+            topics.push(format!("orderbook.1.{symbol}"));
+            if self.enable_l2 {
+                if !matches!(self.l2_depth, 50 | 200 | 1000) {
+                    return Err(AdapterError::Protocol("unsupported Bybit L2 depth".into()));
+                }
+                topics.push(format!("orderbook.{}.{symbol}", self.l2_depth));
+            }
+            topics.push(format!("tickers.{symbol}"));
+            if !matches!(self.category, BybitCategory::Spot) {
+                topics.push(format!("allLiquidation.{symbol}"));
+            }
+            for interval in &self.candle_intervals {
+                topics.push(format!(
+                    "kline.{}.{symbol}",
+                    kline_topic_interval(*interval)
+                ));
+            }
+            if serde_json::to_vec(&topics)
+                .map_err(|e| AdapterError::Protocol(e.to_string()))?
+                .len()
+                > MAX_CONNECTION_ARGS_BYTES
+            {
+                return Err(AdapterError::Protocol(
+                    "Bybit connection args exceed local21000 JSON-byte bound".into(),
+                ));
+            }
+        }
+        if topics.iter().collect::<BTreeSet<_>>().len() != topics.len() {
+            return Err(AdapterError::Protocol(
+                "duplicate native Bybit subscription topic".into(),
+            ));
+        }
+        Ok(topics)
+    }
+}
+
 #[derive(Debug)]
 struct SymbolBook {
     sync: BookSynchronizer,
-    last_u: Option<u64>,
+    last_message: Option<BookDecoded>,
 }
 
 #[derive(Debug)]
@@ -76,16 +152,22 @@ pub struct BybitSession {
     catalog: CatalogView,
     cfg: BybitSessionConfig,
     frame_seq: u64,
-    books: HashMap<String, SymbolBook>,
+    books: BTreeMap<String, SymbolBook>,
     /// Best bid/ask from orderbook.1 for quote emission.
-    quotes: HashMap<String, (Option<(Price, Quantity)>, Option<(Price, Quantity)>)>,
+    quotes: BTreeMap<String, (Option<(Price, Quantity)>, Option<(Price, Quantity)>)>,
     live: bool,
+    running: bool,
+    failed: bool,
+    generation: u64,
+    requests: BTreeMap<String, SubscriptionRequest>,
+    server_connection_id: Option<String>,
+    startup_deadline: Option<TimestampNs>,
 }
 
 impl BybitSession {
     pub fn new(spec: SessionSpec, catalog: CatalogView, cfg: BybitSessionConfig) -> Self {
         let _ = spec;
-        let mut books = HashMap::new();
+        let mut books = BTreeMap::new();
         if cfg.enable_l2 {
             for (sym, id) in &cfg.instrument_ids {
                 let (price_scale, qty_scale) = cfg
@@ -96,7 +178,13 @@ impl BybitSession {
                 let book = OrderBook::new(price_scale, qty_scale, Some(cfg.l2_depth));
                 let mut sync = BookSynchronizer::new(*id, book, SyncLimits::default());
                 sync.request_snapshot();
-                books.insert(sym.clone(), SymbolBook { sync, last_u: None });
+                books.insert(
+                    sym.clone(),
+                    SymbolBook {
+                        sync,
+                        last_message: None,
+                    },
+                );
             }
         }
         Self {
@@ -104,8 +192,14 @@ impl BybitSession {
             cfg,
             frame_seq: 0,
             books,
-            quotes: HashMap::new(),
+            quotes: BTreeMap::new(),
             live: false,
+            running: false,
+            failed: false,
+            generation: 0,
+            requests: BTreeMap::new(),
+            server_connection_id: None,
+            startup_deadline: None,
         }
     }
 
@@ -163,7 +257,18 @@ impl BybitSession {
     }
 
     fn maybe_mark_live(&mut self, output: &mut ActionBuffer) {
-        if self.live {
+        if self.live
+            || !self.running
+            || self.failed
+            || self.requests.is_empty()
+            || self.requests.values().any(|request| !request.acknowledged)
+            || self.cfg.symbols.iter().any(|symbol| {
+                !self
+                    .quotes
+                    .get(symbol)
+                    .is_some_and(|(bid, ask)| bid.is_some() && ask.is_some())
+            })
+        {
             return;
         }
         if self.cfg.enable_l2 {
@@ -173,7 +278,51 @@ impl BybitSession {
             }
         }
         self.live = true;
+        self.startup_deadline = None;
+        output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
         output.push(SessionAction::MarkLive);
+    }
+
+    fn subscription_topics(&self) -> Result<Vec<String>, AdapterError> {
+        self.cfg.subscription_topics()
+    }
+
+    fn arm_startup(
+        &mut self,
+        now: TimestampNs,
+        output: &mut ActionBuffer,
+    ) -> Result<(), AdapterError> {
+        let Some(deadline) = now.0.checked_add(STARTUP_TIMEOUT_NS) else {
+            self.invalidate_book_state("startup timestamp overflow", output);
+            return Err(AdapterError::Protocol(
+                "Bybit startup timestamp overflow".into(),
+            ));
+        };
+        self.startup_deadline = Some(TimestampNs(deadline));
+        output.push(SessionAction::ScheduleTimer(TimerSpec {
+            timer_id: STARTUP_TIMER_ID,
+            fire_at: TimestampNs(deadline),
+        }));
+        Ok(())
+    }
+
+    fn startup_expired(&mut self, now: TimestampNs, output: &mut ActionBuffer) -> bool {
+        if self
+            .startup_deadline
+            .is_some_and(|deadline| now.0 >= deadline.0)
+            && !self.live
+            && !self.failed
+        {
+            let pending = self
+                .requests
+                .values()
+                .filter(|request| !request.acknowledged)
+                .count();
+            output.push(SessionAction::EmitSystem(SystemEvent::ParseError { detail: format!("Bybit startup timeout: {pending} pending requests; initial requested BBO/books incomplete") }));
+            self.invalidate_book_state("startup readiness deadline expired", output);
+            return true;
+        }
+        false
     }
 
     fn handle_decoded(
@@ -187,20 +336,29 @@ impl BybitSession {
                 if trades.is_empty() {
                     return Ok(());
                 }
+                if trades
+                    .iter()
+                    .any(|row| self.instrument_for(&row.symbol).is_none())
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: "trade symbol absent from session catalog".into(),
+                    }));
+                    return Ok(());
+                }
                 let frame_seq = self.next_frame();
                 let mut events = Vec::with_capacity(trades.len());
                 for (i, t) in trades.into_iter().enumerate() {
                     let instrument = self.instrument_for(&t.symbol);
-                    let seq = t.seq.map(|s| SequenceRange { first: s, last: s });
                     events.push(self.envelope(
                         instrument,
                         frame_seq,
                         i as u16,
                         received,
                         Some(t.exchange_ts_ms),
-                        seq,
+                        None,
                         EventFlags::empty(),
                         MarketEvent::Trade(Trade {
+                            provenance: Some(t.provenance),
                             price: t.price,
                             quantity: t.quantity,
                             aggressor: t.aggressor,
@@ -214,78 +372,64 @@ impl BybitSession {
                     events,
                 }));
             }
-            DecodedEvent::Orderbook {
-                symbol,
-                depth,
-                kind,
-                update_id,
-                seq,
-                bids,
-                asks,
-                exchange_ts_ms,
-            } => {
-                if depth == 1 {
-                    self.on_quote_book(
-                        &symbol,
-                        kind,
-                        update_id,
-                        seq,
-                        &bids,
-                        &asks,
-                        exchange_ts_ms,
-                        received,
-                        output,
-                    )?;
-                } else if self.cfg.enable_l2 && depth == self.cfg.l2_depth {
-                    self.on_l2_book(
-                        &symbol,
-                        kind,
-                        update_id,
-                        seq,
-                        &bids,
-                        &asks,
-                        exchange_ts_ms,
-                        received,
-                        output,
-                    )?;
+            DecodedEvent::Orderbook(row) => {
+                if self.instrument_for(&row.symbol).is_none()
+                    || (row.depth != 1 && (!self.cfg.enable_l2 || row.depth != self.cfg.l2_depth))
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: "unrequested book scope".into(),
+                    }));
+                    self.invalidate_book_state("unrequested book scope", output);
+                } else if row.depth == 1 {
+                    self.on_quote_book(&row, received, output)?;
+                } else {
+                    self.on_l2_book(row, received, output)?;
                 }
             }
-            DecodedEvent::Candle {
-                symbol,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                interval_ns,
-                start_ts,
-                exchange_ts_ms,
-                is_closed: _,
-            } => {
-                let instrument = self.instrument_for(&symbol);
+            DecodedEvent::Candles(rows) => {
+                if rows
+                    .iter()
+                    .any(|row| self.instrument_for(&row.symbol).is_none())
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: "candle symbol absent from session catalog".into(),
+                    }));
+                    return Ok(());
+                }
                 let frame_seq = self.next_frame();
-                let env = self.envelope(
-                    instrument,
-                    frame_seq,
-                    0,
-                    received,
-                    Some(exchange_ts_ms),
-                    None,
-                    EventFlags::empty(),
-                    MarketEvent::Candle(Candle {
-                        open,
-                        high,
-                        low,
-                        close,
-                        volume,
-                        interval_ns,
-                        start_ts,
-                    }),
-                );
+                let mut events = Vec::with_capacity(rows.len());
+                for (index, row) in rows.into_iter().enumerate() {
+                    // Preserve the native volume and counter-volume. WS docs name
+                    // turnover but do not explicitly state category units; do not
+                    // promote the REST unit analogy to qualified WS quote volume.
+                    let quote_volume = None;
+                    events.push(self.envelope(
+                        self.instrument_for(&row.symbol),
+                        frame_seq,
+                        index as u16,
+                        received,
+                        Some(row.exchange_ts_ms),
+                        None,
+                        EventFlags::empty(),
+                        MarketEvent::Candle(Candle {
+                            provenance: Some(row.provenance),
+                            native_volume_ccy: row.turnover,
+                            is_closed: Some(row.is_closed),
+                            quote_volume,
+                            open: row.open,
+                            high: row.high,
+                            low: row.low,
+                            close: row.close,
+                            volume: row.volume,
+                            interval_ns: row.interval_ns,
+                            start_ts: row.start_ts,
+                        }),
+                    ));
+                }
                 output.push(SessionAction::EmitBatch(EventBatch {
                     session: self.cfg.session,
                     frame_seq,
-                    events: vec![env],
+                    events,
                 }));
             }
             DecodedEvent::Tickers {
@@ -362,7 +506,22 @@ impl BybitSession {
                     events,
                 }));
             }
-            DecodedEvent::Liquidations(rows) => {
+            DecodedEvent::Liquidations(batch) => {
+                if matches!(self.cfg.category, BybitCategory::Spot)
+                    || self.instrument_for(&batch.symbol).is_none()
+                    || batch
+                        .rows
+                        .iter()
+                        .any(|row| self.instrument_for(&row.symbol).is_none())
+                {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail:
+                            "liquidation product or symbol absent from derivative session catalog"
+                                .into(),
+                    }));
+                    return Ok(());
+                }
+                let rows = batch.rows;
                 if rows.is_empty() {
                     return Ok(());
                 }
@@ -379,6 +538,7 @@ impl BybitSession {
                         None,
                         EventFlags::empty(),
                         MarketEvent::Liquidation(Liquidation {
+                            provenance: Some(row.provenance),
                             price: row.price,
                             quantity: row.quantity,
                             side: row.side,
@@ -391,88 +551,159 @@ impl BybitSession {
                     events,
                 }));
             }
-            DecodedEvent::SubscribeAck { success } => {
-                output.push(SessionAction::EmitSystem(
-                    SystemEvent::SubscriptionStateChanged {
-                        state: if success {
-                            "subscribed".into()
-                        } else {
-                            "subscribe_failed".into()
+            DecodedEvent::SubscribeAck {
+                success,
+                req_id,
+                conn_id,
+                ret_msg,
+            } => {
+                let request = req_id.as_ref().and_then(|id| self.requests.get(id));
+                let valid = self.running
+                    && !self.failed
+                    && success
+                    && request.is_some_and(|request| !request.topics.is_empty())
+                    && conn_id.as_ref().is_some_and(|id| !id.is_empty())
+                    && self
+                        .server_connection_id
+                        .as_ref()
+                        .is_none_or(|id| Some(id) == conn_id.as_ref())
+                    && matches!(ret_msg.as_str(), "" | "subscribe")
+                    && request.is_none_or(|request| {
+                        request
+                            .ack_message
+                            .as_ref()
+                            .is_none_or(|prior| prior == &ret_msg)
+                    });
+                if !valid {
+                    output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                        detail: format!("uncorrelated, failed or conflicting Bybit subscription response: req={req_id:?}, success={success}, message={ret_msg:?}"),
+                    }));
+                    self.invalidate_book_state("subscription acknowledgement rejected", output);
+                    return Ok(());
+                }
+                self.server_connection_id = conn_id;
+                let request = self
+                    .requests
+                    .get_mut(req_id.as_ref().expect("validated request"))
+                    .expect("validated request");
+                if request.acknowledged {
+                    return Ok(());
+                }
+                request.acknowledged = true;
+                request.ack_message = Some(ret_msg);
+                if self.requests.values().all(|request| request.acknowledged) {
+                    output.push(SessionAction::EmitSystem(
+                        SystemEvent::SubscriptionStateChanged {
+                            state: "subscribed".into(),
                         },
-                    },
-                ));
-                if success && !self.cfg.enable_l2 {
+                    ));
                     self.maybe_mark_live(output);
                 }
+            }
+            DecodedEvent::UnexpectedControl { operation } => {
+                output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
+                    detail: format!("unrequested Bybit control operation: {operation}"),
+                }));
+                self.invalidate_book_state("unexpected native control response", output);
             }
             DecodedEvent::Pong => {}
             DecodedEvent::Unknown => {
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "bybit".into(),
                 }));
+                if self.running || self.cfg.enable_l2 || !self.quotes.is_empty() {
+                    self.invalidate_book_state(
+                        "unknown native frame; book state uncertain",
+                        output,
+                    );
+                }
             }
         }
         Ok(())
     }
 
+    fn invalidate_book_state(&mut self, reason: &str, output: &mut ActionBuffer) {
+        if self.failed {
+            return;
+        }
+        self.failed = true;
+        self.live = false;
+        self.startup_deadline = None;
+        output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
+        output.push(SessionAction::CancelTimer(PING_TIMER_ID));
+        output.push(SessionAction::MarkDegraded);
+        for book in self.books.values_mut() {
+            book.sync.invalidate(reason);
+            book.last_message = None;
+            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
+                instrument: book.sync.instrument,
+                reason: reason.into(),
+            }));
+        }
+        let symbols: Vec<_> = self.quotes.keys().cloned().collect();
+        self.quotes.clear();
+        for symbol in symbols {
+            if let Some(instrument) = self.instrument_for(&symbol) {
+                output.push(SessionAction::EmitSystem(SystemEvent::QuoteInvalidated {
+                    venue: Some(self.venue_id()),
+                    session: Some(self.cfg.session),
+                    connection: Some(self.cfg.connection),
+                    instrument,
+                    reason: reason.into(),
+                }));
+            }
+        }
+        output.push(SessionAction::Reconnect(ReconnectReason::Protocol));
+    }
+
     fn on_quote_book(
         &mut self,
-        symbol: &str,
-        kind: OrderbookKind,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
+        row: &BookDecoded,
         received: FrameStamp,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
-        let entry = self.quotes.entry(symbol.to_string()).or_default();
-        match kind {
-            OrderbookKind::Snapshot => {
-                entry.0 = bids.first().copied();
-                entry.1 = asks.first().copied();
-            }
-            OrderbookKind::Delta => {
-                for (price, qty) in bids {
-                    if qty.0.coefficient == 0 {
-                        if entry.0.map(|(p, _)| p) == Some(*price) {
-                            entry.0 = None;
-                        }
-                    } else {
-                        // ponytail: top-of-book only; full L1 ladder if multi-level orderbook.1 needed
-                        entry.0 = Some((*price, *qty));
-                    }
-                }
-                for (price, qty) in asks {
-                    if qty.0.coefficient == 0 {
-                        if entry.1.map(|(p, _)| p) == Some(*price) {
-                            entry.1 = None;
-                        }
-                    } else {
-                        entry.1 = Some((*price, *qty));
-                    }
-                }
-            }
+        // This native channel is snapshot-only; an unknown partial form cannot
+        // refresh a BBO assembled from uncertain state.
+        if row.kind != OrderbookKind::Snapshot && row.update_id != 1 {
+            self.invalidate_book_state("unexpected level1 delta", output);
+            return Ok(());
         }
-        let (Some((bid_price, bid_qty)), Some((ask_price, ask_qty))) = *entry else {
+        let bid = row.bids.first().copied();
+        let ask = row.asks.first().copied();
+        self.quotes.insert(row.symbol.clone(), (bid, ask));
+        let instrument = self.instrument_for(&row.symbol);
+        let (Some((bid_price, bid_qty)), Some((ask_price, ask_qty))) = (bid, ask) else {
+            if self.live {
+                self.live = false;
+                output.push(SessionAction::MarkDegraded);
+                self.arm_startup(received.receive_ts, output)?;
+            }
+            if let Some(instrument) = instrument {
+                output.push(SessionAction::EmitSystem(SystemEvent::QuoteInvalidated {
+                    venue: Some(self.venue_id()),
+                    session: Some(self.cfg.session),
+                    connection: Some(self.cfg.connection),
+                    instrument,
+                    reason: "native quote side unavailable".into(),
+                }));
+            }
             return Ok(());
         };
-        let instrument = self.instrument_for(symbol);
+        if !bid_price.0.numeric_cmp(ask_price.0).is_lt() {
+            self.invalidate_book_state("crossed native quote", output);
+            return Ok(());
+        }
         let frame_seq = self.next_frame();
-        let src = seq.unwrap_or(update_id);
-        let env = self.envelope(
+        let event = self.envelope(
             instrument,
             frame_seq,
             0,
             received,
-            Some(exchange_ts_ms),
-            Some(SequenceRange {
-                first: src,
-                last: src,
-            }),
-            EventFlags::empty(),
+            Some(row.exchange_ts_ms),
+            None,
+            EventFlags::SNAPSHOT,
             MarketEvent::Quote(Quote {
+                provenance: Some(row.provenance.clone()),
                 bid_price,
                 bid_quantity: Some(bid_qty),
                 ask_price,
@@ -482,211 +713,122 @@ impl BybitSession {
         output.push(SessionAction::EmitBatch(EventBatch {
             session: self.cfg.session,
             frame_seq,
-            events: vec![env],
-        }));
-        Ok(())
-    }
-
-    fn on_l2_book(
-        &mut self,
-        symbol: &str,
-        kind: OrderbookKind,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
-        received: FrameStamp,
-        output: &mut ActionBuffer,
-    ) -> Result<(), AdapterError> {
-        // Venue reset: u==1 means treat as snapshot (Bybit docs).
-        let kind = if update_id == 1 {
-            OrderbookKind::Snapshot
-        } else {
-            kind
-        };
-
-        match kind {
-            OrderbookKind::Snapshot => self.apply_l2_snapshot(
-                symbol,
-                update_id,
-                seq,
-                bids,
-                asks,
-                exchange_ts_ms,
-                received,
-                output,
-            ),
-            OrderbookKind::Delta => self.apply_l2_delta(
-                symbol,
-                update_id,
-                seq,
-                bids,
-                asks,
-                exchange_ts_ms,
-                received,
-                output,
-            ),
-        }
-    }
-
-    fn apply_l2_snapshot(
-        &mut self,
-        symbol: &str,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
-        received: FrameStamp,
-        output: &mut ActionBuffer,
-    ) -> Result<(), AdapterError> {
-        let Some(book) = self.books.get_mut(symbol) else {
-            return Ok(());
-        };
-        book.sync.begin_resync();
-        book.sync.request_snapshot();
-        if let Err(err) = book.sync.book.apply_snapshot(bids, asks, Some(update_id)) {
-            let instrument = book.sync.instrument;
-            book.sync.invalidate(&err.to_string());
-            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
-                instrument,
-                reason: err.to_string(),
-            }));
-            output.push(SessionAction::ResyncInstrument(instrument));
-            output.push(SessionAction::Reconnect(ReconnectReason::Protocol));
-            return Ok(());
-        }
-        book.sync.state = SyncState::Live;
-        book.sync.expected_sequence = Some(update_id + 1);
-        book.last_u = Some(update_id);
-
-        let instrument = book.sync.instrument;
-        let frame_seq = self.next_frame();
-        let src = seq.unwrap_or(update_id);
-        let env = self.envelope(
-            Some(instrument),
-            frame_seq,
-            0,
-            received,
-            Some(exchange_ts_ms),
-            Some(SequenceRange {
-                first: src,
-                last: src,
-            }),
-            EventFlags::SNAPSHOT,
-            MarketEvent::BookSnapshot(BookSnapshot {
-                bids: to_book_levels(BookSide::Bid, bids),
-                asks: to_book_levels(BookSide::Ask, asks),
-                depth: Some(self.cfg.l2_depth),
-                checksum: None,
-            }),
-        );
-        output.push(SessionAction::EmitBatch(EventBatch {
-            session: self.cfg.session,
-            frame_seq,
-            events: vec![env],
-        }));
-        output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
-            instrument,
+            events: vec![event],
         }));
         self.maybe_mark_live(output);
         Ok(())
     }
 
-    fn apply_l2_delta(
+    fn on_l2_book(
         &mut self,
-        symbol: &str,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: &[(Price, Quantity)],
-        asks: &[(Price, Quantity)],
-        exchange_ts_ms: i64,
+        row: BookDecoded,
         received: FrameStamp,
         output: &mut ActionBuffer,
     ) -> Result<(), AdapterError> {
-        let Some(book) = self.books.get_mut(symbol) else {
+        let snapshot = row.kind == OrderbookKind::Snapshot || row.update_id == 1;
+        let Some(book) = self.books.get_mut(&row.symbol) else {
             return Ok(());
         };
-        if book.sync.state != SyncState::Live {
-            // Waiting for WS/REST snapshot — drop deltas (Bybit pushes snapshot first).
+        if !snapshot && book.sync.state != SyncState::Live {
             return Ok(());
         }
-        let Some(last_u) = book.last_u else {
-            return Ok(());
-        };
-        if update_id <= last_u {
-            return Ok(()); // stale/duplicate
-        }
-        if update_id != last_u + 1 {
-            let instrument = book.sync.instrument;
-            book.sync.note_gap();
-            book.last_u = None;
-            output.push(SessionAction::EmitSystem(SystemEvent::SequenceGap {
-                expected: last_u + 1,
-                actual: update_id,
-            }));
-            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
-                instrument,
-                reason: "orderbook u gap".into(),
-            }));
-            output.push(SessionAction::ResyncInstrument(instrument));
-            output.push(SessionAction::Reconnect(ReconnectReason::SequenceGap));
-            return Ok(());
-        }
-
-        let mut changes = Vec::new();
-        for (side, levels) in [(BookSide::Bid, bids), (BookSide::Ask, asks)] {
-            for (price, qty) in levels {
-                let (op, q) = level_op(*qty);
-                changes.push(BookChange {
-                    side,
-                    operation: op,
-                    price: *price,
-                    quantity: q,
-                });
+        if !snapshot {
+            if book.last_message.as_ref() == Some(&row) {
+                return Ok(());
+            } // exact repeat; original frame remains durable
+            let anomaly = book.last_message.as_ref().is_none_or(|previous| {
+                row.update_id <= previous.update_id
+                    || previous
+                        .seq
+                        .zip(row.seq)
+                        .is_some_and(|(old, new)| new < old)
+            });
+            if anomaly {
+                self.invalidate_book_state(
+                    "native book ordering anomaly or conflicting repeat",
+                    output,
+                );
+                return Ok(());
             }
         }
-        if let Err(err) = book.sync.book.apply_changes_atomic(&changes) {
-            let instrument = book.sync.instrument;
-            book.sync.invalidate("live delta apply failed");
-            book.last_u = None;
-            output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
-                instrument,
-                reason: format!("live delta apply failed: {err}"),
-            }));
-            output.push(SessionAction::ResyncInstrument(instrument));
-            output.push(SessionAction::Reconnect(ReconnectReason::SequenceGap));
-            return Ok(());
+        let mut changes = Vec::new();
+        if snapshot {
+            book.sync.begin_resync();
+            book.sync.request_snapshot();
+            if let Err(error) =
+                book.sync
+                    .book
+                    .apply_snapshot(&row.bids, &row.asks, Some(row.update_id))
+            {
+                self.invalidate_book_state(
+                    &format!("native snapshot apply failed: {error}"),
+                    output,
+                );
+                return Ok(());
+            }
+        } else {
+            for (side, levels) in [(BookSide::Bid, &row.bids), (BookSide::Ask, &row.asks)] {
+                for (price, quantity) in levels {
+                    let (operation, quantity) = level_op(*quantity);
+                    changes.push(BookChange {
+                        side,
+                        operation,
+                        price: *price,
+                        quantity,
+                    });
+                }
+            }
+            if let Err(error) = book.sync.book.apply_changes_atomic(&changes) {
+                self.invalidate_book_state(&format!("native delta apply failed: {error}"), output);
+                return Ok(());
+            }
+            book.sync.book.set_sequence(row.update_id);
         }
-        book.last_u = Some(update_id);
-        book.sync.book.set_sequence(update_id);
-        book.sync.expected_sequence = Some(update_id + 1);
-
-        let instrument = self.instrument_for(symbol);
+        book.sync.state = SyncState::Live;
+        book.sync.expected_sequence = None; // no native +1 contract
+        book.last_message = Some(row.clone());
+        let instrument = book.sync.instrument;
+        let payload = if snapshot {
+            // Consumers clear their old book on this lifecycle action; notify
+            // before the replacement snapshot, not after it.
+            output.push(SessionAction::EmitSystem(SystemEvent::BookResynchronized {
+                instrument,
+            }));
+            MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: Some(row.provenance),
+                bids: to_book_levels(BookSide::Bid, &row.bids),
+                asks: to_book_levels(BookSide::Ask, &row.asks),
+                depth: Some(row.depth),
+                checksum: None,
+            })
+        } else {
+            MarketEvent::BookDelta(BookDelta {
+                provenance: Some(row.provenance),
+                changes,
+                checksum: None,
+            })
+        };
         let frame_seq = self.next_frame();
-        let src = seq.unwrap_or(update_id);
-        let env = self.envelope(
-            instrument,
+        let event = self.envelope(
+            Some(instrument),
             frame_seq,
             0,
             received,
-            Some(exchange_ts_ms),
-            Some(SequenceRange {
-                first: src,
-                last: src,
-            }),
-            EventFlags::DELTA,
-            MarketEvent::BookDelta(BookDelta {
-                changes,
-                checksum: None,
-            }),
+            Some(row.exchange_ts_ms),
+            None,
+            if snapshot {
+                EventFlags::SNAPSHOT
+            } else {
+                EventFlags::DELTA
+            },
+            payload,
         );
         output.push(SessionAction::EmitBatch(EventBatch {
             session: self.cfg.session,
             frame_seq,
-            events: vec![env],
+            events: vec![event],
         }));
+        self.maybe_mark_live(output);
         Ok(())
     }
 }
@@ -700,34 +842,39 @@ impl SessionMachine for BybitSession {
         match input {
             SessionInput::Connected { now } => {
                 self.live = false;
-                let mut args = Vec::new();
-                for s in &self.cfg.symbols {
-                    args.push(format!("publicTrade.{s}"));
-                    args.push(format!("orderbook.1.{s}"));
-                    if self.cfg.enable_l2 {
-                        args.push(format!("orderbook.{}.{s}", self.cfg.l2_depth));
-                    }
-                    // Spot: tickers carry 24h stats. Linear/inverse: mark/index/
-                    // funding/OI (+ 24h when present). allLiquidation is der-only.
-                    args.push(format!("tickers.{s}"));
-                    if matches!(
-                        self.cfg.category,
-                        BybitCategory::Linear | BybitCategory::Inverse
-                    ) {
-                        args.push(format!("allLiquidation.{s}"));
-                    }
-                    for interval in &self.cfg.candle_intervals {
-                        args.push(format!("kline.{}.{s}", kline_topic_interval(*interval)));
-                    }
+                // A new physical connection revokes prior readiness even if a
+                // caller did not first deliver Disconnected.
+                output.push(SessionAction::MarkDegraded);
+                self.running = false;
+                self.failed = true;
+                self.requests.clear();
+                self.startup_deadline = None;
+                self.server_connection_id = None;
+                self.quotes.clear();
+                for book in self.books.values_mut() {
+                    book.last_message = None;
+                    book.sync.begin_resync();
+                    book.sync.request_snapshot();
                 }
-                // Bybit spot rejects subscribe when args.len() > 10 (`args size >10`).
-                // Linear/inverse are safer when chunked the same way.
-                const MAX_ARGS_PER_SUBSCRIBE: usize = 10;
-                for chunk in args.chunks(MAX_ARGS_PER_SUBSCRIBE.max(1)) {
-                    let body = serde_json::json!({
-                        "op": "subscribe",
-                        "args": chunk
-                    });
+                let args = self.subscription_topics()?;
+                let generation = self.generation.checked_add(1).ok_or_else(|| {
+                    AdapterError::Protocol("Bybit request generation overflow".into())
+                })?;
+                self.arm_startup(now, output)?;
+                self.generation = generation;
+                self.running = true;
+                self.failed = false;
+                for (index, chunk) in args.chunks(MAX_ARGS_PER_SUBSCRIBE).enumerate() {
+                    let req_id = format!("b{generation:016x}-{index:04x}");
+                    self.requests.insert(
+                        req_id.clone(),
+                        SubscriptionRequest {
+                            topics: chunk.to_vec(),
+                            acknowledged: false,
+                            ack_message: None,
+                        },
+                    );
+                    let body = serde_json::json!({"op":"subscribe", "req_id":req_id,"args":chunk});
                     output.push(SessionAction::SendText(Bytes::from(body.to_string())));
                 }
                 // ScheduleTimer(PING_TIMER_ID) is emitted here on every connect — see
@@ -738,21 +885,20 @@ impl SessionMachine for BybitSession {
                         state: "connected".into(),
                     },
                 ));
-                if self.cfg.enable_l2 {
-                    for book in self.books.values_mut() {
-                        book.last_u = None;
-                        book.sync.request_snapshot();
-                    }
-                } else {
-                    self.maybe_mark_live(output);
-                }
                 Ok(())
             }
             SessionInput::Disconnected { .. } => {
                 self.live = false;
+                self.running = false;
+                self.failed = true;
+                self.requests.clear();
+                self.server_connection_id = None;
+                self.startup_deadline = None;
+                output.push(SessionAction::MarkDegraded);
+                output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
                 for book in self.books.values_mut() {
                     book.sync.invalidate("disconnected");
-                    book.last_u = None;
+                    book.last_message = None;
                 }
                 self.quotes.clear();
                 output.push(SessionAction::CancelTimer(PING_TIMER_ID));
@@ -764,25 +910,50 @@ impl SessionMachine for BybitSession {
                 Ok(())
             }
             SessionInput::TextFrame { bytes, received } => {
+                if !self.running || self.failed || self.startup_expired(received.receive_ts, output)
+                {
+                    return Ok(());
+                }
                 match crate::messages::decode_text(bytes) {
                     Ok(decoded) => self.handle_decoded(decoded, received, output),
                     Err(e) => {
                         output.push(SessionAction::EmitSystem(SystemEvent::ParseError {
                             detail: e,
                         }));
+                        // A malformed frame cannot be proved unrelated to the
+                        // book; fail closed rather than applying later deltas on
+                        // potentially missing state.
+                        if self.running || self.cfg.enable_l2 || !self.quotes.is_empty() {
+                            self.invalidate_book_state(
+                                "native decode failure; book state uncertain",
+                                output,
+                            );
+                        }
                         Ok(())
                     }
                 }
             }
             SessionInput::HttpResponse { .. } => Ok(()),
             SessionInput::BinaryFrame { .. } => {
+                if !self.running || self.failed {
+                    return Ok(());
+                }
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
                     detail: "binary".into(),
                 }));
+                if self.running || self.cfg.enable_l2 || !self.quotes.is_empty() {
+                    self.invalidate_book_state(
+                        "unexpected binary frame; book state uncertain",
+                        output,
+                    );
+                }
                 Ok(())
             }
             SessionInput::Pong { .. } => Ok(()),
             SessionInput::Timer { timer_id, now } => {
+                if !self.running || self.failed || self.startup_expired(now, output) {
+                    return Ok(());
+                }
                 if timer_id == PING_TIMER_ID {
                     output.push(SessionAction::SendText(Bytes::from_static(
                         br#"{"op":"ping"}"#,
@@ -794,6 +965,12 @@ impl SessionMachine for BybitSession {
             SessionInput::Control { command } => {
                 match command {
                     marketfeed_adapter_api::SessionCommand::Stop => {
+                        self.live = false;
+                        self.running = false;
+                        self.failed = true;
+                        self.startup_deadline = None;
+                        output.push(SessionAction::MarkDegraded);
+                        output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
                         output.push(SessionAction::CancelTimer(PING_TIMER_ID));
                         output.push(SessionAction::StopSession(StopReason::Control));
                     }
@@ -809,8 +986,13 @@ impl SessionMachine for BybitSession {
                             .find(|book| book.sync.instrument == *id)
                         {
                             book.sync.invalidate("control resync");
-                            book.last_u = None;
+                            book.last_message = None;
                             self.live = false;
+                            self.failed = true;
+                            self.startup_deadline = None;
+                            output.push(SessionAction::MarkDegraded);
+                            output.push(SessionAction::CancelTimer(STARTUP_TIMER_ID));
+                            output.push(SessionAction::CancelTimer(PING_TIMER_ID));
                             output.push(SessionAction::EmitSystem(SystemEvent::BookInvalidated {
                                 instrument: *id,
                                 reason: "control resync requires fresh WebSocket snapshot".into(),

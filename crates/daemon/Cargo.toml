@@ -17,6 +17,8 @@ doc = false
 
 [features]
 default = []
+# Opt-in exact workspace-source bootstrap/factory profile; not a live journal loop.
+causal-journal = []
 # Forward optional broker TCP clients from marketfeed-sinks (no rdkafka/async-nats).
 kafka = ["marketfeed-sinks/kafka"]
 nats = ["marketfeed-sinks/nats"]
@@ -52,6 +54,7 @@ marketfeed-sinks = { workspace = true }
 marketfeed-transport = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2.workspace = true
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [
     "rt-multi-thread",
@@ -66,7 +69,12 @@ toml = "0.8"
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
+[build-dependencies]
+sha2.workspace = true
+serde_json.workspace = true
+
 [dev-dependencies]
+tempfile = "3"
 marketfeed-replay = { workspace = true }
 tokio = { workspace = true, features = [
     "rt-multi-thread",

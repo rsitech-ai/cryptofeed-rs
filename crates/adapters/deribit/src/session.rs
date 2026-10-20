@@ -207,6 +207,7 @@ impl DeribitSession {
                             seq,
                             EventFlags::empty(),
                             MarketEvent::Liquidation(Liquidation {
+                                provenance: None,
                                 price: row.price,
                                 quantity: row.quantity,
                                 side: row.aggressor,
@@ -423,6 +424,10 @@ impl DeribitSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Candle(Candle {
+                        provenance: None,
+                        native_volume_ccy: None,
+                        is_closed: None,
+                        quote_volume: None,
                         open,
                         high,
                         low,
@@ -521,6 +526,7 @@ impl DeribitSession {
             }),
             EventFlags::SNAPSHOT,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: book_bids,
                 asks: book_asks,
                 depth: None,
@@ -624,6 +630,7 @@ impl DeribitSession {
             }),
             EventFlags::DELTA,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes,
                 checksum: None,
             }),

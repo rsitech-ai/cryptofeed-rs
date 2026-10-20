@@ -88,6 +88,8 @@ pub struct RawRecord {
 pub enum RecordingError {
     #[error("io: {0}")]
     Io(String),
+    #[error("shared feed publication indeterminate after watermark replacement: {0}")]
+    PublicationIndeterminate(String),
     #[error("bad magic")]
     BadMagic,
     #[error("unsupported version {0}")]

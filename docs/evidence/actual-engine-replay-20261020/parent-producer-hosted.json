@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "source_commit": "56b733dfdce0b865ad121d49c4d71d720b305733",
+  "actual_checkout": "babd637b258840a77fc9f815ec72889c7053d4d7",
+  "source_tree": "9cfec954bef05e7f18bc96b7302735412174cd36",
+  "merge_tree": "9cfec954bef05e7f18bc96b7302735412174cd36",
+  "whole_tree_equal": true,
+  "declared_source_files": 528,
+  "declared_source_sha256": "165d4185ee49a221443a3293d3d2f6c727793e30c62d72a88d871f5c90ac5d89",
+  "all_declared_git_blobs_verified": true,
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39414575532",
+  "run_conclusion": "success",
+  "successful_jobs": 17,
+  "platforms": {
+    "test (macos-latest)": {
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1494
+      },
+      "suites": 158,
+      "raw_log_sha256": "46988ba48a1a22fb512c0354cd5267aa1692b49c79d1095f54c603601c7e1088",
+      "hyperliquid_public_cases": 7,
+      "hyperliquid_adapter_contracts": 18
+    },
+    "test (ubuntu-24.04-arm)": {
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1495
+      },
+      "suites": 158,
+      "raw_log_sha256": "929f1a57c83dd8d754ec6ae6c0e586ca5992d9c88ad3caad87e89ccc25bf3c2f",
+      "hyperliquid_public_cases": 7,
+      "hyperliquid_adapter_contracts": 18
+    },
+    "test (ubuntu-latest)": {
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1495
+      },
+      "suites": 158,
+      "raw_log_sha256": "22edcea7537a69bbb3e3f6f4752f3191e1f51b98143ff2cc86b7dfda461b94ca",
+      "hyperliquid_public_cases": 7,
+      "hyperliquid_adapter_contracts": 18
+    },
+    "test (windows-latest)": {
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1492
+      },
+      "suites": 158,
+      "raw_log_sha256": "7c194d9ab08c52695dc95bcc46af3b43cd899c05551734c2f84c7c5007fbf41c",
+      "hyperliquid_public_cases": 7,
+      "hyperliquid_adapter_contracts": 18
+    }
+  },
+  "msrv": {
+    "core": {
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 553
+      },
+      "suites": 30,
+      "raw_log_sha256": "0132449bb64d5f6550b69c6d4317c310ce03ad8a1cb6c0f619a5a04530bffc4a"
+    },
+    "datasets": {
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 20
+      },
+      "suites": 6,
+      "raw_log_sha256": "fee0013cf1c7c29d5c5865fdfe22d0034891add91d7e9c033eed5405c4ebb90f"
+    },
+    "explicit_bootstrap_owner": {
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 64
+      },
+      "suites": 3,
+      "raw_log_sha256": "4249d7de35716f946ce80accf9f0a43f229db654ef12a6f6547095c9d5ecf70c"
+    }
+  },
+  "msrv_scope": "Explicit Rust 1.85 opt-in step exercises 50 bootstrap/owner units, 4 public bootstrap and 10 public owner tests. New 7-test Hyperliquid public target is witnessed on the Rust 1.91 all-features matrix; it is not a separate target in the explicit MSRV step.",
+  "windows_native": {
+    "required_write_open_and_flush": true,
+    "readonly_control_access_denied_code": 5,
+    "administrator_token": true,
+    "native_artifact_sha256": "ede2f245c35c5ba68a704397386660965d2ad744db829ba3387c1f525c96e05c",
+    "recording_filesystem_tests": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 107
+    },
+    "dataset_tests": {
+      "failed": 0,
+      "ignored": 0,
+      "passed": 19
+    },
+    "scope": "Hosted local NTFS API compatibility, not power-loss, ordinary-user or remote-filesystem proof"
+  },
+  "independent_receipt_sha256": "53ca081b5d49baa90df89dad4e21a8b925cc8defa9d9916d9051ce60f6512954",
+  "scope": "Published parent56b only; excludes newer530-input actual-engine replay candidate and other consumer artifacts",
+  "limits": [
+    "No live Hyperliquid, registered ingress/latency workload, hardware/calendar, ordinary-user Windows or economic/full-goal qualification.",
+    "No rerun-to-green of prior failed durable-ingress or old10s ARM watchdog; preserved failures remain failed.",
+    "Consumer HLS pin/rebuild/saved replay/own CI is separate; producer CI gives no consumer artifact equivalence.",
+    "Committed compatibility projection, actual physical-order replay/checkpoints and safe restart remain separate acceptance gates.",
+    "No CI executable SHA, loaded-image/signed attestation, full transitive input/dependency-feature graph or reproducible-build claim.",
+    "Quadratic rejection fix has static complexity and max-vector rejection evidence, without timing/RSS performance proof."
+  ]
+}

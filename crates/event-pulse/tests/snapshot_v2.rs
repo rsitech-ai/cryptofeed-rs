@@ -144,6 +144,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                     last: 100,
                 }),
                 MarketEvent::Trade(Trade {
+                    provenance: None,
                     price: price(100),
                     quantity: quantity(2),
                     aggressor: AggressorSide::Buy,
@@ -173,6 +174,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                 source_ms + 1,
                 None,
                 MarketEvent::Quote(Quote {
+                    provenance: None,
                     bid_price: price(99),
                     bid_quantity: Some(quantity(1)),
                     ask_price: price(101),
@@ -206,6 +208,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                     last: 200,
                 }),
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: vec![BookLevel {
                         price: price(99),
                         quantity: quantity(3),
@@ -266,6 +269,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                 source_ms + 4,
                 None,
                 MarketEvent::Liquidation(Liquidation {
+                    provenance: None,
                     price: price(98),
                     quantity: quantity(1),
                     side: AggressorSide::Sell,
@@ -482,6 +486,7 @@ fn book_delta_at(
     value["envelope"]["source_sequence"]["first"] = json!(first_update_id);
     value["envelope"]["source_sequence"]["last"] = json!(final_update_id);
     value["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        provenance: None,
         changes: vec![BookChange {
             side: BookSide::Bid,
             operation: BookOperation::Upsert,
@@ -520,6 +525,7 @@ fn book_delta_generation_at(
     value["envelope"]["source_sequence"]["first"] = json!(first_update_id);
     value["envelope"]["source_sequence"]["last"] = json!(final_update_id);
     value["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        provenance: None,
         changes: vec![BookChange {
             side: BookSide::Bid,
             operation: BookOperation::Upsert,
@@ -1127,6 +1133,7 @@ fn mutated_duplicate_is_replayed_as_sequence_failure_without_new_evidence() {
     }
     let mut mutation = market_at(&inputs[0], &admission, 16, 16, 0);
     mutation["envelope"]["payload"] = serde_json::to_value(MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(Fixed::new(100, 0)),
         quantity: Quantity(Fixed::new(999, 0)),
         aggressor: AggressorSide::Buy,
@@ -1681,6 +1688,7 @@ fn failed_same_epoch_book_recovery_is_atomic_and_valid_retry_matches_fresh() {
         serde_json::to_value(book_snapshot_at(&inputs[2], &admission, 17, 17, 201)).unwrap();
     invalid_value["envelope"]["payload"] =
         serde_json::to_value(MarketEvent::BookSnapshot(BookSnapshot {
+            provenance: None,
             bids: vec![
                 BookLevel {
                     price: Price(Fixed::new(99, 0)),
@@ -2086,4 +2094,157 @@ fn public_connection_recovery_rejects_quote_generation_drift_before_mutation() {
         .unwrap();
     assert_eq!(actual.canonical_json(), expected.canonical_json());
     assert_eq!(actual.content_hash(), expected.content_hash());
+}
+
+fn semantic_liquidation_v2(
+    input: &MechanicsInputV2,
+    admission: &ProspectiveCaptureAdmissionV2,
+    frame: u64,
+    at: i64,
+    qualified: bool,
+) -> MechanicsInputV2 {
+    use marketfeed_model::{
+        LiquidationPriceBasis as B, LiquidationProvenance, LiquidationQuantityUnit as U,
+    };
+    let mut value = market_at(input, admission, frame, at, 0);
+    value["market_cursor"]["raw_frame_seq"] = json!(frame);
+    value["envelope"]["payload"] = serde_json::to_value(MarketEvent::Liquidation(Liquidation {
+        provenance: Some(Box::new(LiquidationProvenance {
+            source_channel: "synthetic-semantics-challenge".into(),
+            price_basis: if qualified {
+                B::Execution
+            } else {
+                B::Bankruptcy
+            },
+            quantity_unit: if qualified { U::Base } else { U::Unverified },
+            position_side: None,
+            native_attributes: BTreeMap::new(),
+        })),
+        price: Price(if qualified {
+            Fixed::new(100, 0)
+        } else {
+            Fixed::new(1, 255)
+        }),
+        quantity: Quantity(if qualified {
+            Fixed::new(1, 0)
+        } else {
+            Fixed::new(1, 255)
+        }),
+        side: AggressorSide::Unknown,
+    }))
+    .unwrap();
+    rehash_value(value)
+}
+fn refresh_liquidation_v2_context(
+    processor: &mut SnapshotProcessorV2,
+    inputs: &[MechanicsInputV2],
+    admission: &ProspectiveCaptureAdmissionV2,
+    at: i64,
+    sequence: u64,
+) {
+    let mut sidecars = Vec::new();
+    for input in inputs.iter().skip(6) {
+        let mut value = serde_json::to_value(input).unwrap();
+        let stamp = decision_offset(admission, at).canonical().to_owned();
+        value["available_at"] = json!(stamp);
+        if value.get("observed_at").is_some() {
+            value["observed_at"] = json!(stamp);
+            value["clock_cursor"]["start"] = json!(sequence);
+            value["clock_cursor"]["end"] = json!(sequence);
+        } else {
+            value["covered_through"] = json!(stamp);
+            value["coverage_cursor"]["start"] = json!(sequence);
+            value["coverage_cursor"]["end"] = json!(sequence);
+        }
+        let source = match input.view() {
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Clock { clock_source, .. },
+            ) => clock_source.key().source_id().to_owned(),
+            marketfeed_event_pulse::MechanicsInputRefV2::NonMarket(
+                marketfeed_event_pulse::wire::MechanicsInputRefV1::Coverage {
+                    coverage_source, ..
+                },
+            ) => coverage_source.key().source_id().to_owned(),
+            _ => unreachable!(),
+        };
+        sidecars.push((source, rehash_value(value)));
+    }
+    sidecars.sort_by(|a, b| a.0.cmp(&b.0));
+    for (_, input) in sidecars {
+        processor.ingest(&input).unwrap();
+    }
+}
+fn liq_v2_row(snapshot: &marketfeed_event_pulse::snapshot::AuthoredSnapshot) -> Value {
+    snapshot.value()["features"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["name"] == "liquidation_notional")
+        .unwrap()
+        .clone()
+}
+#[test]
+fn liquidation_semantic_marker_is_causal_unavailable_through_boundary_and_replayable() {
+    let admission = admission();
+    let initial = complete_inputs(&admission);
+    let live = live_inputs(&admission);
+    let mut processor = processor(&admission);
+    for input in initial.iter().chain(&live) {
+        processor.ingest(input).unwrap();
+    }
+    let mut earlier = processor.clone();
+    processor
+        .ingest(&semantic_liquidation_v2(
+            &live[4], &admission, 200, 60_020, false,
+        ))
+        .unwrap();
+    assert_eq!(
+        processor
+            .snapshot(decision_offset(&admission, 60_016))
+            .unwrap()
+            .canonical_json(),
+        earlier
+            .snapshot(decision_offset(&admission, 60_016))
+            .unwrap()
+            .canonical_json()
+    );
+    processor
+        .ingest(&semantic_liquidation_v2(
+            &live[4], &admission, 201, 60_021, true,
+        ))
+        .unwrap();
+    refresh_liquidation_v2_context(&mut processor, &initial, &admission, 60_021, 3);
+    let row = liq_v2_row(
+        &processor
+            .snapshot(decision_offset(&admission, 60_021))
+            .unwrap(),
+    );
+    assert!(row["value"].is_null(), "{row}");
+    assert_eq!(row["quality_state"], "UNAVAILABLE");
+    assert_eq!(row["reason_code"], "OUT_OF_DOMAIN");
+    processor
+        .ingest(&native_trade_at(&live[0], &admission, 102, 250, 65_020, 0))
+        .unwrap();
+    processor
+        .ingest(&quote_at(&live[1], &admission, 250, 65_020, 0))
+        .unwrap();
+    processor
+        .ingest(&book_snapshot_at(&live[2], &admission, 251, 65_020, 202))
+        .unwrap();
+    refresh_liquidation_v2_context(&mut processor, &initial, &admission, 65_020, 4);
+    let row = liq_v2_row(
+        &processor
+            .snapshot(decision_offset(&admission, 65_020))
+            .unwrap(),
+    );
+    assert!(row["value"].is_null());
+    assert_eq!(row["reason_code"], "OUT_OF_DOMAIN");
+    refresh_liquidation_v2_context(&mut processor, &initial, &admission, 65_021, 5);
+    let row = liq_v2_row(
+        &processor
+            .snapshot(decision_offset(&admission, 65_021))
+            .unwrap(),
+    );
+    assert_eq!(row["value"], "100");
+    assert_eq!(row["quality_state"], "VALIDATED");
 }

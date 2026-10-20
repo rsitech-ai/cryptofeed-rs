@@ -1,0 +1,260 @@
+{
+  "schema": "marketfeed.engine_drain_capture_validation.v1",
+  "base_source": "ba512ad1a1bbd0447c49eddedd2277d23ea9191b",
+  "checks_before_commit": true,
+  "source_sha256": {
+    "crates/engine/src/operation.rs": "bc35573d0b0a891a8c3d36cec0f1446dfa3afd9c4b32bac1dbfcaaaa04268343",
+    "crates/engine/src/operation_tests.rs": "69088f327d42c2908c92092714779096a373ebae8c29138683d207274e8e136d",
+    "crates/engine/src/runner.rs": "1164bc4799f4da8ea69ed851cca7a2156aa4f977703bd605379ef8dd483ec106"
+  },
+  "full_workspace": {
+    "passed": 1363,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 153
+  },
+  "msrv_core": {
+    "rust": "1.85.0",
+    "passed": 498,
+    "failed": 0,
+    "ignored": 0,
+    "suites": 30
+  },
+  "final_checks": [
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 557.398,
+      "log_sha256": "9f4f7e1a5e1e2411a5c5ac17fd16c896388cc345a7808cc403f95fa1e98f3966"
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 64.324,
+      "log_sha256": "ac13c06355320a565cf60712c21d8531d3b09e837b0ecd4c00ac6da740344008"
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 49.187,
+      "log_sha256": "edf7fc6a4559d647340a2f3575ebc36798b0cafa74fdae918ddc10c4ea17b624"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 6.776,
+      "log_sha256": "bb3c7d1027ca2d4777c0f136be8aff24e2cd4bfa671d375d7f86aa0bc77677be"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.026,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.306,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.025,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 3.856,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.8,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.014,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "focused": {
+    "passed": 28,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "fa11d1c7cbc85708c90f4e4b42a7401e6f2a16825c3bec0444feddaa9c2b9a80"
+  },
+  "independent_review": {
+    "passed": 28,
+    "failed": 0,
+    "ignored": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-engine",
+      "--lib",
+      "operation::tests",
+      "--",
+      "--nocapture"
+    ],
+    "log_sha256": "075616137e581a14f36bff4ce1091ef4933fe2577da1222fccb7d6e96e7aa8a6",
+    "source_before_after_unchanged": true,
+    "result": "no material defect found in offline attribution/drain scope"
+  },
+  "retained_initial_failures": [
+    {
+      "check": "mechanical trace-envelope refactor compile",
+      "log_sha256": "f0503fafd215ec8e8dad4db400c6201fb28d61300c41713665f98a210a7bb6ec"
+    },
+    {
+      "check": "opaque iterator Clone-bound compile",
+      "log_sha256": "5cd19452c0313c01c7e24e03a1697f066734968651ee45196b3c27c212589c08"
+    },
+    {
+      "check": "test payload AsRef inference compile",
+      "log_sha256": "0e80e20164d336cf1b5804f649296cd98357c3ea449880670c704bfca691ce66"
+    },
+    {
+      "check": "mid-drain entry probe originally stopped before first drain; zero-drop observation included; cap7 reaches intended boundary",
+      "passed": 27,
+      "failed": 1,
+      "log_sha256": "1e539377c6d09b4b923f4fc7e5c7c883fdda0de73bb4b9f54e43f263c0fda97f"
+    }
+  ],
+  "rustsec": {
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    }
+  },
+  "dependency_changes": "none; root/crate manifests and lock unchanged",
+  "frozen_store": {
+    "files": 22,
+    "all_file_bytes_sizes_modes_mtime_ctime_unchanged": true,
+    "directory_mode": "0555",
+    "scope": "preservation only; no new reader or dataset admission claim"
+  },
+  "shared_source_equivalence": {
+    "result": "pass; retain consumer pin ba512ad",
+    "pinned_source": "ba512ad1a1bbd0447c49eddedd2277d23ea9191b",
+    "packages": 5,
+    "tracked_files": 49,
+    "tracked_bytes": 363727,
+    "root_bindings": 7,
+    "receipt_sha256": "62cd39bdfc5c776425e135a50b11298c4a083a7a913dcb5a743c006d2916d863",
+    "scope": "static full tracked shared-package/root-binding equivalence plus retained consumer baseline checks; not whole-producer/engine equivalence, no new builds/replay/CI qualification",
+    "exclusions": [
+      "target/environment/injected build metadata and fresh-build artifact equivalence",
+      "whole producer or new engine/drain qualification"
+    ],
+    "consumer_source": "46c962abe56c2e7ddd2a24956a1ec6a9304369da",
+    "consumer_preservation": "419complete registry/graph and21historical committed bytes; prior19historical metadata+2original archive metadata preserved; retainedbinary/replay still original scoped artifacts"
+  },
+  "public_check": {
+    "result": "pass",
+    "gitleaks": "8.30.1",
+    "log_sha256": "295091419f0fc2b9cf1c658a65f217b0ccbe57fcdee6182bbaf9522f6c0bc323",
+    "scope": "staged source/plans/evidence; final receipt metadata rechecked before commit"
+  },
+  "parent_ci": "ba512ad all17success with identical full tested/source tree; separate original capture ci-qualification.json",
+  "scope": "offline actual-runner effect attribution, null/write/HTTP drains, declared compound turns and scripted actual sink forwarding; no journal/durable receipt/release or live caller migration",
+  "remaining": [
+    "distinct negotiated causal envelope/profile and engine-owned exact DTOs",
+    "lossless bootstrap committed before execution/factory activation",
+    "private actor owner retaining same operation across Full admission and waiting trueACK",
+    "committed snapshots and readiness/books/dispatch/wire/HTTP release with immediate revocation/generation safety",
+    "sink result binding to prior committed delivery intent/items",
+    "actual-engine durable replay/live migration and unchanged failed-ingress comparison",
+    "native semantics/continuity,strict datasets,rsibot context/features,calendar/native hardware"
+  ]
+}

@@ -20,6 +20,7 @@ pub enum MarketSegment {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Capability {
     Trades,
+    AllTrades,
     Quote,
     L2Book,
     L3Book,

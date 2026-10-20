@@ -392,6 +392,7 @@ impl DaemonState {
         let mut brs_l = String::new();
         let mut pf_l = String::new();
         let mut um_l = String::new();
+        let mut exclusions_l = String::new();
         let mut occ_l = String::new();
         let mut cap_l = String::new();
         let mut system_occ_l = String::new();
@@ -419,6 +420,7 @@ impl DaemonState {
             let brs = m.book_resynchronizations.load(Ordering::Relaxed);
             let pf = m.parse_failures.load(Ordering::Relaxed);
             let um = m.unknown_messages.load(Ordering::Relaxed);
+            let exclusions = m.trade_records_excluded.load(Ordering::Relaxed);
             let abo = m.action_buffer_overflows.load(Ordering::Relaxed);
             let occ = m.batch_queue_occupancy.load(Ordering::Relaxed);
             let cap = m.batch_queue_capacity.load(Ordering::Relaxed);
@@ -444,6 +446,8 @@ impl DaemonState {
                 .fetch_add(brs, Ordering::Relaxed);
             agg.parse_failures.fetch_add(pf, Ordering::Relaxed);
             agg.unknown_messages.fetch_add(um, Ordering::Relaxed);
+            agg.trade_records_excluded
+                .fetch_add(exclusions, Ordering::Relaxed);
             agg.action_buffer_overflows
                 .fetch_add(abo, Ordering::Relaxed);
             agg.valid_books.fetch_add(vb, Ordering::Relaxed);
@@ -513,6 +517,9 @@ impl DaemonState {
             ));
             um_l.push_str(&format!(
                 "marketfeed_venue_unknown_messages_total{{id=\"{id}\"}} {um}\n"
+            ));
+            exclusions_l.push_str(&format!(
+                "marketfeed_venue_trade_records_excluded_total{{id=\"{id}\"}} {exclusions}\n"
             ));
             occ_l.push_str(&format!(
                 "marketfeed_venue_queue_occupancy{{id=\"{id}\"}} {occ}\n"
@@ -668,6 +675,13 @@ impl DaemonState {
             "Per-venue unknown message events",
             "counter",
             &um_l,
+        );
+        emit(
+            &mut out,
+            "marketfeed_venue_trade_records_excluded_total",
+            "Per-venue native trade-bearing records explicitly excluded by tape admission policy",
+            "counter",
+            &exclusions_l,
         );
         emit(
             &mut out,

@@ -1,0 +1,373 @@
+{
+  "schema": "marketfeed.bootstrap_factory_gate_validation.v1",
+  "base_source": "d1ab485fc5f7f44cb3e9a0a2c2e35775ed70e218",
+  "checks_before_commit": true,
+  "source_sha256": {
+    "Cargo.lock": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+    "crates/daemon/Cargo.toml": "b274359c69dd5836792b9db93c37523e1af9ba4ce20422e394af2d6a2a9a019a",
+    "crates/daemon/build.rs": "d69f0ed4c404184b230be18791594cebbf013ee49fe4925607cef486e5288d7e",
+    "crates/daemon/src/lib.rs": "8851c0cde92a8b1a2d16cf345f084d859cc7c0baecd719e38dbae4146c6fd212",
+    "crates/daemon/src/causal_bootstrap.rs": "4ba9b5dc8c5975c351c7d453b9cb43eeda30806a68534c474ad8b116effb0fc8",
+    "crates/daemon/src/causal_bootstrap_tests.rs": "8a058096ec86ae2cfc25d3cfc0c1bac1a5bf52abcd08b00c7070d98ad7e7a1fe",
+    "crates/daemon/tests/causal_bootstrap.rs": "dc5d33d2e6f0f215612eac27efc49110ce49105a88f4a3e97560c73a4604409d",
+    "crates/engine/Cargo.toml": "f469350fa4cb8b6f6d6d9cb75024c5ac2e0844deaa4140cbb36738fc6f786463",
+    "crates/engine/src/causal.rs": "967b6bb60db2b69b73acd1dcde4ea7c2981b6d8ef61c6bf9e38446c16f69e533",
+    "crates/engine/src/causal_bootstrap.rs": "4c6710a3fe8b1185d22afc756297d95ec5ef96f979d70608763b87af0578a25b",
+    "crates/engine/src/lib.rs": "fa3c837c5a2dbcb0a46087db894796bec54bc9ff425817ac134eee479d556337",
+    "crates/engine/src/operation.rs": "0aff269e1c18e1418de9a1f9055ac52022bb6967aaaae8d9c50d670f2c667f31",
+    "crates/engine/src/runner.rs": "5ea6ef94d56f88cc99887f48b9fe0f795ba32f5ba00f7ebbd9c48edb6929a8d8",
+    "crates/adapters/bybit/src/factory.rs": "c46013a49c38674dd2224f533808bd80c35982ca0fc3759088efc27873e2403d",
+    "crates/adapters/bybit/src/lib.rs": "66add22cfeaac97ca4fcf559e6ead1d5569500f299b7b808131edca5153d8b8a",
+    "crates/adapters/bybit/src/session.rs": "bf7432738d9ddd53d4d8bf04977226e098ed06ab213b5fd1df971df6ed7dd0be",
+    "crates/sinks/src/lib.rs": "45ba6c3b6c40333b4b443c2ba44f1abcd0863da739dbf98b8165800c59c3f6cd"
+  },
+  "source_unchanged_from_final_independent_and_static_checks": true,
+  "workflow_sha256": "846fef65cbdbc8c21f39d59f93e30795444c175db3ae3a69a500f6898581575c",
+  "workspace_before_two_lint_fixes": {
+    "passed": 1407,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 156,
+    "source_receipt_sha256": "1d5c010a256367be83095ef352e31b25778bcc9e52e5c3732697c2e2bbed71fd",
+    "log_sha256": "6299ff78f13cf8e8e362e59265125284a3c38395ff000216c447ac6dd1e8f3f6",
+    "scope": "Snapshot01 before equivalent membership lookup and private Box fixes. Final affected three-package all-target/all-feature suite is recorded separately; own-source hosted full-workspace qualification remains required."
+  },
+  "msrv_core": {
+    "rust": "1.85.0",
+    "passed": 524,
+    "failed": 0,
+    "ignored": 0,
+    "suites": 30
+  },
+  "msrv_bootstrap": {
+    "rust": "1.85.0",
+    "unit": {
+      "passed": 10,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 1
+    },
+    "public": {
+      "passed": 3,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 1
+    }
+  },
+  "commands": [
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 16.443,
+      "log_sha256": "141389b2f5624998dcfae7f707bbb9c2f19e17521eb908d9ac0a11912b49ccf3"
+    },
+    {
+      "check": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 12.924,
+      "log_sha256": "5a6364c6baa46031ebd2d0e880e94105623363163010e3c8a822cc027118eb53"
+    },
+    {
+      "check": "msrv-bootstrap-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 8.569,
+      "log_sha256": "aa67e69dc20f3e8d301083837f56f08ed21f09e0d21eba16f5b36434205b57fd"
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 8.573,
+      "log_sha256": "34295489a6e7c89530004878687468b495d56f7e2fe52c9f05f0da24258b309b"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 12.416,
+      "log_sha256": "59e7607a746e04d6457491b5296c827e236005b589bbc935c7a7fc21f8b432e8"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.034,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.373,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.041,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 9.847,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.762,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.016,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "independent_review": {
+    "result": "pass in bootstrap/factory and deterministic Bybit ordering scope",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-daemon",
+      "-p",
+      "marketfeed-engine",
+      "-p",
+      "marketfeed-adapter-bybit",
+      "--all-targets",
+      "--all-features"
+    ],
+    "passed": 396,
+    "failed": 0,
+    "ignored": 4,
+    "suites": 37,
+    "bootstrap_unit_cases": 10,
+    "independent_public_enabled_cases": 3,
+    "log_sha256": "cfc13fe6bf3c2991b0791ad01e751e83c1616299a31b885ccf290920bb0d6c24",
+    "receipt_sha256": "edb47a4ba9b434a8f55d7a98ee9a4e4d0b2e30f2bcbadd5813bbed8828b98ef8",
+    "source_before_after_unchanged": true,
+    "closed_findings": [
+      "Explicit CompleteNativeBundleV1 plus exact effective topics rejects requested channel/delivery semantics the legacy adapter does not honor; arbitrary legacy plans remain outside the supported profile.",
+      "Opt-in causal-journal gate preserves ordinary packaged/legacy build layout; disabled marker yields direct Unsupported before parse."
+    ]
+  },
+  "independent_default_disabled": {
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-daemon",
+      "--test",
+      "causal_bootstrap",
+      "--no-default-features"
+    ],
+    "passed": 1,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "f778b43f87485381dd1476519c9f502f0e7519c9fdd2bdefc7739449ab39c0e5",
+    "receipt_sha256": "1c898eb2fdd01da46be5ed170366c6c7954a366e4fe749d94f9c52e0ca83626b"
+  },
+  "independent_build_binding": {
+    "receipt_sha256": "bbe50e14d5148ece5c19daef8035532f45c17a421b2077e1df9697d0bedc3333",
+    "scope": "Inspect the separate independent report for actual generated recipe/source/artifact binding scope; not signed or loaded-image attestation."
+  },
+  "earlier_checks": [
+    {
+      "log_sha256": "edbe64bc4881c961a036cc128ca25752f0cb9a0c4782af30d41c409f828d225e",
+      "result": "Locked test invocation refused newly added tempfile edge before lock refresh; no tests executed."
+    },
+    {
+      "log_sha256": "f0537939cf023c004f8fa9de33916c35ef5cb845e2bae834c6363cc3bef05e63",
+      "result": "8 passed/1 failed: genuine unordered Bybit book invalidation effects reproduced, order6/5/9/4/10/7/3/1/2/8 instead of1..10. Fixed with ordered book and quote maps."
+    },
+    {
+      "log_sha256": "78ac25f325e1f191a77d3ba715777290367aff8f74c9353b279c04adc6545f75",
+      "result": "10 passed before final explicit complete-bundle and opt-in build-layout review fixes; not substituted for final candidate verification."
+    },
+    {
+      "log_sha256": "a02d316a07d8641e4d12abf877ee0640c6b562e6b14b0daa6cf796443774d39f",
+      "result": "10 focused unit cases passed after those fixes; separately authored public cases and full final validation follow."
+    },
+    {
+      "receipt_sha256": "a34956900db782d963a7d65bc0e7bcb55532cde773c90677938bc73d55845249",
+      "workspace": {
+        "passed": 1407,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 156
+      },
+      "result": "Earlier source17 snapshot01 passed workspace, core MSRV, bootstrap MSRV; stopped at map lookup lint. Preserved as pre-fix scope. A subsequent lint run found large Err; fixed by private Box retaining same prepared transaction. Both final fixes independently reviewed and final snapshot02 reverified."
+    },
+    {
+      "log_sha256": "b2f3ac36540da9d3d15e32bbe2c7d0b4d9b327a21eba01f2ed33e04fef3f99f1",
+      "result": "Unnecessary get then check; replaced with contains_key."
+    },
+    {
+      "log_sha256": "34295489a6e7c89530004878687468b495d56f7e2fe52c9f05f0da24258b309b",
+      "result": "736-byte rejected-bootstrap Err; moved private retained value into Box, preserving exact transaction recovery."
+    }
+  ],
+  "security": {
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    },
+    "new_registry_versions_or_packages": false,
+    "registry_records": 263,
+    "all_complete_registry_records_identical": true,
+    "only_new_direct_edges_vs_base": {
+      "marketfeed-daemon": [
+        "sha2",
+        "tempfile"
+      ],
+      "marketfeed-engine": [
+        "sha2"
+      ]
+    }
+  },
+  "frozen_store": {
+    "files": 22,
+    "all_bytes_sizes_modes_mtime_ctime_unchanged": true,
+    "directory_mode": "0o555",
+    "scope": "preservation only"
+  },
+  "consumer": {
+    "producer_pin": "6565c9428e0c97636f1c5988f4a2c22b4d17f52e",
+    "source": "d372488770dc54c6b390ed5de43be75ee608199d",
+    "shared_tracked_files": 52,
+    "static_root_bindings": 6,
+    "conservative_dependency_closure_records": 71,
+    "dependency_closure_sha256": "a069a4604cd4cbdef8aa2f7f25f28924690468b417cc8966e7a432212a3999c5",
+    "whole_producer_lock_identical": false,
+    "independent_receipt_sha256": "8eb1c612c61e3c31a82e1de0b159ea996bcfb464654e0789fd85985aca681bb5",
+    "qualification": "consumer-qualification.json binds completed exact main/four-platform artifact source. Retain pin; no whole-producer/artifact equivalence claimed."
+  },
+  "previous_source_ci": "d1ab485 all17jobs passed, identical source/merge tree7ca7e7b3; separately qualified in ../engine-operation-codec-20261020/ci-qualification.json. Does not qualify this later bootstrap source.",
+  "new_source_ci": "Not yet published/run at this before-commit snapshot; requires own-source hosted verification.",
+  "scope": "Exact canonical bootstrap, observed build/artifact binding, real actor receipt before factory, opaque private initial CaptureSession and deterministic Bybit invalidation order. No operation commit/release or live caller.",
+  "limits": [
+    "First opt-in profile is workspace-source public production Bybit spot/linear/inverse complete native bundle with disk/null dispatch. Unsupported configurations/sinks/negative flags/partial bundles are rejected.",
+    "Observed current executable file assumes preserved artifact deployment; portable std APIs do not prove loaded-image identity after pathname replacement. Not signed attestation or bit-reproducible build proof.",
+    "Selected workspace package feature lists are explicit; no equivalence of the whole third-party feature graph or other platform binary is inferred.",
+    "Canonical payload bound is not preallocation/peak-memory/RSS guarantee. Actor waits retain blocking-filesystem limitation. Public input policy is not credential redaction."
+  ],
+  "remaining": [
+    "Private operation owner with bounded independent ingress, retained executed-operation admission retries and absolute deadlines",
+    "Post-barrier snapshots/readiness/dispatch/wire/HTTP release, immediate revocation and generation-safe late ACK handling",
+    "Bound external sink intents/completions, deliberate committed-release projection and actual-engine physical-order replay/resume",
+    "Actual daemon/live/control/supervisor/consumer migration and unchanged registered failed-ingress comparison; failure remains failed",
+    "Legacy arbitrary Bybit channel/delivery semantics and other factory profiles remain unqualified outside the explicit first profile",
+    "Native units/continuity/freshness, strict datasets, rsibot readers/context/features, calendar and hardware gates"
+  ],
+  "public_check": {
+    "command": [
+      "bash",
+      "scripts/check-oss-readiness.sh"
+    ],
+    "exit_code": 0,
+    "log_sha256": "171ba85d6862fef9e7a9da67acf208d5f7537c418b2af801186ba558f61e2449",
+    "scope": "Final staged bootstrap sources and evidence; before result-only receipt/status update"
+  }
+}

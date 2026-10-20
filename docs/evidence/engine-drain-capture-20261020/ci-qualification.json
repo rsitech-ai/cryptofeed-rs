@@ -1,0 +1,62 @@
+{
+  "schema": "marketfeed.actual_engine_drain_platform_ci.v1",
+  "source_commit": "8bd1ba736260ddd3de77abcc78ec1901f5503223",
+  "actual_merge": "54542847c11eff7bf3e676961edfb37e9354a17c",
+  "source_tree": "db77dfbd822b7304cbb337360bfcb6a89b65b4d3",
+  "merge_tree": "db77dfbd822b7304cbb337360bfcb6a89b65b4d3",
+  "complete_tree_equal": true,
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39370581098",
+  "successful_jobs": 17,
+  "jobs": [
+    {
+      "platform": "linux",
+      "passed": 1364,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "dc2221c6e8e30df0b2eb533d496c145419dee5671dc07569026a274b563a26b3"
+    },
+    {
+      "platform": "linux-arm",
+      "passed": 1364,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "d59ade13bd09b6af9b9c5b35387c3a02aa158c3fab4e636212b39493112d2124"
+    },
+    {
+      "platform": "macos",
+      "passed": 1363,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "a228c63863790481ad5baac519b350068e52c70301c48335279cfab6217f9f48"
+    },
+    {
+      "platform": "windows",
+      "passed": 1361,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "ad9beeb64cb89da1e67f6cc5679a870dca0e61fa940698498aec7f7789d79885"
+    },
+    {
+      "platform": "native-windows",
+      "passed": 104,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 11,
+      "log_sha256": "1e9609e76d46ce1cee6d398a69174f1dd009e1318d4e3d36e855c0477d442525"
+    }
+  ],
+  "retained_log_fetch_failure": {
+    "platform": "linux",
+    "exit_code": 1,
+    "reason": "gh cache entry EOF; same completed job log fetched successfully on retry; workflow not restarted"
+  },
+  "does_not_establish": [
+    "later negotiated storage profile qualification",
+    "live actor integration, durable ingress repair or complete causal replay",
+    "ordinary-user Windows/hardware, strict datasets, live continuity, calendar soak or operational promotion"
+  ]
+}

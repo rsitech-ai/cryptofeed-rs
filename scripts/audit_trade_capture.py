@@ -37,21 +37,36 @@ def crc32c(data):
 def records(path):
     if path.stat().st_size > 128 * 1024 * 1024:
         raise ValueError("segment exceeds audit 128 MiB cap")
-    data = path.read_bytes()
-    if data[:4] != b"MFR1" or struct.unpack_from("<H", data, 4)[0] not in (1, 2, 3):
-        raise ValueError("unsupported MFR1")
+    with path.open('rb') as source:
+        data = source.read(128 * 1024 * 1024 + 1)
+    if len(data) > 128 * 1024 * 1024:
+        raise ValueError("segment exceeds audit 128 MiB cap")
+    yield from records_bytes(data)
+
+
+def records_bytes(data):
+    if len(data) > 128 * 1024 * 1024:
+        raise ValueError("segment exceeds audit 128 MiB cap")
+    if len(data) < 22 or data[:4] != b"MFR1":
+        raise ValueError("invalid/truncated MFR1 header")
+    version=struct.unpack_from("<H",data,4)[0]
+    if version not in (1,2,3):
+        raise ValueError("unsupported MFR1 version")
     offset = 22
     while offset < len(data):
         if offset + 47 > len(data):
             raise ValueError(f"truncated header at {offset}")
         n, session, seq, ts, mono, direction, opcode, flags, length, crc = struct.unpack_from(
             "<IQQqQBBBII", data, offset)
+        valid_opcode=1<=opcode<=5 or (opcode in (6,7) and version>=2) or (opcode==8 and version>=3)
+        if direction not in (0,1) or not valid_opcode:
+            raise ValueError("invalid MFR1 direction or version-specific opcode")
         if n != 47 + length or n > 16 * 1024 * 1024 or offset + n > len(data):
             raise ValueError(f"invalid/truncated record at {offset}")
         payload = data[offset + 47:offset + n]
         if crc32c(payload) != crc:
             raise ValueError(f"CRC mismatch at {offset}")
-        yield dict(session=session, seq=seq, receipt_ns=ts, opcode=opcode,
+        yield dict(session=session, seq=seq, receipt_ns=ts, monotonic_ns=mono, flags=flags, opcode=opcode,
                    direction=direction, offset=offset, payload=payload)
         offset += n
 

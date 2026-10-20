@@ -1,5 +1,14 @@
 # Trade integrity implementation plan
 
+This document preserves the **original audit-stage plan** and its dependency
+gates. Its description of a documentation-only deliverable applies to that
+stage. Subsequent adapter, storage and engine repairs are tracked in the
+[active implementation ledger](hyperliquid_shared_feed_implementation.md) and
+[goal scope](active_goal_scope.json); work-package estimates below are not
+current completion claims. In particular, the
+[timer prerequisite repair](../evidence/timer-chronology-20261020/) does not
+complete D5 or admit strict datasets.
+
 Baseline: `1c668981ee2d5b456dfa6d085fbd558b1998937d`, 2026-10-19.
 Scope/authority: repository-process/public research verification only. No economic
 runs, orders, deployment, production migration or frozen-corpus mutation.
@@ -8,7 +17,7 @@ not implementation of every phase or qualification/promotion of a dataset.
 See [contract](../spec/trade_data_integrity_and_backtest_storage.md),
 [inventory](trade_venue_inventory.md), and [measured report](../ops/trade_data_validation_report.md).
 
-## Current deliverable and working rules
+## Original audit deliverable and working rules
 
 This PR adds audit documentation, small public fixtures and bounded verification
 tools. It does not repair adapters, add production Parquet storage, admit data,
@@ -56,6 +65,66 @@ are hard acceptance gates. Owners are responsibilities pending named assignment.
 | Q1 / 5 / 1–2d tooling + capture | existing daemon/harness, acquisition plan and manifests | resumable bounded live/history/archive acquisition; no implicit corpus writes | pilot complete through raw→validated→published→actual-reader with source-aligned reconciliation; request/byte/time/retry caps and stop evidence | D4,P3,C2 / data operator |
 | Q2 / 5 / 2–4d | same components; no second downloader framework | expand one product/precision/parser family at a time; immutable new datasets | each row passes declared scope or remains failed/blocked/unsupported/not-run; no extrapolation from one liquid instrument | Q1 / venue owners+operator |
 | O1 / 6 / 2–4d engineering + calendar | existing canary/soak scripts/workflows/runbooks/metrics | trade-specific acceptance, oncall, disk retention/restore and current endpoint region checks | ≥7 scheduled runs; ≥24h/≥7d requirements per existing runbook; RSS/CPU/disk/burst budgets, injected failure accounting and restore; ops sign-off | Q1,Q2 / release captain+ops |
+
+## D5 delivery milestones and remaining causal replay
+
+D5 has two required milestones. Milestone A is bounded legacy adapter
+reconstruction in `replay/src/streaming.rs`: metadata encountered in physical
+record order, independent session machines, synchronous whole-record sink
+delivery, explicit assumed startup, cumulative input quotas and terminal failure
+positions. It preserves original mutable-parser input bytes and legacy APIs.
+MFR lacks sufficient evidence to establish engine generations, observed startup,
+queue admission or complete timer/control chronology. Milestone A cannot admit a
+strict observed-availability dataset or complete D5.
+
+Milestone B must execute the actual engine runner from a versioned causal
+operation journal. Implement it in the engine or a higher-level crate to avoid
+the existing engine-to-replay dependency cycle. Required contract and tests:
+
+- Record an independent operation ordinal, logical session, physical connection
+  generation, original bytes/timestamps and typed engine entry operations.
+  Distinguish transport loss from disconnect, and include connection, HTTP,
+  control, subscription mutation and stop operations.
+- Record timer **poll boundaries**, their sampled time and expected firings.
+  Invoke the actual timer scheduler once per poll; individual firing records
+  cannot recover callback postponement, cancellation or the 64-fire poll cap.
+- Include queue/HTTP/write drain boundaries and state changes outside adapter
+  callbacks, or reject unsupported capture profiles. Automatically draining
+  after each replay callback changes bounded-queue admission behavior.
+- Close mutation bypasses before declaring capture complete: the existing runner
+  exposes mutable lifecycle/stop/reconnect fields and `dispatch_mut`, while the
+  live loop assigns lifecycle directly and observes an external atomic stop
+  flag. A journaled owner needs a private inner runner with typed operations and
+  no mutable escape, or all callers must migrate to private instrumented state.
+  A mode flag on the current public runner does not establish complete capture.
+- Atomically publish each input, canonical output and typed terminal outcome
+  under the durable watermark. A missing outcome is incomplete evidence.
+  Reexecute failed callbacks because they may mutate adapter state before error.
+  Existing `apply_frame_actions` starts after the callback and owns/takes its
+  transaction; an outer journal must not nest it unchanged. `FrameAccepted`
+  covers only text/binary/HTTP success and is not a generic callback outcome.
+- Preserve the live machine across reconnects and reset generation-owned state
+  through the actual runner. Inject recorded connection identity rather than
+  allocate new global IDs. Verify engine-stamped output identity and ordinals.
+- Version/negotiate new wire records and migrate hlscreen deliberately: old
+  decoders reject unknown record kinds, and session-only maps cannot represent
+  generations. Keep compatibility projections from double-applying inputs.
+- Challenge mixed sessions/generations, timer polls, delayed metadata, rejected
+  callbacks, drain-dependent overload, clock changes, sink failure and prefix
+  equality against original captured engine output. Retain unsupported cases
+  as unavailable rather than fabricating missing causal evidence.
+- Bound catalog-refresh fan-out before allocation. Current
+  `publish_catalog_refresh` at244f cast an unbounded row index to `u16`, so a
+  65,537-instrument catalog repeated index zero. The engine-only follow-up now
+  rejects above65,536 before allocation/output; exact-boundary, no-mutation and
+  durable-watermark regressions pass. See
+  [bounded repair evidence](../evidence/catalog-refresh-bounds-20261020/). This
+  closes index representability, not general catalog validity or strict support.
+
+Shared recording changes also require coordinated consumer source pins and the
+existing saved-feed parity, dependency and attribution gates before publication.
+Strategy features and decision admission remain rsibot-owned throughout both
+milestones; see the [ownership plan](cross_venue_observation_implementation.md).
 
 ## Cross-cutting decisions that must settle first
 
@@ -158,3 +227,181 @@ Observed-availability replay is additionally blocked by D5. Qualified publicatio
 needs P1–P3. Actual strict OKX compatibility needs C1/C2. Operational promotion
 needs O1 and the source-specific calendar evidence. Every scope resolves to
 passing evidence or an explicit non-passing disposition, not a single green box.
+
+## Registered ingress diagnostic and required repair
+
+The [paced snapshot diagnostic](../evidence/paced-ingress-diagnostic-20261020/README.md)
+now reproduces a local synchronous-writer bottleneck without a network. Raw-only
+baseline processes all4,864 scheduled inputs. Adding the authoritative durable
+writer reaches the bounded512-frame/session queues after147 load callbacks and
+stops visibly; the remaining slow arm is not run under the registered abort rule.
+The exact saved prefix passes independent CRC/native-byte/order/output checks,
+but the workload remains failed. The earlier malformed-fixture rejection and
+all failed attempts remain preserved. This does not uniquely explain the live
+Bybit samples or qualify exchange coverage.
+
+Observational stage counters preserve existing write/sync/replace/directory
+barriers and poisoned/indeterminate publication behavior. Meaningful recording,
+engine/replay, queue-release and worker-panic checks cover this slice. A separate
+review caught detached worker handles on panic; immediate shared failure signaling
+and joining both worker groups before returning now close that defect. Timing
+maxima remain cumulative, concurrent lock waits are not wall time and sealing is
+included in interval totals. No throughput/capacity SLA follows from this fixture.
+
+Next repair belongs in cryptofeed, before rsibot consumes a live context: bound
+ingress and durability work by count/bytes/time, batch only within explicit causal
+operation boundaries, retain exact native inputs and accepted canonical effects,
+and release durable acknowledgments only after the existing publication barriers.
+Register and retain the original failing workload before measuring the repair;
+test queue/full-disk/barrier/worker failures and replay ordering independently.
+Do not mask backlog with larger queues or weaker durability. Design this together
+with complete D5 milestone B: current callback/input split and mutable lifecycle
+escape paths cannot support an honest atomic-batch claim by themselves.
+
+Strategy alignment/features/models/ETF/economics remain in existing rsibot owners.
+Neither a storage repair nor this diagnostic adds a strategy-context engine here.
+
+### Engine boundary settled by independent source review
+
+At source82a871b, `record_frame` publishes input before the callback and
+`apply_frame_actions` opens a separate transaction afterward. Dispatch, timers,
+pending writes and readiness can already have changed before the second ACK.
+A background writer alone cannot combine these dependent calls, capture failed
+callback outcomes or hide that uncommitted state. Do not label it a complete
+ingress/D5 repair.
+
+Implement a private engine owner (proposed `JournaledSession`) with typed entry
+operations and immutable committed snapshots, without runner/dispatcher mutation
+escapes. Replace the nested transaction with one outer capture scope spanning
+input, actual callback, action application and error settlement. Record produced
+effects separately from queue-admitted effects and preserve typed failures after
+partial mutation. Reserve outcome space; a capture limit must not acknowledge an
+incomplete operation. Inject recorded connection identity and retain the actual
+machine across reconnects.
+
+A bounded writer actor accepts complete prepared operations and groups by
+operation count, encoded bytes and maximum age, using the unchanged publication
+barriers. Admission tickets are not durability acknowledgments. Start with one
+executed/unacknowledged operation per session and independent bounded ingress;
+never wait for an exact number of active sessions or hold the writer mutex while
+awaiting submissions. This conservative concurrency profile may still fail the
+registered 480-frame/s workload. Preserve that result; a larger same-session
+window requires explicit speculative-state/drain semantics, not a relaxed load.
+
+Positive readiness, books, canonical dispatch and wire/HTTP release stay private
+until commit. Safety revocation remains immediate; a late ACK must not revive a
+stopped or superseded generation. Writer errors poison owners, settle all tickets
+and stop execution; post-replace barrier failure remains indeterminate. A dropped
+waiter cannot cancel an executed operation or make retry safe.
+
+Capture timer polls once with their observed firing list, retaining the 64-fire
+cap. Capture stop observations and all supervisor/catalog/status transitions.
+Preserve HTTP take-all behavior versus sink forwarding's retained rejected front
+item through typed drain intents and recorded completions. Network/sink I/O needs
+committed intents followed by completion/failure observations; it is not atomic
+with local publication and its crash windows remain uncertain. Transport automatic
+Pong behavior also needs an explicit capture disposition. Raw MFR queue acceptance
+is separate from shared-journal durability; never claim a cross-file atomic ACK.
+
+Negotiate a distinct causal stream/profile and one compatibility projection.
+Old decoders reject unknown kinds; migrate hlscreen deliberately and never apply
+both operations and projections twice. Replay belongs in engine or above it to
+avoid the current engine-to-replay dependency cycle. Required tests include zero
+premature release under delayed commits, idle-session grouping, callback partial
+mutation, drain-dependent overload, generations, timer polls, cancellation, every
+publication failure stage and captured/reexecuted prefix equality. The actor,
+schema/reader and capture seam can be delivered independently, but none closes
+the full repair before live integration and these acceptance checks.
+
+### Bounded writer actor infrastructure
+
+The next storage slice implements `recording::shared_batch`: exclusive writer
+ownership, immutable prevalidated transactions, count/encoded-byte reservations
+including in-flight work, count/byte/record/oldest-age grouping, and separate
+admission tickets versus post-barrier receipts. Exact-full batches flush without
+waiting for another producer. Close/seal and submissions have one linearized
+order; dropped waiters cannot cancel accepted work. A failed active group and a
+never-attempted suffix have distinct typed dispositions. Actual writer fault
+hooks are test-only; no runtime failpoint or dependency is added.
+
+Nineteen focused actor tests and separate independent execution cover boundaries,
+idle/aged grouping, cancellation, races, receipt ranges, seven publication failure
+stages and panic uncertainty. A panic after real publication can leave the whole
+active group visible without an ACK; a panic before a later group preserves the
+previous ACK and settles new work as not attempted. See the
+[bounded writer evidence](../evidence/bounded-shared-writer-20261020/README.md).
+
+This actor is not yet installed in the live runner. It does not close the engine
+capture/release boundary, repair the registered ingress failure or complete D5.
+The next implementation must provide the private owner, typed complete outcomes,
+commit-gated externally readable state and release, and actual-engine replay
+before comparing the same registered workload. Shared consumers require a
+coordinated source pin and their existing parity/security/attribution gates.
+
+### Private actual-runner capture seam
+
+`CaptureSession` now owns a private actual runner and persistent machine, executes
+typed public-evidence inputs and observes original mutable input, callback buffers
+and outcomes, action-prefix application, produced-versus-admitted effects,
+suppressed diagnostics, dynamic subscription phases, timer polls and injected
+connection identity/generation. Capture faults and native outcomes stay separate;
+incomplete operations poison further execution. Eighteen focused tests and an
+independent review cover failure/partial-mutation behavior, bounds, sensitive
+actions, panic and exact i128 values. See the
+[capture evidence](../evidence/engine-operation-capture-20261020/README.md).
+
+This in-memory executor has no durable transaction/release API and is not used by
+the live collector. Effect-parent attribution, metadata/bootstrap, drains,
+negotiated causal storage, actor integration and commit-gated release/replay
+remain required. It does not close D5 or repair the failed ingress workload.
+Strategy features/models/ETF/context and decision research remain rsibot-owned;
+the next owner slice remains an opt-in shared-feed/context reader and deterministic
+availability checks through existing contracts, without a second collector.
+
+### Explicit effect origins and actual drain boundaries
+
+The follow-up capture slice adds runner/callback/action origins and the actual
+null-dispatch, write/HTTP take-all and scripted native sink-completion boundaries.
+Successful compound turns can execute their deterministic drains in the same
+operation; failed entries retain the unconsumed prefix. Capture limits and
+sensitive faults never authorize release. Sink completion preserves actual
+accepted prefixes, rejected fronts and separately queued drop diagnostics.
+Twenty-eight focused and independent tests pass, including i128 drain/sink
+boundaries, timer origins, compound reexecution and a fault during drains. See the
+[drain capture evidence](../evidence/engine-drain-capture-20261020/README.md).
+
+This still has no durable receipt/release or live caller. The next required path
+is the [causal journal integration contract](causal_journal_integration_contract.md):
+engine-owned exact DTOs and distinct negotiated envelope/profile, lossless
+bootstrap committed before execution, retained same-operation admission retry,
+private commit-gated owner, committed release projection and actual-engine
+durable replay. Supplied sink outcomes need prior committed intent/item binding.
+Only then compare the unchanged registered ingress workload. Shared package
+sources remain identical to the consumer's existing pin in this engine-only
+slice; static-source equivalence is not build/environment or whole-producer
+equivalence. Original native/strict/rsibot/calendar gates remain open.
+
+## Timestamp advisory repair with compatible bytes
+
+The three direct `time` users have migrated: EventPulse uses already-locked
+Chrono 0.4.45 (declared MSRV 1.62), capture reuses its UTC microsecond helper and
+dataset export retains a separate exact nanosecond formatter. Core Rust 1.85 and
+offline dataset Rust 1.88 remain unchanged. Six time-only registry packages are
+removed; no registry package is added and all remaining records retain their
+prior complete contents. The exact advisory exception is removed. Source-scoped
+checks and the full-lock RustSec result are bound in the
+[timestamp receipt](../evidence/timestamp-backend-20261020/README.md).
+
+Strict ASCII/calendar/uppercase RFC3339 guards, offset/leap-second rejection,
+year 0000 core acceptance, stricter capture-manifest minimum year and zero-or-six
+fractional wire bytes remain intact. UTC formatting uses microseconds directly,
+refuses UTC years outside 0000..9999 and retains Euclidean negative-nanosecond
+flooring. Dataset export preserves shortest nanosecond fractions rather than
+Chrono AutoSi padding. Frozen pre-change compatibility vectors and original
+contract files are retained, and original datasets are inspected read-only.
+
+Exporter source participates in decoder provenance, so future revision IDs
+legitimately change after this source edit even when timestamp bytes match.
+Preserve old manifests/objects and record the new lineage; never regenerate old
+hashes to disguise the source change. This repair does not qualify datasets,
+complete causal replay, fix the ingress workload or grant operational promotion.

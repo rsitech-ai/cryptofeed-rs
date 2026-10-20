@@ -74,19 +74,18 @@ REGEN_CORPUS=1 cargo test -p marketfeed-adapter-kraken --test corpus_replay rege
 REGEN_CORPUS=1 cargo test -p marketfeed-adapter-kraken --test corpus_replay regen_futures -- --ignored
 ```
 
-## C10 (`simd-json` feature)
+## Exact numeric JSON
 
-Optional `simd-json` for Spot WS v2 `decode_text` via `src/json.rs`. Default
-remains `serde_json`. Parity (unit + `tests/decode_simd_parity.rs` on L2
-fixtures):
+Financial numeric tokens retain their original decimal/exponent lexemes through
+shared RawValue decoding before Fixed parsing. Strings and native i64/u64 IDs
+remain exact. The `simd-json` feature name remains accepted for compatibility;
+these financial DOM paths use the lexical parser in every build. They do not use
+a float-based SIMD DOM. A future optimized parser must first satisfy the same
+exact-token and bounded-resource contracts.
 
-```bash
-cargo test -p marketfeed-adapter-kraken
-cargo test -p marketfeed-adapter-kraken --features simd-json
-```
-
-Enable only after parse latency profiles show need — see
-[`docs/ops/latency_runtime.md`](../../../docs/ops/latency_runtime.md).
+Explicit fixtures cover 38-digit values, i128 bounds, exponent/scale overflow,
+IDs above2^53 and nonpositive trade rejection. Native recorded corpora remain
+unchanged. Source continuity and execution semantics retain their separate gates.
 
 ## Futures candles (REST charts)
 

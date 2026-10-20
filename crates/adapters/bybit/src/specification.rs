@@ -6,17 +6,18 @@
 //! Current level: **alpha** (experimental + primary public channels + offline fixtures).
 //!
 //! Offline proofs present in this crate:
-//! - Typed fixtures for linear/spot/inverse trades + quotes; L2 snapshot/delta/gap/stale-`u`
+//! - Typed fixtures for linear/spot/inverse trades + quotes; L2 snapshot/delta/nonunit increasing IDs/conflicting repeats
 //! - Checked-in raw replay corpus under `tests/corpus/` + `tests/corpus_replay.rs`
 //! - Application ping via `ScheduleTimer` + `SessionInput::Timer` → `{"op":"ping"}`
-//! - L2 `u` continuity documented in crate root `lib.rs` / `README.md`
+//! - Unknown source continuity and native ordering rules documented in crate root `lib.rs` / `README.md`
 //!
 //! Still required for **beta** (§11.8 / audit WP-F) — do not claim until done:
 //! - Scheduled live canary (today: `#[ignore]` only)
 //! - Soak ≥ declared duration with RSS bound
 //! - Named owner + ops limitations runbook beyond adapter README
 //!
-//! Checksum: N/A for Bybit public orderbook (continuity via consecutive `u`).
+//! Checksum: N/A for Bybit public orderbook. Increasing `u` need not be consecutive;
+//! source continuity is not established by native IDs or startup readiness.
 
 use marketfeed_adapter_api::{
     Capability, EndpointSpec, Environment, HeartbeatPolicy, MarketSegment, ReconnectPolicy,

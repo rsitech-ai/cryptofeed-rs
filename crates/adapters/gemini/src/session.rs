@@ -551,6 +551,7 @@ impl GeminiSession {
                 received,
                 EventFlags::SNAPSHOT,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: book_bids,
                     asks: book_asks,
                     depth: None,
@@ -665,6 +666,7 @@ impl GeminiSession {
                 received,
                 EventFlags::empty(),
                 MarketEvent::BookDelta(BookDelta {
+                    provenance: None,
                     changes: book_changes,
                     checksum: None,
                 }),
@@ -754,6 +756,7 @@ impl GeminiSession {
                     received,
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
+                        provenance: None,
                         price,
                         quantity,
                         aggressor,
@@ -787,6 +790,7 @@ impl GeminiSession {
                     received,
                     EventFlags::empty(),
                     MarketEvent::Quote(Quote {
+                        provenance: None,
                         bid_price,
                         bid_quantity: Some(bid_qty),
                         ask_price,
@@ -993,6 +997,10 @@ impl SessionMachine for GeminiSession {
                         self.emit_candle(
                             &symbol,
                             Candle {
+                                provenance: None,
+                                native_volume_ccy: None,
+                                is_closed: None,
+                                quote_volume: None,
                                 open,
                                 high,
                                 low,

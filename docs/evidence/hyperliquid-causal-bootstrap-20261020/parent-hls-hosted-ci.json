@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "scope": "Hlscreen18b with producer pin7a only; newer producer source excluded",
+  "independent_receipt_sha256": "9ce57c2f6380c06a35d4272f73686a3c64df5b833d6b7b0021d18ede8f41d3fb",
+  "source_head": "18bc9e4ec18ef6cfa3366575de5ba3c4a80940eb",
+  "producer_pin": "7a68984668ee59a532985d71dfb3a10f7681a363",
+  "source_tested_merge_binding": {
+    "main_and_all4_native_rawlogs_bind_merge": true,
+    "merge": "ce2eb797af4138f5b931653dc17f7236cfed15bb",
+    "method": "Exact merge fetched without checkout; full tree identity and actual raw checkout logs. Current producer worktree excluded.",
+    "source": "18bc9e4ec18ef6cfa3366575de5ba3c4a80940eb",
+    "source_files_sha256": {
+      "Cargo.lock": "3ec028d18090d5809f9e1d1827d45400b9ca45b6b1a171bcc043c11d8458f7cb",
+      "Cargo.toml": "04f8bf9def34b0ee91e0b4fff0d853d8d6b9e67c4b1dfa467492b60630efa049",
+      "README.md": "0849ce952af945f202147db520f6e3626cabbbad6f37d5b8f5a7bc4487d41bde",
+      "crates/hls-hyperliquid/tests/shared_feed.rs": "5d6ef625e98dd5bd8834cc048085ebee765d971180a52035423d91f081028077"
+    },
+    "whole_tree": "7b329df2be2b31a53489a975d31913f33d05c204",
+    "whole_trees_identical": true
+  },
+  "main_ci": {
+    "run": 39409077861,
+    "url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39409077861",
+    "status": "completed",
+    "conclusion": "success",
+    "rust_executions": 567,
+    "rust_unique": 544,
+    "rust_suites": 82,
+    "failed": 0,
+    "ignored": 0,
+    "python_suite_sizes": [
+      8,
+      4
+    ],
+    "python_total": 12,
+    "scheduled_external_API_smoke": "skipped"
+  },
+  "artifact_ci": {
+    "run": 39409077945,
+    "url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39409077945",
+    "status": "completed",
+    "conclusion": "success",
+    "all4_inner_checksums_build_global_manifests_and_aggregate_agree": true,
+    "source_archive_exact_source_git_export": true,
+    "publication": "skipped",
+    "announcement": "skipped"
+  },
+  "workflow_archives_verified": 6,
+  "native_platform_validations_verified": 4,
+  "preserved_historical_evidence_files": 29,
+  "preserved_original_capture_files": 2,
+  "remaining": [
+    "Exact HLS18b/pin7a main and four native packaged-artifact validation only; native executables are not the local debug executable and no binary equivalence is claimed.",
+    "Scheduled external API smoke, publication and announcement were skipped. No release, promotion or operational activation occurred through this audit.",
+    "No native producer writer durability, source continuity, strict dataset admission, economics, trading, causal factory/CLI/live/control/supervisor integration, projection, bound external I/O or actual-engine replay qualification. The registered failed-ingress workload remains failed.",
+    "Producer own-source CI status is not rechecked/qualified by this consumer audit; current producer worktree and newer source are excluded.",
+    "The full goal remains open; context/features/models/ETF decisions remain rsibot-owned."
+  ]
+}

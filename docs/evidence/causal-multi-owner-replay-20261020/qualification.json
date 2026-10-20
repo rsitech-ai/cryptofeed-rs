@@ -1,0 +1,484 @@
+{
+  "schema_version": 1,
+  "status": "All16 frozen-source local checks pass; new-source publication/hosted qualification remains required",
+  "parent_commit": "95f00f51e076c83577228d95dc6605f3fb72df9c",
+  "declared_source_files": 532,
+  "declared_source_sha256": "a59fe698b7012225eb64b50fe41f7e5940003a03f42faf5bdcae306d0a7b09c5",
+  "freeze_manifest_sha256": "6871bf07532ba9d741999f815fe448250c3bf1422dbe581bef8c862ebe55219a",
+  "changed_build_inputs": [
+    {
+      "path": "crates/daemon/src/causal_bootstrap/replay.rs",
+      "bytes": 17896,
+      "sha256": "215bf79790b27d9ca6386a3ec4c149a3b4121aae6a8e789e1810692fd639c95a"
+    },
+    {
+      "path": "crates/daemon/src/causal_bootstrap/replay/multi.rs",
+      "bytes": 14044,
+      "sha256": "fbd85db793c16838baecf767b3027ca9a1984931171c2feea20e143b968bb9f7"
+    },
+    {
+      "path": "crates/daemon/tests/hyperliquid_causal.rs",
+      "bytes": 26155,
+      "sha256": "06533288dc5138d5d427437af14e3e8077b4b01fca96ff55604579b9dbfdcdf7"
+    },
+    {
+      "path": "crates/daemon/tests/support/multi_owner_replay.rs",
+      "bytes": 36028,
+      "sha256": "84a0db2f5215513b5e0a167d0ed6d43db70b29d0c4e675144f833f988ead8694"
+    },
+    {
+      "path": "crates/engine/src/causal_owner_history.rs",
+      "bytes": 44231,
+      "sha256": "a15007caf0e51a5cd788ee9e9a8d51204637e8241ba2d64867f27ad4748e87c9"
+    }
+  ],
+  "all_declared_inputs_unchanged_through_checks": true,
+  "runner_terminal_exit_code": 0,
+  "completion_marker_observed": true,
+  "runner_terminal_receipt_sha256": "365add01934fd7c60053d342b07b1a4c9c121de5f1cc254227503d7b72c6a277",
+  "commands": [
+    {
+      "check": "replay-focused",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 241.407,
+      "log_sha256": "99167a5e112aa7269da18adbad8cd9a8b3f2c78ff38b0f41a441a0785db98c1c",
+      "test_totals": {
+        "passed": 40,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 2
+      }
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 19.808,
+      "log_sha256": "f81fe7948294c48b7b40dc774587ffe9cdf202f7c945933c9e5a4b562166c301"
+    },
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 1915.225,
+      "log_sha256": "a2b102b222f03505b3ea5f9ee3272921b53352352fcc53796809d28b329b7a0c",
+      "test_totals": {
+        "passed": 1518,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 158
+      }
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 214.855,
+      "log_sha256": "093f9a78020704018461af5bc60c8f730b8ae56e8cebed7e51c543505363ba61",
+      "test_totals": {
+        "passed": 554,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 30
+      }
+    },
+    {
+      "check": "msrv-hyperliquid",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "hyperliquid_causal"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 199.304,
+      "log_sha256": "665729e609cab5eb81993db5fa41fd1606149f08b7dbf82c37844252995e4863",
+      "test_totals": {
+        "passed": 29,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 29.972,
+      "log_sha256": "a177925ca39a033d4c6c23a804fde2cab16015120c5c1bbd8d6a5e8e3542155b",
+      "test_totals": {
+        "passed": 51,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-bootstrap-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 10.59,
+      "log_sha256": "687176fac1287640896ffb753dc0cd35b6ee6692ce91bf1657a390d57c9b405d",
+      "test_totals": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-owner-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 13.463,
+      "log_sha256": "a60c4b215005fef563c6754769b5ff2206c82bf8c8bacfd8d0c43955d956a00b",
+      "test_totals": {
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "default-disabled",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 32.993,
+      "log_sha256": "72b68de9929e334fd5baf26d6504a678b5177432883258041e2f63a5c96520d2",
+      "test_totals": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0",
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 83.608,
+      "log_sha256": "f2092d004f7ac585ff8982b4f915563af84a109ecc05ed2e4a5abf8e2fad1dd4"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo",
+        "deny",
+        "--version"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.046,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 4.461,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.032,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 3.933,
+      "log_sha256": "68d7240d6cb086ee675b69b3302286fe19b7f989d594ee65c43f1bc8ada9ddb2"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.829,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {
+        "CARGO_INCREMENTAL": "0"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.019,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_review": {
+    "receipt": "multi-owner-replay-source-review-01.json",
+    "sha256": "f7d1b73b36dfbfb4bf7cafdaebc4b5d767117d3f6d217db8f80d014baf63f26e",
+    "scope": "Independent exact532-file source/semantics review and parent-log inspection; no independent Cargo execution"
+  },
+  "security": {
+    "cargo_deny": "0.20.2",
+    "cargo_audit": "0.22.2",
+    "database": {
+      "advisory-count": 1345,
+      "last-commit": "b19b2c83c2493961ccb12f9fc4699a00fb2c6c44",
+      "last-updated": "2026-10-20T13:02:37+02:00"
+    },
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "lock_and_dependency_versions_unchanged": true
+  },
+  "artifact_binding": {
+    "binary": "target/debug/deps/hyperliquid_causal-3a8d959b3b701fc8",
+    "retained_artifact": "multi-owner-replay-test-artifact-01",
+    "sha256": "5fab4c5a5ec64923e929da2b2a0b1ba94d73a9aaa3c305c21858035377909fba",
+    "bytes": 21661936,
+    "mode": "0555",
+    "matching_recipe": {
+      "offset": 9640775,
+      "recipe": {
+        "debug": "true",
+        "encoded_rustflags": "",
+        "git_commit": "95f00f51e076c83577228d95dc6605f3fb72df9c",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 532,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "a59fe698b7012225eb64b50fe41f7e5940003a03f42faf5bdcae306d0a7b09c5",
+        "target": "aarch64-apple-darwin"
+      },
+      "recipe_sha256": "beea03dc81b6f15e570e086111d8a7626c62f64d82c9f850cd562cf4dd13f7b4"
+    },
+    "scope": "Retained file from exact logged full-workspace test path plus embedded declared-source recipe; not loaded-image attestation, complete transitive-input closure or reproducible-build proof"
+  },
+  "preservation": {
+    "frozen_dataset_files": 22,
+    "frozen_dataset_bytes": 37276008,
+    "pilot_files": 2,
+    "hls_evidence_files": 35,
+    "all_recorded_bytes_metadata_unchanged": true
+  },
+  "scope": "Opt-in public disk/null current-artifact MFCJ3 physical-order multi-owner actual-engine replay; independent Bybit and Hyperliquid spot/perpetual factory state. No transport or live consumer changes.",
+  "behavior": [
+    "One physical source cursor; globally unique SessionId and full owner identity; persistent independent factories and reconnect state",
+    "Bootstrap/config/artifact and aggregate static reservations checked before native construction; canonical/source retention checked before native callbacks",
+    "Exact full typed native-operation equality; only matched committed observed handoffs return values; unknown execution remains scoped and is never resolved by storage seal",
+    "Unknown/duplicate/conflicting/unsupported owners, storage/codec/native mismatch and resource overflow globally poison; unusable over-budget private states are cleared",
+    "Named literal resource counters and canonical serialised lengths; no native allocator/RSS accounting claim",
+    "Every physical prefix and exact global resume plus next append; header cursor can contain zero owners, historical handoffs are discarded, no metadata prescan",
+    "Single-owner API still rejects additional bootstraps; old unsupported profiles and disabled feature fail closed"
+  ],
+  "new_regression_names": [
+    "multi_replay_bootstraps_physically_and_retains_independent_idle_owners",
+    "multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory",
+    "multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume",
+    "multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal",
+    "multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs",
+    "multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations",
+    "multi_replay_exact_pending_source_and_active_canonical_aggregate_caps",
+    "multi_replay_budget_failure_precedes_actual_native_comparison",
+    "multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases",
+    "multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners",
+    "multi_replay_invalid_limits_reject_before_filesystem_access",
+    "multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison",
+    "multi_replay_rejects_all_other_profiles_before_watermark_access"
+  ],
+  "retained_failures": [
+    "Expected RED while MultiHistoryReplay API was absent",
+    "Preflight01 fixture failure: encode_bootstrap selected older profile; corrected explicit V3 encoding",
+    "Preflight01 fixture failure: actor shutdown does not implicitly seal; test coordinator now explicitly seals",
+    "Historical heavy preflight03 preceded later source assertions; not used as final qualification"
+  ],
+  "remaining": [
+    "Committed full-native-feature compatibility projection, control/clock/source view and bound external I/O",
+    "Daemon/CLI/live/control/supervisor and consumer migration; complete failure/admission retention",
+    "Native checkpoints/restart authority; exact resume currently reconstructs full prefix",
+    "Unchanged registered ingress comparison only after actual integrated repair; current failure stays failed and not rerun",
+    "Native continuity/strict datasets, rsibot continuous time-qualified context, calendar/hardware/operational gates"
+  ],
+  "authority": "No economics, trading activation, deployment, merge, release or operational promotion; full goal remains active",
+  "consumer_source_compatibility": {
+    "receipt": "multi-owner-replay-hls-source-compatibility-01.json",
+    "sha256": "4b20567d5090a9b5899c86fed42bb078be32be923f22a7d9dc344061e9192079",
+    "shared_files": 52,
+    "scope": "Source compatibility of actual five shared-package paths only; not a new HLS build/replay, full producer/transitive feature closure, artifact equivalence or committed-native-projection qualification.",
+    "disposition": "This daemon/engine-only replay slice changes none of the existing HLS shared source files. Existing735/pin95 qualification keeps its exact source scope. The next native attachment/projection migration must update shared dependencies and consumer capabilities together; this source comparison does not satisfy that integration."
+  }
+}

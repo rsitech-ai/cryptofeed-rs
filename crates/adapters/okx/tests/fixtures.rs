@@ -114,7 +114,7 @@ fn connect_subscribes_trades_and_tickers() {
     assert!(!send.contains("\"channel\":\"books\""));
     assert!(!send.contains("\"channel\":\"mark-price\""));
     assert!(
-        out.as_slice()
+        !out.as_slice()
             .iter()
             .any(|a| matches!(a, SessionAction::MarkLive))
     );
@@ -427,7 +427,7 @@ fn candle1m_fixture_exact_fixed() {
     ids.insert("BTC-USDT".into(), InstrumentId(1));
     let mut s = OkxSession::new(
         SessionSpec {
-            endpoint_name: "wss://ws.okx.com:8443/ws/v5/business".into(),
+            endpoint_name: "wss://ws.okx.com/ws/v5/business".into(),
             subscriptions: ConcreteSubscriptionSet::default(),
         },
         CatalogView::new(VenueId(4), CatalogVersion(1)),
@@ -471,7 +471,7 @@ fn business_candle_session_does_not_subscribe_public_channels() {
 
     let mut s = OkxSession::new(
         SessionSpec {
-            endpoint_name: "wss://ws.okx.com:8443/ws/v5/business".into(),
+            endpoint_name: "wss://ws.okx.com/ws/v5/business".into(),
             subscriptions: ConcreteSubscriptionSet::default(),
         },
         CatalogView::new(VenueId(4), CatalogVersion(1)),
@@ -509,7 +509,7 @@ fn swap_candle1m_fixture_exact_fixed() {
     ids.insert("BTC-USDT-SWAP".into(), InstrumentId(1));
     let mut s = OkxSession::new(
         SessionSpec {
-            endpoint_name: "wss://ws.okx.com:8443/ws/v5/business".into(),
+            endpoint_name: "wss://ws.okx.com/ws/v5/business".into(),
             subscriptions: ConcreteSubscriptionSet::default(),
         },
         CatalogView::new(OKX_SWAP_VENUE_ID, CatalogVersion(1)),
@@ -622,4 +622,319 @@ fn l2_snapshot_then_gap_fixtures_trigger_resync() {
         a,
         SessionAction::EmitSystem(marketfeed_model::SystemEvent::BookInvalidated { .. })
     )));
+}
+
+#[test]
+fn every_native_trade_row_survives_in_one_batch_with_provenance_and_ordinals() {
+    let row = |id: u64| {
+        format!(
+            r#"{{"instId":"BTC-USDT","tradeId":"{id}","px":"1.000000000000000001","sz":"0.1","side":"buy","ts":"1000","count":"2","source":"1","seqId":9}}"#
+        )
+    };
+    let rows = (0..300)
+        .map(|i| row(9007199254740993 + i))
+        .collect::<Vec<_>>()
+        .join(",");
+    let raw = format!(r#"{{"arg":{{"channel":"trades","instId":"BTC-USDT"}},"data":[{rows}]}}"#);
+    let mut session = session(false);
+    let output = drive_text(&mut session, &raw, 2000);
+    let batches: Vec<_> = output
+        .as_slice()
+        .iter()
+        .filter_map(|a| {
+            if let SessionAction::EmitBatch(b) = a {
+                Some(b)
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0].events.len(), 300);
+    for (index, event) in batches[0].events.iter().enumerate() {
+        assert_eq!(event.frame_seq, batches[0].frame_seq);
+        assert_eq!(event.event_index, index as u16);
+        assert_eq!(
+            event.source_sequence,
+            Some(marketfeed_model::SequenceRange { first: 9, last: 9 })
+        );
+        let MarketEvent::Trade(trade) = &event.payload else {
+            panic!("trade")
+        };
+        assert_eq!(
+            trade.trade_id.as_ref().unwrap().0,
+            (9007199254740993u64 + index as u64).to_string()
+        );
+        assert_eq!(trade.price.0, Fixed::new(1000000000000000001, 18));
+        let provenance = trade.provenance.as_ref().unwrap();
+        assert_eq!(
+            provenance.granularity,
+            marketfeed_model::TradeGranularity::NativeAggregate
+        );
+        assert_eq!(provenance.native_count, Some(2));
+        assert_eq!(provenance.native_attributes["source"], "1");
+        assert_eq!(provenance.constituent_first_id, None); // no guessed range
+    }
+}
+#[test]
+fn malformed_late_trade_emits_no_partial_batch_and_numeric_id_is_not_sequence() {
+    let valid = r#"{"instId":"BTC-USDT","tradeId":"9007199254740993","px":"100.00","sz":"1","side":"buy","ts":"1000"}"#;
+    let mut s = session(false);
+    let single =
+        format!(r#"{{"arg":{{"channel":"trades","instId":"BTC-USDT"}},"data":[{valid}]}}"#);
+    let output = drive_text(&mut s, &single, 2000);
+    let batch = output
+        .as_slice()
+        .iter()
+        .find_map(|a| {
+            if let SessionAction::EmitBatch(b) = a {
+                Some(b)
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    assert_eq!(batch.events[0].source_sequence, None);
+    for tail in [
+        valid.replace("100.00", "not-price"),
+        valid.replace("\"buy\"", "\"unknown\""),
+        valid.replace("\"1\"", "\"0\""),
+    ] {
+        let raw = format!(
+            r#"{{"arg":{{"channel":"trades","instId":"BTC-USDT"}},"data":[{valid},{tail}]}}"#
+        );
+        let output = drive_text(&mut s, &raw, 3000);
+        assert!(markets(&output).is_empty());
+        assert!(output.as_slice().iter().any(|a| matches!(
+            a,
+            SessionAction::EmitSystem(marketfeed_model::SystemEvent::ParseError { .. })
+        )));
+    }
+}
+#[test]
+fn all_candle_rows_preserve_native_confirmation_and_exact_quote_volume() {
+    let raw = r#"{"arg":{"channel":"candle1m","instId":"BTC-USDT"},"data":[["0","100","102","99","101","2","2","9007199254740993.00000001","0"],["60000","101","103","100","102","3","3","306","1"]]}"#;
+    let output = drive_text(&mut session(false), raw, 1000000);
+    let rows = markets(&output);
+    assert_eq!(rows.len(), 2);
+    let MarketEvent::Candle(first) = &rows[0] else {
+        panic!("candle")
+    };
+    assert_eq!(first.is_closed, Some(false));
+    assert_eq!(
+        first.quote_volume,
+        Some(marketfeed_model::Quantity(Fixed::new(
+            900719925474099300000001,
+            8
+        )))
+    );
+    let MarketEvent::Candle(second) = &rows[1] else {
+        panic!("candle")
+    };
+    assert_eq!(second.is_closed, Some(true));
+    assert_eq!(second.start_ts, TimestampNs(60000000000));
+    let bad = raw.replace("\"1\"]]", "\"invalid\"]]");
+    assert!(markets(&drive_text(&mut session(false), &bad, 1000001)).is_empty());
+}
+
+#[test]
+fn malformed_late_candle_native_volume_ccy_is_not_silently_ignored() {
+    for bad_volume in ["garbage", "-1"] {
+        let raw = format!(
+            r#"{{"arg":{{"channel":"candle1m","instId":"BTC-USDT"}},"data":[["0","100","102","99","101","2","2","202","0"],["60000","101","103","100","102","3","{bad_volume}","306","1"]]}}"#
+        );
+        let output = drive_text(&mut session(false), &raw, 1000001);
+        assert!(markets(&output).is_empty());
+        assert!(output.as_slice().iter().any(|a| matches!(
+            a,
+            SessionAction::EmitSystem(marketfeed_model::SystemEvent::ParseError { .. })
+        )));
+    }
+}
+
+fn has_live(out: &ActionBuffer) -> bool {
+    out.as_slice()
+        .iter()
+        .any(|a| matches!(a, SessionAction::MarkLive))
+}
+
+fn requested_session(channels: Vec<(InstrumentId, marketfeed_adapter_api::Channel)>) -> OkxSession {
+    use marketfeed_adapter_api::{ConcreteSubscription, DeliveryOptions};
+    OkxSession::new(
+        SessionSpec {
+            endpoint_name: marketfeed_adapter_okx::BUSINESS_WS_URL.into(),
+            subscriptions: ConcreteSubscriptionSet {
+                items: channels
+                    .into_iter()
+                    .map(|(instrument, channel)| ConcreteSubscription {
+                        instrument,
+                        channel,
+                        delivery: DeliveryOptions::default(),
+                    })
+                    .collect(),
+            },
+        },
+        CatalogView::new(VenueId(4), CatalogVersion(1)),
+        OkxSessionConfig {
+            symbols: vec!["BTC-USDT".into(), "ETH-USDT".into()],
+            instrument_ids: HashMap::from([
+                ("BTC-USDT".into(), InstrumentId(1)),
+                ("ETH-USDT".into(), InstrumentId(2)),
+            ]),
+            enable_l2: true,
+            ..OkxSessionConfig::default()
+        },
+    )
+}
+
+#[test]
+fn readiness_requires_every_requested_ack_and_duplicates_do_not_advance() {
+    use marketfeed_adapter_api::{CandleInterval, Channel};
+    let mut s = requested_session(vec![
+        (InstrumentId(1), Channel::AllTrades),
+        (
+            InstrumentId(1),
+            Channel::Candles {
+                interval: CandleInterval::M1,
+            },
+        ),
+    ]);
+    assert!(!has_live(&connect(&mut s)));
+    let candle = r#"{"event":"subscribe","arg":{"channel":"candle1m","instId":"BTC-USDT"}}"#;
+    assert!(!has_live(&drive_text(&mut s, candle, 2)));
+    assert!(!has_live(&drive_text(&mut s, candle, 3)));
+    assert!(!has_live(&drive_text(
+        &mut s,
+        r#"{"event":"unsubscribe","arg":{"channel":"trades-all","instId":"BTC-USDT"}}"#,
+        4
+    )));
+    assert!(has_live(&drive_text(
+        &mut s,
+        r#"{"event":"subscribe","arg":{"channel":"trades-all","instId":"BTC-USDT"}}"#,
+        5
+    )));
+    assert!(!has_live(&drive_text(&mut s, candle, 6)));
+    assert!(
+        !has_live(&connect(&mut s)),
+        "reconnect must reset the ACK ledger"
+    );
+}
+
+#[test]
+fn malformed_unknown_and_wrong_scope_acks_never_admit() {
+    for ack in [
+        r#"{"event":"subscribe"}"#,
+        r#"{"event":"subscribe","arg":{"channel":"trades","instId":""}}"#,
+        r#"{"event":"subscribe","arg":{"channel":"trades","instId":"ETH-USDT"}}"#,
+        r#"{"event":"subscribe","arg":{"channel":"trades","instType":"SPOT"}}"#,
+        r#"{"event":"subscribe","arg":{"channel":"trades","instId":"BTC-USDT","instType":"SPOT"}}"#,
+    ] {
+        let mut s = session(false);
+        connect(&mut s);
+        let out = drive_text(&mut s, ack, 2);
+        assert!(!has_live(&out));
+        assert!(
+            out.as_slice().iter().any(|a| matches!(
+                a,
+                SessionAction::EmitSystem(marketfeed_model::SystemEvent::ParseError { .. })
+            )),
+            "{ack}"
+        );
+    }
+}
+
+#[test]
+fn readiness_requires_all_requested_books_and_ack_timeout_reconnects() {
+    use marketfeed_adapter_api::Channel;
+    let mut s = requested_session(vec![
+        (
+            InstrumentId(1),
+            Channel::L2Book {
+                depth: None,
+                cadence: None,
+            },
+        ),
+        (
+            InstrumentId(2),
+            Channel::L2Book {
+                depth: None,
+                cadence: None,
+            },
+        ),
+    ]);
+    let out = connect(&mut s);
+    let timer = out
+        .as_slice()
+        .iter()
+        .find_map(|a| match a {
+            SessionAction::ScheduleTimer(t)
+                if t.timer_id != marketfeed_adapter_okx::PING_TIMER_ID =>
+            {
+                Some(t.clone())
+            }
+            _ => None,
+        })
+        .unwrap();
+    for symbol in ["BTC-USDT", "ETH-USDT"] {
+        let ack =
+            serde_json::json!({"event":"subscribe","arg":{"channel":"books","instId":symbol}})
+                .to_string();
+        assert!(!has_live(&drive_text(&mut s, &ack, 2)));
+    }
+    for (index, symbol) in ["BTC-USDT", "ETH-USDT"].into_iter().enumerate() {
+        let snapshot =
+            serde_json::json!({"arg":{"channel":"books","instId":symbol},"action":"snapshot",
+            "data":[{"asks":[["101.0","1.0","0","1"]],"bids":[["100.0","1.0","0","1"]],
+            "ts":"10","checksum":0,"prevSeqId":-1,"seqId":100}]})
+            .to_string();
+        assert_eq!(has_live(&drive_text(&mut s, &snapshot, 3)), index == 1);
+        if index == 0 {
+            let mut deadline = ActionBuffer::new();
+            s.on_input(
+                SessionInput::Timer {
+                    timer_id: timer.timer_id,
+                    now: timer.fire_at,
+                },
+                &mut deadline,
+            )
+            .unwrap();
+            assert!(!has_live(&deadline));
+            assert!(
+                deadline
+                    .as_slice()
+                    .iter()
+                    .any(|a| matches!(a, SessionAction::Reconnect(_))),
+                "all ACKs with a missing book must trigger bounded recovery"
+            );
+        }
+    }
+    let mut out = ActionBuffer::new();
+    s.on_input(
+        SessionInput::Timer {
+            timer_id: timer.timer_id,
+            now: timer.fire_at,
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert!(
+        !out.as_slice()
+            .iter()
+            .any(|a| matches!(a, SessionAction::Reconnect(_))),
+        "stale ACK timer after success"
+    );
+    connect(&mut s);
+    s.on_input(
+        SessionInput::Timer {
+            timer_id: timer.timer_id,
+            now: timer.fire_at,
+        },
+        &mut out,
+    )
+    .unwrap();
+    assert!(
+        out.as_slice()
+            .iter()
+            .any(|a| matches!(a, SessionAction::Reconnect(_)))
+    );
 }

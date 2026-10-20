@@ -55,10 +55,43 @@ pub struct Trade {
     pub quantity: Quantity,
     pub aggressor: AggressorSide,
     pub trade_id: Option<SourceId>,
+    /// Native granularity/ranges/attributes. Absence means unverified; never
+    /// infer one execution from one normalized row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<TradeProvenance>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TradeGranularity {
+    IndividualExecution,
+    NativeAggregate,
+    Unverified,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TradeProvenance {
+    pub source_channel: String,
+    pub granularity: TradeGranularity,
+    pub constituent_first_id: Option<SourceId>,
+    pub constituent_last_id: Option<SourceId>,
+    /// Native count only. Its venue-specific meaning is in native_attributes;
+    /// it is not an inferred count of executions or a range cardinality.
+    pub native_count: Option<u64>,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
+}
+
+/// Native book-message context, including messages used to derive a BBO.
+/// Update IDs/cross-sequences here are provenance, not a continuity guarantee.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BookProvenance {
+    pub source_channel: String,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Quote {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<BookProvenance>>,
     pub bid_price: Price,
     pub bid_quantity: Option<Quantity>,
     pub ask_price: Price,
@@ -93,6 +126,8 @@ pub struct BookChange {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BookSnapshot {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<BookProvenance>>,
     pub bids: Vec<BookLevel>,
     pub asks: Vec<BookLevel>,
     pub depth: Option<u32>,
@@ -101,12 +136,22 @@ pub struct BookSnapshot {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BookDelta {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<BookProvenance>>,
     pub changes: Vec<BookChange>,
     pub checksum: Option<SourceId>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CandleProvenance {
+    pub source_channel: String,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Candle {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<CandleProvenance>>,
     pub open: Price,
     pub high: Price,
     pub low: Price,
@@ -114,6 +159,16 @@ pub struct Candle {
     pub volume: Quantity,
     pub interval_ns: i64,
     pub start_ts: TimestampNs,
+    /// None means that native confirmation was unavailable, not a closed bar.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_closed: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub quote_volume: Option<Quantity>,
+    /// Native counter-volume (e.g. OKX volCcy or Bybit turnover), whose unit
+    /// depends on the instrument/product. Never
+    /// reinterpret it as base quantity without the native metadata contract.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_volume_ccy: Option<Quantity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,9 +189,44 @@ pub struct OpenInterest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Liquidation {
+    /// Absence is legacy/unverified, never evidence of execution price or units.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<Box<LiquidationProvenance>>,
     pub price: Price,
     pub quantity: Quantity,
+    /// Observed execution aggressor only. Position side is separate provenance.
     pub side: AggressorSide,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LiquidationPriceBasis {
+    Execution,
+    Bankruptcy,
+    Unverified,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LiquidationQuantityUnit {
+    Base,
+    Quote,
+    Contracts,
+    Unverified,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum LiquidatedPositionSide {
+    Long,
+    Short,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LiquidationProvenance {
+    pub source_channel: String,
+    pub price_basis: LiquidationPriceBasis,
+    pub quantity_unit: LiquidationQuantityUnit,
+    pub position_side: Option<LiquidatedPositionSide>,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -159,6 +249,21 @@ pub struct VenueStatus {
     pub message: String,
 }
 
+/// A native trade-bearing record deliberately excluded from canonical tape.
+/// Runtime scope and original frame ordinal are stamped by the engine.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TradeRecordExclusion {
+    pub venue: VenueId,
+    pub session: SessionId,
+    pub connection: ConnectionId,
+    pub frame_seq: u64,
+    pub instrument: Option<InstrumentId>,
+    pub source_channel: String,
+    pub native_id: SourceId,
+    pub reason: String,
+    pub native_attributes: std::collections::BTreeMap<String, String>,
+}
+
 /// Operational events — separate stream from market data.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SystemEvent {
@@ -174,6 +279,7 @@ pub enum SystemEvent {
     InstrumentCatalogUpdated {
         version: u64,
     },
+    TradeRecordExcluded(Box<TradeRecordExclusion>),
     HeartbeatMissed,
     RateLimited,
     ParseError {

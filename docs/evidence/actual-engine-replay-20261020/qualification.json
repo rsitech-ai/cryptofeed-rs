@@ -1,0 +1,455 @@
+{
+  "schema_version": 1,
+  "status": "All16 frozen-source local checks pass; current source publication/hosted qualification and hlscreen repin remain required",
+  "parent_commit": "56b733dfdce0b865ad121d49c4d71d720b305733",
+  "declared_source_files": 530,
+  "declared_source_sha256": "010facdc28404e1875c6963ac84c696c92888954752efaaa4e723098bf3ce3e6",
+  "freeze_manifest_sha256": "aaa31ca52bfda81cc9e561c02ac74e35f8099746431ea346804e6a0bb0ed69ac",
+  "changed_build_inputs": {
+    "crates/daemon/src/causal_bootstrap.rs": {
+      "bytes": 23851,
+      "sha256": "f20f5dae9c48025575dd506c8448a602f70fbd3a04303ad02ffdaedc02cf0d2d"
+    },
+    "crates/daemon/src/causal_bootstrap/replay.rs": {
+      "bytes": 16577,
+      "sha256": "f73f1bd8fe67c69b4d1a78d40db486884c0d7ba7eb61f21a13662025c4d135e5"
+    },
+    "crates/daemon/tests/causal_owner.rs": {
+      "bytes": 33617,
+      "sha256": "cff40711310383ee3627040f1f88bc951ae7bfdd8847387de06309f49d47a9c8"
+    },
+    "crates/daemon/tests/hyperliquid_causal.rs": {
+      "bytes": 26090,
+      "sha256": "5fa886ab48c405ac49caa2dd9bc0f707d6557ca02f9c25f6c3315b88dc35dc88"
+    },
+    "crates/daemon/tests/support/hyperliquid_replay.rs": {
+      "bytes": 17772,
+      "sha256": "8d135d9eb913e6fbdc8738bf6f653849291991f1a91b1679a201687c4ca80b39"
+    },
+    "crates/recording/src/shared_feed.rs": {
+      "bytes": 34053,
+      "sha256": "786de4973c3b604fd4f1f4c3e8fa7e6d8fb3456e7a29c9104482e131cd69e735"
+    }
+  },
+  "all_declared_inputs_unchanged_through_checks": true,
+  "original_command_runner_terminal_exit_code": 1,
+  "all16_individual_command_exit_codes_zero": true,
+  "post_validation_finalizer_terminal_exit_code": 0,
+  "completion_marker_observed": true,
+  "finalizer_terminal_receipt_sha256": "4422d45b25737742c0458404acc5c487643e8e1d4d450cea7af7e939cefcd2d8",
+  "original_runner_terminal_receipt_sha256": "0c3db7be059c91eeff9f5358e7799d5a75b1e7390c7ae968b6a846196b4bca96",
+  "finalization_receipt_sha256": "3a021449072b5fc64dcfa738d52a617236884f70dbe25db457137a5c58e43055",
+  "harness_correction": "Original runner finished all16 commands, then its final assertion expected cargo-audit rather than the cargo invocation CLI display name cargo-audit-audit. Original terminal failure remains retained; no product or test command rerun.",
+  "tool_version_probes": {
+    "audit-direct": {
+      "executable_sha256": "d4af0174a47b1d6fa0ec73d40a9f6057ab698e842131768e7e9d512d60045872",
+      "exit_code": 0,
+      "exact_stdout": "cargo-audit 0.22.2\n",
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    "audit-cargo": {
+      "executable_sha256": "d4af0174a47b1d6fa0ec73d40a9f6057ab698e842131768e7e9d512d60045872",
+      "exit_code": 0,
+      "exact_stdout": "cargo-audit-audit 0.22.2\n",
+      "log_sha256": "db7ec1f5601bae24da672cbd457db9538250e50b4d2f9b5ae8135fb852ef5e20"
+    },
+    "deny-cargo": {
+      "executable_sha256": "d441cbeb35bc7e4cdc0554c49d520b25165ed0dabbefc5f1aee6db71b30c6c8a",
+      "exit_code": 0,
+      "exact_stdout": "cargo-deny 0.20.2\n",
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    }
+  },
+  "commands": [
+    {
+      "check": "replay-focused",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 120.215,
+      "log_sha256": "3d1bdd47514fe50305ea740b89dcdbaf7d8bac9c1eb16107ccf66b6a6d6f0f4d",
+      "test_totals": {
+        "passed": 27,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 2
+      }
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 105.874,
+      "log_sha256": "3217d8db487ed17cf4104ed60a5c056726c1c912c66c8ff3648c9ab3783735e0"
+    },
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 1034.098,
+      "log_sha256": "afca1305be1288403e1a9a03f10602a6f193388dc92f4e905b26573e97547cb3",
+      "test_totals": {
+        "passed": 1505,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 158
+      }
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 184.3,
+      "log_sha256": "c6ee07c37dcd2b145c6744426ce2e6683ab953aef1759323fade0591b9bf32f5",
+      "test_totals": {
+        "passed": 554,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 30
+      }
+    },
+    {
+      "check": "msrv-hyperliquid",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "hyperliquid_causal"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 108.635,
+      "log_sha256": "5776019b46f7aa04ca1fd8ffc58cc008202401c39902234b28bafc7a9cb01894",
+      "test_totals": {
+        "passed": 16,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 30.739,
+      "log_sha256": "7fea519d629c30d97b28b6c6c266ffa0a45bb215f69e6c6fac45b8ef2db08fec",
+      "test_totals": {
+        "passed": 51,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-bootstrap-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 11.135,
+      "log_sha256": "e12e938c5715ac909fd51d0312ece9e4f94134b8a0d37f4a8081229d30169c0e",
+      "test_totals": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-owner-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 13.759,
+      "log_sha256": "9a370d1b8e566a6016cca9a5e2ed80e2adfc7b2743e5f8b85d546374c90d4722",
+      "test_totals": {
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "default-disabled",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 9.398,
+      "log_sha256": "2dfee4797616c92fd49595885d7a9d6fb7ed50fd24bf31f5aa0e33843ffd6412",
+      "test_totals": {
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 29.698,
+      "log_sha256": "2d2fcd2b8aa5296c9326721f5937071c885c08fce19679860cb3e94cb9f96ef5"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo",
+        "deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.31,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 18.085,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo",
+        "audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.428,
+      "log_sha256": "db7ec1f5601bae24da672cbd457db9538250e50b4d2f9b5ae8135fb852ef5e20"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 13.12,
+      "log_sha256": "68d7240d6cb086ee675b69b3302286fe19b7f989d594ee65c43f1bc8ada9ddb2"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.962,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.018,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "source_review": {
+    "receipt": "actual-replay-source-review-01.json",
+    "sha256": "c67a54110dbc6528f5d3933a63db84cb4d556d5a730e0e2cf0ab2a1e18b3f9cc",
+    "scope": "Independent read-only semantic/source/test review and parent-log inspection; no separate Cargo execution"
+  },
+  "security": {
+    "cargo_deny": "0.20.2",
+    "cargo_audit": "0.22.2",
+    "database": {
+      "advisory-count": 1345,
+      "last-commit": "b19b2c83c2493961ccb12f9fc4699a00fb2c6c44",
+      "last-updated": "2026-10-20T13:02:37+02:00"
+    },
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "lock_and_dependency_versions_unchanged": true
+  },
+  "artifact_binding": {
+    "binary": "target/debug/deps/hyperliquid_causal-f91022ab3155537c",
+    "retained_artifact": "actual-replay-test-artifact-01",
+    "sha256": "5445d74b957f01f4b8ecd82f7ab720d14942a2ed948c325eff485b9d8c76d782",
+    "bytes": 20788624,
+    "mode": "0555",
+    "matching_recipe": {
+      "offset": 8683192,
+      "recipe": {
+        "debug": "true",
+        "encoded_rustflags": "",
+        "git_commit": "56b733dfdce0b865ad121d49c4d71d720b305733",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 530,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "010facdc28404e1875c6963ac84c696c92888954752efaaa4e723098bf3ce3e6",
+        "target": "aarch64-apple-darwin"
+      },
+      "recipe_sha256": "1a4d79051dc4eeb15f924f6f572180d60a6d6b614defbe9cc97124d1ef0f548e"
+    },
+    "scope": "Retained test file at logged workspace path and its exact embedded declared-source recipe; not loaded-image attestation, transitive-input closure or reproducible-build proof"
+  },
+  "preservation": {
+    "frozen_dataset_files": 22,
+    "frozen_dataset_bytes": 37276008,
+    "pilot_files": 2,
+    "hls_historical_files": 33,
+    "all_recorded_bytes_metadata_unchanged": true
+  },
+  "scope": "One supported current-artifact MFCJ3 Bybit/Hyperliquid public disk/null owner; physical committed native-operation replay. Owner scheduling/refusal/revocation decisions are structurally validated declared observations, not independent wall-clock scheduling reproduction. Resume reconstructs the entire prefix, not a native checkpoint or restart authority.",
+  "behavior": [
+    "Bound bootstrap/config/artifact/reader caps before one pure factory construction; no live receipt fabricated",
+    "Persistent actual CaptureSession through reconnects/timers; exact full DTO comparison including matching typed errors, financial values and actual queue drains",
+    "Mismatch or recording/codec/native-capture failure poisons subsequent read/progress; handoff only after a verified native operation",
+    "Every physical prefix and exact resume plus next-step equality; historical handoffs not released again",
+    "Unknown permit/explicit indeterminate remain unknown even with storage seal; available late completion reexecutes after declared revocation without handoff",
+    "Structural-valid coefficient ULP and missing wire-drain mutations rejected by actual replay; invalid cursors/profile/second owner/record cap, future corruption and watermark changes rejected",
+    "All21 admitted input variant/cause examples preserve payload/stamps/header order/IDs; unsupported generic drains rejected"
+  ],
+  "retained_failures": [
+    "Original command wrapper terminal1 after all16 commands0: final cargo-audit display-name assertion failed; corrected separate finalizer02 passes without rerunning commands or relabeling original terminal",
+    "Initial expected compile RED: replay API absent",
+    "Preflight01:4passed/1failed; price mutation searched display decimal instead of coefficient. Its older heavy-body pass does not qualify later assertions",
+    "Bybit preflight01: legacy128KiB input cap incompatible with256KiB canonical MFCJ3 budget; explicit test fixture policy corrected, production admission unchanged"
+  ],
+  "remaining": [
+    "Bounded multi-owner replay, native checkpoints/restart, complete failure/admission retention",
+    "Committed compatibility projection, bound external I/O, daemon/CLI/live/control/supervisor and consumer migration",
+    "Unchanged registered ingress comparison after integration; existing failure stays failed and was not rerun",
+    "Native continuity/strict datasets; rsibot continuous context/features; calendar/hardware/operational gates"
+  ],
+  "authority": "No economics, activation, deployment, merge, release or operational promotion; full goal remains active"
+}

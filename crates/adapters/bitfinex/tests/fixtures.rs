@@ -156,7 +156,7 @@ fn trade_and_quote_exact_fixed_via_chan_id() {
     assert_eq!(quotes.len(), 1);
     let q = &quotes[0];
     assert_eq!(q.bid_price.0, Fixed::parse_str("29000.12").unwrap());
-    assert_eq!(q.ask_price.0, Fixed::parse_str("29001.0").unwrap());
+    assert_eq!(q.ask_price.0, Fixed::parse_str("29001.00").unwrap());
     assert_eq!(
         q.bid_quantity.as_ref().unwrap().0,
         Fixed::parse_str("1.5").unwrap()

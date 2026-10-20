@@ -44,14 +44,31 @@ pub fn event_envelope_json(env: &EventEnvelope) -> Value {
 
 fn market_event_json(ev: &MarketEvent) -> Value {
     match ev {
-        MarketEvent::Trade(t) => json!({
+        MarketEvent::Trade(t) => {
+            let mut payload = json!({
             "trade": {
                 "price": { "value": fixed_json(t.price.0) },
                 "quantity": { "value": fixed_json(t.quantity.0) },
                 "aggressor": aggressor_json(t.aggressor),
                 "trade_id": t.trade_id.as_ref().map(|s| &s.0),
             }
-        }),
+            });
+            if let Some(source) = &t.provenance {
+                let granularity = match source.granularity {
+                    marketfeed_model::TradeGranularity::IndividualExecution => {
+                        "TRADE_GRANULARITY_INDIVIDUAL_EXECUTION"
+                    }
+                    marketfeed_model::TradeGranularity::NativeAggregate => {
+                        "TRADE_GRANULARITY_NATIVE_AGGREGATE"
+                    }
+                    marketfeed_model::TradeGranularity::Unverified => {
+                        "TRADE_GRANULARITY_UNVERIFIED"
+                    }
+                };
+                payload["trade"]["provenance"] = json!({"source_channel":source.source_channel,"granularity":granularity,"constituent_first_id":source.constituent_first_id.as_ref().map(|s| &s.0),"constituent_last_id":source.constituent_last_id.as_ref().map(|s| &s.0),"native_count":source.native_count.map(|n| n.to_string()),"native_attributes":source.native_attributes});
+            }
+            payload
+        }
         MarketEvent::Quote(q) => {
             let mut quote = serde_json::Map::new();
             quote.insert(
@@ -67,6 +84,9 @@ fn market_event_json(ev: &MarketEvent) -> Value {
             );
             if let Some(qty) = q.ask_quantity {
                 quote.insert("ask_quantity".into(), json!({ "value": fixed_json(qty.0) }));
+            }
+            if let Some(source) = &q.provenance {
+                quote.insert("provenance".into(), json!(source));
             }
             json!({ "quote": quote })
         }
@@ -106,6 +126,9 @@ fn market_event_json(ev: &MarketEvent) -> Value {
             if let Some(c) = &s.checksum {
                 snap.insert("checksum".into(), json!(c.0));
             }
+            if let Some(source) = &s.provenance {
+                snap.insert("provenance".into(), json!(source));
+            }
             json!({ "book_snapshot": snap })
         }
         MarketEvent::BookDelta(d) => {
@@ -128,9 +151,13 @@ fn market_event_json(ev: &MarketEvent) -> Value {
             if let Some(c) = &d.checksum {
                 delta.insert("checksum".into(), json!(c.0));
             }
+            if let Some(source) = &d.provenance {
+                delta.insert("provenance".into(), json!(source));
+            }
             json!({ "book_delta": delta })
         }
-        MarketEvent::Candle(c) => json!({
+        MarketEvent::Candle(c) => {
+            let mut payload = json!({
             "candle": {
                 "open": { "value": fixed_json(c.open.0) },
                 "high": { "value": fixed_json(c.high.0) },
@@ -140,7 +167,21 @@ fn market_event_json(ev: &MarketEvent) -> Value {
                 "interval_ns": c.interval_ns,
                 "start_ts": { "ns": c.start_ts.0 },
             }
-        }),
+            });
+            if let Some(provenance) = &c.provenance {
+                payload["candle"]["provenance"] = json!(provenance);
+            }
+            if let Some(closed) = c.is_closed {
+                payload["candle"]["is_closed"] = json!(closed);
+            }
+            if let Some(volume) = c.quote_volume {
+                payload["candle"]["quote_volume"] = json!({"value":fixed_json(volume.0)});
+            }
+            if let Some(volume) = c.native_volume_ccy {
+                payload["candle"]["native_volume_ccy"] = json!({"value":fixed_json(volume.0)});
+            }
+            payload
+        }
         MarketEvent::MarkPrice(p) => {
             json!({ "mark_price": { "price": { "value": fixed_json(p.price.0) } } })
         }
@@ -158,13 +199,42 @@ fn market_event_json(ev: &MarketEvent) -> Value {
         MarketEvent::OpenInterest(o) => {
             json!({ "open_interest": { "quantity": { "value": fixed_json(o.quantity.0) } } })
         }
-        MarketEvent::Liquidation(l) => json!({
-            "liquidation": {
-                "price": { "value": fixed_json(l.price.0) },
-                "quantity": { "value": fixed_json(l.quantity.0) },
-                "side": aggressor_json(l.side),
+        MarketEvent::Liquidation(l) => {
+            let mut payload = json!({
+              "liquidation": {
+                  "price": { "value": fixed_json(l.price.0) },
+                  "quantity": { "value": fixed_json(l.quantity.0) },
+                  "side": aggressor_json(l.side),
+              }
+            });
+            if let Some(source) = &l.provenance {
+                use marketfeed_model::{
+                    LiquidatedPositionSide as P, LiquidationPriceBasis as B,
+                    LiquidationQuantityUnit as U,
+                };
+                let price_basis = match source.price_basis {
+                    B::Execution => "LIQUIDATION_PRICE_BASIS_EXECUTION",
+                    B::Bankruptcy => "LIQUIDATION_PRICE_BASIS_BANKRUPTCY",
+                    B::Unverified => "LIQUIDATION_PRICE_BASIS_UNVERIFIED",
+                };
+                let quantity_unit = match source.quantity_unit {
+                    U::Base => "LIQUIDATION_QUANTITY_UNIT_BASE",
+                    U::Quote => "LIQUIDATION_QUANTITY_UNIT_QUOTE",
+                    U::Contracts => "LIQUIDATION_QUANTITY_UNIT_CONTRACTS",
+                    U::Unverified => "LIQUIDATION_QUANTITY_UNIT_UNVERIFIED",
+                };
+                let mut fields = json!({"source_channel":source.source_channel,"price_basis":price_basis,"quantity_unit":quantity_unit,"native_attributes":source.native_attributes});
+                if let Some(side) = source.position_side {
+                    fields["position_side"] = json!(match side {
+                        P::Long => "LIQUIDATED_POSITION_SIDE_LONG",
+                        P::Short => "LIQUIDATED_POSITION_SIDE_SHORT",
+                        P::Unknown => "LIQUIDATED_POSITION_SIDE_UNKNOWN",
+                    });
+                }
+                payload["liquidation"]["provenance"] = fields;
             }
-        }),
+            payload
+        }
         MarketEvent::Statistics24h(s) => {
             let mut st = serde_json::Map::new();
             if let Some(p) = s.open {

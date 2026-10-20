@@ -19,6 +19,21 @@ export function emptyDerivatives(reason = 'derivatives_loading') {
   return { available: false, status: 'unavailable', revision: 0, funding: null, openInterest: null, divergence: null, liquidations: [], reason, venue: null, symbol: null };
 }
 
+/** A bankruptcy price and a position side must not impersonate a trade print. */
+export function liquidationLabel(value) {
+  if (!value) return 'none reported';
+  const source = value.provenance;
+  const priceBasis = source?.price_basis === 'Bankruptcy' ? 'bankruptcy price'
+    : source?.price_basis === 'Execution' ? 'execution price' : 'price basis unverified';
+  const position = source?.position_side;
+  const side = position === 'Long' ? 'liquidated long' : position === 'Short' ? 'liquidated short'
+    : source?.price_basis === 'Execution' && (value.side === 'buy' || value.side === 'sell')
+      ? `${value.side} execution` : position === 'Unknown' ? 'position side unknown' : 'side unverified';
+  const unit = source?.quantity_unit === 'Base' ? 'base'
+    : source?.quantity_unit === 'Quote' ? 'quote' : source?.quantity_unit === 'Contracts' ? 'contracts' : 'units unverified';
+  return `${side} · ${value.quantity} ${unit} · ${priceBasis} ${value.price}`;
+}
+
 /**
  * Try the focused market first, then live perps for the same asset.
  * @param {string} focusVenue

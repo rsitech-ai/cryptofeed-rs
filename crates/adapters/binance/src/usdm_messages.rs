@@ -1,8 +1,7 @@
 //! Binance USD-M futures JSON decode (aggTrade / bookTicker / ticker / mark / indexPrice / depth / forceOrder / OI / kline).
 
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, Rate, SourceId,
-    TimestampNs,
+    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, Rate, TimestampNs,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,6 +13,7 @@ pub enum UsdmDecoded {
     AggTrade {
         symbol: String,
         agg_id: u64,
+        provenance: Box<marketfeed_model::TradeProvenance>,
         price: Price,
         quantity: Quantity,
         aggressor: AggressorSide,
@@ -100,21 +100,25 @@ pub enum UsdmDecoded {
     SubscribeAck {
         id: Option<u64>,
     },
-    /// Recognized exchange administrative record that is intentionally not a
-    /// canonical market event.
-    Ignored,
+    TradeExcluded {
+        symbol: String,
+        native_id: u64,
+        provenance: Box<marketfeed_model::TradeProvenance>,
+        reason: String,
+    },
     Unknown,
 }
 
-/// Routed-v4 timestamp provenance kept outside the stable [`UsdmDecoded`] API.
+/// Routed-v4 timestamp provenance kept separately from native trade provenance.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UsdmRoutedV4SourceTimes {
     pub event_time_ms: Option<i64>,
     pub transaction_time_ms: Option<i64>,
 }
 
-/// Additive routed-v4 decode result with venue provenance separated from the
-/// legacy public decoded-event shape.
+/// Routed-v4 decode result retaining native trade metadata and distinct source
+/// timestamps. Alpha API migration: AggTrade now requires provenance and
+/// TradeExcluded replaces the former silently Ignored administrative result.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UsdmRoutedV4Decoded {
     pub decoded: UsdmDecoded,
@@ -274,7 +278,7 @@ pub fn decode_text(bytes: &[u8]) -> Result<UsdmDecoded, String> {
 }
 
 /// Decode one routed-v4 USD-M payload while retaining distinct venue `E` and
-/// `T`/`o.T` values without changing [`UsdmDecoded`].
+/// `T`/`o.T` values alongside [`UsdmDecoded`]'s native trade provenance.
 pub fn decode_routed_v4_text(bytes: &[u8]) -> Result<UsdmRoutedV4Decoded, String> {
     let value: Value = crate::json::value_from_slice(bytes)?;
     let decoded = decode_value(&value)?;
@@ -283,6 +287,7 @@ pub fn decode_routed_v4_text(bytes: &[u8]) -> Result<UsdmRoutedV4Decoded, String
     let transaction_time_ms = match &decoded {
         UsdmDecoded::AggTrade { exchange_ts_ms, .. }
         | UsdmDecoded::OpenInterest { exchange_ts_ms, .. } => Some(*exchange_ts_ms),
+        UsdmDecoded::TradeExcluded { .. } => payload.get("T").and_then(Value::as_i64),
         UsdmDecoded::Quote { .. } | UsdmDecoded::DepthSnapshot { .. } => {
             payload.get("T").and_then(Value::as_i64)
         }
@@ -377,48 +382,68 @@ fn decode_kline(v: &Value) -> Result<UsdmDecoded, String> {
 
 fn decode_agg_trade(v: &Value) -> Result<UsdmDecoded, String> {
     let m: AggTradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+    m.trade_time
+        .checked_mul(1_000_000)
+        .ok_or("trade timestamp overflow")?;
     let price = Price(parse_fixed(&m.p)?);
     let quantity = Quantity(parse_fixed(&m.q)?);
-    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
-        return Ok(UsdmDecoded::Ignored);
+    let provenance = crate::trade_semantics::provenance(v, true, false, Some(1))?;
+    if let Some(reason) = crate::trade_semantics::exclusion(v)? {
+        return Ok(UsdmDecoded::TradeExcluded {
+            symbol: m.s,
+            native_id: m.a,
+            provenance,
+            reason,
+        });
     }
-    let aggressor = if m.m {
-        AggressorSide::Sell
-    } else {
-        AggressorSide::Buy
-    };
+    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+        return Err("nonpositive native trade without an admitted exclusion classification".into());
+    }
     Ok(UsdmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.a,
+        provenance,
         price,
         quantity,
-        aggressor,
+        aggressor: if m.m {
+            AggressorSide::Sell
+        } else {
+            AggressorSide::Buy
+        },
         exchange_ts_ms: m.trade_time,
     })
 }
 
 fn decode_trade(v: &Value) -> Result<UsdmDecoded, String> {
     let m: TradeMsg = serde_json::from_value(v.clone()).map_err(|e| e.to_string())?;
+    m.trade_time
+        .checked_mul(1_000_000)
+        .ok_or("trade timestamp overflow")?;
     let price = Price(parse_fixed(&m.p)?);
     let quantity = Quantity(parse_fixed(&m.q)?);
-    // USD-M occasionally publishes administrative `trade` records with
-    // p="0", q="0", X="NA". They carry an id but are not executable tape
-    // prints and must not contaminate profiles or order-flow analytics.
-    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
-        return Ok(UsdmDecoded::Ignored);
+    let provenance = crate::trade_semantics::provenance(v, false, false, Some(1))?;
+    if let Some(reason) = crate::trade_semantics::exclusion(v)? {
+        return Ok(UsdmDecoded::TradeExcluded {
+            symbol: m.s,
+            native_id: m.t,
+            provenance,
+            reason,
+        });
     }
-    let aggressor = if m.m {
-        AggressorSide::Sell
-    } else {
-        AggressorSide::Buy
-    };
-    // Reuse AggTrade variant — `agg_id` carries the venue trade id (`t`).
+    if price.0.coefficient <= 0 || quantity.0.coefficient <= 0 {
+        return Err("nonpositive native trade without an admitted exclusion classification".into());
+    }
     Ok(UsdmDecoded::AggTrade {
         symbol: m.s,
         agg_id: m.t,
+        provenance,
         price,
         quantity,
-        aggressor,
+        aggressor: if m.m {
+            AggressorSide::Sell
+        } else {
+            AggressorSide::Buy
+        },
         exchange_ts_ms: m.trade_time,
     })
 }
@@ -564,10 +589,6 @@ pub fn to_book_levels(side: BookSide, levels: &[(Price, Quantity)]) -> Vec<BookL
         .collect()
 }
 
-pub fn agg_id_source(id: u64) -> SourceId {
-    SourceId(id.to_string())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -640,7 +661,9 @@ mod tests {
     #[test]
     fn non_positive_trade_records_are_not_canonical_tape_prints() {
         let raw = br#"{"e":"trade","E":1786371578176,"T":1786371578176,"s":"BTCUSDT","t":7963476844,"p":"0","q":"0","X":"NA","m":true,"st":1}"#;
-        assert_eq!(decode_text(raw).unwrap(), UsdmDecoded::Ignored);
+        assert!(
+            matches!(decode_text(raw).unwrap(), UsdmDecoded::TradeExcluded { reason, .. } if reason == "native_type_not_admitted:NA")
+        );
     }
 
     #[test]

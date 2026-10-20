@@ -1,0 +1,61 @@
+{
+  "schema": "marketfeed.paced_ingress_audit.v1",
+  "qualified_dataset": false,
+  "arms": [
+    {
+      "arm": "baseline",
+      "workload_passed": true,
+      "first_failure": null,
+      "raw_frame_count": 4876,
+      "load_frames": 4864,
+      "canonical_load_rows": 5664,
+      "input_crc_order_payload_and_accounting_audit": "pass",
+      "shared": null,
+      "files_sha256": {
+        "raw/seg-1792461619970346000-000000.mfr1": "ea55e36252a165c9de4624454b0d432d6ad3808857c23ba06be29004426e0e8c"
+      },
+      "qualified_dataset": false
+    },
+    {
+      "arm": "durable",
+      "workload_passed": false,
+      "first_failure": "count/byte ingress budget exhausted",
+      "raw_frame_count": 159,
+      "load_frames": 147,
+      "canonical_load_rows": 171,
+      "input_crc_order_payload_and_accounting_audit": "pass",
+      "shared": {
+        "identity": {
+          "cursor": {
+            "feed_id": "4be8c391ace867237594a2149c79c49e86086d65",
+            "sequence": 539,
+            "offset": 751229
+          },
+          "committed_prefix_sha256": "d60004d78badfe90d26aeb8f8faa076b9e436ab12a8d75fc41391a9551d01d77"
+        },
+        "record_counts": {
+          "artifact": 1,
+          "metadata": 3,
+          "connection": 3,
+          "batch": 162,
+          "frame": 159,
+          "system": 54,
+          "frame_accepted": 156,
+          "seal": 1
+        },
+        "raw_shared_exact_per_session_parity": true,
+        "native_value_and_output_count_checks": true
+      },
+      "files_sha256": {
+        "feed/committed.json": "80df618892ee5886d5b33b18a0a2802eea014a6ed4456e663110217aa2b1163f",
+        "feed/events.mfsf": "d60004d78badfe90d26aeb8f8faa076b9e436ab12a8d75fc41391a9551d01d77",
+        "raw/seg-1792461630183771000-000000.mfr1": "7ed44227aced27d29ea638236edc7c454e965033eff1e2cf620858bbb4fb5160"
+      },
+      "qualified_dataset": false
+    }
+  ],
+  "not_run": [
+    "slow-failure"
+  ],
+  "audit_source_sha256": "22497db2bda98cccd9d28b7b395d09a589e25717cfe98b4ef09c606e59b2b186"
+}

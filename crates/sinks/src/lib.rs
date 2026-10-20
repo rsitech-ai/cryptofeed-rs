@@ -32,6 +32,19 @@
 
 #![forbid(unsafe_code)]
 
+/// Enabled features in this compiled package, for exact bootstrap bindings.
+pub fn compiled_features() -> Vec<String> {
+    [
+        ("default", cfg!(feature = "default")),
+        ("kafka", cfg!(feature = "kafka")),
+        ("nats", cfg!(feature = "nats")),
+    ]
+    .into_iter()
+    .filter(|(_, active)| *active)
+    .map(|(name, _)| name.to_owned())
+    .collect()
+}
+
 mod file;
 mod kafka;
 mod logging;

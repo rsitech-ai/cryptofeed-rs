@@ -9,6 +9,7 @@
 
 mod control;
 mod crc32c;
+pub mod durability;
 mod envelope_json;
 mod format;
 mod http;
@@ -17,6 +18,7 @@ mod normalized;
 mod pipeline;
 mod queue;
 mod reader;
+pub mod shared_batch;
 pub mod shared_feed;
 mod writer;
 

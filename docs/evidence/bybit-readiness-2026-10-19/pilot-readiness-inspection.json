@@ -1,0 +1,439 @@
+{
+  "schema": "marketfeed.bybit_readiness_finite_inspection.v1",
+  "checks_passed": true,
+  "dataset_admitted": false,
+  "general_reader_or_replay_qualified": false,
+  "scope": "sealed clean sample only; exact outbound/ACK correlation and initial canonical readiness; independent book/trade value oracles required separately",
+  "deadline_policy": "local 20s receipt/timer TimestampNs domain, not native ACK deadline or monotonic elapsed guarantee",
+  "inspector_sha256": "5b50372ef561b41ede12a8a1ae1a79ad35fef67491c5ee88bbc70c477f5cb40b",
+  "cursor": {
+    "feed_id": "170f29174ced997888da73046bcf328edc83a00f",
+    "sequence": 3325,
+    "offset": 3187231
+  },
+  "committed_prefix_sha256": "d6d8ba9f62c9c430f1029d63cefa0c726eb9dafa84f72725b73623e6b1572966",
+  "record_counts": {
+    "metadata": 4,
+    "artifact": 2,
+    "catalog_response": 3,
+    "connection": 6,
+    "batch": 1048,
+    "frame": 1123,
+    "system": 18,
+    "frame_accepted": 1117,
+    "timer": 3,
+    "seal": 1
+  },
+  "accepted_inbound_frames": 1117,
+  "venues": {
+    "6": {
+      "session": 2,
+      "connection": 1,
+      "connection_now_ns": 1792451497283256000,
+      "local_receipt_deadline_ns": 1792451517283256000,
+      "native_conn_id": "d9avsh4mqckv5v06jtng-ioncj",
+      "requests": {
+        "b0000000000000001-0000": {
+          "topics": [
+            "publicTrade.BTCUSDT",
+            "orderbook.1.BTCUSDT",
+            "orderbook.50.BTCUSDT",
+            "tickers.BTCUSDT",
+            "kline.1.BTCUSDT"
+          ],
+          "outbound": {
+            "journal_sequence": 12,
+            "session": 2,
+            "connection": 1,
+            "frame_seq": 0,
+            "receive_ts_ns": 1792451497283256000,
+            "payload_sha256": "97e394c668ab20af9638989a93dff3cd2c133324fa092526a7557f42f9afded0",
+            "detail": {
+              "args": [
+                "publicTrade.BTCUSDT",
+                "orderbook.1.BTCUSDT",
+                "orderbook.50.BTCUSDT",
+                "tickers.BTCUSDT",
+                "kline.1.BTCUSDT"
+              ],
+              "op": "subscribe",
+              "req_id": "b0000000000000001-0000"
+            }
+          },
+          "ack": {
+            "journal_sequence": 20,
+            "session": 2,
+            "connection": 1,
+            "frame_seq": 1,
+            "receive_ts_ns": 1792451497528794000,
+            "payload_sha256": "688fff5c41cf17c2824926774d0708f84d0e24053ecc92e01988169a0906678d",
+            "detail": {
+              "success": true,
+              "ret_msg": "subscribe",
+              "conn_id": "d9avsh4mqckv5v06jtng-ioncj",
+              "req_id": "b0000000000000001-0000",
+              "op": "subscribe"
+            }
+          },
+          "ret_msg": "subscribe"
+        }
+      },
+      "bbo_witnesses": {
+        "BTCUSDT": {
+          "journal_sequence": 25,
+          "session": 2,
+          "connection": 1,
+          "frame_seq": 2,
+          "receive_ts_ns": 1792451497552591000,
+          "payload_sha256": "a2f5bb3b72335a4e30d3f369b7288bfecaf3fdf854cd9a73c58257bbce9313d4",
+          "detail": {
+            "topic": "orderbook.1.BTCUSDT",
+            "event_index": 0,
+            "native_type": "snapshot",
+            "u": 126890122,
+            "seq": 115753028347
+          }
+        }
+      },
+      "l2_snapshot_witnesses": {
+        "orderbook.50.BTCUSDT": {
+          "journal_sequence": 32,
+          "session": 2,
+          "connection": 1,
+          "frame_seq": 3,
+          "receive_ts_ns": 1792451497585579000,
+          "payload_sha256": "800f99be4887167ed6278873b2379488ce8da7aba24ccd27a46df79447acde95",
+          "detail": {
+            "topic": "orderbook.50.BTCUSDT",
+            "event_index": 0,
+            "native_type": "snapshot",
+            "u": 342153587,
+            "seq": 115753028294
+          }
+        }
+      },
+      "canonical_live_witness": {
+        "journal_sequence": 33,
+        "session": 2,
+        "connection": 1,
+        "frame_seq": 3,
+        "receive_ts_ns": 1792451497585579000,
+        "payload_sha256": "800f99be4887167ed6278873b2379488ce8da7aba24ccd27a46df79447acde95",
+        "detail": {
+          "schema_version": 1,
+          "venue": 6,
+          "instrument": null,
+          "connection": 1,
+          "session": 2,
+          "frame_seq": 3,
+          "event_index": 0,
+          "exchange_ts": null,
+          "receive_ts": 1792451497585579000,
+          "source_sequence": null,
+          "flags": 0,
+          "payload": {
+            "VenueStatus": {
+              "message": "live"
+            }
+          }
+        }
+      },
+      "clean_shutdown_status_witness": {
+        "journal_sequence": 3321,
+        "event": {
+          "schema_version": 1,
+          "venue": 6,
+          "instrument": null,
+          "connection": 1,
+          "session": 2,
+          "frame_seq": 375,
+          "event_index": 0,
+          "exchange_ts": null,
+          "receive_ts": 1792451525279929000,
+          "source_sequence": null,
+          "flags": 0,
+          "payload": {
+            "VenueStatus": {
+              "message": "degraded"
+            }
+          }
+        }
+      },
+      "live_after_connection_ns": 302323000
+    },
+    "11": {
+      "session": 1,
+      "connection": 2,
+      "connection_now_ns": 1792451497341132000,
+      "local_receipt_deadline_ns": 1792451517341132000,
+      "native_conn_id": "db293ihune7s5s9k6pjg-1ym4x",
+      "requests": {
+        "b0000000000000001-0000": {
+          "topics": [
+            "publicTrade.BTCUSD",
+            "orderbook.1.BTCUSD",
+            "orderbook.50.BTCUSD",
+            "tickers.BTCUSD",
+            "allLiquidation.BTCUSD",
+            "kline.1.BTCUSD"
+          ],
+          "outbound": {
+            "journal_sequence": 17,
+            "session": 1,
+            "connection": 2,
+            "frame_seq": 0,
+            "receive_ts_ns": 1792451497341132000,
+            "payload_sha256": "79aec1026518622947cf9e9064441b0c8830444d73f42632f47ec870a1a251e9",
+            "detail": {
+              "args": [
+                "publicTrade.BTCUSD",
+                "orderbook.1.BTCUSD",
+                "orderbook.50.BTCUSD",
+                "tickers.BTCUSD",
+                "allLiquidation.BTCUSD",
+                "kline.1.BTCUSD"
+              ],
+              "op": "subscribe",
+              "req_id": "b0000000000000001-0000"
+            }
+          },
+          "ack": {
+            "journal_sequence": 190,
+            "session": 1,
+            "connection": 2,
+            "frame_seq": 21,
+            "receive_ts_ns": 1792451498983601000,
+            "payload_sha256": "547d1a836edcfe082702db348579d1125dfc1ef65790261893fb7f876ee36212",
+            "detail": {
+              "success": true,
+              "ret_msg": "",
+              "conn_id": "db293ihune7s5s9k6pjg-1ym4x",
+              "req_id": "b0000000000000001-0000",
+              "op": "subscribe"
+            }
+          },
+          "ret_msg": ""
+        }
+      },
+      "bbo_witnesses": {
+        "BTCUSD": {
+          "journal_sequence": 35,
+          "session": 1,
+          "connection": 2,
+          "frame_seq": 1,
+          "receive_ts_ns": 1792451497586658000,
+          "payload_sha256": "6da3bd680a32f490bd9546d7d2b1b7cc906e64ef35e8bb225278951c2cea01fa",
+          "detail": {
+            "topic": "orderbook.1.BTCUSD",
+            "event_index": 0,
+            "native_type": "snapshot",
+            "u": 60238399,
+            "seq": 119468833807
+          }
+        }
+      },
+      "l2_snapshot_witnesses": {
+        "orderbook.50.BTCUSD": {
+          "journal_sequence": 42,
+          "session": 1,
+          "connection": 2,
+          "frame_seq": 2,
+          "receive_ts_ns": 1792451497652553000,
+          "payload_sha256": "13b0f8eddcb999e0089853fdddc172055405f3f4c2ee9e9eb98aebe2e122ad59",
+          "detail": {
+            "topic": "orderbook.50.BTCUSD",
+            "event_index": 0,
+            "native_type": "snapshot",
+            "u": 18894143,
+            "seq": 119468833771
+          }
+        }
+      },
+      "canonical_live_witness": {
+        "journal_sequence": 194,
+        "session": 1,
+        "connection": 2,
+        "frame_seq": 21,
+        "receive_ts_ns": 1792451498983601000,
+        "payload_sha256": "547d1a836edcfe082702db348579d1125dfc1ef65790261893fb7f876ee36212",
+        "detail": {
+          "schema_version": 1,
+          "venue": 11,
+          "instrument": null,
+          "connection": 2,
+          "session": 1,
+          "frame_seq": 21,
+          "event_index": 0,
+          "exchange_ts": null,
+          "receive_ts": 1792451498983601000,
+          "source_sequence": null,
+          "flags": 0,
+          "payload": {
+            "VenueStatus": {
+              "message": "live"
+            }
+          }
+        }
+      },
+      "clean_shutdown_status_witness": {
+        "journal_sequence": 3318,
+        "event": {
+          "schema_version": 1,
+          "venue": 11,
+          "instrument": null,
+          "connection": 2,
+          "session": 1,
+          "frame_seq": 370,
+          "event_index": 0,
+          "exchange_ts": null,
+          "receive_ts": 1792451525291898000,
+          "source_sequence": null,
+          "flags": 0,
+          "payload": {
+            "VenueStatus": {
+              "message": "degraded"
+            }
+          }
+        }
+      },
+      "live_after_connection_ns": 1642469000
+    },
+    "5": {
+      "session": 3,
+      "connection": 3,
+      "connection_now_ns": 1792451497552677000,
+      "local_receipt_deadline_ns": 1792451517552677000,
+      "native_conn_id": "db295uiskqo7o8fdod8g-4p1e0",
+      "requests": {
+        "b0000000000000001-0000": {
+          "topics": [
+            "publicTrade.BTCUSDT",
+            "orderbook.1.BTCUSDT",
+            "orderbook.50.BTCUSDT",
+            "tickers.BTCUSDT",
+            "allLiquidation.BTCUSDT",
+            "kline.1.BTCUSDT"
+          ],
+          "outbound": {
+            "journal_sequence": 30,
+            "session": 3,
+            "connection": 3,
+            "frame_seq": 0,
+            "receive_ts_ns": 1792451497552677000,
+            "payload_sha256": "fb9eedb42293aac11a470ebcd69d363ca5c149c946f2a3d814976ae5945d7db3",
+            "detail": {
+              "args": [
+                "publicTrade.BTCUSDT",
+                "orderbook.1.BTCUSDT",
+                "orderbook.50.BTCUSDT",
+                "tickers.BTCUSDT",
+                "allLiquidation.BTCUSDT",
+                "kline.1.BTCUSDT"
+              ],
+              "op": "subscribe",
+              "req_id": "b0000000000000001-0000"
+            }
+          },
+          "ack": {
+            "journal_sequence": 192,
+            "session": 3,
+            "connection": 3,
+            "frame_seq": 16,
+            "receive_ts_ns": 1792451499006622000,
+            "payload_sha256": "1497651c074fba4cb731e4fd5dd11cf8230d7a68e688cf29d80102c393e1a00f",
+            "detail": {
+              "success": true,
+              "ret_msg": "",
+              "conn_id": "db295uiskqo7o8fdod8g-4p1e0",
+              "req_id": "b0000000000000001-0000",
+              "op": "subscribe"
+            }
+          },
+          "ret_msg": ""
+        }
+      },
+      "bbo_witnesses": {
+        "BTCUSDT": {
+          "journal_sequence": 71,
+          "session": 3,
+          "connection": 3,
+          "frame_seq": 1,
+          "receive_ts_ns": 1792451497862862000,
+          "payload_sha256": "f2fd5cce4f58762861c2c02899831806169de02ae60477198f4f95c3f17f5fea",
+          "detail": {
+            "topic": "orderbook.1.BTCUSDT",
+            "event_index": 0,
+            "native_type": "snapshot",
+            "u": 131280428,
+            "seq": 828941758221
+          }
+        }
+      },
+      "l2_snapshot_witnesses": {
+        "orderbook.50.BTCUSDT": {
+          "journal_sequence": 81,
+          "session": 3,
+          "connection": 3,
+          "frame_seq": 2,
+          "receive_ts_ns": 1792451497930685000,
+          "payload_sha256": "155c711a29b88b50df5fb2ca89a4da08521ca1088427abbbe346ee7749a5c35f",
+          "detail": {
+            "topic": "orderbook.50.BTCUSDT",
+            "event_index": 0,
+            "native_type": "snapshot",
+            "u": 19110282,
+            "seq": 828941758246
+          }
+        }
+      },
+      "canonical_live_witness": {
+        "journal_sequence": 199,
+        "session": 3,
+        "connection": 3,
+        "frame_seq": 16,
+        "receive_ts_ns": 1792451499006622000,
+        "payload_sha256": "1497651c074fba4cb731e4fd5dd11cf8230d7a68e688cf29d80102c393e1a00f",
+        "detail": {
+          "schema_version": 1,
+          "venue": 5,
+          "instrument": null,
+          "connection": 3,
+          "session": 3,
+          "frame_seq": 16,
+          "event_index": 0,
+          "exchange_ts": null,
+          "receive_ts": 1792451499006622000,
+          "source_sequence": null,
+          "flags": 0,
+          "payload": {
+            "VenueStatus": {
+              "message": "live"
+            }
+          }
+        }
+      },
+      "clean_shutdown_status_witness": {
+        "journal_sequence": 3316,
+        "event": {
+          "schema_version": 1,
+          "venue": 5,
+          "instrument": null,
+          "connection": 3,
+          "session": 3,
+          "frame_seq": 372,
+          "event_index": 0,
+          "exchange_ts": null,
+          "receive_ts": 1792451525268174000,
+          "source_sequence": null,
+          "flags": 0,
+          "payload": {
+            "VenueStatus": {
+              "message": "degraded"
+            }
+          }
+        }
+      },
+      "live_after_connection_ns": 1453945000
+    }
+  }
+}

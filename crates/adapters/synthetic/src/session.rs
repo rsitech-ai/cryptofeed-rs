@@ -247,6 +247,7 @@ impl SyntheticSession {
             Some(seq),
             EventFlags::empty(),
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price,
                 quantity,
                 aggressor,
@@ -305,6 +306,7 @@ impl SyntheticSession {
             None,
             EventFlags::empty(),
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price,
                 ask_price,
                 bid_quantity,
@@ -362,6 +364,10 @@ impl SyntheticSession {
             None,
             EventFlags::empty(),
             MarketEvent::Candle(Candle {
+                provenance: None,
+                native_volume_ccy: None,
+                is_closed: None,
+                quote_volume: None,
                 open,
                 high,
                 low,
@@ -414,6 +420,7 @@ impl SyntheticSession {
                 self.live = true;
                 let frame_seq = self.next_frame_seq();
                 let snap = BookSnapshot {
+                    provenance: None,
                     bids,
                     asks,
                     depth: Some(50),
@@ -535,6 +542,7 @@ impl SyntheticSession {
                     Some(seq),
                     EventFlags::DELTA,
                     MarketEvent::BookDelta(BookDelta {
+                        provenance: None,
                         changes: vec![change],
                         checksum: None,
                     }),
@@ -698,6 +706,7 @@ impl SessionMachine for SyntheticSession {
             asks.truncate(n);
         }
         Some(BookSnapshot {
+            provenance: None,
             bids,
             asks,
             depth: depth.or(Some(50)),

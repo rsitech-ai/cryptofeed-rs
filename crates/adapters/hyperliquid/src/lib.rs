@@ -8,3 +8,9 @@ mod specification;
 pub use factory::HyperliquidFactory;
 pub use session::HyperliquidSession;
 pub use specification::*;
+
+/// This package currently declares no Cargo features. Keep the selected
+/// adapter explicit in causal build bindings, including that empty set.
+pub fn compiled_features() -> Vec<String> {
+    Vec::new()
+}

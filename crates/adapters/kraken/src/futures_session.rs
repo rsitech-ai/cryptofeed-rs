@@ -286,6 +286,7 @@ impl KrakenFuturesSession {
                         seq,
                         EventFlags::empty(),
                         MarketEvent::Trade(Trade {
+                            provenance: None,
                             price: t.price,
                             quantity: t.quantity,
                             aggressor: t.aggressor,
@@ -304,6 +305,7 @@ impl KrakenFuturesSession {
                             seq,
                             EventFlags::empty(),
                             MarketEvent::Liquidation(Liquidation {
+                                provenance: None,
                                 price: t.price,
                                 quantity: t.quantity,
                                 side: t.aggressor,
@@ -357,6 +359,7 @@ impl KrakenFuturesSession {
                 };
                 if let (Some(bid_price), Some(ask_price)) = (bid_price, ask_price) {
                     push(MarketEvent::Quote(Quote {
+                        provenance: None,
                         bid_price,
                         ask_price,
                         bid_quantity: bid_qty,
@@ -510,6 +513,7 @@ impl KrakenFuturesSession {
             }),
             EventFlags::SNAPSHOT,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: book_bids,
                 asks: book_asks,
                 depth: None,
@@ -587,6 +591,7 @@ impl KrakenFuturesSession {
             }),
             EventFlags::empty(),
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: vec![BookChange {
                     side: book_side,
                     operation: op,
@@ -708,6 +713,10 @@ impl SessionMachine for KrakenFuturesSession {
                         self.emit_candle(
                             &symbol,
                             Candle {
+                                provenance: None,
+                                native_volume_ccy: None,
+                                is_closed: None,
+                                quote_volume: None,
                                 open,
                                 high,
                                 low,

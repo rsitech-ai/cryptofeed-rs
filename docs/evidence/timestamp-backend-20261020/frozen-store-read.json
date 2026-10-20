@@ -1,0 +1,38 @@
+{
+  "manifest": "a146175ce1fa387e6cfe301626d28798d8136542ad723e9ccbc61dc732f68d39",
+  "verified_rows": 2666,
+  "decision": "validated-not-qualified",
+  "all_profiles_refused": [
+    {
+      "profile": "descriptive",
+      "exit": 1,
+      "stderr": "dataset operation failed: dataset is not qualified for the explicitly requested profile"
+    },
+    {
+      "profile": "execution-count",
+      "exit": 1,
+      "stderr": "dataset operation failed: dataset is not qualified for the explicitly requested profile"
+    },
+    {
+      "profile": "signed-execution-flow",
+      "exit": 1,
+      "stderr": "dataset operation failed: dataset is not qualified for the explicitly requested profile"
+    },
+    {
+      "profile": "confirmed-candle",
+      "exit": 1,
+      "stderr": "dataset operation failed: dataset is not qualified for the explicitly requested profile"
+    },
+    {
+      "profile": "observed-availability-replay",
+      "exit": 1,
+      "stderr": "dataset operation failed: dataset is not qualified for the explicitly requested profile"
+    }
+  ],
+  "original22files_hash_size_mtime_ctime_mode_unchanged": true,
+  "store_directory_mode": "0o40555",
+  "binary_sha256": "d0af679576822bf5a7fe4b6fc86483193ad8ea2113dec4ecbdac587e2abfb687",
+  "reader_source_sha256": "9902d59ef1ef78afef01cc981121e9b94a5b152ddcb3d8ba7a24ab1acc2de569",
+  "inspect_output_sha256": "03a8fc06c21fa6877f6a756e8b31e9eb783257bc73c32043b61fdd0ddb94a90b",
+  "before_snapshot_sha256": "73178be375555a4fd6f2e46ac50c672e2e875aa38511b34b1e48915c32e1a194"
+}

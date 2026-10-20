@@ -11,7 +11,6 @@ use serde::Serialize;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 const CONTRACT_BYTES: &[u8] =
     include_bytes!("../contracts/fixture-v4/event-pulse-e2-fixture-v4-contract.json");
@@ -484,13 +483,8 @@ fn normalize_time_at_pointer(
 }
 
 fn canonical_utc_time(value: &Rfc3339Time) -> Result<String, FixtureV4Error> {
-    let instant = OffsetDateTime::from_unix_timestamp_nanos(i128::from(value.utc_micros()) * 1_000)
-        .map_err(|_| FixtureV4Error::CanonicalJson)?;
-    let rendered = instant
-        .format(&Rfc3339)
-        .map_err(|_| FixtureV4Error::CanonicalJson)?;
-    Rfc3339Time::parse(&rendered)
-        .map(|value| value.canonical().to_owned())
+    value
+        .utc_canonical()
         .map_err(|_| FixtureV4Error::CanonicalJson)
 }
 

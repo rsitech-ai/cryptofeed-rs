@@ -1,7 +1,14 @@
 # Trade integrity and backtest storage contract
 
-Status: **specified, not implemented or operationally promoted**. Audit date:
+Status: **specified and partially implemented; strict datasets/general causal
+replay remain unqualified; no operational promotion**. Original audit date:
 2026-10-19. Source baseline `1c668981ee2d5b456dfa6d085fbd558b1998937d`.
+Architecture descriptions and proposed interfaces below preserve that baseline;
+their present-tense wording is not a current source/API inventory. Subsequent
+repairs, implemented subsets and their exact verification scopes are tracked in
+the [active implementation ledger](../plan/hyperliquid_shared_feed_implementation.md)
+and [goal scope](../plan/active_goal_scope.json). The requirements and unfinished
+acceptance gates remain in force.
 The [validation report](../ops/trade_data_validation_report.md) owns actual
 results; the [implementation plan](../plan/trade_data_integrity_implementation_plan.md)
 owns unfinished work. The [venue inventory](../plan/trade_venue_inventory.md)
@@ -32,7 +39,7 @@ Trades alone cannot validate fills, spread, queue position, fees, impact or
 slippage. Future economic backtests need separately admitted quotes/books and
 execution/latency assumptions, outside this assignment.
 
-## Existing architecture and extension points
+## Architecture at the audit baseline and extension points
 
 Reuse the pure `adapter-api::SessionMachine` and `VenueFactory`, exact model,
 transport, engine supervision, bounded dispatch, recording, replay and sinks.
@@ -323,7 +330,10 @@ Local filesystem publication protocol:
 
 1. Exclusive dataset writer lease/lock and fresh UUID staging directory; use
    create_new, reject collisions/symlinks and path escape. Parallel writers own
-   disjoint shards; coordinator alone publishes a dataset revision.
+   disjoint shards; coordinator alone publishes a dataset revision. An OS lease
+   does not serialize threads sharing one writer instance: serialize complete
+   mutations and CAS checks in process too. Sync the initialized directory and
+   its ancestor chain; the immediate parent alone misses newly created ancestors.
 2. Append raw and canonical staged files; verify CRC/shape/hash/row balances;
    flush and sync data. Proposed group-sync target250ms with progress watchdog;
    target is not an upper bound under I/O stalls. Accepted but unsynced bytes can
@@ -336,7 +346,25 @@ Local filesystem publication protocol:
    parent directory. Test crashes between every step, including manifest fsync.
    A separate
    CAS pointer may name latest, but readers pin revision/hash. Interrupted writes
-   never publish; readers reject missing/hash-mismatched objects.
+   cannot admit partial records; readers reject missing/hash-mismatched objects.
+   Replacement followed by a failed namespace barrier is indeterminate: a complete
+   new revision may be visible without a durability acknowledgment. Never claim
+   that every failed publication leaves only an invisible tail. A shared-feed
+   writer retains its last acknowledged cursor, returns an explicit indeterminate
+   error after replacement/barrier failure, and permanently rejects further writes.
+
+Dataset mutation failures poison that writer instance. Reopen under the exclusive
+lease and recover from the intent; do not retry through the poisoned handle.
+Matching immutable bytes alone do not establish durability after a failed install.
+Writer reuse, publication and intent recovery must verify and sync the same opened
+object plus its namespace before acknowledging authority. Recovered intent files
+and reused immutable manifests need equivalent barriers. Read-only integrity
+checks must remain independent of writer locks, write access and synchronization.
+
+The implementation ledger records the tested portable subset of these rules.
+Platform directory barriers must actually succeed; an ignored error or no-op on
+an unsupported filesystem cannot qualify durable publication. A Windows API
+compatibility probe is distinct from production integration and power-loss tests.
 
 On restart, scan only own staged objects, identify complete raw CRC records and
 quarantine truncated tails, preserve failed originals and publish recovery as a

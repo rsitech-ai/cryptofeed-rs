@@ -225,6 +225,7 @@ impl CoinbaseIntlSession {
                     seq,
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
+                        provenance: None,
                         price: row.price,
                         quantity: row.quantity,
                         aggressor: row.aggressor,
@@ -269,6 +270,7 @@ impl CoinbaseIntlSession {
                     }),
                     EventFlags::empty(),
                     MarketEvent::Quote(Quote {
+                        provenance: None,
                         bid_price,
                         bid_quantity: bid_qty,
                         ask_price,
@@ -373,6 +375,7 @@ impl CoinbaseIntlSession {
             }),
             EventFlags::SNAPSHOT,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: book_bids,
                 asks: book_asks,
                 depth: None,
@@ -451,6 +454,7 @@ impl CoinbaseIntlSession {
             }),
             EventFlags::DELTA,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: out_changes,
                 checksum: None,
             }),

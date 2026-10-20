@@ -170,6 +170,7 @@ fn market(
         epoch,
         generation,
         MarketEvent::Trade(Trade {
+            provenance: None,
             price: Price(Fixed::new(100, 0)),
             quantity: Quantity(Fixed::new(1, 0)),
             aggressor: AggressorSide::Buy,
@@ -724,6 +725,7 @@ fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
         "epoch_a",
         0,
         MarketEvent::BookSnapshot(marketfeed_model::BookSnapshot {
+            provenance: None,
             bids: vec![],
             asks: vec![],
             depth: Some(0),
@@ -754,6 +756,7 @@ fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
         "epoch_a",
         0,
         MarketEvent::BookSnapshot(marketfeed_model::BookSnapshot {
+            provenance: None,
             bids: vec![],
             asks: vec![],
             depth: Some(0),
@@ -793,6 +796,7 @@ fn book_invalidation_requires_resync_before_a_later_snapshot_is_permitted() {
         "epoch_a",
         0,
         MarketEvent::BookSnapshot(marketfeed_model::BookSnapshot {
+            provenance: None,
             bids: vec![],
             asks: vec![],
             depth: Some(0),

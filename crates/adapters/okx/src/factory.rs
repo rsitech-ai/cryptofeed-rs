@@ -26,7 +26,7 @@ fn plan_sessions(request: &ConcreteSubscriptionSet) -> Vec<SessionSpec> {
     let mut public = ConcreteSubscriptionSet::default();
     let mut business = ConcreteSubscriptionSet::default();
     for item in &request.items {
-        if matches!(item.channel, Channel::Candles { .. }) {
+        if matches!(item.channel, Channel::Candles { .. } | Channel::AllTrades) {
             business.items.push(item.clone());
         } else {
             public.items.push(item.clone());
@@ -495,10 +495,7 @@ mod tests {
             .expect("candle plan");
 
         assert_eq!(plans.len(), 1);
-        assert_eq!(
-            plans[0].endpoint_name,
-            "wss://ws.okx.com:8443/ws/v5/business"
-        );
+        assert_eq!(plans[0].endpoint_name, "wss://ws.okx.com/ws/v5/business");
         assert_eq!(plans[0].subscriptions, request);
     }
 
@@ -530,10 +527,61 @@ mod tests {
         assert_eq!(plans.len(), 2);
         assert_eq!(plans[0].endpoint_name, PUBLIC_WS_URL);
         assert_eq!(plans[0].subscriptions.items, vec![trade]);
-        assert_eq!(
-            plans[1].endpoint_name,
-            "wss://ws.okx.com:8443/ws/v5/business"
-        );
+        assert_eq!(plans[1].endpoint_name, "wss://ws.okx.com/ws/v5/business");
         assert_eq!(plans[1].subscriptions.items, vec![candle]);
+    }
+    #[test]
+    fn explicit_all_trades_routes_to_business_and_does_not_add_unrequested_streams() {
+        use marketfeed_adapter_api::{ActionBuffer, SessionAction, SessionInput};
+        use marketfeed_model::TimestampNs;
+        let factory = OkxFuturesFactory::default();
+        let catalog = catalog(vec![instrument(InstrumentId(41), "ETH-USDT-260925", 5, 7)]);
+        let request = ConcreteSubscriptionSet {
+            items: vec![
+                ConcreteSubscription {
+                    instrument: InstrumentId(41),
+                    channel: Channel::AllTrades,
+                    delivery: DeliveryOptions::default(),
+                },
+                ConcreteSubscription {
+                    instrument: InstrumentId(41),
+                    channel: Channel::Quote,
+                    delivery: DeliveryOptions::default(),
+                },
+            ],
+        };
+        let plans = factory.plan(&request, &catalog).unwrap();
+        assert_eq!(plans.len(), 2);
+        for spec in plans {
+            let business = spec.endpoint_name == BUSINESS_WS_URL;
+            let mut machine = factory.create_session(spec, catalog.clone()).unwrap();
+            let mut output = ActionBuffer::new();
+            machine
+                .on_input(
+                    SessionInput::Connected {
+                        now: TimestampNs(1),
+                    },
+                    &mut output,
+                )
+                .unwrap();
+            let message = output
+                .as_slice()
+                .iter()
+                .find_map(|action| {
+                    if let SessionAction::SendText(bytes) = action {
+                        Some(bytes)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap();
+            let wire: serde_json::Value = serde_json::from_slice(message).unwrap();
+            assert_eq!(wire["args"].as_array().unwrap().len(), 1);
+            assert_eq!(
+                wire["args"][0]["channel"],
+                if business { "trades-all" } else { "tickers" }
+            );
+            assert_eq!(wire["args"][0]["instId"], "ETH-USDT-260925");
+        }
     }
 }

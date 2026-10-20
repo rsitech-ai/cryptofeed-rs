@@ -1,0 +1,28 @@
+{
+  "schema": "marketfeed.raw_shared_frame_parity.v1",
+  "raw_objects": [
+    {
+      "file": "seg-1792448031040227000-000000.mfr1",
+      "bytes": 349536,
+      "sha256": "93b427bdd8c1153195f27ce435f83f4495de54064801eee40a0649ddff720e11"
+    }
+  ],
+  "raw_bytes": 349536,
+  "raw_application_frames": 1179,
+  "shared_application_frames": 1179,
+  "raw_metadata_records": 4,
+  "shared_metadata_records": 4,
+  "missing_shared_frames": 0,
+  "extra_shared_frames": 0,
+  "metadata_difference_count": 0,
+  "checks_passed": true,
+  "shared_final_seal": true,
+  "raw_closed_input": "caller assumption; bounded bytes inspected and hashed, source process closure is external evidence",
+  "claim_limit": "exact saved public WS application frames and metadata only; source continuity/HTTP/timer causal replay unqualified",
+  "cursor": {
+    "feed_id": "97fc91bac89f8d1fc31eedcc06f86e0620637cb8",
+    "sequence": 3478,
+    "offset": 3507908
+  },
+  "committed_prefix_sha256": "a53a06f18c93e37a41473f88728d7880442d7801fc06c0b022d3f3bd332b74c0"
+}

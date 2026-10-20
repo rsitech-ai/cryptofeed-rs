@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "base_head": "372e6f1",
+  "source_sha256": {
+    "crates/recording/src/durability.rs": "cefb9ab3a23712690c3bd9c67217fc4d55a7ffcdeee97f93149b85a6135967aa",
+    "crates/recording/src/format.rs": "50ed45c9a904d4c173315886e04bd1ab48009a67e6d35bd59c213a561a058c83",
+    "crates/recording/src/lib.rs": "62d92040b1b9b7ebe574208cc40186f7439182bc53ad76872ffdc452591c1a58",
+    "crates/recording/src/pipeline.rs": "c4bb8afeca245580c3f133fcde51e5e25ad2944cd424bd3b0af2c2b2cd907e0e",
+    "crates/recording/src/shared_feed.rs": "538e12d3925682b9d047259cfa0b394feb453a127b72838f9c6782dcbded744a",
+    "crates/datasets/src/store.rs": "22bb14584333de1658d38a17fb7247c2c8d7e952d4a83c5eff3e31483e7839fd"
+  },
+  "focused_tests": {
+    "command": "cargo test --locked -p marketfeed-recording -p marketfeed-datasets",
+    "passed": 79,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/publication-failure-tests-03.log",
+      "sha256": "3d811f05f03ddb9853144fb2287a2ecb63ee2fe3ee114e2953628912e9838b0b"
+    },
+    "scope": "Earlier focused snapshot; all paths also pass the final workspace run recorded below."
+  },
+  "recording_msrv": {
+    "command": "cargo +1.85.0 test --locked -p marketfeed-recording --lib",
+    "passed": 51,
+    "failed": 0,
+    "ignored": 0,
+    "receipt": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/publication-recording-msrv-01.log",
+      "sha256": "9e4bcd88ffd5030ea9e8caebe2881e9b2e8263fb011ffc387b291d515d59bec5"
+    }
+  },
+  "clippy": {
+    "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+    "exit": 0,
+    "receipt": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/publication-clippy-final-01.log",
+      "sha256": "85494e4f8287b49368052369b9abb8a777a2194dc2215704d7419e9938dac5c8"
+    }
+  },
+  "docs": {
+    "command": "cargo doc --locked -p marketfeed-recording -p marketfeed-datasets --no-deps",
+    "exit": 0,
+    "receipt": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/publication-docs-final-01.log",
+      "sha256": "bb58e96acd731cc75a14cea52540c9510ebd03d99b413a0abb783400afcf3d5f"
+    }
+  },
+  "oss": {
+    "command": "PATH=\"$PWD/.tools/bin:$PATH\" bash scripts/check-oss-readiness.sh",
+    "exit": 0,
+    "receipt": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/publication-oss-final-01.log",
+      "sha256": "e0426e4d8d374b92d256cc552a4c5febdcc8be95796753f6a66b7b87b7bb0106"
+    }
+  },
+  "independent_review": {
+    "reviewer": "trade_review",
+    "disposition": "No further actionable defect found in bounded portable slice after required fixes. Reviewer inspected final code/tests, did not run tests.",
+    "findings_resolved": [
+      "Post-replace directory failure was incorrectly described as an invisible tail; now explicit indeterminate error and last-ACK cursor with permanent poison.",
+      "Existing matching object after a failed barrier could be admitted without sync; mutation failure now poisons current instance and reopened writer revalidates file and namespace.",
+      "Direct ObjectRef reuse in publish/recover bypassed put; writer references now verify+sync same opened file and parent.",
+      "OS lock did not serialize threads sharing Store; complete public mutations now share operation mutex, including parent CAS.",
+      "Immediate-parent bootstrap barrier missed new/reused ancestor chain; canonical child-to-root barriers are now required."
+    ]
+  },
+  "limitations": [
+    "Windows production backend still plain directory open, known OS5; no sync error ignored. Separate hosted NTFS write-access probe passes with administrative token but is not unprivileged or power-loss qualification.",
+    "Process recovery and injected API errors do not prove storage hardware/power-loss durability.",
+    "No format/schema change, new live capture, strict research qualification or operational promotion."
+  ],
+  "oss_staged": {
+    "command": "PATH=\"$PWD/.tools/bin:$PATH\" bash scripts/check-oss-readiness.sh",
+    "exit": 0,
+    "log_sha256": "a700ea776de003e9bd943827d61521ea0cd10332f6081f13bbaa6abb42ce2ed4",
+    "scope": "New source/evidence files staged; gitleaks present and no leaks found."
+  },
+  "workspace": {
+    "command": "cargo test --locked --workspace --all-targets --all-features",
+    "exit": 0,
+    "passed": 1269,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 148,
+    "log_sha256": "aec83488bea61eb61bd72d9fba17ffa70fbe8b6da8ecbbdf4eee7088478d3b89",
+    "local_path": ".local/evidence/hyperliquid-integration-review/publication-workspace-final-01.log",
+    "scope": "Final frozen Rust source hashes above; ignored network/corpus creation tests remain ignored, not live evidence."
+  }
+}

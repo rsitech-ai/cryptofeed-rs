@@ -410,6 +410,28 @@ fn decode_trades(data: &Value) -> Result<DecodedEvent, String> {
             o.get("liquidation").and_then(|v| v.as_str()),
             Some("T") | Some("M")
         );
+        if fixed_from_json(
+            o.get("price")
+                .ok_or_else(|| "trade missing price".to_string())?,
+        )?
+        .coefficient
+            <= 0
+            || fixed_from_json(
+                o.get("amount")
+                    .ok_or_else(|| "trade missing quantity".to_string())?,
+            )?
+            .coefficient
+                <= 0
+        {
+            return Err("trade price/quantity must be positive".into());
+        }
+        let exchange_ts_ms = o
+            .get("timestamp")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| "trade missing timestamp".to_string())?;
+        exchange_ts_ms
+            .checked_mul(1_000_000)
+            .ok_or_else(|| "trade timestamp outside nanosecond range".to_string())?;
         out.push(TradeRow {
             instrument,
             trade_id,
@@ -423,10 +445,7 @@ fn decode_trades(data: &Value) -> Result<DecodedEvent, String> {
                     .ok_or_else(|| "trade missing amount".to_string())?,
             )?),
             aggressor,
-            exchange_ts_ms: o
-                .get("timestamp")
-                .and_then(|t| t.as_i64())
-                .ok_or_else(|| "trade missing timestamp".to_string())?,
+            exchange_ts_ms,
             liquidation,
         });
     }
@@ -451,6 +470,7 @@ fn decode_ticker(data: &Value) -> Result<DecodedEvent, String> {
         o.get("best_ask_amount"),
     ) {
         (Some(bp), Some(ap), bq, aq) if !bp.is_null() && !ap.is_null() => Some(Quote {
+            provenance: None,
             bid_price: Price(fixed_from_json(bp)?),
             ask_price: Price(fixed_from_json(ap)?),
             bid_quantity: match bq {
@@ -535,12 +555,17 @@ fn decode_ticker(data: &Value) -> Result<DecodedEvent, String> {
     })))
 }
 
-/// ponytail: JSON numbers via `Number::to_string`; ceiling = f64 round-trip loss on
-/// pathological decimals; upgrade = raw-token decimal scan.
+/// Financial token DOMs retain decimal/exponent strings lexically. Integer
+/// Numbers are exact i64/u64 values; callers must not construct float Values.
 pub fn fixed_from_json(v: &Value) -> Result<Fixed, String> {
     match v {
         Value::String(s) => Fixed::parse_str(s).map_err(|e| e.to_string()),
-        Value::Number(n) => Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string()),
+        Value::Number(n) if n.is_i64() || n.is_u64() => {
+            Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string())
+        }
+        Value::Number(_) => {
+            Err("financial JSON Value already passed through floating point".into())
+        }
         _ => Err("expected number or string".into()),
     }
 }
@@ -555,6 +580,7 @@ pub fn ms_to_ts(ms: i64) -> TimestampNs {
 
 pub fn to_market_trade(row: &TradeRow) -> Trade {
     Trade {
+        provenance: None,
         price: row.price,
         quantity: row.quantity,
         aggressor: row.aggressor,

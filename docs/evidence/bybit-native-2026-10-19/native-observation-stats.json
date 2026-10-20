@@ -1,0 +1,28 @@
+{
+  "5": {
+    "candle_confirm:False": 14,
+    "trade_rows": 16,
+    "side:Sell": 13,
+    "BT:False": 16,
+    "RPI:False": 16,
+    "candle_confirm:True": 1,
+    "side:Buy": 3
+  },
+  "11": {
+    "candle_confirm:False": 2,
+    "candle_confirm:True": 1,
+    "trade_rows": 1,
+    "side:Buy": 1,
+    "BT:False": 1,
+    "RPI:False": 1
+  },
+  "6": {
+    "candle_confirm:False": 12,
+    "trade_rows": 59,
+    "side:Sell": 55,
+    "BT:False": 59,
+    "RPI:False": 59,
+    "candle_confirm:True": 1,
+    "side:Buy": 4
+  }
+}

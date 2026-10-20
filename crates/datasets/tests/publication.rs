@@ -98,6 +98,7 @@ fn fixture(root: &Path, fault: &str) {
                 EventFlags::ACQUISITION_ORIGIN_UNVERIFIED
             },
             payload: MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::parse_str(price).unwrap()),
                 quantity: Quantity(Fixed::new(2, 0)),
                 aggressor: AggressorSide::Buy,

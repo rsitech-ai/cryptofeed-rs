@@ -13,6 +13,7 @@ fn facade_smoke_fixed_control_sink() {
     assert_eq!(px.scale, 2);
 
     let event = MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(px),
         quantity: Quantity(Fixed::new(1, 0)),
         aggressor: AggressorSide::Buy,

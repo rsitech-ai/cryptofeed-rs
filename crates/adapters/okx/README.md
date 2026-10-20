@@ -12,7 +12,7 @@ socket, spawns a task, sleeps, or touches disk. The engine owns all I/O.
 | 9 | `okx-swap` | Linear perpetuals | `GET /api/v5/public/instruments?instType=SWAP` |
 | 10 | `okx-futures` | Linear dated futures | `GET /api/v5/public/instruments?instType=FUTURES` |
 
-All three share one WS gateway (`wss://ws.okx.com:8443/ws/v5/public`) and one
+All three share one WS gateway (`wss://ws.okx.com/ws/v5/public`) and one
 `OkxSession` state machine (`OkxSessionConfig.venue` selects the envelope venue
 id; `OkxSessionConfig.subscribe_mark_funding` gates the derivatives channels).
 `VenueId(9)`/`VenueId(10)` are claimed in the workspace-wide
@@ -131,3 +131,26 @@ REGEN_CORPUS=1 cargo test -p marketfeed-adapter-okx --test corpus_replay regen_s
 # live network smoke, ignored by default — keep CI offline
 cargo test -p marketfeed-adapter-okx --test live_ignored -- --ignored --nocapture
 ```
+
+## Trade granularity and confirmed candles
+
+`Channel::Trades` / daemon `channels = ["trades"]` selects native aggregate
+`trades` on the public endpoint. Explicit `Channel::AllTrades` / `trades_all`
+selects native individual `trades-all` on the business endpoint. Requested
+instrument/channel pairs are preserved; a quote-only request does not add a
+trade stream. Both endpoints use443 (port8443 retires2026-10-31 according to
+[the official change log](https://www.okx.com/docs-v5/log_en/)).
+
+Every trade/candle row is decoded before any row is emitted; one input emits one
+batch with row indices, including batches larger than the normal action buffer.
+Trade provenance retains the native channel, count, source and seqId without
+inventing executions or constituent ranges. seqId may repeat and is not a
+continuity guarantee. A numeric tradeId is not a source sequence. Keep source
+channels distinct when reconciling aggregated and individual tape.
+
+Candles preserve optional native confirmation, exact quote volume and native
+volCcy. The unit of volCcy depends on the product; it is not a universal base
+quantity. Unknown confirmation remains absent; explicitfalse stays distinguishable
+in JSON/protobuf. Runtime receipt records observed known-at, not venue publication
+time. This adapter repair does not qualify a dataset or the old frozen consumer
+cache. Full live/strict-consumer and sustained operational gates remain separate.

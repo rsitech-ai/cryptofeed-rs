@@ -196,6 +196,7 @@ fn envelope_adapter_uses_exchange_time_and_rejects_invalid_events() {
         source_sequence: None,
         flags: EventFlags::empty(),
         payload: MarketEvent::Trade(Trade {
+            provenance: None,
             price: Price(Fixed::new(100, 0)),
             quantity: Quantity(Fixed::new(4, 0)),
             aggressor: AggressorSide::Buy,

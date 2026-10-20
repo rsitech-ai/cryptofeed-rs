@@ -1,0 +1,454 @@
+{
+  "schema_version": 1,
+  "status": "All14 frozen-source checks and three exact-security tool checks pass; current-source hosted CI and consumer repin still required",
+  "parent_commit": "7a68984668ee59a532985d71dfb3a10f7681a363",
+  "declared_source_files": 528,
+  "declared_source_sha256": "165d4185ee49a221443a3293d3d2f6c727793e30c62d72a88d871f5c90ac5d89",
+  "freeze_manifest_sha256": "426015201368e3a38247e70a881deabbdcdcd6635b60b98c80980dfb4ffb3853",
+  "changed_build_inputs": {
+    "crates/adapters/hyperliquid/src/factory.rs": {
+      "bytes": 5611,
+      "sha256": "0fc484b760893a1f6713fe97a4e0f2db031c45eb8d8649add3e4e95864838844"
+    },
+    "crates/adapters/hyperliquid/src/lib.rs": {
+      "bytes": 552,
+      "sha256": "faf7be12579cc402ff98eada819ab95bd61f8e1a8cd25fd338eb72ab5065cf9d"
+    },
+    "crates/adapters/hyperliquid/tests/contracts.rs": {
+      "bytes": 24551,
+      "sha256": "c5cf6ae9ba05212f8d9651bab88beac53882a46bc67482271b9d72b653115901"
+    },
+    "crates/daemon/src/causal_bootstrap.rs": {
+      "bytes": 23607,
+      "sha256": "1e448e4babdf11c18c2ebb077bd76611cbbca02bb6656eb707e04f4bec099331"
+    },
+    "crates/daemon/src/causal_bootstrap_tests.rs": {
+      "bytes": 25047,
+      "sha256": "5e8c2dc705d4b2bdfedf2f2f65f89df4f9c0a1e0e1f86f537565fb51ab618993"
+    },
+    "crates/daemon/tests/hyperliquid_causal.rs": {
+      "bytes": 25131,
+      "sha256": "739cafc59b67395f31a5c81b1fb09544c3b574b07c91561c6575bf474f31440b"
+    },
+    "crates/engine/src/causal_bootstrap.rs": {
+      "bytes": 24933,
+      "sha256": "f8e9cde53da38876f1ee62a26cae3b54a49bee30438819cdb09f5604f6b8063b"
+    }
+  },
+  "source_unchanged_through_checks": true,
+  "runner_terminal_receipt_sha256": "780ad4d63520bf12ec40de1d6da485032ff1a63a97694ac34c7a6e3e258f0ce1",
+  "source_membership_and_digest_recomputed": true,
+  "changed_build_inputs_basis": "Current528 files compared with parent Git blob IDs; includes staged, unstaged and untracked changes",
+  "checks": [
+    {
+      "check": "hyperliquid",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-adapter-hyperliquid",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "contracts",
+        "--test",
+        "hyperliquid_causal"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 12.633,
+      "log_sha256": "f409fa6816700712d5ab32881eb3d21be2a7dbba07804ca3b9e8efe0a1fd96de",
+      "test_totals": {
+        "passed": 25,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 2
+      }
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 10.637,
+      "log_sha256": "04a52948ed330a3cd942a2834809b8e649a0350b09f4d1c0ece2d5c0ef03dea6"
+    },
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 915.4,
+      "log_sha256": "086cba8d886e21862cc8c9af5d484fef248f788c52e57f60f26700480a414580",
+      "test_totals": {
+        "passed": 1494,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 158
+      }
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 169.405,
+      "log_sha256": "1e8fcdb7a8a99fa7b089626a5106b51682e8c4430047467778415058feb5abc5",
+      "test_totals": {
+        "passed": 552,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 30
+      }
+    },
+    {
+      "check": "msrv-hyperliquid",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "hyperliquid_causal"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 15.684,
+      "log_sha256": "886504665e82723b6810389212110b045250c7f89cd052418de335540cf59f07",
+      "test_totals": {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 31.029,
+      "log_sha256": "f8246c1b058b71304f7785879efe7a07c7dc86eb97cdad61a050adeeb3e689d0",
+      "test_totals": {
+        "passed": 50,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-bootstrap-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 13.384,
+      "log_sha256": "266231e797edf7dbbce338da5ece0fbc1776b3d5220878dc1ee7040a2e642472",
+      "test_totals": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-owner-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 15.193,
+      "log_sha256": "8e8cf045d29d57d097809752395dc48f485ccf773cff4c9ef59b9c50fd382c10",
+      "test_totals": {
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "default-disabled",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 10.575,
+      "log_sha256": "da48f2c70f3fa1e756f104d3d5eee8e1f869d0bf03e1e5a3218fbb6abbaa3e73",
+      "test_totals": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 18.812,
+      "log_sha256": "2c742a8df21a4d088bc95908953dd647a7542fb6345489494d68b265a4e63ecd"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 2.913,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.98,
+      "log_sha256": "68d7240d6cb086ee675b69b3302286fe19b7f989d594ee65c43f1bc8ada9ddb2"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.851,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.022,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "exact_security_checks": [
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.005,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 5.365,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.009,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    }
+  ],
+  "security": {
+    "cargo_deny": "0.20.2",
+    "cargo_audit": "0.22.2",
+    "legacy_runner_deny": "0.19.0 (PATH selected; separate explicit0.20.2 check above is authoritative policy gate)",
+    "dependency_versions_edges_or_lock_changed": false
+  },
+  "independent_review": {
+    "receipt": "hyperliquid-causal-bootstrap-review-01.json",
+    "sha256": "e3d82148b783b0e9043cc10ef455cd03bd77bc683f1625ff1a70159297144654",
+    "scope": "All528 input identities hash-checked; selected bootstrap/native-plan/catalog/policy sources semantically reviewed, with actual focused test evidence inspected; no independent Cargo execution"
+  },
+  "artifact_binding": {
+    "binary": "target/debug/deps/hyperliquid_causal-f91022ab3155537c",
+    "preserved_artifact": "hyperliquid-causal-test-artifact-01",
+    "sha256": "2d52d08353c40079269ec631b318fddd7ea5bde41e5b42994badaa7bafb32384",
+    "bytes": 19424448,
+    "mode": "0555",
+    "matching_recipe": {
+      "offset": 7948796,
+      "recipe": {
+        "debug": "true",
+        "encoded_rustflags": "",
+        "git_commit": "7a68984668ee59a532985d71dfb3a10f7681a363",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 528,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "165d4185ee49a221443a3293d3d2f6c727793e30c62d72a88d871f5c90ac5d89",
+        "target": "aarch64-apple-darwin"
+      },
+      "recipe_sha256": "f1d8d0da56470684f848c5d118228adf7429e2bfb41fbc19914e2ba8d655f3dd"
+    },
+    "scope": "Retained test file and embedded declared-source recipe, not loaded-image attestation, complete input closure or reproducible-build proof"
+  },
+  "development_failures": {
+    "identity_red": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "hyperliquid_causal",
+        "coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market",
+        "--",
+        "--exact"
+      ],
+      "exit_code": 101,
+      "vulnerable_source_sha256": "1080b895397b2b80d54fc80212bd7883986e8fbc7600e628b1eb5f9b3158890b",
+      "regression_source_sha256": "b7cf25fc61bb302c4c9423de2bce004f862fd7d2f3e8a05dd452fd2f3505bcf7",
+      "fixed_source_sha256": "1e448e4babdf11c18c2ebb077bd76611cbbca02bb6656eb707e04f4bec099331",
+      "restored_fixed_bytes": true,
+      "log_sha256": "fb25285e407ad1d93a295539ac40479eb9ad6bd25a9171137f66c36e6718d5a4"
+    },
+    "first_final_attempt": "Failed new builder assertion counted VenueStatus as asset context; 24passed/1failed, retained unqualified",
+    "first_final_attempt_receipt_sha256": "26d146e6a31bda30c80e4da9099a06705ab31dacbe65f79b1aaa8e915b652ca6",
+    "first_final_attempt_log_sha256": "5a1e5036a5aae16ccaf40e57943cdb502b2dc77f01780dc566a7fd4bde90793e",
+    "preflight_compile_failures": "Preflight01/02 and06 remain failed; not final qualification"
+  },
+  "frozen_research_store": {
+    "files": 22,
+    "bytes": 37276008,
+    "bytes_and_recorded_metadata_unchanged": true
+  },
+  "original_pilot_capture_files": {
+    "files": 2,
+    "bytes_and_recorded_metadata_unchanged": true
+  },
+  "remaining": [
+    "Current-source hosted platform qualification; hlscreen repin/rebuild/replay and own-source CI",
+    "Actual-engine physical-order replay/checkpoints, committed projection and bound external I/O",
+    "Daemon/live/control/supervisor and consumer migration; seal/restart/recovery",
+    "Registered ingress remains failed; unchanged comparison only after integration",
+    "Native continuity/strict datasets; rsibot context/features; calendar/hardware qualification",
+    "Runtime shutdown/watchdog limits remain; no economics/activation/deployment/merge/release"
+  ]
+}

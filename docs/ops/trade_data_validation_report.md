@@ -1,5 +1,14 @@
 # Trade data audit: measured evidence and limits
 
+This is the **historical baseline audit**, preserved with its original findings
+and failures. Statements below about unchanged production code describe that
+original audit stage, not the later implementation branch. Current repairs,
+source-bound verification and unresolved gates are recorded in the
+[active implementation ledger](../plan/hyperliquid_shared_feed_implementation.md)
+and [goal scope](../plan/active_goal_scope.json). The
+[timer chronology repair](../evidence/timer-chronology-20261020/) is one such
+follow-up; it does not qualify the original samples or complete causal replay.
+
 Date: **2026-10-19**. Baseline: `1c668981ee2d5b456dfa6d085fbd558b1998937d`
 (`main`, initially clean). Work branch: `codex/trade-data-integrity-audit`.
 Verdict: **bounded trade receipt/value accounting observed; no newly acquired
@@ -391,3 +400,118 @@ No scheduled canaries or multi-day soak were run. Existing ≥7 scheduled-run,
 ≥24h/≥7d requirements remain unchanged. Immediate next work is S1–S6 semantics
 and identity, D1–D5 delivery/recovery/durability, P1–P3 storage/admission, C1/C2
 actual OKX readers, then Q1/Q2 qualified acquisition and O1 calendar evidence.
+
+
+## Bybit native integrity repair followup (2026-10-19)
+
+Bybit public trades/candles now preserve batch rows, trade classification and
+repeatable cross-sequence provenance, explicit candle finality and native
+start/end/last-match/publication fields. Malformed late rows, negative financials,
+timestamp overflow, mismatched symbols/intervals and missing catalog identity
+fail before partial emission. Optional canonical candle provenance reaches JSON
+and protobuf; existing absent fields remain unknown. This is a Rust alpha
+constructor/decoded-variant migration, not source compatibility.
+
+Independently checked offline:47 Bybit tests (4 live/regen ignored),6 explicit
+native adversarial regressions,4 generated-protobuf exact/presence fixtures and
+45 Python audit tests with false-green mutations. Full workspace testing and a
+new source-pinned bounded live probe are still pending at this checkpoint.
+
+Open Bybit findings: unsupported L2 u+1 inference, conflicting duplicate-book
+discard, first-page-only derivative catalog, missing liquidation bankruptcy-price
+provenance, exact per-channel ACK readiness, source continuity and WS quantity
+unit qualification. These repairs do not admit a dataset or verify every product.
+See adapter README and active implementation ledger for source contracts/evidence.
+
+
+Followup observed source57ae5a9:30s public spot/linear/inverse probe cleanexit0,
+76 trades and31 candle updates reconciled exactly. All727 application frames
+and4 metadata records match original raw storage vs committed shared prefix.
+The inverse sample contains only1 trade. Full workspace1206passed/56ignored;
+48Python audits pass. Compact receipts and exact bounds/hashes are under
+docs/evidence/bybit-native-2026-10-19. Bybit readiness/continuity, units, L2 and
+liquidation limitations above remain unchanged. This is not a strict dataset.
+
+Raw/shared verifier followup:50Python tests pass after strict full MFR1 header,
+version/opcode/direction, nonempty evidence and final shared-seal checks.
+
+## Bybit book reconstruction repair and rsibot ownership
+
+The unsupported consecutive-update-ID assumption and silent conflicting-repeat
+discard are repaired. Increasing native IDs may advance by more than one;
+conflicting/nonincreasing deltas or regressing cross-sequences cause visible
+protocol invalidation/reconnect. This is conservative reconstruction policy,
+not a missing-record count or source-continuity guarantee. Malformed/unknown
+text, unexpected binary frames and failed atomic book updates invalidate active
+books/quotes, and L2 deltas need a fresh snapshot before reuse. The replacement
+snapshot follows its resynchronization lifecycle action in downstream order.
+
+Native book/BBO `u`, `seq`, `ts`, optional `cts`, type and channel are retained in
+optional BookProvenance through JSON/protobuf; canonical source_sequence stays
+absent. Rust alpha struct literals/decoded patterns require migration. Factory
+depth/cadence requests are validated rather than silently changed. Existing
+serialized records without provenance retain absent semantics.
+
+Focused final checks pass 60 Bybit tests / 4 ignored, 59 Python audits, 102 default-feature
+Rust 1.85 library tests and 7 independently decoded protobuf fixtures. Independent runtime
+and oracle reviews are closed, including binary-frame recovery, malformed
+decimal syntax and native L1 row-loss mutations. The new L2 repair has not yet
+been observed in a forward live capture. Earlier native trade/candle receipts
+remain evidence only for their pinned earlier source. Readiness, pagination,
+liquidation semantics, WS units, source continuity and dataset admission remain
+unqualified. Workspace final verification is recorded in the implementation
+ledger; a passing fixture is not operational sign-off.
+
+Cross-venue features, models and strategy decision context belong in
+rsibot/Quants Lab, with Hummingbot retaining admitted execution and inventory
+ownership. cryptofeed supplies the authoritative data/storage/replay contracts;
+hlscreen consumes them. The local Quants handoff currently verifies manifests
+and admission, with continuous observations and strategy features still pending.
+
+## Bybit catalog continuation and native schema followup
+
+Derivative catalog discovery now follows bounded, percent-encoded native cursors
+until an explicit terminal page; spot omits unsupported pagination parameters.
+Page/cursor/byte/row/time bounds, duplicate identities, wrong categories/types,
+cycles and failed later requests refuse partial publication. Unknown/mismatched
+derivative contractType cannot become a perpetual by default. Quantity increment
+selection requires native spot basePrecision or derivative qtyStep, without
+cross-schema fallback. See ADR0014 and the adapter README for exact bounds and
+the distinction between page collection and existing optional detail requests.
+
+Independent reviews close the new adapter/runtime findings. All-feature Bybit
+68 tests / 4 ignored and daemon 149 tests pass. Workspace all-target/all-feature
+compilation, Clippy, rustdoc, affected Rust1.85 checks and source/secret checks
+pass. This is separate from the earlier 1219-test full workspace book gate.
+
+Clean-source d07f5c9 forward capture validates real startup, 1459 returned native
+catalog rows and three selected session metadata entries. All catalogs fit one
+page, so live continuation remains unobserved. Books/BBO reconcile 984 rows and
+raw/shared storage matches 1179 application frames / 4 metadata records. The
+114 observed trades / 12 candles match, but the strict all-three-trade-venue gate
+fails because no inverse trade arrived in 30 seconds. The original failed gate
+is retained. This sample provides no inverse-trade delivery, whole-source
+continuity, strict dataset or operational qualification. Compact evidence is in
+docs/evidence/bybit-catalog-2026-10-19; remaining metadata settlement/expiry/units,
+liquidation and exact readiness findings remain open.
+
+## Reanalysis: lagging Bybit source prefixes (2026-10-20)
+
+The two retained failed pilots do not establish a full 30-second exchange-time
+observation interval. Independent raw/shared reanalysis finds book publisher
+time advancing only 5.52–13.06 seconds during roughly 27–28 seconds of local
+receipts across all three venues. UTC and monotonic receipt spans agree within
+0.17 ms; final publisher-to-receipt ages reach 14.6–22.3 seconds under clock
+alignment. The inverse trade channel is subscribed and acknowledged, but zero
+original inverse trade frames are saved. CRC/raw parity and accepted callbacks
+therefore do not establish freshness, source completeness or 30 seconds of quiet
+inverse trading. No post-recording inverse decoder loss is demonstrated.
+
+Root cause remains unresolved between source replay/delay, network buffering and
+local processing. Synchronous durable publication in the reader callback is a
+credible mechanism, not an attribution. The next required diagnostic compares a
+registered paced local transport with and without the durable shared writer and
+separately times read return, callback, mutex and sync/commit stages. It is not
+yet executed. Preserve durability and all original failed artifacts. See
+[reproducible non-passing evidence](../evidence/bybit-capture-freshness-20261020/).
+No new capture, complete causal replay or strict dataset admission is claimed.

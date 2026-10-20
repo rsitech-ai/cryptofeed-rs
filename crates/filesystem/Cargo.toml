@@ -1,0 +1,25 @@
+[package]
+name = "marketfeed-filesystem"
+description = "Checked local directory durability barriers for marketfeed storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+# Windows filesystem identity has no std API. Only the Windows native-query
+# module permits unsafe calls, with borrowed File handles and bounded buffers.
+# Recording, datasets and the rest of the financial path keep unsafe=forbid.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+inconsistent_digit_grouping = "allow"

@@ -58,7 +58,31 @@ enum FeatureSample {
         quantity: i128,
         side: AggressorSide,
     },
+    UnqualifiedLiquidation,
     ConfirmationPrice(i128),
+}
+
+// Preserve legacy absent-provenance contracts without claiming qualification.
+// Explicit incompatible native records remain causal window members so their
+// unknown execution notional cannot turn into validated zero or a partial sum.
+fn liquidation_feature_sample(
+    value: &marketfeed_model::Liquidation,
+) -> Result<FeatureSample, SnapshotError> {
+    use marketfeed_model::{LiquidationPriceBasis as B, LiquidationQuantityUnit as U};
+    if value
+        .provenance
+        .as_ref()
+        .is_some_and(|source| source.price_basis != B::Execution || source.quantity_unit != U::Base)
+    {
+        return Ok(FeatureSample::UnqualifiedLiquidation);
+    }
+    Ok(FeatureSample::Liquidation {
+        price: rescale(value.price.0)
+            .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+        quantity: rescale(value.quantity.0)
+            .map_err(|error| SnapshotError::Contract(error.to_string()))?,
+        side: value.side,
+    })
 }
 
 #[derive(Debug, Clone)]
@@ -488,13 +512,7 @@ impl FeatureRuntime {
                         5_000_000_000,
                         WindowKind::Liquidation,
                         at_ns,
-                        FeatureSample::Liquidation {
-                            price: rescale(value.price.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                            quantity: rescale(value.quantity.0)
-                                .map_err(|error| SnapshotError::Contract(error.to_string()))?,
-                            side: value.side,
-                        },
+                        liquidation_feature_sample(value)?,
                     )?,
                     MarketEvent::MarkPrice(value) | MarketEvent::IndexPrice(value) => self.push(
                         &contributor,
@@ -2270,6 +2288,7 @@ impl MechanicsProcessor {
         };
         let owns_liquidation = liquidation_owner.is_some();
         let mut liq_5s = Vec::new();
+        let mut liquidation_semantics_unqualified = false;
         if owns_liquidation {
             let liquidation_window = runtime.records(
                 liquidation_owner.expect("owned"),
@@ -2287,6 +2306,10 @@ impl MechanicsProcessor {
                         quantity,
                         side,
                     } => Some((record.available_at_ns, price, quantity, side)),
+                    FeatureSample::UnqualifiedLiquidation => {
+                        liquidation_semantics_unqualified = true;
+                        None
+                    }
                     _ => None,
                 }
             }));
@@ -2300,7 +2323,7 @@ impl MechanicsProcessor {
                 decision_ns,
                 5_000_000_000,
             )?;
-        let liquidation = if !liquidation_covered {
+        let liquidation = if !liquidation_covered || liquidation_semantics_unqualified {
             None
         } else if liq_5s.is_empty() {
             Some(0)
@@ -2509,6 +2532,8 @@ impl MechanicsProcessor {
                     FeatureOutcomeCause::SourceInvalidated
                 } else if !liquidation_covered {
                     FeatureOutcomeCause::InsufficientCoverage
+                } else if liquidation_semantics_unqualified {
+                    FeatureOutcomeCause::OutOfDomain
                 } else {
                     FeatureOutcomeCause::Valid
                 },
@@ -3666,6 +3691,7 @@ fn snapshot_cursor(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FeatureOutcomeCause {
+    OutOfDomain,
     Valid,
     SourceInvalidated,
     SourceStale,
@@ -3683,6 +3709,7 @@ fn feature_conditions(
     let mut conditions = Vec::new();
     if let Some(condition) = match cause {
         FeatureOutcomeCause::Valid => None,
+        FeatureOutcomeCause::OutOfDomain => Some(FeatureCondition::OutOfDomain),
         FeatureOutcomeCause::SourceInvalidated => Some(FeatureCondition::SourceInvalidated),
         FeatureOutcomeCause::SourceStale => Some(FeatureCondition::SourceStale),
         FeatureOutcomeCause::InsufficientCoverage => Some(FeatureCondition::InsufficientCoverage),

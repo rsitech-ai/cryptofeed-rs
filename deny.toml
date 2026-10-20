@@ -11,19 +11,16 @@ targets = [
     "aarch64-unknown-linux-gnu",
     "x86_64-apple-darwin",
     "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
 ]
 all-features = true
 
 [advisories]
 yanked = "deny"
-# RUSTSEC-2026-0009 is confined to time's well_known::Rfc2822 parser.
-# EventPulse imports only OffsetDateTime + well_known::Rfc3339, rejects RFC2822
-# at its boundary, and guards its Rust source against adding Rfc2822. Patched
-# time >=0.3.47 requires Rust >=1.88, above the frozen workspace Rust 1.85 MSRV.
-# Remove this exact exception and update time when the MSRV advances to 1.88.
-ignore = [
-    { id = "RUSTSEC-2026-0009", reason = "RFC2822 parser is unreachable; time >=0.3.47 requires Rust 1.88, so remove when workspace MSRV reaches 1.88" },
-]
+# Timestamp consumers use the already-locked Chrono backend. The vulnerable
+# former backend and its exact advisory exception have been removed without
+# raising the collector/core Rust 1.85 MSRV.
+ignore = []
 
 [licenses]
 confidence-threshold = 0.93
@@ -55,6 +52,7 @@ deny = [
     { crate = "native-tls", use-instead = "rustls" },
 ]
 skip = [
+    { crate = "windows-sys@0.59.0", reason = "fs4 0.13 Windows file locking needs bindings 0.59 while std-adjacent dependencies and the checked directory backend use 0.61; exposed by adding Windows to the audited target graph" },
     { crate = "getrandom@0.2.17", reason = "ring and proptest currently require incompatible getrandom major versions" },
     { crate = "getrandom@0.4.3", reason = "tempfile 3.27 requires getrandom 0.4 while rand and tungstenite remain on getrandom 0.3" },
     { crate = "hashbrown@0.15.5", reason = "simd-json currently requires hashbrown 0.15 while the remaining graph uses 0.17" },

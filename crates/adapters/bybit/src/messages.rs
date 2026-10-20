@@ -2,8 +2,9 @@
 
 use marketfeed_adapter_api::CandleInterval;
 use marketfeed_model::{
-    AggressorSide, BookLevel, BookOperation, BookSide, Fixed, Price, Quantity, Rate, SourceId,
-    TimestampNs,
+    AggressorSide, BookLevel, BookOperation, BookProvenance, BookSide, CandleProvenance, Fixed,
+    LiquidatedPositionSide, LiquidationPriceBasis, LiquidationProvenance, LiquidationQuantityUnit,
+    Price, Quantity, Rate, SourceId, TimestampNs, TradeGranularity, TradeProvenance,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,29 +15,8 @@ use serde_json::Value;
 pub enum DecodedEvent {
     /// One or more trades from a `publicTrade.*` frame.
     Trades(Vec<TradeDecoded>),
-    Orderbook {
-        symbol: String,
-        depth: u32,
-        kind: OrderbookKind,
-        update_id: u64,
-        seq: Option<u64>,
-        bids: Vec<(Price, Quantity)>,
-        asks: Vec<(Price, Quantity)>,
-        exchange_ts_ms: i64,
-    },
-    Candle {
-        symbol: String,
-        open: Price,
-        high: Price,
-        low: Price,
-        close: Price,
-        volume: Quantity,
-        interval_ns: i64,
-        start_ts: TimestampNs,
-        exchange_ts_ms: i64,
-        /// Venue `confirm`: bar closed.
-        is_closed: bool,
-    },
+    Orderbook(BookDecoded),
+    Candles(Vec<CandleDecoded>),
     /// `tickers.{symbol}` — fields optional on delta updates (spot + linear/inverse).
     Tickers {
         symbol: String,
@@ -55,12 +35,38 @@ pub enum DecodedEvent {
         exchange_ts_ms: i64,
     },
     /// Linear/inverse `allLiquidation.{symbol}` — one frame may carry many rows.
-    Liquidations(Vec<LiquidationDecoded>),
+    Liquidations(LiquidationBatchDecoded),
     SubscribeAck {
         success: bool,
+        req_id: Option<String>,
+        conn_id: Option<String>,
+        ret_msg: String,
+    },
+    UnexpectedControl {
+        operation: String,
     },
     Pong,
     Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BookDecoded {
+    pub symbol: String,
+    pub depth: u32,
+    pub kind: OrderbookKind,
+    pub update_id: u64,
+    pub seq: Option<u64>,
+    pub bids: Vec<(Price, Quantity)>,
+    pub asks: Vec<(Price, Quantity)>,
+    pub exchange_ts_ms: i64,
+    pub provenance: Box<BookProvenance>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LiquidationBatchDecoded {
+    /// Retained even for an empty batch so session scope is always checked.
+    pub symbol: String,
+    pub rows: Vec<LiquidationDecoded>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,15 +74,32 @@ pub struct LiquidationDecoded {
     pub symbol: String,
     pub price: Price,
     pub quantity: Quantity,
-    /// Aggressor of the forced order (not venue position side).
+    /// Actual execution aggressor, unknown on this position-side channel.
     pub side: AggressorSide,
     pub exchange_ts_ms: i64,
+    pub provenance: Box<LiquidationProvenance>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OrderbookKind {
     Snapshot,
     Delta,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CandleDecoded {
+    pub symbol: String,
+    pub open: Price,
+    pub high: Price,
+    pub low: Price,
+    pub close: Price,
+    pub volume: Quantity,
+    pub turnover: Option<Quantity>,
+    pub interval_ns: i64,
+    pub start_ts: TimestampNs,
+    pub exchange_ts_ms: i64,
+    pub is_closed: bool,
+    pub provenance: Box<CandleProvenance>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +111,7 @@ pub struct TradeDecoded {
     pub aggressor: AggressorSide,
     pub exchange_ts_ms: i64,
     pub seq: Option<u64>,
+    pub provenance: Box<TradeProvenance>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +125,12 @@ struct TradeRow {
     p: String,
     i: String,
     seq: Option<u64>,
+    #[serde(rename = "BT")]
+    block: Option<bool>,
+    #[serde(rename = "RPI")]
+    rpi: Option<bool>,
+    #[serde(rename = "L")]
+    tick_direction: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -132,6 +162,21 @@ fn decode_text_with(
     parse: fn(&[u8]) -> Result<Value, String>,
 ) -> Result<DecodedEvent, String> {
     let v = parse(bytes)?;
+    if let Some(operation) = v.get("op") {
+        let op = operation
+            .as_str()
+            .ok_or("native control op must be a string")?;
+        if op.is_empty() || op.len() > 64 {
+            return Err("invalid control operation length".into());
+        }
+        return decode_control(bytes, &v, op);
+    }
+    if v.get("topic")
+        .and_then(Value::as_str)
+        .is_some_and(|topic| topic.starts_with("allLiquidation."))
+    {
+        return decode_all_liquidation(bytes, &v);
+    }
     decode_value(&v)
 }
 
@@ -140,29 +185,32 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
         return Ok(DecodedEvent::Unknown);
     };
 
-    if obj.get("op").and_then(|x| x.as_str()) == Some("pong") {
-        return Ok(DecodedEvent::Pong);
-    }
-
-    if obj.get("op").and_then(|x| x.as_str()) == Some("subscribe")
-        || (obj.contains_key("success") && obj.contains_key("ret_msg"))
-    {
-        let success = obj
-            .get("success")
-            .and_then(|x| x.as_bool())
-            .unwrap_or(false);
-        return Ok(DecodedEvent::SubscribeAck { success });
-    }
-
     let topic = obj.get("topic").and_then(|x| x.as_str()).unwrap_or("");
     let msg_type = obj.get("type").and_then(|x| x.as_str()).unwrap_or("");
-    let ts = obj.get("ts").and_then(|x| x.as_i64()).unwrap_or(0);
+    let ts = match obj.get("ts") {
+        Some(value) => {
+            let ms = value.as_i64().ok_or("invalid native frame ts")?;
+            checked_ms(ms)?;
+            ms
+        }
+        None => 0,
+    };
 
     if topic.starts_with("publicTrade.") {
-        return decode_trades(obj.get("data").unwrap_or(&Value::Null));
+        if !obj.contains_key("ts") {
+            return Err("trade frame ts required".into());
+        }
+        return decode_trades(
+            topic,
+            obj.get("data").unwrap_or(&Value::Null),
+            obj.get("ts"),
+        );
     }
 
     if topic.starts_with("kline.") {
+        if !obj.contains_key("ts") {
+            return Err("kline frame ts required".into());
+        }
         return decode_kline(topic, obj.get("data").unwrap_or(&Value::Null), ts);
     }
 
@@ -170,37 +218,138 @@ fn decode_value(v: &Value) -> Result<DecodedEvent, String> {
         return decode_tickers(topic, obj.get("data").unwrap_or(&Value::Null), ts);
     }
 
-    if topic.starts_with("allLiquidation.") {
-        return decode_all_liquidation(obj.get("data").unwrap_or(&Value::Null), ts);
-    }
-
-    if let Some(depth) = parse_orderbook_depth(topic) {
+    if topic.starts_with("orderbook.") {
+        let mut parts = topic.split('.');
+        let _ = parts.next();
+        let depth = parts
+            .next()
+            .and_then(|v| v.parse::<u32>().ok())
+            .ok_or("invalid book depth")?;
+        let symbol = parts
+            .next()
+            .filter(|v| !v.is_empty())
+            .ok_or("missing book symbol")?;
+        if parts.next().is_some() || !matches!(depth, 1 | 50 | 200 | 1000) {
+            return Err("unsupported book topic".into());
+        }
+        if !obj.contains_key("ts") {
+            return Err("native book ts required".into());
+        }
         let kind = match msg_type {
             "snapshot" => OrderbookKind::Snapshot,
             "delta" => OrderbookKind::Delta,
-            _ => return Ok(DecodedEvent::Unknown),
+            _ => return Err("unsupported book message type".into()),
         };
-        let data = obj
-            .get("data")
-            .ok_or_else(|| "orderbook missing data".to_string())?;
-        if data.get("s").is_none() {
-            return Ok(DecodedEvent::Unknown);
+        let data = obj.get("data").ok_or("book missing data")?;
+        for side in ["b", "a"] {
+            if data
+                .get(side)
+                .and_then(Value::as_array)
+                .is_none_or(|rows| rows.len() > 4096)
+            {
+                return Err("bounded native book side array required".into());
+            }
         }
         let book: OrderbookData =
             serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
-        return Ok(DecodedEvent::Orderbook {
+        if book.s != symbol || book.u == 0 {
+            return Err("book topic/row symbol mismatch or zero update ID".into());
+        }
+        let mut native_attributes = attributes(data, &["s", "u", "seq"])?;
+        native_attributes.insert("type".into(), msg_type.into());
+        native_attributes.insert("ts".into(), ts.to_string());
+        if let Some(cts) = obj.get("cts") {
+            let ms = cts.as_i64().ok_or("invalid native cts")?;
+            checked_ms(ms)?;
+            native_attributes.insert("cts".into(), ms.to_string());
+        }
+        let bids = parse_book_levels(&book.b)?;
+        let asks = parse_book_levels(&book.a)?;
+        let effective_snapshot = kind == OrderbookKind::Snapshot || book.u == 1;
+        if effective_snapshot {
+            if bids.len() > depth as usize || asks.len() > depth as usize {
+                return Err("snapshot exceeds native depth".into());
+            }
+            for (levels, bid) in [(&bids, true), (&asks, false)] {
+                if levels.iter().any(|(_, q)| q.0.coefficient <= 0)
+                    || levels.windows(2).any(|pair| {
+                        if bid {
+                            !pair[0].0.0.numeric_cmp(pair[1].0.0).is_gt()
+                        } else {
+                            !pair[0].0.0.numeric_cmp(pair[1].0.0).is_lt()
+                        }
+                    })
+                {
+                    return Err("invalid snapshot level order or size".into());
+                }
+            }
+        }
+        return Ok(DecodedEvent::Orderbook(BookDecoded {
             symbol: book.s,
             depth,
             kind,
             update_id: book.u,
             seq: book.seq,
-            bids: parse_levels(&book.b)?,
-            asks: parse_levels(&book.a)?,
+            bids,
+            asks,
             exchange_ts_ms: ts,
-        });
+            provenance: Box::new(BookProvenance {
+                source_channel: topic.into(),
+                native_attributes,
+            }),
+        }));
     }
 
     Ok(DecodedEvent::Unknown)
+}
+
+fn decode_control(bytes: &[u8], value: &Value, op: &str) -> Result<DecodedEvent, String> {
+    if value.get("topic").is_some() || value.get("data").is_some() {
+        return Err("mixed control and market frame".into());
+    }
+    match op {
+        "subscribe" => {
+            #[derive(Deserialize)]
+            struct Ack {
+                success: bool,
+                req_id: Option<String>,
+                conn_id: Option<String>,
+                ret_msg: String,
+            }
+            // Decode original bytes: lexical financial JSON must not coerce
+            // numeric request IDs, connection IDs or success into control types.
+            let ack: Ack = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+            if ack.req_id.as_ref().is_some_and(|id| id.len() > 64)
+                || ack.conn_id.as_ref().is_some_and(|id| id.len() > 256)
+                || ack.ret_msg.len() > 4096
+                || value.get("type").is_some()
+            {
+                return Err("unsupported or oversized subscribe response".into());
+            }
+            Ok(DecodedEvent::SubscribeAck {
+                success: ack.success,
+                req_id: ack.req_id,
+                conn_id: ack.conn_id,
+                ret_msg: ack.ret_msg,
+            })
+        }
+        "ping" => {
+            #[derive(Deserialize)]
+            struct PingReply {
+                success: bool,
+                ret_msg: String,
+            }
+            let reply: PingReply = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+            if !reply.success || reply.ret_msg != "pong" {
+                return Err("unexpected ping response".into());
+            }
+            Ok(DecodedEvent::Pong)
+        }
+        "pong" => Ok(DecodedEvent::Pong),
+        _ => Ok(DecodedEvent::UnexpectedControl {
+            operation: op.to_owned(),
+        }),
+    }
 }
 
 /// Bybit V5 kline topic interval segment for a canonical interval.
@@ -240,42 +389,145 @@ fn interval_ns_from_bybit(i: &str) -> Result<i64, String> {
 #[derive(Debug, Deserialize)]
 struct KlineRow {
     start: i64,
+    end: Option<i64>,
     interval: String,
     open: String,
     high: String,
     low: String,
     close: String,
     volume: String,
+    turnover: Option<String>,
     confirm: bool,
     timestamp: Option<i64>,
 }
 
+const MAX_TRADE_ROWS: usize = 1024;
+const MAX_CANDLE_ROWS: usize = 4096;
+fn checked_ms(ms: i64) -> Result<TimestampNs, String> {
+    if ms < 0 {
+        return Err("negative native timestamp".into());
+    }
+    ms.checked_mul(1_000_000)
+        .map(TimestampNs)
+        .ok_or_else(|| "native timestamp overflow".into())
+}
+fn bounded_rows(data: &Value, cap: usize) -> Result<&[Value], String> {
+    let rows = data.as_array().ok_or("native data must be an array")?;
+    if rows.is_empty() || rows.len() > cap {
+        return Err("native row count outside capacity".into());
+    }
+    Ok(rows)
+}
+fn positive(text: &str) -> Result<Fixed, String> {
+    let value = parse_fixed(text)?;
+    if value.coefficient <= 0 {
+        return Err("positive financial value required".into());
+    }
+    Ok(value)
+}
+fn nonnegative(text: &str) -> Result<Fixed, String> {
+    let value = parse_fixed(text)?;
+    if value.coefficient < 0 {
+        return Err("nonnegative financial value required".into());
+    }
+    Ok(value)
+}
+fn attributes(
+    value: &Value,
+    keys: &[&str],
+) -> Result<std::collections::BTreeMap<String, String>, String> {
+    keys.iter()
+        .filter_map(|key| value.get(*key).map(|v| (*key, v)))
+        .map(|(key, value)| {
+            let text = match value {
+                Value::String(v) => v.clone(),
+                Value::Number(v) if v.is_i64() || v.is_u64() => v.to_string(),
+                Value::Bool(v) => v.to_string(),
+                _ => return Err(format!("invalid native attribute {key}")),
+            };
+            Ok((key.into(), text))
+        })
+        .collect()
+}
 fn decode_kline(topic: &str, data: &Value, ts: i64) -> Result<DecodedEvent, String> {
-    // topic: kline.{interval}.{symbol}
     let mut parts = topic.splitn(3, '.');
     let _ = parts.next();
-    let _interval_seg = parts.next();
+    let interval = parts.next().ok_or("missing kline interval")?;
     let symbol = parts
         .next()
-        .ok_or_else(|| format!("bad kline topic {topic}"))?
-        .to_string();
-    let rows: Vec<KlineRow> = serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
-    let row = rows
-        .into_iter()
-        .next()
-        .ok_or_else(|| "kline data empty".to_string())?;
-    Ok(DecodedEvent::Candle {
-        symbol,
-        open: Price(parse_fixed(&row.open)?),
-        high: Price(parse_fixed(&row.high)?),
-        low: Price(parse_fixed(&row.low)?),
-        close: Price(parse_fixed(&row.close)?),
-        volume: Quantity(parse_fixed(&row.volume)?),
-        interval_ns: interval_ns_from_bybit(&row.interval)?,
-        start_ts: TimestampNs(row.start.saturating_mul(1_000_000)),
-        exchange_ts_ms: row.timestamp.unwrap_or(ts),
-        is_closed: row.confirm,
-    })
+        .filter(|s| !s.is_empty())
+        .ok_or("missing kline symbol")?;
+    let interval_ns = interval_ns_from_bybit(interval)?;
+    let rows = bounded_rows(data, MAX_CANDLE_ROWS)?;
+    let mut out = Vec::with_capacity(rows.len());
+    for value in rows {
+        let row: KlineRow = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+        if row.interval != interval {
+            return Err("kline topic/row interval mismatch".into());
+        }
+        let start_ts = checked_ms(row.start)?;
+        if let Some(end) = row.end {
+            checked_ms(end)?;
+            if end < row.start {
+                return Err("kline end before start".into());
+            }
+        }
+        if let Some(last_match) = row.timestamp {
+            checked_ms(last_match)?;
+        }
+        let open = Price(positive(&row.open)?);
+        let high = Price(positive(&row.high)?);
+        let low = Price(positive(&row.low)?);
+        let close = Price(positive(&row.close)?);
+        if low.0.numeric_cmp(high.0).is_gt()
+            || open.0.numeric_cmp(low.0).is_lt()
+            || open.0.numeric_cmp(high.0).is_gt()
+            || close.0.numeric_cmp(low.0).is_lt()
+            || close.0.numeric_cmp(high.0).is_gt()
+        {
+            return Err("inconsistent kline OHLC".into());
+        }
+        let mut native_attributes = attributes(
+            value,
+            &[
+                "start",
+                "end",
+                "interval",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "turnover",
+                "confirm",
+                "timestamp",
+            ],
+        )?;
+        native_attributes.insert("ts".into(), ts.to_string());
+        out.push(CandleDecoded {
+            symbol: symbol.into(),
+            open,
+            high,
+            low,
+            close,
+            volume: Quantity(nonnegative(&row.volume)?),
+            turnover: row
+                .turnover
+                .as_deref()
+                .map(nonnegative)
+                .transpose()?
+                .map(Quantity),
+            interval_ns,
+            start_ts,
+            exchange_ts_ms: ts,
+            is_closed: row.confirm,
+            provenance: Box::new(CandleProvenance {
+                source_channel: topic.into(),
+                native_attributes,
+            }),
+        });
+    }
+    Ok(DecodedEvent::Candles(out))
 }
 
 fn optional_fixed_price(
@@ -325,7 +577,7 @@ fn decode_tickers(topic: &str, data: &Value, ts: i64) -> Result<DecodedEvent, St
     let next_funding_ts = match obj.get("nextFundingTime").and_then(|v| v.as_str()) {
         Some(s) if !s.is_empty() => {
             let ms: i64 = s.parse().map_err(|_| format!("bad nextFundingTime {s}"))?;
-            Some(TimestampNs(ms.saturating_mul(1_000_000)))
+            Some(checked_ms(ms)?)
         }
         _ => None,
     };
@@ -346,23 +598,53 @@ fn decode_tickers(topic: &str, data: &Value, ts: i64) -> Result<DecodedEvent, St
     })
 }
 
-fn decode_trades(data: &Value) -> Result<DecodedEvent, String> {
-    let rows: Vec<TradeRow> = serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
+fn decode_trades(
+    topic: &str,
+    data: &Value,
+    frame_ts: Option<&Value>,
+) -> Result<DecodedEvent, String> {
+    let symbol = topic
+        .strip_prefix("publicTrade.")
+        .filter(|s| !s.is_empty())
+        .ok_or("missing trade topic symbol")?;
+    let rows = bounded_rows(data, MAX_TRADE_ROWS)?;
     let mut out = Vec::with_capacity(rows.len());
-    for m in rows {
+    for value in rows {
+        let m: TradeRow = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+        if m.s != symbol || m.i.is_empty() {
+            return Err("trade symbol mismatch or empty ID".into());
+        }
+        checked_ms(m.trade_time)?;
         let aggressor = match m.side.as_str() {
             "Buy" => AggressorSide::Buy,
             "Sell" => AggressorSide::Sell,
             _ => AggressorSide::Unknown,
         };
+        // Deserialize optional typed fields as well as retaining their presence.
+        let _ = (&m.block, &m.rpi, &m.tick_direction);
+        let mut native_attributes = attributes(
+            value,
+            &["T", "s", "S", "v", "p", "i", "seq", "L", "BT", "RPI"],
+        )?;
+        if let Some(ts) = frame_ts {
+            native_attributes.insert("ts".into(), ts.to_string());
+        }
         out.push(TradeDecoded {
             symbol: m.s,
             trade_id: m.i,
-            price: Price(parse_fixed(&m.p)?),
-            quantity: Quantity(parse_fixed(&m.v)?),
+            price: Price(positive(&m.p)?),
+            quantity: Quantity(positive(&m.v)?),
             aggressor,
             exchange_ts_ms: m.trade_time,
             seq: m.seq,
+            provenance: Box::new(TradeProvenance {
+                source_channel: topic.into(),
+                granularity: TradeGranularity::IndividualExecution,
+                constituent_first_id: None,
+                constituent_last_id: None,
+                native_count: None,
+                native_attributes,
+            }),
         });
     }
     Ok(DecodedEvent::Trades(out))
@@ -371,7 +653,7 @@ fn decode_trades(data: &Value) -> Result<DecodedEvent, String> {
 #[derive(Debug, Deserialize)]
 struct AllLiquidationRow {
     #[serde(rename = "T")]
-    trade_time: i64,
+    updated_ms: i64,
     s: String,
     /// Position side: `Buy` = long liquidated, `Sell` = short liquidated.
     #[serde(rename = "S")]
@@ -380,50 +662,96 @@ struct AllLiquidationRow {
     p: String,
 }
 
-fn decode_all_liquidation(data: &Value, frame_ts: i64) -> Result<DecodedEvent, String> {
-    let rows: Vec<AllLiquidationRow> =
-        serde_json::from_value(data.clone()).map_err(|e| e.to_string())?;
-    if rows.is_empty() {
-        return Ok(DecodedEvent::Unknown);
+#[derive(Deserialize)]
+struct AllLiquidationFrame {
+    topic: String,
+    #[serde(rename = "type")]
+    kind: String,
+    ts: i64,
+    data: Vec<AllLiquidationRow>,
+}
+
+fn decode_all_liquidation(bytes: &[u8], value: &Value) -> Result<DecodedEvent, String> {
+    if value
+        .get("data")
+        .and_then(Value::as_array)
+        .is_none_or(|rows| rows.len() > 4096)
+        || value.get("op").is_some()
+    {
+        return Err("bounded liquidation array without control op required".into());
     }
-    let mut out = Vec::with_capacity(rows.len());
-    for m in rows {
-        // Venue `S` is position side; Liquidation.side is aggressor of the forced order.
-        // Long liquidated (`Buy`) → forced sell; short liquidated (`Sell`) → forced buy.
-        let side = match m.side.as_str() {
-            "Buy" => AggressorSide::Sell,
-            "Sell" => AggressorSide::Buy,
-            _ => AggressorSide::Unknown,
+    // The lexical DOM above bounds structure and rejects duplicate keys. Decode
+    // original bytes here so native string/control types cannot be coerced.
+    let frame: AllLiquidationFrame = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    checked_ms(frame.ts)?;
+    if frame.kind != "snapshot" {
+        return Err("unsupported liquidation message type".into());
+    }
+    let symbol = frame
+        .topic
+        .strip_prefix("allLiquidation.")
+        .filter(|symbol| !symbol.is_empty())
+        .ok_or("invalid liquidation topic")?;
+    let mut out = Vec::with_capacity(frame.data.len());
+    for m in frame.data {
+        if m.s != symbol {
+            return Err("liquidation topic/row symbol mismatch".into());
+        }
+        checked_ms(m.updated_ms)?;
+        let position_side = match m.side.as_str() {
+            "Buy" => LiquidatedPositionSide::Long,
+            "Sell" => LiquidatedPositionSide::Short,
+            _ => LiquidatedPositionSide::Unknown,
         };
-        let exchange_ts_ms = if m.trade_time != 0 {
-            m.trade_time
-        } else {
-            frame_ts
-        };
+        let native_attributes = std::collections::BTreeMap::from([
+            ("T".into(), m.updated_ms.to_string()),
+            ("ts".into(), frame.ts.to_string()),
+            ("s".into(), m.s.clone()),
+            ("S".into(), m.side),
+            ("p".into(), m.p.clone()),
+            ("v".into(), m.v.clone()),
+            ("type".into(), frame.kind.clone()),
+        ]);
         out.push(LiquidationDecoded {
             symbol: m.s,
-            price: Price(parse_fixed(&m.p)?),
-            quantity: Quantity(parse_fixed(&m.v)?),
-            side,
-            exchange_ts_ms,
+            price: Price(positive(&m.p)?),
+            quantity: Quantity(positive(&m.v)?),
+            side: AggressorSide::Unknown,
+            exchange_ts_ms: m.updated_ms,
+            provenance: Box::new(LiquidationProvenance {
+                source_channel: frame.topic.clone(),
+                price_basis: LiquidationPriceBasis::Bankruptcy,
+                quantity_unit: LiquidationQuantityUnit::Unverified,
+                position_side: Some(position_side),
+                native_attributes,
+            }),
         });
     }
-    Ok(DecodedEvent::Liquidations(out))
+    Ok(DecodedEvent::Liquidations(LiquidationBatchDecoded {
+        symbol: symbol.to_owned(),
+        rows: out,
+    }))
 }
 
-fn parse_orderbook_depth(topic: &str) -> Option<u32> {
-    let rest = topic.strip_prefix("orderbook.")?;
-    let depth_str = rest.split('.').next()?;
-    depth_str.parse().ok()
-}
-
-fn parse_levels(rows: &[[String; 2]]) -> Result<Vec<(Price, Quantity)>, String> {
-    let mut out = Vec::with_capacity(rows.len());
+fn parse_book_levels(rows: &[[String; 2]]) -> Result<Vec<(Price, Quantity)>, String> {
+    if rows.len() > 4096 {
+        return Err("book side exceeds local row capacity".into());
+    }
+    let mut out: Vec<(Price, Quantity)> = Vec::with_capacity(rows.len());
+    let mut seen = std::collections::BTreeSet::new();
     for row in rows {
-        out.push((
-            Price(parse_fixed(&row[0])?),
-            Quantity(parse_fixed(&row[1])?),
-        ));
+        let price = Price(positive(&row[0])?);
+        let quantity = Quantity(nonnegative(&row[1])?);
+        // Normalize only the lookup key; retain original coefficient/scale.
+        let mut key = (price.0.coefficient, price.0.scale);
+        while key.1 > 0 && key.0 % 10 == 0 {
+            key.0 /= 10;
+            key.1 -= 1;
+        }
+        if !seen.insert(key) {
+            return Err("duplicate native level price".into());
+        }
+        out.push((price, quantity));
     }
     Ok(out)
 }
@@ -483,12 +811,12 @@ mod tests {
           "topic":"orderbook.50.BTCUSDT","type":"snapshot","ts":1,
           "data":{"s":"BTCUSDT","b":[["100.00","1"]],"a":[["101.00","2"]],"u":10,"seq":100}
         }"#;
-        let DecodedEvent::Orderbook {
+        let DecodedEvent::Orderbook(BookDecoded {
             kind,
             update_id,
             depth,
             ..
-        } = decode_text(snap).unwrap()
+        }) = decode_text(snap).unwrap()
         else {
             panic!("ob");
         };
@@ -500,9 +828,9 @@ mod tests {
           "topic":"orderbook.1.BTCUSDT","type":"delta","ts":2,
           "data":{"s":"BTCUSDT","b":[["100.00","0"]],"a":[["101.00","1.5"]],"u":11,"seq":101}
         }"#;
-        let DecodedEvent::Orderbook {
+        let DecodedEvent::Orderbook(BookDecoded {
             kind, bids, depth, ..
-        } = decode_text(delta).unwrap()
+        }) = decode_text(delta).unwrap()
         else {
             panic!("ob1");
         };
@@ -533,7 +861,7 @@ mod tests {
     fn decode_subscribe_ack_and_pong() {
         assert!(matches!(
             decode_text(br#"{"success":true,"ret_msg":"","op":"subscribe"}"#).unwrap(),
-            DecodedEvent::SubscribeAck { success: true }
+            DecodedEvent::SubscribeAck { success: true, .. }
         ));
         assert!(matches!(
             decode_text(br#"{"op":"pong"}"#).unwrap(),
@@ -552,7 +880,10 @@ mod tests {
             "timestamp":1672324859999
           }]
         }"#;
-        let DecodedEvent::Candle {
+        let DecodedEvent::Candles(rows) = decode_text(raw).unwrap() else {
+            panic!("klines")
+        };
+        let CandleDecoded {
             open,
             high,
             low,
@@ -562,10 +893,7 @@ mod tests {
             start_ts,
             is_closed,
             ..
-        } = decode_text(raw).unwrap()
-        else {
-            panic!("kline");
-        };
+        } = rows.into_iter().next().unwrap();
         assert!(is_closed);
         assert_eq!(interval_ns, candle_interval_ns(CandleInterval::M1));
         assert_eq!(start_ts, TimestampNs(1_672_324_800_000_000_000));
@@ -620,17 +948,26 @@ mod tests {
     #[test]
     fn decode_all_liquidation_exact_fixed() {
         let raw = br#"{"topic":"allLiquidation.BTCUSDT","type":"snapshot","ts":1739502303204,"data":[{"T":1739502302929,"s":"BTCUSDT","S":"Sell","v":"0.01","p":"65000.5"},{"T":1739502302930,"s":"BTCUSDT","S":"Buy","v":"1.5","p":"64999.0"}]}"#;
-        let DecodedEvent::Liquidations(rows) = decode_text(raw).unwrap() else {
+        let DecodedEvent::Liquidations(batch) = decode_text(raw).unwrap() else {
             panic!("allLiquidation");
         };
+        assert_eq!(batch.symbol, "BTCUSDT");
+        let rows = batch.rows;
         assert_eq!(rows.len(), 2);
-        // Sell position liquidated → forced buy aggressor.
-        assert_eq!(rows[0].side, AggressorSide::Buy);
+        // Position direction does not establish the actual execution aggressor.
+        assert_eq!(rows[0].side, AggressorSide::Unknown);
+        assert_eq!(
+            rows[0].provenance.position_side,
+            Some(LiquidatedPositionSide::Short)
+        );
         assert_eq!(rows[0].price.0, Fixed::new(650005, 1));
         assert_eq!(rows[0].quantity.0, Fixed::new(1, 2));
         assert_eq!(rows[0].exchange_ts_ms, 1_739_502_302_929);
-        // Buy position liquidated → forced sell aggressor.
-        assert_eq!(rows[1].side, AggressorSide::Sell);
+        assert_eq!(rows[1].side, AggressorSide::Unknown);
+        assert_eq!(
+            rows[1].provenance.position_side,
+            Some(LiquidatedPositionSide::Long)
+        );
         assert_eq!(rows[1].price.0, Fixed::new(649990, 1));
         assert_eq!(rows[1].quantity.0, Fixed::new(15, 1));
     }

@@ -1,0 +1,325 @@
+{
+  "schema_version": 1,
+  "status": "all14 local frozen-source checks pass; own-source publication/CI and HLS repin remain required",
+  "parent_commit": "8ba199a46f9a1e2e840d104c3da5610235ef753e",
+  "source_snapshot_sha256": "763cbc4acbdff513e40837ebed91ab85c3b96432ef0bee6f6cb809151cd8af50",
+  "final_source_sha256": {
+    "Cargo.lock": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+    "crates/recording/src/shared_causal.rs": "7adf88049791a356f23540b2d3d9639624ceb4ec23edcc617a3aa5a5e90facb8",
+    "crates/recording/src/shared_causal_tests.rs": "bfd38ae559734e1d64638d8910a93095b69bfa7ca93ef512b71aece245bcdb39",
+    "crates/recording/src/shared_batch.rs": "53bf7c47a78976ec40de3f9df6f4fb4870ce3553b79b1160b5b7020f74327233",
+    "crates/recording/src/shared_batch_tests.rs": "af16e21a21bcc018ec423700be05842e143b42ce85d005ddb2f2b7713111d377",
+    "crates/engine/src/causal.rs": "5e28f771f4b6c5300d0ef24f85831937f6e564a7f10b0f282607352298f4b871",
+    "crates/engine/src/causal_bootstrap.rs": "c5c12d12602137b4ed364b9a531701d20dd1f17669523741ca521dda4be73e89",
+    "crates/engine/src/causal_convert.rs": "ebd35f996b22a45f0c4081a2b6895447127c55e558f5a69bf4f9137297f92d47",
+    "crates/engine/src/causal_tests.rs": "0f14eccdadc73394effb2d209a7b489c12126aa836c9e75af853b0f098a2c8d1",
+    "crates/engine/src/causal_owner_history.rs": "f90e69e8a9124a8bbbf2742671d02f9a7ff7b9650cce4b69d4b612aed0b2b71d",
+    "crates/engine/src/causal_owner_history_tests.rs": "cb82d0f86c5eae0a4f103a6b660c4d582d20a27f713221243c0a1db36dd24c52",
+    "crates/daemon/src/causal_bootstrap.rs": "855908a9576ab96e6e0b67204455c31d0224f8db54272ec54d58f25a94f8a194",
+    "crates/daemon/tests/causal_bootstrap.rs": "50b7b376c8f2fa55cb429d85f0772f5193bd14fd68e6166aa43d6541b75e9a7c"
+  },
+  "source_unchanged_through_all14_checks": true,
+  "checks": [
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 774.873,
+      "log_sha256": "d0a011c0625aaad1c24f25e27c6b9c4f26fbe896f0ce61815a50357f0e0bdb9e",
+      "test_results": {
+        "suites": 157,
+        "passed": 1460,
+        "failed": 0,
+        "ignored": 56
+      }
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 132.939,
+      "log_sha256": "09f0e159872bf2e3eb2e925fdc3ac214bdc00df0e46096e2cb4c06801ac25530",
+      "test_results": {
+        "suites": 30,
+        "passed": 544,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 24.264,
+      "log_sha256": "8ce672723e19e9b63611a9d879e936462b381d366ef15092de2b35f340ffc76f",
+      "test_results": {
+        "suites": 1,
+        "passed": 34,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "msrv-bootstrap-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 13.26,
+      "log_sha256": "442d0aa8bb00d0e87ee6223a7381335c9c8744a190f6c10d608a42f299c325e6",
+      "test_results": {
+        "suites": 1,
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "msrv-owner-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 14.458,
+      "log_sha256": "b2c75243de5b764248c77a02c4331acc92fc21cc43362047c339c92fe933601f",
+      "test_results": {
+        "suites": 1,
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "default-disabled",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 16.359,
+      "log_sha256": "710406244a887c4ded6174dcff7c0a59345dbef672d3d4b94efcf89b37e0d118",
+      "test_results": {
+        "suites": 1,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 67.821,
+      "log_sha256": "77af23b899c7143cd1da5646300ad20f15f1dad29b9898bb2425a5e89ebabf67"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 22.74,
+      "log_sha256": "ba68b4f4d878c81cd26625c31401b70439fbc2ae602c7d0a71ecbd8ff8f6dd12"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.048,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.547,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.026,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 3.422,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.844,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.014,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "independent_code_review": {
+    "receipt_sha256": "561de1be2129f8e5791371f56e306e029bad8886c3dbcb36d74be6de8f9c7661",
+    "all13_source_hashes_unchanged": true,
+    "findings_closed": 8,
+    "remaining_material_findings_in_scope": 0,
+    "mode": "Separate read-only source review and parent-log inspection; no Cargo or direct execution by reviewer",
+    "limits": "Format/structural validator only; not actual owner recording, engine replay or live integration"
+  },
+  "build_binding": {
+    "root_receipt_sha256": "e36759864d00ceeaa94f7ac7d6988063b8c2941ede741e9993941b649b4bafff",
+    "independent_receipt_sha256": "cbf1b20af81318f5f6950f0da40d55a1d1bbcbb8dbb860bb3cdf9a465ad014a2",
+    "declared_source_files": 525,
+    "declared_source_sha256": "c7b27ce95ef4e0283c51c098b35df921cdc3eb16d28eecfeb95d7887e3def128",
+    "preserved_artifact_sha256": "2fd9a4f03ba414f2949c713f15c6fe7a4184c93ae4016c0e0e1a52d8388009eb",
+    "bytes": 49158576,
+    "embedded_recipe_sha256": [
+      "3e497ba010726fb6332b5ec5f542f3326116b9f80c6f015c056c937a4981e658"
+    ],
+    "scope": "Independent content snapshot and preserved-file/recipe inspection; embedded git_commit8ba is truthful parent metadata for uncommitted candidate bytes. No loaded-image attestation, complete transitive-input closure or reproducible-build claim."
+  },
+  "frozen_dataset_preservation": {
+    "files": 22,
+    "bytes": 37276008,
+    "all_bytes_metadata_unchanged": true,
+    "root_mode": "0555"
+  },
+  "development_evidence": {
+    "real_terminal_fence_red_before_fix_sha256": "b98590c5f2f7f7b898779cbf3e8a2b35e0d63443d9900c666194f9766b75688f",
+    "recording_test_helper_compile_failure_sha256": "51f240a864275dd728c7dfd9a60830e81f9aaf277f81869eef4675c85a52036a",
+    "unsupported_v2_assertion_red_sha256": "20d959c6acded8f62c82187b3a25c174e4cf7926476f7fa5524a70af0b44071f",
+    "generation_predicate_clippy_failure_sha256": "adc35db9a286cbc693ad24e3b8ba441e7adead876dda02ae51aa80757f4b7bd6",
+    "zero_match_filter_not_behavioral_evidence_sha256": "3c6e7484141f4e8b4c1cd150bda0fa27bd2ba035f8ab72f58627dc6d0d7bb956",
+    "scope": "Earlier failed/zero-match checks remain failed or unqualified; final source is qualified only by its own14checks."
+  },
+  "security": {
+    "cargo_audit": "0.22.2",
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "cargo_deny": "0.20.2",
+    "lock_unchanged": true
+  },
+  "remaining": [
+    "Source-specific producer hosted CI; repin/rebuild/test/replay hlscreen after publication",
+    "Wire actual private owner ingress/execution/fence/settlement/handoff recording with correct clocks and budgets",
+    "Complete failure/admission dispositions; preserve execution and handoff crash uncertainty",
+    "Committed compatibility projection and bound external I/O intents/completions",
+    "Actual-engine physical-order replay/resume and live/control/supervisor migration",
+    "Unchanged registered failed-ingress comparison",
+    "Native semantics/continuity, strict datasets, rsibot context, calendar/hardware and operational qualification"
+  ]
+}

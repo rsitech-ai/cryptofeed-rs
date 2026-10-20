@@ -22,6 +22,9 @@ pub enum InstrumentSelector {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Channel {
     Trades,
+    /// Explicit native individual-trade channel, where supported. For OKX this
+    /// is trades-all on the business endpoint; Trades remains the aggregate feed.
+    AllTrades,
     Quote,
     L2Book {
         depth: Option<u32>,

@@ -56,6 +56,43 @@ jobs:
         run: rustup toolchain install 1.91.0 --profile minimal
       - run: cargo test --locked --workspace --all-targets --all-features
 
+  windows-directory-flush:
+    name: Windows directory durability
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # API/permission compatibility only. Passing does not qualify power-loss
+      # durability, namespace ordering, or the production storage backend.
+      - name: Probe directory handles and exact write-access flush
+        shell: pwsh
+        run: |
+          ./scripts/probe_windows_directory_flush.ps1 -ParentDirectory $env:RUNNER_TEMP > windows-directory-flush.json
+          $probeExit = $LASTEXITCODE
+          Get-Content windows-directory-flush.json
+          exit $probeExit
+      - name: Recording and directory backend on Rust 1.85
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.85.0 --profile minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +1.85.0 test --locked -p marketfeed-filesystem -p marketfeed-recording
+      - name: Dataset publication and recovery on Rust 1.88
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.88.0 --profile minimal
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo +1.88.0 test --locked -p marketfeed-datasets
+      - name: Preserve native results, including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: windows-directory-flush
+          path: windows-directory-flush.json
+          if-no-files-found: error
+
   # Optional C10 feature matrix: adapter crates with `--features simd-json`.
   # Local parity: the same cargo lines are documented in latency_runtime.md.
   simd-json:
@@ -119,6 +156,12 @@ jobs:
         run: rustup toolchain install 1.85 --profile minimal
       # ponytail: MSRV = compile+lib tests only; full --workspace --all-targets stays on pin toolchain.
       - run: cargo +1.85 test --locked --workspace --exclude marketfeed-datasets --lib
+      - name: Opt-in causal owner on Rust 1.85
+        run: |
+          cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --lib causal_bootstrap
+          cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test causal_bootstrap
+          cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test causal_owner
+          cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test hyperliquid_causal
       - name: Offline dataset tool MSRV (Parquet 60)
         run: |
           rustup toolchain install 1.88 --profile minimal

@@ -1,0 +1,230 @@
+{
+  "schema": "marketfeed.actual_engine_capture_validation.v1",
+  "base_source": "c8c13781d257d0d6e252144a8a70a07f700e1764",
+  "checks_before_commit": true,
+  "source_sha256": {
+    "crates/engine/src/operation.rs": "2bc85a6a91bb960f914b519dd4b019824870f586bee107cf03c844c4c7a1c440",
+    "crates/engine/src/operation_tests.rs": "e13e49d5e932a940b4ee7bafbf21b8731d92f0eae5ace7933af22fe778ea5a25",
+    "crates/engine/src/runner.rs": "3443739e26c448ebee091340d765ec54c8bb321ef8854caece27eebd0fd9789a",
+    "crates/engine/src/error.rs": "d6e56d9e107d839f7f3ea56e1f63b8b1e6739fbe79ea3e1803176791fb216473",
+    "crates/adapter-api/src/session.rs": "ee40e882fd5668e32b440adb29d627f0c1fd197aeef671ed42e74ec626197c0a",
+    "crates/dispatch/src/queue.rs": "8ed912aa7087fbbee4fc932ac29f8575e9271a291c66f3f651f3a85a86f13329"
+  },
+  "full_workspace": {
+    "passed": 1353,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 153
+  },
+  "msrv_core": {
+    "rust": "1.85.0",
+    "passed": 488,
+    "failed": 0,
+    "ignored": 0,
+    "suites": 30
+  },
+  "final_checks": [
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 641.055,
+      "log_sha256": "71f5a50cb0cb88665eab37a4b894ac4656e4d7cda21d0ce5b7794f84780eb63c"
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 110.529,
+      "log_sha256": "497c9980e85231d6092dfa6b01e2c6425b909f32d6ea228c6848206c71fed3d3"
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 66.943,
+      "log_sha256": "8487340057cf19c5ca40da7f37b6d06169f925fca25cfd69652c7adab0e38087"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 49.362,
+      "log_sha256": "41e0b29bfa2ff6095364714c03b07f1aa5cb8108c4385c14c3a2f538dc704cab"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.015,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.461,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.026,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.814,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.81,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.026,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "focused": {
+    "passed": 18,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "d7e9f271392d5cd5cb6e356c3d55791a1df620623c169103415004defe4ffe14"
+  },
+  "independent_review": {
+    "passed": 18,
+    "failed": 0,
+    "ignored": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-engine",
+      "--lib",
+      "operation::tests",
+      "--",
+      "--nocapture"
+    ],
+    "log_sha256": "31efe801943baa03277bf7b9eacf2827fd395ac6a3b533c06e6ddb4ff985d601",
+    "source_before_after_unchanged": true,
+    "findings_closed": [
+      "unbudgeted retained terminal error detail"
+    ],
+    "remaining_design_requirements": [
+      "effect-parent attribution before causal journal schema"
+    ]
+  },
+  "rustsec": {
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    }
+  },
+  "dependency_changes": "none; root and crate manifests/lock unchanged",
+  "frozen_store": {
+    "files": 22,
+    "all_file_bytes_sizes_modes_mtime_ctime_unchanged": true,
+    "directory_mode": "0o555",
+    "scope": "preservation only; no new reader or dataset admission claim"
+  },
+  "public_check": {
+    "result": "pass",
+    "gitleaks": "8.30.1",
+    "log_sha256": "fba74934aaaf5402266fbbba5bcb0b81d26dfd55d399fed94d2774ae559c5aea",
+    "scope": "staged source/plans/evidence; final receipt metadata rechecked before commit"
+  },
+  "parent_ci": "c8c1378 all17 jobs; separate bounded writer ci-qualification.json",
+  "scope": "private offline in-memory actual-runner capture; no durable receipt or external release; no live caller migrated",
+  "remaining": [
+    "effect-parent attribution, metadata/bootstrap and drains",
+    "negotiated causal schema/profile and single compatibility projection",
+    "writer submission and commit-gated state/readiness/dispatch/wire/HTTP release",
+    "durable actual-engine replay and unchanged failed-ingress comparison",
+    "native semantics/units/continuity, strict datasets, rsibot live context, calendar/native-runtime qualification"
+  ]
+}

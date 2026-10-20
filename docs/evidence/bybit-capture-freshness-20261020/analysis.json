@@ -1,0 +1,949 @@
+{
+  "schema": "marketfeed.bybit_frozen_lag_analysis.v1",
+  "analysis_completed": true,
+  "helper_sha256": "28802255de77a7056526133347eacb6b09853204c26669fb344d0823722edfd0",
+  "captures": [
+    {
+      "stem": "bybit-catalog-pilot-01",
+      "source": "d07f5c97e17fa24647527a33baa12258417e0f48",
+      "launch_receipt_path": ".local/evidence/hyperliquid-integration-review/bybit-catalog-pilot-01-receipt.json",
+      "launch_receipt_sha256": "62f6a250e6ef88e4b94d8d46828dae2c210ac762ce5a25c955517fbd55f3ee53",
+      "cursor": {
+        "feed_id": "97fc91bac89f8d1fc31eedcc06f86e0620637cb8",
+        "sequence": 3478,
+        "offset": 3507908
+      },
+      "committed_prefix_sha256": "a53a06f18c93e37a41473f88728d7880442d7801fc06c0b022d3f3bd332b74c0",
+      "raw_files": [
+        {
+          "path": ".local/evidence/hyperliquid-integration-review/bybit-catalog-pilot-01-raw/seg-1792448031040227000-000000.mfr1",
+          "bytes": 349536,
+          "sha256": "93b427bdd8c1153195f27ce435f83f4495de54064801eee40a0649ddff720e11"
+        }
+      ],
+      "saved_application_frame_parity": true,
+      "application_frames": 1179,
+      "accepted_inbound_frames": 1173,
+      "connections": {
+        "11": {
+          "session": 1,
+          "connection": 1,
+          "opened_ns": 1792448031040227000,
+          "closed_ns": 1792448059474046000
+        },
+        "6": {
+          "session": 2,
+          "connection": 2,
+          "opened_ns": 1792448031422164000,
+          "closed_ns": 1792448059485047000
+        },
+        "5": {
+          "session": 3,
+          "connection": 3,
+          "opened_ns": 1792448031471897000,
+          "closed_ns": 1792448059463600000
+        }
+      },
+      "channel_frame_counts": {
+        "11:orderbook.1.BTCUSD": 91,
+        "11:orderbook.50.BTCUSD": 244,
+        "6:orderbook.1.BTCUSDT": 120,
+        "5:orderbook.1.BTCUSDT": 103,
+        "6:orderbook.50.BTCUSDT": 220,
+        "5:orderbook.50.BTCUSDT": 206,
+        "5:tickers.BTCUSDT": 65,
+        "6:tickers.BTCUSDT": 19,
+        "6:kline.1.BTCUSDT": 6,
+        "11:tickers.BTCUSD": 62,
+        "5:kline.1.BTCUSDT": 5,
+        "11:kline.1.BTCUSD": 1,
+        "5:publicTrade.BTCUSDT": 7,
+        "6:publicTrade.BTCUSDT": 21
+      },
+      "native_trade_rows_by_venue": {
+        "5": 13,
+        "6": 101
+      },
+      "canonical_trade_rows_by_venue": {
+        "5": 13,
+        "6": 101
+      },
+      "inverse_trade_frames_raw_and_shared": 0,
+      "required_trade_venues_missing": [
+        11
+      ],
+      "recorded_source_errors": [],
+      "publisher_spans": [
+        {
+          "venue": 5,
+          "topic": "orderbook.50.BTCUSDT",
+          "frames": 206,
+          "first": {
+            "journal_sequence": 77,
+            "frame_seq": 2,
+            "session": 3,
+            "receipt_ns": 1792448031838496000,
+            "monotonic_ns": 798260042,
+            "native_ts_ms": 1792448031494,
+            "payload_sha256": "c0b3d9d6ab50d8046082409353dc3719c5317e46450da0a7f47b7a90a38a89c6"
+          },
+          "last": {
+            "journal_sequence": 3448,
+            "frame_seq": 386,
+            "session": 3,
+            "receipt_ns": 1792448059286616000,
+            "monotonic_ns": 28246215667,
+            "native_ts_ms": 1792448039794,
+            "payload_sha256": "b7e443add3cb2d21cabf424bb333bb427522c81987821e80105a53400f2c8b01"
+          },
+          "native_generation_span_ns": 8300000000,
+          "receipt_utc_span_ns": 27448120000,
+          "receipt_monotonic_span_ns": 27447955625,
+          "utc_monotonic_span_difference_ns": 164375,
+          "start_native_to_receipt_age_ns": 344496000,
+          "end_native_to_receipt_age_ns": 19492616000,
+          "age_growth_using_receipt_utc_ns": 19148120000,
+          "age_growth_using_receipt_monotonic_ns": 19147955625
+        },
+        {
+          "venue": 5,
+          "topic": "tickers.BTCUSDT",
+          "frames": 65,
+          "first": {
+            "journal_sequence": 117,
+            "frame_seq": 6,
+            "session": 3,
+            "receipt_ns": 1792448032124657000,
+            "monotonic_ns": 1084419875,
+            "native_ts_ms": 1792448030230,
+            "payload_sha256": "d7ba87606816c1ac2fad0257314af4f7ececeef5010a510e0e06892e2cd2c91b"
+          },
+          "last": {
+            "journal_sequence": 3387,
+            "frame_seq": 379,
+            "session": 3,
+            "receipt_ns": 1792448058810632000,
+            "monotonic_ns": 27770234084,
+            "native_ts_ms": 1792448039729,
+            "payload_sha256": "14e869b479ab01c28a8abe0e8ae5cf8bf61af79d7741e95fba158d00631a885d"
+          },
+          "native_generation_span_ns": 9499000000,
+          "receipt_utc_span_ns": 26685975000,
+          "receipt_monotonic_span_ns": 26685814209,
+          "utc_monotonic_span_difference_ns": 160791,
+          "start_native_to_receipt_age_ns": 1894657000,
+          "end_native_to_receipt_age_ns": 19081632000,
+          "age_growth_using_receipt_utc_ns": 17186975000,
+          "age_growth_using_receipt_monotonic_ns": 17186814209
+        },
+        {
+          "venue": 6,
+          "topic": "orderbook.50.BTCUSDT",
+          "frames": 220,
+          "first": {
+            "journal_sequence": 75,
+            "frame_seq": 3,
+            "session": 2,
+            "receipt_ns": 1792448031814555000,
+            "monotonic_ns": 774319417,
+            "native_ts_ms": 1792448031156,
+            "payload_sha256": "8dcd420f1ac70955ccb2479dd745171ce6db27b26aea512bcc3fa201255da840"
+          },
+          "last": {
+            "journal_sequence": 3441,
+            "frame_seq": 385,
+            "session": 2,
+            "receipt_ns": 1792448059240634000,
+            "monotonic_ns": 28200233292,
+            "native_ts_ms": 1792448042697,
+            "payload_sha256": "49672101781f868063e4982c02ca785bc81fac5c844c1f22eb3a62f82592e805"
+          },
+          "native_generation_span_ns": 11541000000,
+          "receipt_utc_span_ns": 27426079000,
+          "receipt_monotonic_span_ns": 27425913875,
+          "utc_monotonic_span_difference_ns": 165125,
+          "start_native_to_receipt_age_ns": 658555000,
+          "end_native_to_receipt_age_ns": 16543634000,
+          "age_growth_using_receipt_utc_ns": 15885079000,
+          "age_growth_using_receipt_monotonic_ns": 15884913875
+        },
+        {
+          "venue": 6,
+          "topic": "tickers.BTCUSDT",
+          "frames": 19,
+          "first": {
+            "journal_sequence": 133,
+            "frame_seq": 9,
+            "session": 2,
+            "receipt_ns": 1792448032244601000,
+            "monotonic_ns": 1204362917,
+            "native_ts_ms": 1792448031126,
+            "payload_sha256": "45fe774c009120c55cdaf2ecb6131da8d5d7536442729bbc47aa7b996941821a"
+          },
+          "last": {
+            "journal_sequence": 3152,
+            "frame_seq": 352,
+            "session": 2,
+            "receipt_ns": 1792448056984736000,
+            "monotonic_ns": 25944349459,
+            "native_ts_ms": 1792448042126,
+            "payload_sha256": "421b2953139060d97841a2a2ef0f85fcd83227e9a61093b30bf33d991fcadaa2"
+          },
+          "native_generation_span_ns": 11000000000,
+          "receipt_utc_span_ns": 24740135000,
+          "receipt_monotonic_span_ns": 24739986542,
+          "utc_monotonic_span_difference_ns": 148458,
+          "start_native_to_receipt_age_ns": 1118601000,
+          "end_native_to_receipt_age_ns": 14858736000,
+          "age_growth_using_receipt_utc_ns": 13740135000,
+          "age_growth_using_receipt_monotonic_ns": 13739986542
+        },
+        {
+          "venue": 11,
+          "topic": "orderbook.50.BTCUSD",
+          "frames": 244,
+          "first": {
+            "journal_sequence": 17,
+            "frame_seq": 2,
+            "session": 1,
+            "receipt_ns": 1792448031356822000,
+            "monotonic_ns": 316590125,
+            "native_ts_ms": 1792448030783,
+            "payload_sha256": "15dad65439d44610116c99dd97abe88b49d3a1ad25d6e437a17f6eaf019392e0"
+          },
+          "last": {
+            "journal_sequence": 3458,
+            "frame_seq": 399,
+            "session": 1,
+            "receipt_ns": 1792448059367666000,
+            "monotonic_ns": 28327264792,
+            "native_ts_ms": 1792448040743,
+            "payload_sha256": "c228803d9eaf927d7ebfe73a5e5e2e3f759d3fdb426ae578a878f840863c8c36"
+          },
+          "native_generation_span_ns": 9960000000,
+          "receipt_utc_span_ns": 28010844000,
+          "receipt_monotonic_span_ns": 28010674667,
+          "utc_monotonic_span_difference_ns": 169333,
+          "start_native_to_receipt_age_ns": 573822000,
+          "end_native_to_receipt_age_ns": 18624666000,
+          "age_growth_using_receipt_utc_ns": 18050844000,
+          "age_growth_using_receipt_monotonic_ns": 18050674667
+        },
+        {
+          "venue": 11,
+          "topic": "tickers.BTCUSD",
+          "frames": 62,
+          "first": {
+            "journal_sequence": 142,
+            "frame_seq": 22,
+            "session": 1,
+            "receipt_ns": 1792448032326577000,
+            "monotonic_ns": 1286338750,
+            "native_ts_ms": 1792448030532,
+            "payload_sha256": "7a97a7afe27dc46e9e9bb63e21d68d32a9dd889c20ff33cb7f9a15d09762c2a5"
+          },
+          "last": {
+            "journal_sequence": 3405,
+            "frame_seq": 393,
+            "session": 1,
+            "receipt_ns": 1792448058955652000,
+            "monotonic_ns": 27915253709,
+            "native_ts_ms": 1792448040631,
+            "payload_sha256": "c45f4a4c41635e000f97538930b05ad8e25ec0b6afc84402951a868677698a35"
+          },
+          "native_generation_span_ns": 10099000000,
+          "receipt_utc_span_ns": 26629075000,
+          "receipt_monotonic_span_ns": 26628914959,
+          "utc_monotonic_span_difference_ns": 160041,
+          "start_native_to_receipt_age_ns": 1794577000,
+          "end_native_to_receipt_age_ns": 18324652000,
+          "age_growth_using_receipt_utc_ns": 16530075000,
+          "age_growth_using_receipt_monotonic_ns": 16529914959
+        }
+      ],
+      "request_ack_evidence": {
+        "5": {
+          "outbound": {
+            "witness": {
+              "journal_sequence": 37,
+              "frame_seq": 0,
+              "session": 3,
+              "receipt_ns": 1792448031471897000,
+              "monotonic_ns": 0,
+              "native_ts_ms": null,
+              "payload_sha256": "4e34c6ab5664e46ee1ee948b67f60e6c2b4ccca48c9954c65840081fc93b66c5"
+            },
+            "control": {
+              "args": [
+                "publicTrade.BTCUSDT",
+                "orderbook.1.BTCUSDT",
+                "orderbook.50.BTCUSDT",
+                "tickers.BTCUSDT",
+                "allLiquidation.BTCUSDT",
+                "kline.1.BTCUSDT"
+              ],
+              "op": "subscribe"
+            }
+          },
+          "inbound": {
+            "witness": {
+              "journal_sequence": 199,
+              "frame_seq": 16,
+              "session": 3,
+              "receipt_ns": 1792448032835681000,
+              "monotonic_ns": 1795439375,
+              "native_ts_ms": null,
+              "payload_sha256": "609af7957561cb226d34769574146725af8413b9be95452d8ec0d64f5c451f94"
+            },
+            "control": {
+              "success": true,
+              "ret_msg": "",
+              "conn_id": "db292cub0pe4rpg892l0-4dbpa",
+              "req_id": "",
+              "op": "subscribe"
+            }
+          },
+          "exact_nonempty_request_id_echo": false,
+          "endpoint": "wss://stream.bybit.com/v5/public/linear"
+        },
+        "6": {
+          "outbound": {
+            "witness": {
+              "journal_sequence": 30,
+              "frame_seq": 0,
+              "session": 2,
+              "receipt_ns": 1792448031422164000,
+              "monotonic_ns": 0,
+              "native_ts_ms": null,
+              "payload_sha256": "1dfb2e2e72ac7b550e5699b6ca08a8ba86678afc6af8fd0439e835b2ba90a083"
+            },
+            "control": {
+              "args": [
+                "publicTrade.BTCUSDT",
+                "orderbook.1.BTCUSDT",
+                "orderbook.50.BTCUSDT",
+                "tickers.BTCUSDT",
+                "kline.1.BTCUSDT"
+              ],
+              "op": "subscribe"
+            }
+          },
+          "inbound": {
+            "witness": {
+              "journal_sequence": 60,
+              "frame_seq": 1,
+              "session": 2,
+              "receipt_ns": 1792448031717308000,
+              "monotonic_ns": 677074417,
+              "native_ts_ms": null,
+              "payload_sha256": "80adae1488306584a985bcb2b8c2555ef448f4cb4dba7a5221bd2a0b0c146256"
+            },
+            "control": {
+              "success": true,
+              "ret_msg": "subscribe",
+              "conn_id": "d9avs2htqffugihm89a0-im8qk",
+              "op": "subscribe"
+            }
+          },
+          "exact_nonempty_request_id_echo": false,
+          "endpoint": "wss://stream.bybit.com/v5/public/spot"
+        },
+        "11": {
+          "outbound": {
+            "witness": {
+              "journal_sequence": 11,
+              "frame_seq": 0,
+              "session": 1,
+              "receipt_ns": 1792448031040227000,
+              "monotonic_ns": 0,
+              "native_ts_ms": null,
+              "payload_sha256": "eb1b36703448c622270a47f88732ab8adb1ffe13219935ac300fb6786c19d6fc"
+            },
+            "control": {
+              "args": [
+                "publicTrade.BTCUSD",
+                "orderbook.1.BTCUSD",
+                "orderbook.50.BTCUSD",
+                "tickers.BTCUSD",
+                "allLiquidation.BTCUSD",
+                "kline.1.BTCUSD"
+              ],
+              "op": "subscribe"
+            }
+          },
+          "inbound": {
+            "witness": {
+              "journal_sequence": 216,
+              "frame_seq": 31,
+              "session": 1,
+              "receipt_ns": 1792448032969583000,
+              "monotonic_ns": 1929340584,
+              "native_ts_ms": null,
+              "payload_sha256": "0c748098191bd7f378e1c01f4fba0da9e4b3a45aa00d37bd147efd8a9027974d"
+            },
+            "control": {
+              "success": true,
+              "ret_msg": "",
+              "conn_id": "db29481d76noc3iutb1g-2398k",
+              "req_id": "",
+              "op": "subscribe"
+            }
+          },
+          "exact_nonempty_request_id_echo": false,
+          "endpoint": "wss://stream.bybit.com/v5/public/inverse"
+        }
+      },
+      "inverse_candle_witnesses": [
+        {
+          "witness": {
+            "journal_sequence": 207,
+            "frame_seq": 30,
+            "session": 1,
+            "receipt_ns": 1792448032895659000,
+            "monotonic_ns": 1855417084,
+            "native_ts_ms": 1792448023027,
+            "payload_sha256": "e4a54eb8c0178a200773909354877b768f9a9817376de8495a7e348fca0d60c6"
+          },
+          "native": {
+            "topic": "kline.1.BTCUSD",
+            "data": [
+              {
+                "start": 1792447980000,
+                "end": 1792448039999,
+                "interval": "1",
+                "open": "81970.9",
+                "close": "81997.9",
+                "high": "81998",
+                "low": "81945.7",
+                "volume": "82052",
+                "turnover": "1.00122844",
+                "confirm": false,
+                "timestamp": 1792448023027
+              }
+            ],
+            "ts": 1792448023027,
+            "type": "snapshot"
+          }
+        }
+      ],
+      "inverse_trade_related_ticker_witnesses": [
+        {
+          "witness": {
+            "journal_sequence": 142,
+            "frame_seq": 22,
+            "session": 1,
+            "receipt_ns": 1792448032326577000,
+            "monotonic_ns": 1286338750,
+            "native_ts_ms": 1792448030532,
+            "payload_sha256": "7a97a7afe27dc46e9e9bb63e21d68d32a9dd889c20ff33cb7f9a15d09762c2a5"
+          },
+          "native_fields": {
+            "lastPrice": "81997.90",
+            "volume24h": "202388565.0000",
+            "turnover24h": "2460.1950"
+          }
+        }
+      ]
+    },
+    {
+      "stem": "bybit-readiness-pilot-01",
+      "source": "410c3cae95f17c3b2b8ee88a9809c5fc1d7ad28b",
+      "launch_receipt_path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-receipt.json",
+      "launch_receipt_sha256": "bfdc9abc75b535959244d857fea55939ab13c5e2f7dd3f8d383926f79afbf7a1",
+      "cursor": {
+        "feed_id": "170f29174ced997888da73046bcf328edc83a00f",
+        "sequence": 3325,
+        "offset": 3187231
+      },
+      "committed_prefix_sha256": "d6d8ba9f62c9c430f1029d63cefa0c726eb9dafa84f72725b73623e6b1572966",
+      "raw_files": [
+        {
+          "path": ".local/evidence/hyperliquid-integration-review/bybit-readiness-pilot-01-raw/seg-1792451497283256000-000000.mfr1",
+          "bytes": 296976,
+          "sha256": "84f55814d3c4e40135ee657aecdf781cd79211ab0c62f315089ea45b04b4541a"
+        }
+      ],
+      "saved_application_frame_parity": true,
+      "application_frames": 1123,
+      "accepted_inbound_frames": 1117,
+      "connections": {
+        "6": {
+          "session": 2,
+          "connection": 1,
+          "opened_ns": 1792451497283256000,
+          "closed_ns": 1792451525279929000
+        },
+        "11": {
+          "session": 1,
+          "connection": 2,
+          "opened_ns": 1792451497341132000,
+          "closed_ns": 1792451525291898000
+        },
+        "5": {
+          "session": 3,
+          "connection": 3,
+          "opened_ns": 1792451497552677000,
+          "closed_ns": 1792451525268174000
+        }
+      },
+      "channel_frame_counts": {
+        "6:orderbook.1.BTCUSDT": 112,
+        "6:orderbook.50.BTCUSDT": 239,
+        "11:orderbook.1.BTCUSD": 116,
+        "11:orderbook.50.BTCUSD": 197,
+        "5:orderbook.1.BTCUSDT": 66,
+        "6:tickers.BTCUSDT": 13,
+        "5:orderbook.50.BTCUSDT": 242,
+        "6:kline.1.BTCUSDT": 6,
+        "11:tickers.BTCUSD": 55,
+        "5:tickers.BTCUSDT": 55,
+        "11:kline.1.BTCUSD": 1,
+        "5:kline.1.BTCUSDT": 4,
+        "5:publicTrade.BTCUSDT": 4,
+        "6:publicTrade.BTCUSDT": 4
+      },
+      "native_trade_rows_by_venue": {
+        "5": 6,
+        "6": 4
+      },
+      "canonical_trade_rows_by_venue": {
+        "5": 6,
+        "6": 4
+      },
+      "inverse_trade_frames_raw_and_shared": 0,
+      "required_trade_venues_missing": [
+        11
+      ],
+      "recorded_source_errors": [],
+      "publisher_spans": [
+        {
+          "venue": 5,
+          "topic": "orderbook.50.BTCUSDT",
+          "frames": 242,
+          "first": {
+            "journal_sequence": 75,
+            "frame_seq": 2,
+            "session": 3,
+            "receipt_ns": 1792451497930685000,
+            "monotonic_ns": 647424833,
+            "native_ts_ms": 1792451497494,
+            "payload_sha256": "155c711a29b88b50df5fb2ca89a4da08521ca1088427abbbe346ee7749a5c35f"
+          },
+          "last": {
+            "journal_sequence": 3301,
+            "frame_seq": 372,
+            "session": 3,
+            "receipt_ns": 1792451525156741000,
+            "monotonic_ns": 27873361291,
+            "native_ts_ms": 1792451510554,
+            "payload_sha256": "44395873f66509e5170fa0fb68ab631c189990b44e6791c3eed68439edfbc17f"
+          },
+          "native_generation_span_ns": 13060000000,
+          "receipt_utc_span_ns": 27226056000,
+          "receipt_monotonic_span_ns": 27225936458,
+          "utc_monotonic_span_difference_ns": 119542,
+          "start_native_to_receipt_age_ns": 436685000,
+          "end_native_to_receipt_age_ns": 14602741000,
+          "age_growth_using_receipt_utc_ns": 14166056000,
+          "age_growth_using_receipt_monotonic_ns": 14165936458
+        },
+        {
+          "venue": 5,
+          "topic": "tickers.BTCUSDT",
+          "frames": 55,
+          "first": {
+            "journal_sequence": 129,
+            "frame_seq": 8,
+            "session": 3,
+            "receipt_ns": 1792451498370789000,
+            "monotonic_ns": 1087526291,
+            "native_ts_ms": 1792451496230,
+            "payload_sha256": "eac8ca50c05b8c6d0263641c26ea8d08fbcb53b0f8638464a49c7062174b793b"
+          },
+          "last": {
+            "journal_sequence": 3197,
+            "frame_seq": 360,
+            "session": 3,
+            "receipt_ns": 1792451524236763000,
+            "monotonic_ns": 26953387375,
+            "native_ts_ms": 1792451510029,
+            "payload_sha256": "39ddd2420812ed8ca8f37d938cffa2f579ecb3cd57c2486a38306b289eb1eac0"
+          },
+          "native_generation_span_ns": 13799000000,
+          "receipt_utc_span_ns": 25865974000,
+          "receipt_monotonic_span_ns": 25865861084,
+          "utc_monotonic_span_difference_ns": 112916,
+          "start_native_to_receipt_age_ns": 2140789000,
+          "end_native_to_receipt_age_ns": 14207763000,
+          "age_growth_using_receipt_utc_ns": 12066974000,
+          "age_growth_using_receipt_monotonic_ns": 12066861084
+        },
+        {
+          "venue": 6,
+          "topic": "orderbook.50.BTCUSDT",
+          "frames": 239,
+          "first": {
+            "journal_sequence": 28,
+            "frame_seq": 3,
+            "session": 2,
+            "receipt_ns": 1792451497585579000,
+            "monotonic_ns": 302319666,
+            "native_ts_ms": 1792451497156,
+            "payload_sha256": "800f99be4887167ed6278873b2379488ce8da7aba24ccd27a46df79447acde95"
+          },
+          "last": {
+            "journal_sequence": 3302,
+            "frame_seq": 375,
+            "session": 2,
+            "receipt_ns": 1792451525168659000,
+            "monotonic_ns": 27885279375,
+            "native_ts_ms": 1792451508836,
+            "payload_sha256": "369f02ec8133dee846853ff8aaedd4de4e57ddbe2461673802efc52ba8a21ad3"
+          },
+          "native_generation_span_ns": 11680000000,
+          "receipt_utc_span_ns": 27583080000,
+          "receipt_monotonic_span_ns": 27582959709,
+          "utc_monotonic_span_difference_ns": 120291,
+          "start_native_to_receipt_age_ns": 429579000,
+          "end_native_to_receipt_age_ns": 16332659000,
+          "age_growth_using_receipt_utc_ns": 15903080000,
+          "age_growth_using_receipt_monotonic_ns": 15902959709
+        },
+        {
+          "venue": 6,
+          "topic": "tickers.BTCUSDT",
+          "frames": 13,
+          "first": {
+            "journal_sequence": 74,
+            "frame_seq": 9,
+            "session": 2,
+            "receipt_ns": 1792451497917660000,
+            "monotonic_ns": 634399166,
+            "native_ts_ms": 1792451497127,
+            "payload_sha256": "7aa8fe03c3475f9698e92e10085a013f2f42e72946551621cec2800a48f12b34"
+          },
+          "last": {
+            "journal_sequence": 3020,
+            "frame_seq": 343,
+            "session": 2,
+            "receipt_ns": 1792451522803920000,
+            "monotonic_ns": 25520550541,
+            "native_ts_ms": 1792451508127,
+            "payload_sha256": "d0c07417106dad6dbb8261ea626d31b4e6ab65d46eb3a9e0c417897eaf850d27"
+          },
+          "native_generation_span_ns": 11000000000,
+          "receipt_utc_span_ns": 24886260000,
+          "receipt_monotonic_span_ns": 24886151375,
+          "utc_monotonic_span_difference_ns": 108625,
+          "start_native_to_receipt_age_ns": 790660000,
+          "end_native_to_receipt_age_ns": 14676920000,
+          "age_growth_using_receipt_utc_ns": 13886260000,
+          "age_growth_using_receipt_monotonic_ns": 13886151375
+        },
+        {
+          "venue": 11,
+          "topic": "orderbook.50.BTCUSD",
+          "frames": 197,
+          "first": {
+            "journal_sequence": 39,
+            "frame_seq": 2,
+            "session": 1,
+            "receipt_ns": 1792451497652553000,
+            "monotonic_ns": 369293791,
+            "native_ts_ms": 1792451497283,
+            "payload_sha256": "13b0f8eddcb999e0089853fdddc172055405f3f4c2ee9e9eb98aebe2e122ad59"
+          },
+          "last": {
+            "journal_sequence": 3294,
+            "frame_seq": 369,
+            "session": 1,
+            "receipt_ns": 1792451525107722000,
+            "monotonic_ns": 27824342625,
+            "native_ts_ms": 1792451502803,
+            "payload_sha256": "6baf355faaa7e852ef44e967e53d1dd4e58269af810a4d3ba24707a5909d84b9"
+          },
+          "native_generation_span_ns": 5520000000,
+          "receipt_utc_span_ns": 27455169000,
+          "receipt_monotonic_span_ns": 27455048834,
+          "utc_monotonic_span_difference_ns": 120166,
+          "start_native_to_receipt_age_ns": 369553000,
+          "end_native_to_receipt_age_ns": 22304722000,
+          "age_growth_using_receipt_utc_ns": 21935169000,
+          "age_growth_using_receipt_monotonic_ns": 21935048834
+        },
+        {
+          "venue": 11,
+          "topic": "tickers.BTCUSD",
+          "frames": 55,
+          "first": {
+            "journal_sequence": 101,
+            "frame_seq": 10,
+            "session": 1,
+            "receipt_ns": 1792451498125665000,
+            "monotonic_ns": 842403291,
+            "native_ts_ms": 1792451496532,
+            "payload_sha256": "a941bf4e19ddcfe8ab7de38b0473451b574998f4e9ae7fb782a426ac5988551d"
+          },
+          "last": {
+            "journal_sequence": 3212,
+            "frame_seq": 360,
+            "session": 1,
+            "receipt_ns": 1792451524361878000,
+            "monotonic_ns": 27078501958,
+            "native_ts_ms": 1792451502632,
+            "payload_sha256": "6e8e78487c31a8fd3e2b9fd32ea19cf4400e0394d23e7f6acde8f05c9b36d1c9"
+          },
+          "native_generation_span_ns": 6100000000,
+          "receipt_utc_span_ns": 26236213000,
+          "receipt_monotonic_span_ns": 26236098667,
+          "utc_monotonic_span_difference_ns": 114333,
+          "start_native_to_receipt_age_ns": 1593665000,
+          "end_native_to_receipt_age_ns": 21729878000,
+          "age_growth_using_receipt_utc_ns": 20136213000,
+          "age_growth_using_receipt_monotonic_ns": 20136098667
+        }
+      ],
+      "request_ack_evidence": {
+        "5": {
+          "outbound": {
+            "witness": {
+              "journal_sequence": 30,
+              "frame_seq": 0,
+              "session": 3,
+              "receipt_ns": 1792451497552677000,
+              "monotonic_ns": 0,
+              "native_ts_ms": null,
+              "payload_sha256": "fb9eedb42293aac11a470ebcd69d363ca5c149c946f2a3d814976ae5945d7db3"
+            },
+            "control": {
+              "args": [
+                "publicTrade.BTCUSDT",
+                "orderbook.1.BTCUSDT",
+                "orderbook.50.BTCUSDT",
+                "tickers.BTCUSDT",
+                "allLiquidation.BTCUSDT",
+                "kline.1.BTCUSDT"
+              ],
+              "op": "subscribe",
+              "req_id": "b0000000000000001-0000"
+            }
+          },
+          "inbound": {
+            "witness": {
+              "journal_sequence": 192,
+              "frame_seq": 16,
+              "session": 3,
+              "receipt_ns": 1792451499006622000,
+              "monotonic_ns": 1723357166,
+              "native_ts_ms": null,
+              "payload_sha256": "1497651c074fba4cb731e4fd5dd11cf8230d7a68e688cf29d80102c393e1a00f"
+            },
+            "control": {
+              "success": true,
+              "ret_msg": "",
+              "conn_id": "db295uiskqo7o8fdod8g-4p1e0",
+              "req_id": "b0000000000000001-0000",
+              "op": "subscribe"
+            }
+          },
+          "exact_nonempty_request_id_echo": true,
+          "endpoint": "wss://stream.bybit.com/v5/public/linear"
+        },
+        "6": {
+          "outbound": {
+            "witness": {
+              "journal_sequence": 12,
+              "frame_seq": 0,
+              "session": 2,
+              "receipt_ns": 1792451497283256000,
+              "monotonic_ns": 0,
+              "native_ts_ms": null,
+              "payload_sha256": "97e394c668ab20af9638989a93dff3cd2c133324fa092526a7557f42f9afded0"
+            },
+            "control": {
+              "args": [
+                "publicTrade.BTCUSDT",
+                "orderbook.1.BTCUSDT",
+                "orderbook.50.BTCUSDT",
+                "tickers.BTCUSDT",
+                "kline.1.BTCUSDT"
+              ],
+              "op": "subscribe",
+              "req_id": "b0000000000000001-0000"
+            }
+          },
+          "inbound": {
+            "witness": {
+              "journal_sequence": 20,
+              "frame_seq": 1,
+              "session": 2,
+              "receipt_ns": 1792451497528794000,
+              "monotonic_ns": 245535333,
+              "native_ts_ms": null,
+              "payload_sha256": "688fff5c41cf17c2824926774d0708f84d0e24053ecc92e01988169a0906678d"
+            },
+            "control": {
+              "success": true,
+              "ret_msg": "subscribe",
+              "conn_id": "d9avsh4mqckv5v06jtng-ioncj",
+              "req_id": "b0000000000000001-0000",
+              "op": "subscribe"
+            }
+          },
+          "exact_nonempty_request_id_echo": true,
+          "endpoint": "wss://stream.bybit.com/v5/public/spot"
+        },
+        "11": {
+          "outbound": {
+            "witness": {
+              "journal_sequence": 17,
+              "frame_seq": 0,
+              "session": 1,
+              "receipt_ns": 1792451497341132000,
+              "monotonic_ns": 0,
+              "native_ts_ms": null,
+              "payload_sha256": "79aec1026518622947cf9e9064441b0c8830444d73f42632f47ec870a1a251e9"
+            },
+            "control": {
+              "args": [
+                "publicTrade.BTCUSD",
+                "orderbook.1.BTCUSD",
+                "orderbook.50.BTCUSD",
+                "tickers.BTCUSD",
+                "allLiquidation.BTCUSD",
+                "kline.1.BTCUSD"
+              ],
+              "op": "subscribe",
+              "req_id": "b0000000000000001-0000"
+            }
+          },
+          "inbound": {
+            "witness": {
+              "journal_sequence": 190,
+              "frame_seq": 21,
+              "session": 1,
+              "receipt_ns": 1792451498983601000,
+              "monotonic_ns": 1700336041,
+              "native_ts_ms": null,
+              "payload_sha256": "547d1a836edcfe082702db348579d1125dfc1ef65790261893fb7f876ee36212"
+            },
+            "control": {
+              "success": true,
+              "ret_msg": "",
+              "conn_id": "db293ihune7s5s9k6pjg-1ym4x",
+              "req_id": "b0000000000000001-0000",
+              "op": "subscribe"
+            }
+          },
+          "exact_nonempty_request_id_echo": true,
+          "endpoint": "wss://stream.bybit.com/v5/public/inverse"
+        }
+      },
+      "inverse_candle_witnesses": [
+        {
+          "witness": {
+            "journal_sequence": 181,
+            "frame_seq": 20,
+            "session": 1,
+            "receipt_ns": 1792451498914588000,
+            "monotonic_ns": 1631322916,
+            "native_ts_ms": 1792451497027,
+            "payload_sha256": "c47df38db67de3a553284c316ade87285c4aefd178243addec06c12777c936fe"
+          },
+          "native": {
+            "topic": "kline.1.BTCUSD",
+            "data": [
+              {
+                "start": 1792451460000,
+                "end": 1792451519999,
+                "interval": "1",
+                "open": "81895.9",
+                "close": "81895.1",
+                "high": "81895.9",
+                "low": "81895.1",
+                "volume": "12",
+                "turnover": "0.00014652",
+                "confirm": false,
+                "timestamp": 1792451497027
+              }
+            ],
+            "ts": 1792451497027,
+            "type": "snapshot"
+          }
+        }
+      ],
+      "inverse_trade_related_ticker_witnesses": [
+        {
+          "witness": {
+            "journal_sequence": 101,
+            "frame_seq": 10,
+            "session": 1,
+            "receipt_ns": 1792451498125665000,
+            "monotonic_ns": 842403291,
+            "native_ts_ms": 1792451496532,
+            "payload_sha256": "a941bf4e19ddcfe8ab7de38b0473451b574998f4e9ae7fb782a426ac5988551d"
+          },
+          "native_fields": {
+            "lastPrice": "81895.30",
+            "volume24h": "196185245.0000",
+            "turnover24h": "2383.9391"
+          }
+        },
+        {
+          "witness": {
+            "journal_sequence": 118,
+            "frame_seq": 12,
+            "session": 1,
+            "receipt_ns": 1792451498261523000,
+            "monotonic_ns": 978261166,
+            "native_ts_ms": 1792451496732,
+            "payload_sha256": "b1497d7615fb9a52755a3ca942957017b65d78e4901b5377e606815f63eeabc5"
+          },
+          "native_fields": {
+            "lastPrice": "81895.10",
+            "volume24h": "196185251.0000",
+            "turnover24h": "2383.9391"
+          }
+        }
+      ]
+    }
+  ],
+  "source_freshness_qualified": false,
+  "all_required_trade_venues_observed": false,
+  "dataset_admitted": false,
+  "cause_attributed": false,
+  "timestamp_contract": {
+    "official_documentation": "https://bybit-exchange.github.io/docs/v5/websocket/public/orderbook",
+    "accessed": "2026-10-20",
+    "ts": "milliseconds of system data generation",
+    "cts": "matching-engine timestamp, not used for the reported publisher spans",
+    "local_receipt": "live loop stamps after transport.read_frame returns, before synchronous runner callback; not kernel/wire arrival",
+    "caveat": "absolute age needs source/local clock alignment; age growth cancels constant offset; matching UTC/monotonic spans exclude a local UTC-step explanation, not remote clock/source-delay anomalies"
+  },
+  "source_path_hypothesis": {
+    "source": "410c3cae95f17c3b2b8ee88a9809c5fc1d7ad28b",
+    "git_blob_sha256": {
+      "crates/engine/src/live.rs": "f5d703aafda393b51e5c9fe3b59e04f35408d350696f35be5862257f03b2ab6d",
+      "crates/engine/src/runner.rs": "6098773b0555c287441a9123776b7c62645c904f0e86e0c5f69dc38462c09bfc",
+      "crates/recording/src/shared_feed.rs": "2332ad93544cfbd569ab675f055d1a16ca02db03995ec561204173b5759f836b",
+      "crates/adapters/bybit/src/session.rs": "21b0928e58df7e6c56cc4cf13cc9a67e8a078eb1f770cf7b3327006072d2971b",
+      "crates/adapters/bybit/src/messages.rs": "bd8c046bdbc2196ce5e71f57ae6be28e5edeb76add74ff8ce7a9507b9b31d47d"
+    },
+    "live.rs": "read_frame354; post-read stamp382; synchronous on_text_frame393",
+    "runner.rs": "record_frame363 before decode; direct feed.append517; frame action transaction append_many541",
+    "shared_feed.rs": "file.sync_data343; watermark.sync_all369; rename371; directory.sync_all372; shared Mutex append384/390",
+    "inference": "serialized per-operation durable work can block each reader callback and contend across sessions; no stage timings in retained evidence prove whether it caused the measured lag rather than network/server replay/delay"
+  },
+  "disposition": "zero inverse trade frames were saved, so no post-recording inverse trade decoder drop is demonstrated; correct topic/ACK is observed, but neither full-duration quietness nor channel/source completeness is established by the lagging prefixes",
+  "smallest_next_diagnostic": {
+    "kind": "registered finite offline three-session paced-ingress attribution before any new capture",
+    "arms": [
+      "same fixed synthetic generation schedule and immutable payload copies, parser/raw path with shared feed disabled as diagnostic baseline only",
+      "same schedule and raw path with production durable shared writer enabled"
+    ],
+    "measurement": "separate producer schedule/enqueue, transport read return, callback/parse, shared Mutex wait, data sync, watermark/directory sync and accepted commit monotonic times; record exact input hash/rate/burst/bytes/time bounds before running",
+    "suggested_registered_schedule": "10s at declared aggregate480frames/s plus one declared64-frame burst;15s total stop/drain cap; bounded frame and byte queues; rates are a local stress diagnostic, not guaranteed native message counts",
+    "suggested_acceptance": "all generated inputs accounted for; committed source-generation span>=9.5s; receive/source age growth<=1s and terminal queue empty by the predeclared drain deadline, or fail freshness; injected blocking/overflow must revoke admission, never publish undurable accepted data; raw/shared equality, CRC/seal and fsync/publication guarantees unchanged",
+    "repair_if_attributed": "only after measured attribution, decouple/batch durable service using bounded queues and explicit durable acceptance while preserving original read-return receipt stamps and fail-closed overflow/publication semantics; do not weaken sync or use later history to fill frozen windows"
+  }
+}

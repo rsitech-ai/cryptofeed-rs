@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "scope": "Parent7a hosted CI only; not qualification of newer Hyperliquid source",
+  "independent_receipt_sha256": "e1cd5541e47f07ad963f2f748576d942712f2d6af0b589f4c828fae9639fd1e0",
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39407401001",
+  "run_id": 39407401001,
+  "jobs": [
+    {
+      "name": "Windows directory durability",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564006
+    },
+    {
+      "name": "C header and ABI exports",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564345
+    },
+    {
+      "name": "docs",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564369
+    },
+    {
+      "name": "cargo-deny",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564381
+    },
+    {
+      "name": "test (macos-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564394
+    },
+    {
+      "name": "rustfmt",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564452
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564468
+    },
+    {
+      "name": "test (ubuntu-24.04-arm)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564510
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564525
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564559
+    },
+    {
+      "name": "test (ubuntu-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564580
+    },
+    {
+      "name": "sbom",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564584
+    },
+    {
+      "name": "clippy",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564607
+    },
+    {
+      "name": "msrv (1.85)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564630
+    },
+    {
+      "name": "test (windows-latest)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564639
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576564683
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "status": "completed",
+      "conclusion": "success",
+      "databaseId": 118576565003
+    }
+  ],
+  "source_proof": {
+    "source_commit": "7a68984668ee59a532985d71dfb3a10f7681a363",
+    "actual_merge_commit": "e1849808ad2ef293791ebba3d4269848c6edccec",
+    "source_tree": "279474648b1c3bea406bb45aa2a104d4eeacea2e",
+    "merge_tree": "279474648b1c3bea406bb45aa2a104d4eeacea2e",
+    "whole_tree_equal": true,
+    "all527_published_git_blob_sizes_hashes_equal_freeze03": true,
+    "declared_source_files": 527,
+    "declared_source_sha256": "598ef771fce1cfc39761a8179e5a9f9f157e201478e13650b18060fdddd061f0"
+  },
+  "platforms": {
+    "test (macos-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39407401001/job/118576564394",
+      "conclusion": "success",
+      "archive_member": "test (macos-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "9feafb7c451d4148da0af66c0b410496f44953fedb9f60239b938fe19f059c90",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1486,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (ubuntu-24.04-arm)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39407401001/job/118576564510",
+      "conclusion": "success",
+      "archive_member": "test (ubuntu-24.04-arm)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "469b5faec75c83d3bc928ed6eef77f7e3f931313d4a9875204a881eb5f338423",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1487,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (ubuntu-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39407401001/job/118576564580",
+      "conclusion": "success",
+      "archive_member": "test (ubuntu-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "a09683eef1391b715b7f2d0554e34220f98b153d3e7bb7fdc17d85d09ba9baaf",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1487,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (windows-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39407401001/job/118576564639",
+      "conclusion": "success",
+      "archive_member": "test (windows-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "976994b1606fe409d1591e8500fa042a585daaa249e51cd0b2330d40a9972f16",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1484,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    }
+  },
+  "msrv_core": {
+    "counts": {
+      "passed": 553,
+      "failed": 0,
+      "ignored": 0
+    },
+    "suite_count": 30,
+    "sha256": "305f61c540f1eb5aa24f694403b7a0a1fa0a6abdba5caf82eeb48f97d445236e"
+  },
+  "windows_durability_counts": {
+    "passed": 126,
+    "failed": 0,
+    "ignored": 0
+  },
+  "raw_evidence": [
+    {
+      "file": "history-runtime-producer-ci-independent-01-logs.zip",
+      "sha256": "7d7a933a8611dc4b4cdd0175bd81366e93c2e53655622f025ad28c88600ff452",
+      "bytes": 835122
+    },
+    {
+      "file": "history-runtime-producer-ci-independent-01.log",
+      "sha256": "6a41a45d0c7db0bf20354902c2ad4091daf58388bd0613609f1d1a6ed565754c",
+      "bytes": 3540005
+    },
+    {
+      "file": "history-runtime-producer-ci-independent-01-run.json",
+      "sha256": "eec932b2edd2125fc1a74660df38570bc3abe639249d661ef32f809b2f7e6d32",
+      "bytes": 25546
+    },
+    {
+      "file": "history-runtime-producer-ci-independent-01-ffi.log",
+      "sha256": "89ca2ed5326a43f8980de4690f5a5d5c190b71978a16dde7617f3429fa331f6c",
+      "bytes": 15630
+    },
+    {
+      "file": "history-runtime-producer-ci-independent-01-windows-durability.log",
+      "sha256": "1b2ae9a4cdd5311ef490a2c44eeab7f506330748ea84ae2bcc3b9b1f40e27cd9",
+      "bytes": 65700
+    },
+    {
+      "file": "history-runtime-producer-ci-independent-01-msrv.log",
+      "sha256": "4a319ff8e3a93ec34cdf50758a035e4711647012c62359cbd4c9dd64c91a96a4",
+      "bytes": 145701
+    },
+    {
+      "file": "history-runtime-producer-ci-independent-01-macos.log",
+      "sha256": "815cc29d7900f2980c416b884f3461441ead784137d9a66978344cc68da22527",
+      "bytes": 275339
+    }
+  ],
+  "remaining": [
+    "No registered ingress/latency workload rerun; original failed durable-ingress result remains failed. No10-second performance or source-freshness claim.",
+    "No native hardware/calendar/ordinary-user Windows qualification or economic/full-goal claim.",
+    "Consumer HLS pin/rebuild/saved replay/own CI is separate and not qualified by this producer audit.",
+    "Live Hyperliquid causal bootstrap/daemon/control/supervisor integration, committed compatibility projection, physical-order replay/checkpoints/safe restart remain separate gates.",
+    "No CI executable hash artifact, loaded-image/signed attestation, full transitive build-input closure, dependency feature-graph or reproducible-build proof inferred from checkout/log evidence."
+  ]
+}

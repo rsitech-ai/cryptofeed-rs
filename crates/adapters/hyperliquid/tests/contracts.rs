@@ -677,3 +677,67 @@ fn silent_candle_is_unverified_while_required_book_freshness_expires_despite_pon
             .contains(&SessionAction::Reconnect(ReconnectReason::Heartbeat))
     );
 }
+
+#[test]
+fn direct_session_and_bootstrap_topics_preserve_native_capacity_and_order() {
+    let factory = HyperliquidFactory::perps();
+    let mut catalog = catalog(false);
+    let template = catalog.instruments[0].clone();
+    catalog.instruments = (1..=201)
+        .map(|id| {
+            let mut inst = template.clone();
+            inst.id = InstrumentId(id);
+            inst.key.native_symbol = format!("asset{id}");
+            inst
+        })
+        .collect::<Vec<_>>()
+        .into();
+    let request = ConcreteSubscriptionSet {
+        items: catalog
+            .instruments
+            .iter()
+            .map(|inst| ConcreteSubscription {
+                instrument: inst.id,
+                channel: Channel::Trades,
+                delivery: DeliveryOptions::default(),
+            })
+            .collect(),
+    };
+    let plans = factory.plan(&request, &catalog).unwrap();
+    assert_eq!(plans.len(), 2);
+    assert_eq!(plans[0].subscriptions.items.len(), 200);
+    assert_eq!(plans[1].subscriptions.items.len(), 1);
+    for plan in &plans {
+        let topics = HyperliquidFactory::public_plan_topics(false, plan, &catalog).unwrap();
+        let mut machine = factory
+            .create_session(plan.clone(), catalog.clone())
+            .unwrap();
+        let mut out = ActionBuffer::new();
+        machine
+            .on_input(
+                SessionInput::Connected {
+                    now: TimestampNs(1),
+                },
+                &mut out,
+            )
+            .unwrap();
+        let actual = out
+            .as_slice()
+            .iter()
+            .filter_map(|action| match action {
+                SessionAction::SendText(bytes) => {
+                    let control: serde_json::Value = serde_json::from_slice(bytes).unwrap();
+                    Some(control["subscription"].to_string())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(actual, topics);
+    }
+    let oversized = SessionSpec {
+        endpoint_name: marketfeed_adapter_hyperliquid::WS_URL.into(),
+        subscriptions: request,
+    };
+    assert!(HyperliquidFactory::public_plan_topics(false, &oversized, &catalog).is_err());
+    assert!(factory.create_session(oversized, catalog).is_err());
+}

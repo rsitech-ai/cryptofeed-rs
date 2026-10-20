@@ -193,6 +193,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             start_ns,
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: price(100),
                 quantity: quantity(2),
                 aggressor: AggressorSide::Buy,
@@ -207,6 +208,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             2,
             start_ns + 1_000,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: price(99),
                 bid_quantity: Some(quantity(1)),
                 ask_price: price(101),
@@ -221,6 +223,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             3,
             start_ns + 2_000,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: price(99),
                     quantity: quantity(3),
@@ -252,6 +255,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             5,
             start_ns + 4_000,
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: price(98),
                 quantity: quantity(1),
                 side: AggressorSide::Sell,
@@ -265,6 +269,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV1) -> Vec<MechanicsIn
             1,
             start_ns + 5_000,
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: price(100),
                 quantity: quantity(1),
                 aggressor: AggressorSide::Unknown,

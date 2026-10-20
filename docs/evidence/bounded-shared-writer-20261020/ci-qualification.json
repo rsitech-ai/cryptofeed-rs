@@ -1,0 +1,57 @@
+{
+  "schema": "marketfeed.bounded_writer_platform_ci.v1",
+  "source_commit": "c8c13781d257d0d6e252144a8a70a07f700e1764",
+  "actual_merge": "70dfc726d1b9a0a147f18757a52f28f5812c1974",
+  "source_tree": "c4b1a92229ceeb982e4782d8ffe1f8b36673ad49",
+  "merge_tree": "c4b1a92229ceeb982e4782d8ffe1f8b36673ad49",
+  "complete_tree_equal": true,
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39363563976",
+  "successful_jobs": 17,
+  "jobs": [
+    {
+      "platform": "linux",
+      "passed": 1336,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "1d3caec7fdbad123ab5bd1c919c9fb89c4ab91efa6dd689c4545c0b8b475e6d3"
+    },
+    {
+      "platform": "linux-arm",
+      "passed": 1336,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "dfe0e62283db78cad12bfac203e37d00b819ba043f57a7078082913f921d1497"
+    },
+    {
+      "platform": "macos",
+      "passed": 1335,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "a66d70c4f3dd1a152e106a540fa7c6313df10e454676e22c2468a34fb2d31107"
+    },
+    {
+      "platform": "windows",
+      "passed": 1333,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "2cadcc17f774ef75384a766580fe1be99390d324f8d64dbfe97e6ee22ee99123"
+    },
+    {
+      "platform": "windows-durability",
+      "passed": 104,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 11,
+      "log_sha256": "0059d9ddcaab1bbd4fd37c19a406009b7b2bccc7484e41b3e28d914ade55f394"
+    }
+  ],
+  "does_not_establish": [
+    "later engine capture source qualification",
+    "live actor integration, durable ingress repair or complete causal replay",
+    "ordinary-user Windows/hardware, strict datasets, live continuity, calendar soak or operational promotion"
+  ]
+}

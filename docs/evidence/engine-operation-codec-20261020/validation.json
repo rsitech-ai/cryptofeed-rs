@@ -1,0 +1,267 @@
+{
+  "schema": "marketfeed.engine_operation_codec_validation.v1",
+  "base_source": "6565c9428e0c97636f1c5988f4a2c22b4d17f52e",
+  "checks_before_commit": true,
+  "source_sha256": {
+    "crates/engine/Cargo.toml": "8818f883c00b15d46d1016384805cb35468581b5da54ede3ab6d18601fe08907",
+    "crates/engine/src/lib.rs": "ade047b6a019630b1ac207a236ba0338b8ca9fdc6911d022ecfaa253a1a3c9f4",
+    "crates/engine/src/operation.rs": "3f597afb160edf3b8c3d571e891dd5c3fce3d294f57227e73ee3d8184fb8151f",
+    "crates/engine/src/causal_convert.rs": "1aa8c4fb75bcb3bb96399e5c95379271e9d4fbefb44ee787604f59fb210f0efb",
+    "crates/engine/src/causal.rs": "e12892b0bf6275ae84c05a99e0f9dbd0df9ae0e5972573a5ca89341c3c679cb3",
+    "crates/engine/src/causal_tests.rs": "3a9df5ffe871b0e711bc285d18f46086e1b04b88e8afc4203aed63343af1c749",
+    "crates/engine/src/causal_catalog.rs": "f749697badf7d4a257347251063a55b51601c4a8c374b31843c20a974eb53775",
+    "crates/engine/tests/causal_codec.rs": "44f172b55f64952ed9df1a4bf35d784068919f35c969b2076fb4459cb9f94114",
+    "Cargo.lock": "75334763ec3d9b892609e2f9bd026f4c3d3dcb224bd6d3ecb349b622973aa634"
+  },
+  "all_source_hashes_unchanged_from_independent_and_broad_checks": true,
+  "workspace": {
+    "passed": 1394,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 155
+  },
+  "msrv_core": {
+    "rust": "1.85.0",
+    "passed": 523,
+    "failed": 0,
+    "ignored": 0,
+    "suites": 30
+  },
+  "commands": [
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 641.9,
+      "log_sha256": "04747e2a4f25ddd6070ac1da47e4c978ccdda0fa232df7385a831a2056eb3eb6"
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 87.174,
+      "log_sha256": "832b955717203247bbaf237d3380c022d1da10ab1f76f832ca47e57c829bd4ae"
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 59.955,
+      "log_sha256": "2b71e62608b68cedadd7ee10895115370791288457b9e6fc4ce8da50b1daee3d"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 12.829,
+      "log_sha256": "274f01eb4da098901abfa2b6a69d5b172ad0e3eca8d6b5bd0474fde0de567667"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.046,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 3.862,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.007,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.417,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 1.007,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.017,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "independent_review": {
+    "result": "pass in serialization-only scope",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-engine",
+      "--all-targets",
+      "--all-features"
+    ],
+    "passed": 141,
+    "failed": 0,
+    "ignored": 0,
+    "causal_unit_cases": 11,
+    "independent_public_regressions": 4,
+    "source_before_after_unchanged": true,
+    "log_sha256": "091180917d25c3c2aaa58ca27f40ab122ca075a3e615a2adae1a56145eeaa564",
+    "receipt_sha256": "441251a6c5feb873f8716ab29e8e5537124a42f2e11038bf05aa3cbc5227d0ed",
+    "closed_findings": [
+      "Unfinished queue/sink/action/drain sentinels could be accepted despite complete label; native and decoded DTO paths now reject them while preserving legitimate buffered error suffixes.",
+      "Encoder identity could be supplied independently of owning runner; actual captures now include configured venue/session and conversion checks exact owner identity."
+    ]
+  },
+  "earlier_development_failures": [
+    {
+      "log_sha256": "209098fc0007ce6d883b5ad038aba1c2bc3c17fc22b0c3f6c5f9c7300ce34490",
+      "result": "test fixture compile failed: event_index was u32 instead of native u16; corrected"
+    },
+    {
+      "log_sha256": "1168b17d4027504c1cdf886cb8deaed1f32df057b802ab4a643771a5f9febbdc",
+      "result": "9 passed/1 failed: malformed-envelope test helper rejected its own fixture before decoder; corrected to exercise decoder"
+    },
+    {
+      "log_sha256": "c3114c2c3637374d5960351bbad23c9f013ef274c3bdca6dfaa81fa51e600022",
+      "result": "10 passed at earlier source; not substituted for final 11-unit/4-public independent evidence"
+    }
+  ],
+  "security": {
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    },
+    "direct_dependency_edges_added": [
+      "marketfeed-engine -> base64",
+      "marketfeed-engine -> serde"
+    ],
+    "registry_records": 263,
+    "all_registry_records_identical": true,
+    "new_registry_packages_or_versions": false
+  },
+  "frozen_store": {
+    "files": 22,
+    "all_bytes_sizes_modes_mtime_ctime_unchanged": true,
+    "directory_mode": "0o555",
+    "scope": "preservation only"
+  },
+  "consumer_compatibility": {
+    "result": "retain existing hlscreen6565c94 producer pin; shared source/effective graph unchanged",
+    "independent_receipt_sha256": "3843638205c449458769e0c1b0ba825342e59e06bbc4424c0c864327e28fd10e",
+    "shared_tracked_files": 52,
+    "shared_tracked_bytes": 398516,
+    "static_root_bindings": 6,
+    "shared_conservative_dependency_closure_records": 71,
+    "shared_conservative_dependency_closure_sha256": "a069a4604cd4cbdef8aa2f7f25f28924690468b417cc8966e7a432212a3999c5",
+    "whole_producer_lock_unchanged": false,
+    "engine_reachable_from_shared_closure": false,
+    "retained_hlscreen_binary_sha256": "2bfefa5fddb6bbebda95a62fab8cdc285e20f73653991ba497e6b383eb9516d0",
+    "retained_1055_event_replay_log_sha256": "41e9a8a430547be5e39cd5db318ad4b14224cb5b852ebd4056699bcb5e249629",
+    "scope": "Static source/graph and retained prior binary/replay evidence only; not whole-producer/build/artifact equivalence. Hlscreen validator scripts are being repaired separately for a newly observed Windows decoding failure."
+  },
+  "prior_source_ci": "6565c94 completed all17jobs; exact source/merge tree qualification in ../causal-storage-profile-20261020/ci-qualification.json. Does not qualify this codec source.",
+  "new_source_ci": "Not yet published/run at this before-commit snapshot; requires its own hosted qualification.",
+  "scope": "Exact owned canonical operation serialization only; output cap is not RSS/preallocation guarantee. Supplied bootstrap ID is not yet verified bootstrap evidence.",
+  "remaining": [
+    "Lossless source/build/lock/features/actual-executable-hash and typed factory/session/catalog bootstrap, hashed and committed before factory/execution",
+    "Private persistent owner, retained same-operation admission retries and post-barrier commit/release with generation-safe revocation",
+    "Bound external sink intent/completion and one committed-release consumer projection",
+    "Actual-engine replay, daemon/live/control/supervisor migration, unchanged registered failed-ingress comparison",
+    "Native semantics/continuity, strict dataset admission, rsibot context/features, calendar and hardware gates"
+  ],
+  "public_check": {
+    "result": "pass; staged source/evidence checked with gitleaks8.30.1, finalized receipt rechecked before commit",
+    "command": [
+      "bash",
+      "scripts/check-oss-readiness.sh"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.965,
+    "log_sha256": "7ade7e4b6cc70cbf6bcf1fadc9e07bee04e87d861dbc67eb6d75f71b437a1ad0"
+  }
+}

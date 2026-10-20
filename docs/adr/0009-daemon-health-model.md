@@ -19,6 +19,13 @@ Readiness knobs: `require_running`, `require_required_venues`, `min_live_session
 `require_recording_healthy`. Impossible combinations (e.g. require recording
 healthy with raw recording off) fail config validation.
 
+The legacy `min_live_sessions` name counts configured public venue groups.
+Each venue is live only when every session in its plan is live, including both
+public and business WebSockets. A threshold above the configured venue count is
+rejected. For three venues split over six sockets, use3; each of those3 still
+requires both sockets. This does not measure trade continuity or quiet-channel
+completeness.
+
 ## Why
 
 - Spec requires separate liveness vs readiness for orchestration.

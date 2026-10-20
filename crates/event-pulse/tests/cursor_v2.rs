@@ -203,6 +203,7 @@ fn book_snapshot(
         last: last_update_id,
     });
     envelope.payload = MarketEvent::BookSnapshot(BookSnapshot {
+        provenance: None,
         bids: vec![BookLevel {
             price: Price(Fixed::new(100, 0)),
             quantity: Quantity(Fixed::new(1, 0)),
@@ -255,6 +256,7 @@ fn book_delta(
     .unwrap();
     input["envelope"]["source_sequence"]["first"] = json!(first_update_id);
     input["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        provenance: None,
         changes: vec![BookChange {
             side: BookSide::Bid,
             operation: BookOperation::Upsert,

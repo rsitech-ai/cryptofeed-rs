@@ -1,0 +1,99 @@
+{
+  "schema": "hlscreen.corrected_artifact_and_shared_source_qualification.v1",
+  "source_commit": "d372488770dc54c6b390ed5de43be75ee608199d",
+  "actual_merge": "94f4d22ff4b8f2b6f8d0e59d94814fdbc2f6a57d",
+  "source_and_merge_full_tree": "a314c784f294e987e04de23737b44b6f993fd379",
+  "main_ci": {
+    "run_url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39376621602",
+    "conclusion": "success",
+    "scheduled_public_api_smoke": "skipped",
+    "rust_job": {
+      "passed": 567,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 82
+    },
+    "python_case_counts": [
+      "8",
+      "4"
+    ],
+    "raw_rust_job_log_sha256": "1cee0fb0081af3ad582b27473eff7caa69918995513a94a6aaf6fb40f7e81134"
+  },
+  "artifact_ci": {
+    "run_url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39376621634",
+    "conclusion": "success",
+    "successful_jobs": 6,
+    "publishing_and_announcement": "skipped; no release publication",
+    "platforms": [
+      {
+        "target": "aarch64-apple-darwin",
+        "job": 118476849988,
+        "build_and_packaged_validation": "success",
+        "decoder_exception_or_thread_traceback": false
+      },
+      {
+        "target": "x86_64-apple-darwin",
+        "job": 118476849998,
+        "build_and_packaged_validation": "success",
+        "decoder_exception_or_thread_traceback": false
+      },
+      {
+        "target": "x86_64-pc-windows-msvc",
+        "job": 118476849936,
+        "build_and_packaged_validation": "success",
+        "decoder_exception_or_thread_traceback": false
+      },
+      {
+        "target": "x86_64-unknown-linux-gnu",
+        "job": 118476850004,
+        "build_and_packaged_validation": "success",
+        "decoder_exception_or_thread_traceback": false
+      }
+    ],
+    "full_log_sha256": "00481e43e2f9a50cf01e112b8a53cab1bffcc37a6a764a4ed79693a0ee933c1e"
+  },
+  "independent_windows": {
+    "receipt_sha256": "8eb1c612c61e3c31a82e1de0b159ea996bcfb464654e0789fd85985aca681bb5",
+    "job_log_sha256": "a4b1dfd40c364a612f7b3351416b43abddde5697213e11dc9596832a741f7784",
+    "pass_marker_line": 1335,
+    "qualification": "Actual corrected Windows runtime validation on exact tested source/merge tree; does not qualify ordinary-user native hardware or sustained operation"
+  },
+  "old_windows": {
+    "source": "05ef784602caaa980b0397c554d91cc2b5099e5b",
+    "run": "39373591907",
+    "qualification": "unqualified: original decoder thread exception followed by false success; original evidence preserved",
+    "raw_log_sha256": "d9fae7a869a1e0c684ff8a9939cdca03f6eb14028c72f8e36197602ff2ce542c"
+  },
+  "shared_source": {
+    "producer_pin": "6565c9428e0c97636f1c5988f4a2c22b4d17f52e",
+    "shared_tracked_files": 52,
+    "static_root_bindings": 6,
+    "conservative_dependency_closure_records": 71,
+    "dependency_closure_sha256": "a069a4604cd4cbdef8aa2f7f25f28924690468b417cc8966e7a432212a3999c5",
+    "all_registry_records263_identical": true,
+    "whole_producer_lock_identical": false,
+    "added_dependency_edges_vs_d1ab485": {
+      "marketfeed-daemon": [
+        "sha2",
+        "tempfile"
+      ],
+      "marketfeed-engine": [
+        "sha2"
+      ]
+    },
+    "hls_lock_sha256": "c1744e8c8fefc0176bf6992929d9bd4d466b5da458ab16e0ed54e5db7f83b127",
+    "hls_registry_records419_unchanged": true,
+    "scope": "Static shared source/effective graph and retained prior binary/replay evidence, not whole producer/build/artifact equivalence"
+  },
+  "preservation": {
+    "historical_files": 25,
+    "all_bytes_equal_committed_source": true,
+    "prior23_and_original2_archives_metadata_unchanged": true,
+    "new2_metadata_scope": "Current metadata and committed d372488 content only; no earlier metadata invented"
+  },
+  "does_not_establish": [
+    "new producer bootstrap source qualification",
+    "operation commit/release, projection, actual-engine replay/live migration or registered ingress repair",
+    "native continuity/strict datasets/rsibot/calendar/hardware/economics/operational promotion"
+  ]
+}

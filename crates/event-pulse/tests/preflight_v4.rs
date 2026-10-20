@@ -124,6 +124,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                     last: 100,
                 }),
                 MarketEvent::Trade(Trade {
+                    provenance: None,
                     price: price(100),
                     quantity: quantity(2),
                     aggressor: AggressorSide::Buy,
@@ -153,6 +154,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                 source_ms + 1,
                 None,
                 MarketEvent::Quote(Quote {
+                    provenance: None,
                     bid_price: price(99),
                     bid_quantity: Some(quantity(1)),
                     ask_price: price(101),
@@ -186,6 +188,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                     last: 200,
                 }),
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: vec![BookLevel {
                         price: price(99),
                         quantity: quantity(3),
@@ -246,6 +249,7 @@ fn complete_inputs(admission: &ProspectiveCaptureAdmissionV2) -> Vec<MechanicsIn
                 source_ms + 4,
                 None,
                 MarketEvent::Liquidation(Liquidation {
+                    provenance: None,
                     price: price(98),
                     quantity: quantity(1),
                     side: AggressorSide::Sell,
@@ -381,6 +385,7 @@ fn book_delta_from(
     value["envelope"]["source_sequence"]["first"] = json!(first_update_id);
     value["envelope"]["source_sequence"]["last"] = json!(final_update_id);
     value["envelope"]["payload"] = serde_json::to_value(MarketEvent::BookDelta(BookDelta {
+        provenance: None,
         changes: vec![BookChange {
             side: BookSide::Bid,
             operation: BookOperation::Upsert,

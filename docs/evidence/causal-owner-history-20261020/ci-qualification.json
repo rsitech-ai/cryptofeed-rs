@@ -1,0 +1,625 @@
+{
+  "schema_version": 1,
+  "source": "7f383b2dba580740e5c60c3dcb572e236e89f588",
+  "actual_tested_merge": "4feb621d5194a518d4bcbcf96c488222beb650ed",
+  "source_tree": "a0d6638637c6940ec84b899e6dee54fb54f12b4b",
+  "merge_tree": "a0d6638637c6940ec84b899e6dee54fb54f12b4b",
+  "whole_tree_identical": true,
+  "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947",
+  "status": "completed",
+  "conclusion": "success",
+  "jobs": [
+    {
+      "name": "docs",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533490611"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533490792"
+    },
+    {
+      "name": "cargo-deny",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533490796"
+    },
+    {
+      "name": "clippy",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533490810"
+    },
+    {
+      "name": "Windows directory durability",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533490846"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533490858"
+    },
+    {
+      "name": "C header and ABI exports",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533490900"
+    },
+    {
+      "name": "test (macos-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491017"
+    },
+    {
+      "name": "test (ubuntu-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491024"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491148"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491149"
+    },
+    {
+      "name": "test (ubuntu-24.04-arm)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491169"
+    },
+    {
+      "name": "sbom",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491174"
+    },
+    {
+      "name": "test (windows-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491235"
+    },
+    {
+      "name": "msrv (1.85)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491285"
+    },
+    {
+      "name": "rustfmt",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491315"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491360"
+    }
+  ],
+  "all17_actual_checkout_logs": {
+    "docs": {
+      "archive_member": "docs/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "27ce1d2a72e13f6b46fcec380584e0bc90039ba33a90b8992af1b1eb9b33dfcd",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-binance)": {
+      "archive_member": "simd-json (marketfeed-adapter-binance)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "bf7638a9ca26c61736bc13ad1fd9f23ce4d4153a1fc4f36c48cdf2da46dfffd1",
+      "exact_merge_sha_found": true
+    },
+    "cargo-deny": {
+      "archive_member": "cargo-deny/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "b42b8485a6b409be347a443c5ffec0f52f519e8696cad057eaf2ff60a1ea08ed",
+      "exact_merge_sha_found": true
+    },
+    "clippy": {
+      "archive_member": "clippy/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "e601219811b6915da715e3ba9050d9ea6a6cb5173a2cdef29f6ed5b507dcf179",
+      "exact_merge_sha_found": true
+    },
+    "Windows directory durability": {
+      "archive_member": "Windows directory durability/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "a967c5b622e8e8af78d16f6fa1937b46ca9f508233c694bac607de91c2c42b31",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-okx)": {
+      "archive_member": "simd-json (marketfeed-adapter-okx)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "3587c703e6706c0a0cd737f26e759b53ace31d3f081fb837a7006f72b3fc7571",
+      "exact_merge_sha_found": true
+    },
+    "C header and ABI exports": {
+      "archive_member": "C header and ABI exports/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "73aaf32423afe92c19d6395676f7444ca725ba5fcb73e1eece681f7547f356a2",
+      "exact_merge_sha_found": true
+    },
+    "test (macos-latest)": {
+      "archive_member": "test (macos-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "a7bd7883f387f0f798b8455c2831df672d0f6ab30e9fcd9283641a644c511c34",
+      "exact_merge_sha_found": true
+    },
+    "test (ubuntu-latest)": {
+      "archive_member": "test (ubuntu-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "bc764fc9ba52bd7cd78376e35cb149e21d42b80f1944bce44e986c0915d8b4f2",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-bybit)": {
+      "archive_member": "simd-json (marketfeed-adapter-bybit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "13d830425cef0300ad298dce33339fab3ef7bfa8dc392591a5fd32acaacaa85d",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-deribit)": {
+      "archive_member": "simd-json (marketfeed-adapter-deribit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "baa1ab2e3d16d7ef381d311b2d042171425885891139ad06495383b573c8ea1c",
+      "exact_merge_sha_found": true
+    },
+    "test (ubuntu-24.04-arm)": {
+      "archive_member": "test (ubuntu-24.04-arm)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "3961c16a7303d9db817a1568bc47f7ca2619a87e97ee93ff15bab76519edcea1",
+      "exact_merge_sha_found": true
+    },
+    "sbom": {
+      "archive_member": "sbom/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "faca5aeec30c7884baaee80827b90dea8649c39974be4d751afb3d6369415c3d",
+      "exact_merge_sha_found": true
+    },
+    "test (windows-latest)": {
+      "archive_member": "test (windows-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "135ec0fc2d98246707801fa714a7deb2c4840a08ea41b0c6c1612a934ada16a5",
+      "exact_merge_sha_found": true
+    },
+    "msrv (1.85)": {
+      "archive_member": "msrv (1.85)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "522b2364e2d392bb2eb2facca06079593dfe0b551d4b0c7ec10a4f620aeea0bb",
+      "exact_merge_sha_found": true
+    },
+    "rustfmt": {
+      "archive_member": "rustfmt/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "a62f52dfa8cf10b495317f6def021b5a0757531bc76b3930c49b7f2c2dfbc7cf",
+      "exact_merge_sha_found": true
+    },
+    "simd-json (marketfeed-adapter-kraken)": {
+      "archive_member": "simd-json (marketfeed-adapter-kraken)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "sha256": "d75e1fcb3615e77aba42122da8cfda269c496c7d2147c1612041be9cddbdc425",
+      "exact_merge_sha_found": true
+    }
+  },
+  "platforms": {
+    "test (macos-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491017",
+      "conclusion": "success",
+      "archive_member": "test (macos-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "43fa79e4f0bb26da9c7c5a65049ba3514cd5f1b1f956e7fd83cf4d695657b1a1",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1460,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (ubuntu-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491024",
+      "conclusion": "success",
+      "archive_member": "test (ubuntu-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "f0d73f56a2d1c1966f8458ea355c96f14ed1d1f65224238e63ea050f348a7f17",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1461,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (ubuntu-24.04-arm)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491169",
+      "conclusion": "success",
+      "archive_member": "test (ubuntu-24.04-arm)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "b4a4015a257afd4b40c48072d154f0ce11acda0910eb26172a088336360e8884",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1461,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    },
+    "test (windows-latest)": {
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39394422947/job/118533491235",
+      "conclusion": "success",
+      "archive_member": "test (windows-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "sha256": "721cb94ce48ec1c392ce2d5a5777883c6803581426c550939f294d10492b52c1",
+      "suite_count": 157,
+      "counts": {
+        "passed": 1458,
+        "failed": 0,
+        "ignored": 56
+      },
+      "complete_workspace": true
+    }
+  },
+  "msrv": {
+    "rust1_85_core": {
+      "archive_member": "msrv (1.85)/4_Run cargo +1.85 test --locked --workspace --exclude marketfeed-datasets --lib.txt",
+      "sha256": "bf0a09bb236a42154ee8a443707793bebeb1b07c0c3d9d38f464066b293560ae",
+      "bytes": 98178,
+      "suite_count": 30,
+      "counts": {
+        "passed": 545,
+        "failed": 0,
+        "ignored": 0
+      },
+      "suites": [
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 24,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 12,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 6,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 13,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 24,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 16,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 26,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 21,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 9,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 104,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 77,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 5,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 17,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 91,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 32,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    "explicit_bootstrap_owner": {
+      "archive_member": "msrv (1.85)/5_Opt-in causal owner on Rust 1.85.txt",
+      "sha256": "b71cbd243d7088ffc99bc9fa02325ef0ada7638d898bffaec75c299c22e9ddd6",
+      "bytes": 9214,
+      "suite_count": 3,
+      "counts": {
+        "passed": 46,
+        "failed": 0,
+        "ignored": 0
+      },
+      "suites": [
+        {
+          "status": "ok",
+          "passed": 34,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 8,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    },
+    "explicit_scopes": [
+      "34 bootstrap/owner unit tests",
+      "4 public bootstrap integration tests",
+      "8 public owner integration tests"
+    ],
+    "datasets_rust1_88": {
+      "archive_member": "msrv (1.85)/6_Offline dataset tool MSRV (Parquet 60).txt",
+      "sha256": "bbc37e42a31f613dd1cd8559d93d4327bc4bed879d1663d8d8072a1c65d12635",
+      "bytes": 18973,
+      "suite_count": 6,
+      "counts": {
+        "passed": 20,
+        "failed": 0,
+        "ignored": 0
+      },
+      "suites": [
+        {
+          "status": "ok",
+          "passed": 14,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 2,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 3,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        {
+          "status": "ok",
+          "passed": 0,
+          "failed": 0,
+          "ignored": 0
+        }
+      ]
+    }
+  },
+  "arm_bootstrap": {
+    "receipt_before_factory_test": "causal_bootstrap::tests::actual_bootstrap_receipt_precedes_factory_and_initialized_owner",
+    "pass_witness_lines": [
+      "2026-10-20T08:41:23.1290248Z test causal_bootstrap::tests::actual_bootstrap_receipt_precedes_factory_and_initialized_owner ... ok"
+    ],
+    "daemon_unit_counts": {
+      "passed": 170,
+      "failed": 0,
+      "ignored": 0
+    },
+    "phase_elapsed_diagnostics_in_raw_log": [],
+    "phase_timings_observable": false,
+    "timing_limit": "Passing libtest captured stderr is not shown. No measured receipt/factory phase timing or10-second performance claim. The post-close120s test watchdog passed for this sampled run.",
+    "published_test_source_sha256": "ee504f440675abf936db44a392893299d77552f16e928b6aba0c7b612b432a6c",
+    "pre_ack_assertions": "20ms noncompletion, committed_operations0 and no readable record before close remain checked.",
+    "watchdog_scope": "120-second post-close test completion watchdog only, not runtime/admission deadline or10-second performance qualification."
+  },
+  "windows_durability": {
+    "counts": {
+      "passed": 126,
+      "failed": 0,
+      "ignored": 0
+    },
+    "rust1_85_filesystem_recording": {
+      "passed": 107,
+      "failed": 0,
+      "ignored": 0
+    },
+    "rust1_88_datasets": {
+      "passed": 19,
+      "failed": 0,
+      "ignored": 0
+    },
+    "native_probe_archive_member": "Windows directory durability/3_Probe directory handles and exact write-access flush.txt",
+    "native_probe_sha256": "fb5ddec8928e6d2f89ddbb8d42c42bddd82e8381075706522adf75848fd3d056",
+    "scope": "Hosted Windows runner only; no ordinary-user machine/hardware or deployment qualification."
+  },
+  "parquet_cross_reader": {
+    "archive_member": "msrv (1.85)/7_Independent exact Parquet cross-reader.txt",
+    "sha256": "0fbc44c0e2151357e7dc8f469d3f68b15ddf7333e6aa539c56a9298b52f6ce9c",
+    "checks_passed": true,
+    "rows": 20,
+    "directions": [
+      "Rust-to-PyArrow",
+      "PyArrow-to-Rust"
+    ],
+    "scope": "Fixture cross-reader; not dataset/native/source completeness."
+  },
+  "raw_evidence": [
+    {
+      "name": "owner-history-producer-ci-independent-02-logs.zip",
+      "sha256": "db65472a6ab3f2a627bc068d06742ef92c2dd14d6d8bf7e33213a3de75629044",
+      "bytes": 827163
+    },
+    {
+      "name": "owner-history-producer-ci-independent-02.log",
+      "sha256": "3f4f0405752a3565a83c037b2fc0d619d6376df44a9295bb7befe2cbebe91483",
+      "bytes": 3508879
+    },
+    {
+      "name": "owner-history-producer-ci-independent-02-run.json",
+      "sha256": "5b6589ead4ef72b6bd9b05426e54a958feb9fa75ce6e499cd8443d27ba5bd6cc",
+      "bytes": 25546
+    },
+    {
+      "name": "owner-history-producer-ci-independent-02-msrv.log",
+      "sha256": "d9ec38d99a9961d98f54b4ad5f0c0275a8d3a36716e40886a7ce8703236c4430",
+      "bytes": 141746
+    },
+    {
+      "name": "owner-history-producer-ci-independent-02-windows-durability.log",
+      "sha256": "21479a328da9c82eb693893524bb18667b426fa19187f2cd82145e5591b679d8",
+      "bytes": 65663
+    },
+    {
+      "name": "owner-history-producer-ci-independent-02-ubuntu.log",
+      "sha256": "3ef4096793b903a414bdb7103c01f6dc3954066ef1db875b407a402dd1a650cd",
+      "bytes": 272538
+    }
+  ],
+  "independent_receipt_sha256": "bda01d1cabaf46c0ef04f10a5bc9ad4376452dd01f0899ba44a869ed635bbd3a",
+  "historical_qualification_preserved": [
+    {
+      "file": {
+        "path": "owner-bootstrap-ci-independent-01.json",
+        "sha256": "25c08d32c310afa3ec1e4343671250cf65fa2f25d4b1b49c05313b761732864d",
+        "bytes": 276460
+      },
+      "scope": "Older2b failed run39380784187; ARM10s watchdog timeout unchanged."
+    },
+    {
+      "file": {
+        "path": "owner-history-producer-ci-independent-01.json",
+        "sha256": "080538581865bc21bcc93fcb65d95b5d4c268aa1f30a80a6137556b7f50c8af8",
+        "bytes": 162790
+      },
+      "scope": "Parent8ba success run39387440673 stays independently scoped; not reused to qualify7f."
+    }
+  ],
+  "limits": [
+    "No loaded-image, signed attestation, reproducible build, full transitive build-input closure or consumer artifact equivalence claim.",
+    "Hosted all17 CI success is source-scoped test evidence; no operational/live/replay/release/ingress/economic qualification.",
+    "Bootstrap phase elapsed diagnostics are only observable if present in raw log; passing status does not expose hidden captured stderr.",
+    "Earlier8ba success and2b failure remain unchanged at their original sources."
+  ],
+  "scope": "Published7f Git objects and retained source06 map only; later source/worktree changes excluded. No new local execution or workflow rerun."
+}

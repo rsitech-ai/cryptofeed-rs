@@ -33,6 +33,12 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
 - Reconnect supervision with graceful cancellation and bounded shutdown.
 - Raw MFR1 recording, deterministic adapter-level replay, normalized JSONL, and
   binary protobuf-compatible output.
+- Opt-in `causal-journal` library APIs for current-artifact Bybit/Hyperliquid
+  disk/null execution histories: exact native-operation replay with one owner
+  or bounded interleaved spot/perpetual owners and a physical resume cursor.
+  See the [single-owner](docs/plan/causal_actual_engine_replay.md) and
+  [multi-owner](docs/plan/causal_multi_owner_replay.md) contracts for qualification
+  status and limits.
 - Optional file and UDP sinks plus experimental minimal Kafka and NATS TCP
   sinks; see
   [`crates/sinks/README.md`](crates/sinks/README.md) for the current limits.
@@ -53,6 +59,13 @@ records current trade semantics, raw lineage, durability and OKX reader blockers
 Its [specification](docs/spec/trade_data_integrity_and_backtest_storage.md) and
 [implementation plan](docs/plan/trade_data_integrity_implementation_plan.md) define
 the remaining work before research dataset qualification.
+
+The [active integration scope](docs/plan/active_goal_scope.json) keeps acquisition,
+durable storage and replay here, strategy context/features/models in rsibot, and
+presentation in hlscreen. The
+[committed native projection](docs/plan/causal_native_observation_projection.md),
+live/control migration and registered failed-ingress repair remain unfinished.
+The replay APIs do not provide native checkpoints or production restart authority.
 
 ## Install
 
@@ -136,6 +149,7 @@ place orders.
 | `crates/adapter-api`, `adapters/*` | Network-free adapter contracts and venue protocols |
 | `crates/transport`, `engine` | Rustls transport, supervision, reconnects, lifecycle |
 | `crates/recording`, `replay` | Versioned capture and deterministic replay |
+| `crates/filesystem` | Checked directory barriers; Windows local fixed NTFS support and permission limits |
 | `crates/sinks` | Memory, logging, file, UDP, Kafka, and NATS delivery |
 | `crates/daemon` | CLI, configuration, health, metrics, and orchestration |
 | `crates/facade`, `ffi` | Embedding surface and minimal C ABI |

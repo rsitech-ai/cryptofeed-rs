@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "files": [
+    {
+      "path": "crates/adapters/bybit/tests/corpus/inverse_l2_book.mfr",
+      "bytes": 849,
+      "sha256": "d6d519e9ed5d19c9108da2393fd9b0acb42fe682044ce023952a5728779e3351",
+      "disposition": "frozen uncorrelated fixture; strict admission quarantine"
+    },
+    {
+      "path": "crates/adapters/bybit/tests/corpus/inverse_l2_book_correlated_v1.mfr",
+      "bytes": 1140,
+      "sha256": "a3a71b65d692f2c0c06f3e18460d8ecfcad8338f318766b4df85f980afef9efb",
+      "disposition": "correlated synthetic positive fixture"
+    },
+    {
+      "path": "crates/adapters/bybit/tests/corpus/linear_l2_book.mfr",
+      "bytes": 860,
+      "sha256": "a069e5755a5ddcbc621898933c132cdb13fa66c768ca506a28cf5d36e7bd8bb0",
+      "disposition": "frozen uncorrelated fixture; strict admission quarantine"
+    },
+    {
+      "path": "crates/adapters/bybit/tests/corpus/linear_l2_book_correlated_v1.mfr",
+      "bytes": 1153,
+      "sha256": "205dc8c268d9fb72a871d544811e99a7c910a4a7e7819c104d4441ad69455341",
+      "disposition": "correlated synthetic positive fixture"
+    },
+    {
+      "path": "crates/adapters/bybit/tests/corpus/linear_trade_quote.mfr",
+      "bytes": 652,
+      "sha256": "d35c1831b3f080aa668e5450901cac67df0351d1842449ef4cd8517412f88f8b",
+      "disposition": "frozen uncorrelated fixture; strict admission quarantine"
+    },
+    {
+      "path": "crates/adapters/bybit/tests/corpus/linear_trade_quote_correlated_v1.mfr",
+      "bytes": 756,
+      "sha256": "05631ba734045b5b27e9f7ec465099f0162b0fd37873cd349ec37deb7018b032",
+      "disposition": "correlated synthetic positive fixture"
+    }
+  ]
+}

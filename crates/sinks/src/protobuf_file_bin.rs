@@ -172,6 +172,7 @@ mod tests {
             source_sequence: None,
             flags: EventFlags(0),
             payload: MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::new(100_00, 2)),
                 quantity: Quantity(Fixed::new(1_5, 1)),
                 aggressor: AggressorSide::Buy,

@@ -388,6 +388,7 @@ pub struct ViewOpenInterest {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ViewLiquidation {
+    pub provenance: Option<Box<marketfeed_model::LiquidationProvenance>>,
     pub price: String,
     pub quantity: String,
     pub side: String,
@@ -525,6 +526,7 @@ struct TimedOpenInterest {
 
 #[derive(Debug, Clone)]
 struct TimedLiquidation {
+    provenance: Option<Box<marketfeed_model::LiquidationProvenance>>,
     price: Price,
     quantity: Quantity,
     side: AggressorSide,
@@ -928,6 +930,7 @@ impl LiveBook {
             None => self.book.snapshot_levels()?,
         };
         Some(BookSnapshot {
+            provenance: None,
             bids,
             asks,
             depth,
@@ -1514,6 +1517,7 @@ impl ViewPlane {
                 .rev()
                 .take(100)
                 .map(|value| ViewLiquidation {
+                    provenance: value.provenance.clone(),
                     price: format_fixed(value.price.0),
                     quantity: format_fixed(value.quantity.0),
                     side: aggressor_str(value.side).into(),
@@ -1981,6 +1985,7 @@ impl ViewPlane {
                         projection.liquidations.pop_front();
                     }
                     projection.liquidations.push_back(TimedLiquidation {
+                        provenance: value.provenance.clone(),
                         price: value.price,
                         quantity: value.quantity,
                         side: value.side,
@@ -2775,6 +2780,7 @@ mod tests {
                 source_sequence: None,
                 flags: EventFlags::default(),
                 payload: MarketEvent::Trade(Trade {
+                    provenance: None,
                     price: Price(Fixed::parse_str(price).unwrap()),
                     quantity: Quantity(Fixed::parse_str(qty).unwrap()),
                     aggressor: AggressorSide::Buy,
@@ -2956,6 +2962,7 @@ mod tests {
                 source_sequence: None,
                 flags: EventFlags::default(),
                 payload: MarketEvent::Quote(Quote {
+                    provenance: None,
                     bid_price: Price(Fixed::parse_str(bid).unwrap()),
                     bid_quantity: Some(Quantity(Fixed::parse_str("1").unwrap())),
                     ask_price: Price(Fixed::parse_str(ask).unwrap()),
@@ -3023,6 +3030,7 @@ mod tests {
             InstrumentId(1),
             now + 2,
             MarketEvent::Liquidation(Liquidation {
+                provenance: None,
                 price: Price(Fixed::parse_str("100.00").unwrap()),
                 quantity: Quantity(Fixed::parse_str("0.250").unwrap()),
                 side: AggressorSide::Sell,
@@ -3038,6 +3046,35 @@ mod tests {
         assert_eq!(oi.change.as_deref(), Some("2.500"));
         assert_eq!(snapshot.liquidations.len(), 1);
         assert_eq!(snapshot.liquidations[0].side, "sell");
+        let provenance = marketfeed_model::LiquidationProvenance {
+            source_channel: "allLiquidation.BTCUSDT".into(),
+            price_basis: marketfeed_model::LiquidationPriceBasis::Bankruptcy,
+            quantity_unit: marketfeed_model::LiquidationQuantityUnit::Unverified,
+            position_side: Some(marketfeed_model::LiquidatedPositionSide::Long),
+            native_attributes: [("S".into(), "Buy".into()), ("T".into(), "0".into())].into(),
+        };
+        sink.push_batch(market_event_batch(
+            VenueId(7),
+            InstrumentId(1),
+            now + 3,
+            MarketEvent::Liquidation(Liquidation {
+                provenance: Some(Box::new(provenance.clone())),
+                price: Price(Fixed::parse_str("99.0001").unwrap()),
+                quantity: Quantity(Fixed::parse_str("0.000001").unwrap()),
+                side: AggressorSide::Unknown,
+            }),
+        ))
+        .unwrap();
+        let projection = plane.derivatives_snapshot("perp", InstrumentId(1));
+        assert_eq!(
+            projection.liquidations[0].provenance.as_deref(),
+            Some(&provenance)
+        );
+        assert_eq!(projection.liquidations[0].side, "unknown");
+        let json = serde_json::to_value(&projection.liquidations[0]).unwrap();
+        assert_eq!(json["provenance"]["price_basis"], "Bankruptcy");
+        assert_eq!(json["provenance"]["native_attributes"]["S"], "Buy");
+        assert!(json.get("notional").is_none());
     }
 
     #[test]
@@ -3057,6 +3094,7 @@ mod tests {
             InstrumentId(1),
             now.saturating_sub(200_000_000),
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![marketfeed_model::BookLevel {
                     price: Price(Fixed::parse_str("100.00").unwrap()),
                     quantity: Quantity(Fixed::parse_str("2.000").unwrap()),
@@ -3075,6 +3113,7 @@ mod tests {
             InstrumentId(1),
             now,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: vec![marketfeed_model::BookChange {
                     side: marketfeed_model::BookSide::Bid,
                     price: Price(Fixed::parse_str("100.00").unwrap()),
@@ -3090,6 +3129,7 @@ mod tests {
             InstrumentId(1),
             now,
             MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::parse_str("100.00").unwrap()),
                 quantity: Quantity(Fixed::parse_str("0.250").unwrap()),
                 aggressor: AggressorSide::Buy,
@@ -3115,6 +3155,7 @@ mod tests {
 
     fn book_batch(venue: VenueId, instrument: InstrumentId, bid: &str, ask: &str) -> EventBatch {
         let snap = BookSnapshot {
+            provenance: None,
             bids: vec![BookLevel {
                 price: Price(Fixed::parse_str(bid).unwrap()),
                 quantity: Quantity(Fixed::parse_str("1.5").unwrap()),
@@ -3221,6 +3262,7 @@ mod tests {
     fn depth_ring_reuses_evicted_level_buffers() {
         let plane = ViewPlane::new(ViewPlaneConfig::default());
         let snapshot = BookSnapshot {
+            provenance: None,
             bids: vec![BookLevel {
                 price: Price(Fixed::parse_str("100.00").unwrap()),
                 quantity: Quantity(Fixed::parse_str("1.000").unwrap()),
@@ -3273,6 +3315,7 @@ mod tests {
     fn depth_ring_preallocates_its_bounded_buffers_on_first_sample() {
         let plane = ViewPlane::new(ViewPlaneConfig::default());
         let snapshot = BookSnapshot {
+            provenance: None,
             bids: vec![BookLevel {
                 price: Price(Fixed::parse_str("100.00").unwrap()),
                 quantity: Quantity(Fixed::parse_str("1.000").unwrap()),

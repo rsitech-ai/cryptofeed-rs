@@ -320,6 +320,8 @@ pub struct ReadinessConfig {
     pub require_running: bool,
     #[serde(default = "default_true")]
     pub require_required_venues: bool,
+    /// Legacy name: counts configured venue groups; each group is live only
+    /// when every planned child transport session is live.
     #[serde(default)]
     pub min_live_sessions: u32,
     #[serde(default)]
@@ -1291,6 +1293,16 @@ impl DaemonConfig {
                 let canonical = canonical_channel_name(channel).ok_or_else(|| {
                     ConfigError::Validation(format!("venue {}: unknown channel {channel:?}", v.id))
                 })?;
+                if canonical == "trades_all"
+                    && !matches!(
+                        kind,
+                        VenueKind::OkxSpot | VenueKind::OkxSwap | VenueKind::OkxFutures
+                    )
+                {
+                    return Err(ConfigError::Validation(
+                        "trades_all currently requires an OKX spot/swap/futures venue".into(),
+                    ));
+                }
                 if !canonical_channels.insert(canonical) {
                     return Err(ConfigError::Validation(format!(
                         "venue {}: duplicate channel {:?} (canonical {:?})",
@@ -1308,9 +1320,9 @@ impl DaemonConfig {
                 "shared_max_bytes requires shared_directory".into(),
             ));
         }
-        if self.readiness.min_live_sessions > 0 && self.venues.is_empty() {
+        if self.readiness.min_live_sessions as usize > self.venues.len() {
             return Err(ConfigError::Validation(
-                "impossible readiness: min_live_sessions > 0 but no venues".into(),
+                "impossible readiness: min_live_sessions exceeds configured venue groups (each group requires all child sessions)".into(),
             ));
         }
         if self.readiness.require_recording_healthy && !self.recording.raw.enabled {
@@ -1364,6 +1376,7 @@ impl DaemonConfig {
 fn canonical_channel_name(name: &str) -> Option<&'static str> {
     match name.to_ascii_lowercase().as_str() {
         "trades" => Some("trades"),
+        "trades_all" | "trades-all" => Some("trades_all"),
         "quote" | "ticker" => Some("quote"),
         "l2" | "l2_book" | "book" => Some("l2"),
         "funding" => Some("funding"),
@@ -2111,6 +2124,37 @@ mod tests {
     }
 
     #[test]
+    fn all_trades_alias_is_okx_only_and_duplicates_are_rejected() {
+        for alias in ["trades_all", "trades-all"] {
+            for (id, adapter, valid) in [
+                ("okx-spot", "okx", true),
+                ("binance-spot", "binance", false),
+                ("hyperliquid-spot", "hyperliquid", false),
+            ] {
+                let source = format!(
+                    r#"[telemetry]
+                    bind = "127.0.0.1:0"
+                    [[venues]]
+                    id = "{id}"
+                    adapter = "{adapter}"
+                    symbols = ["BTC-USDT"]
+                    channels = ["{alias}"]"#
+                );
+                let result = DaemonConfig::from_toml_str(&source);
+                assert_eq!(result.is_ok(), valid, "{id} {alias}: {result:?}");
+            }
+        }
+        let source = r#"[telemetry]
+            bind = "127.0.0.1:0"
+            [[venues]]
+            id = "okx-spot"
+            adapter = "okx"
+            symbols = ["BTC-USDT"]
+            channels = ["trades_all", "trades-all"]"#;
+        assert!(DaemonConfig::from_toml_str(source).is_err());
+    }
+
+    #[test]
     fn rejects_unknown_channel() {
         let error = DaemonConfig::from_toml_str(
             r#"
@@ -2248,6 +2292,31 @@ bind = \"0.0.0.0:9108\"
         "#,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn readiness_minimum_counts_venue_groups_not_child_transports() {
+        let source = r#"
+            [readiness]
+            min_live_sessions = 2
+            [[venues]]
+            id = "okx-spot"
+            adapter = "okx"
+            symbols = ["BTC-USDT"]
+            channels = ["trades", "candles"]
+        "#;
+        let error = DaemonConfig::from_toml_str(source).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("exceeds configured venue groups")
+        );
+        assert!(
+            DaemonConfig::from_toml_str(
+                &source.replace("min_live_sessions = 2", "min_live_sessions = 1")
+            )
+            .is_ok()
         );
     }
 

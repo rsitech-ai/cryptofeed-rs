@@ -84,6 +84,8 @@ pub struct LiquidationRow {
     pub quantity: Quantity,
     pub side: AggressorSide,
     pub exchange_ts_ms: i64,
+    /// Exact native fractional milliseconds converted with checked arithmetic.
+    pub exchange_ts_ns: TimestampNs,
 }
 
 /// Public derivatives status row (mark / index / funding / OI).
@@ -140,7 +142,7 @@ pub fn decode_text(
     bytes: &[u8],
     channels: &HashMap<u32, ChanBinding>,
 ) -> Result<Vec<Decoded>, String> {
-    let v: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    let v: Value = marketfeed_adapter_api::exact_value_from_slice(bytes)?;
     if let Some(obj) = v.as_object() {
         return Ok(vec![decode_event(obj)?]);
     }
@@ -324,10 +326,16 @@ fn parse_trade(row: &Value, symbol: &str) -> Result<TradeRow, String> {
     };
     let exchange_ts_ms = a[1]
         .as_i64()
-        .or_else(|| a[1].as_u64().map(|u| u as i64))
+        .or_else(|| a[1].as_u64().and_then(|u| i64::try_from(u).ok()))
         .ok_or_else(|| "trade mts bad".to_string())?;
+    exchange_ts_ms
+        .checked_mul(1_000_000)
+        .ok_or_else(|| "trade mts outside nanosecond range".to_string())?;
     let amount = fixed_from_json(&a[2])?;
     let price = Price(fixed_from_json(&a[3])?);
+    if amount.coefficient == 0 || price.0.coefficient <= 0 {
+        return Err("trade price must be positive and signed amount nonzero".into());
+    }
     let aggressor = match amount.coefficient.cmp(&0) {
         std::cmp::Ordering::Greater => AggressorSide::Buy,
         std::cmp::Ordering::Less => AggressorSide::Sell,
@@ -337,7 +345,7 @@ fn parse_trade(row: &Value, symbol: &str) -> Result<TradeRow, String> {
         symbol: symbol.to_string(),
         trade_id,
         price,
-        quantity: Quantity(abs_fixed(amount)),
+        quantity: Quantity(abs_fixed(amount)?),
         aggressor,
         exchange_ts_ms,
     })
@@ -366,9 +374,9 @@ fn decode_ticker(arr: &[Value], symbol: &str) -> Result<Decoded, String> {
     Ok(Decoded::Ticker(TickerRow {
         symbol: symbol.to_string(),
         bid_price: Price(fixed_from_json(&update[0])?),
-        bid_qty: Quantity(abs_fixed(fixed_from_json(&update[1])?)),
+        bid_qty: Quantity(abs_fixed(fixed_from_json(&update[1])?)?),
         ask_price: Price(fixed_from_json(&update[2])?),
-        ask_qty: Quantity(abs_fixed(fixed_from_json(&update[3])?)),
+        ask_qty: Quantity(abs_fixed(fixed_from_json(&update[3])?)?),
         last,
         volume,
         high,
@@ -386,7 +394,7 @@ fn nonzero_price(v: &Value) -> Result<Option<Price>, String> {
 }
 
 fn nonzero_qty(v: &Value) -> Result<Option<Quantity>, String> {
-    let q = Quantity(abs_fixed(fixed_from_json(v)?));
+    let q = Quantity(abs_fixed(fixed_from_json(v)?)?);
     if q.0.coefficient == 0 {
         Ok(None)
     } else {
@@ -453,7 +461,7 @@ fn parse_candle_row(
     let start_ms = match &a[0] {
         Value::Number(n) => n
             .as_i64()
-            .or_else(|| n.as_u64().map(|u| u as i64))
+            .or_else(|| n.as_u64().and_then(|u| i64::try_from(u).ok()))
             .ok_or_else(|| "candle mts not i64".to_string())?,
         Value::String(s) => s.parse().map_err(|e| format!("candle mts: {e}"))?,
         _ => return Err("candle mts not number/string".into()),
@@ -492,16 +500,24 @@ fn parse_book_entry(row: &Value) -> Result<BookEntry, String> {
 fn fixed_from_json(v: &Value) -> Result<Fixed, String> {
     match v {
         Value::String(s) => Fixed::parse_str(s).map_err(|e| e.to_string()),
-        Value::Number(n) => Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string()),
+        Value::Number(n) if n.is_i64() || n.is_u64() => {
+            Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string())
+        }
+        Value::Number(_) => {
+            Err("financial JSON Value already passed through floating point".into())
+        }
         _ => Err("fixed value not string/number".into()),
     }
 }
 
-fn abs_fixed(f: Fixed) -> Fixed {
-    Fixed {
-        coefficient: f.coefficient.unsigned_abs() as i128,
+fn abs_fixed(f: Fixed) -> Result<Fixed, String> {
+    Ok(Fixed {
+        coefficient: f
+            .coefficient
+            .checked_abs()
+            .ok_or_else(|| "absolute quantity outside signed i128".to_string())?,
         scale: f.scale,
-    }
+    })
 }
 
 pub fn trade_id_source(id: &str) -> SourceId {
@@ -537,7 +553,7 @@ pub fn candle_interval_ns(interval: CandleInterval) -> i64 {
 ///
 /// Unit-test helper only (session uses WS candles). Wire order OPEN, **CLOSE**, HIGH, LOW.
 pub fn decode_candles_rest(bytes: &[u8], interval: CandleInterval) -> Result<Decoded, String> {
-    let v: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    let v: Value = marketfeed_adapter_api::exact_value_from_slice(bytes)?;
     let rows = v
         .as_array()
         .ok_or_else(|| "bitfinex candles not array".to_string())?;
@@ -555,7 +571,7 @@ pub fn decode_candles_rest(bytes: &[u8], interval: CandleInterval) -> Result<Dec
     let start_ms = match &row[0] {
         Value::Number(n) => n
             .as_i64()
-            .or_else(|| n.as_u64().map(|u| u as i64))
+            .or_else(|| n.as_u64().and_then(|u| i64::try_from(u).ok()))
             .ok_or_else(|| "candle mts not i64".to_string())?,
         Value::String(s) => s.parse().map_err(|e| format!("candle mts: {e}"))?,
         _ => return Err("candle mts not number/string".into()),
@@ -574,7 +590,7 @@ pub fn decode_candles_rest(bytes: &[u8], interval: CandleInterval) -> Result<Dec
 }
 
 pub fn decode_status_deriv(bytes: &[u8]) -> Result<Vec<DerivStatusRow>, String> {
-    let v: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
+    let v: Value = marketfeed_adapter_api::exact_value_from_slice(bytes)?;
     let rows = v
         .as_array()
         .ok_or_else(|| "bitfinex status/deriv not array".to_string())?;
@@ -595,7 +611,7 @@ pub fn decode_status_deriv(bytes: &[u8]) -> Result<Vec<DerivStatusRow>, String> 
             Value::Null => None,
             Value::Number(n) => n
                 .as_i64()
-                .or_else(|| n.as_u64().map(|u| u as i64))
+                .or_else(|| n.as_u64().and_then(|u| i64::try_from(u).ok()))
                 .map(ms_to_ts),
             Value::String(s) => s.parse::<i64>().ok().map(ms_to_ts),
             _ => None,
@@ -649,7 +665,7 @@ fn parse_liquidation_row(row: &Value) -> Result<Option<LiquidationRow>, String> 
         let is_match = match &a[8] {
             Value::Number(n) => n
                 .as_i64()
-                .or_else(|| n.as_u64().map(|u| u as i64))
+                .or_else(|| n.as_u64().and_then(|u| i64::try_from(u).ok()))
                 .unwrap_or(0),
             Value::Bool(b) => i64::from(*b),
             _ => 0,
@@ -662,7 +678,7 @@ fn parse_liquidation_row(row: &Value) -> Result<Option<LiquidationRow>, String> 
         .as_str()
         .ok_or_else(|| "liq symbol bad".to_string())?
         .to_string();
-    let exchange_ts_ms = json_ms(&a[2])?;
+    let (exchange_ts_ms, exchange_ts_ns) = json_timestamp_ms(&a[2])?;
     let amount = fixed_from_json(&a[5])?;
     // Long liquidated (amount > 0) → forced sell; short → forced buy (peer of Bybit).
     let side = match amount.coefficient.cmp(&0) {
@@ -682,30 +698,28 @@ fn parse_liquidation_row(row: &Value) -> Result<Option<LiquidationRow>, String> 
     Ok(Some(LiquidationRow {
         symbol,
         price: Price(fixed_from_json(price_v)?),
-        quantity: Quantity(abs_fixed(amount)),
+        quantity: Quantity(abs_fixed(amount)?),
         side,
         exchange_ts_ms,
+        exchange_ts_ns,
     }))
 }
 
-fn json_ms(v: &Value) -> Result<i64, String> {
-    match v {
-        Value::Number(n) => n
-            .as_i64()
-            .or_else(|| n.as_u64().map(|u| u as i64))
-            .or_else(|| n.as_f64().map(|f| f as i64))
-            .ok_or_else(|| "mts not i64".into()),
-        Value::String(s) => {
-            if let Ok(i) = s.parse::<i64>() {
-                Ok(i)
-            } else {
-                s.parse::<f64>()
-                    .map(|f| f as i64)
-                    .map_err(|e| format!("mts: {e}"))
-            }
-        }
-        _ => Err("mts not number/string".into()),
-    }
+fn json_timestamp_ms(v: &Value) -> Result<(i64, TimestampNs), String> {
+    let fixed = fixed_from_json(v)?;
+    let ns = fixed
+        .rescale(6, marketfeed_model::RoundingMode::ExactOnly)
+        .map_err(|e| format!("mts cannot be represented in nanoseconds: {e}"))?;
+    let ms = fixed
+        .rescale(0, marketfeed_model::RoundingMode::TowardZero)
+        .map_err(|e| e.to_string())?;
+    Ok((
+        i64::try_from(ms.coefficient).map_err(|e| e.to_string())?,
+        TimestampNs(
+            i64::try_from(ns.coefficient)
+                .map_err(|e| format!("mts nanoseconds outside i64: {e}"))?,
+        ),
+    ))
 }
 
 #[cfg(test)]
@@ -947,6 +961,7 @@ mod tests {
         assert_eq!(l.quantity.0, Fixed::parse_str("2.62932").unwrap());
         assert_eq!(l.side, AggressorSide::Buy); // short liquidated → buy
         assert_eq!(l.exchange_ts_ms, 1_574_697_680_828);
+        assert_eq!(l.exchange_ts_ns, TimestampNs(1_574_697_680_828_200_200));
 
         // IS_MATCH=0 (trigger) skipped.
         let skip = decode_text(

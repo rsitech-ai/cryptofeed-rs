@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "scope": "Immutable HLS735 pin95 own hosted checks; excludes later producer working tree, live operation, continuity, economics and full-goal qualification.",
+  "source_head": "735784b88b06e6f75a74081fe762cf5c0db131cd",
+  "producer_pin": "95f00f51e076c83577228d95dc6605f3fb72df9c",
+  "source_binding": {
+    "actual_checkout_merge_from_main_and_all4_native_raw_logs": "da805ecc82701790302a144c625ecf5abd624938",
+    "committed_public_validation_sha256": "005923dea6ab6ecbbb5ae7e5e185c22c06a9ff45fe2a0c1f62096d058b03c421",
+    "head_and_tested_merge_whole_trees_equal": true,
+    "scope": "Immutable735/95 Git objects and retained local receipts; no assumption about future producer working tree.",
+    "whole_git_tree": "06be68fbf482860af69e3bfe41ff26cb1eca7557"
+  },
+  "independent_receipt_sha256": "612f59f2cf0669eb0c43fb2b7e27b8664c5c84073730a5539c1366b1ece35f45",
+  "main": {
+    "run": 39426149789,
+    "status": "completed",
+    "conclusion": "success",
+    "rust_executions": 567,
+    "rust_unique": 544,
+    "rust_result_suites": 82,
+    "failed": 0,
+    "ignored": 0,
+    "python_suite_sizes": [
+      8,
+      4
+    ],
+    "scheduled_public_API_smoke": "skipped: pull_request event",
+    "run_url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39426149789"
+  },
+  "native": {
+    "run": 39426149591,
+    "conclusion": "success",
+    "publication": "skipped",
+    "announcement": "skipped",
+    "all4_innerchecksum_build_global_aggregate_match": true,
+    "run_url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39426149591",
+    "archives": [
+      {
+        "GitHub_digest_matches": true,
+        "ZIP_CRC_pass": true,
+        "aggregate_checksums_sha256": "48ce76ce34d91d3ecfca799ef25ccf3e8069c7dfc84d38b369e2f3ebaf5f0522",
+        "all8_SBoM_XML_parse": true,
+        "artifact_id": 12267701680,
+        "artifact_name": "artifacts-build-global",
+        "cyclonedx_XML_files": [
+          "hls-cli.cdx.xml",
+          "hls-core.cdx.xml",
+          "hls-features.cdx.xml",
+          "hls-hyperliquid.cdx.xml",
+          "hls-screen.cdx.xml",
+          "hls-server.cdx.xml",
+          "hls-store.cdx.xml",
+          "hls-tui.cdx.xml"
+        ],
+        "global_manifest_sha256": "342a7bb7cf4936d96765d4c2d81a174ad4aff8e4b42e74cef47cefa29612d31f",
+        "source_archive": {
+          "all_paths_and_bytes_equal_exact_committed_Git_export": true,
+          "bytes": 541656,
+          "exported_files": 313,
+          "file_hash_manifest_sha256": "bd7776c67be09f3dbc10775c27724f23091920a4a15bb58937a39344aedbe4f4",
+          "name": "source.tar.gz",
+          "sha256": "63ca92a2f8423d6305b84308bb253daaf568d80f227d5090091b7c478ed74c00"
+        },
+        "workflow_zip_sha256": "0a67953f7b56187bc14507433c7da6a5cc5968e4fdf91786935a4b6f88515db2"
+      },
+      {
+        "GitHub_digest_matches": true,
+        "ZIP_CRC_pass": true,
+        "artifact_id": 12266999375,
+        "artifact_name": "artifacts-build-local-x86_64-apple-darwin",
+        "build_manifest_sha256": "c2aa0ae5c717e862e403ea4589366c635f5ea00060928c58daee30c290da6520",
+        "inner_checksum_build_global_aggregate_match": true,
+        "native_archive": "hls-cli-x86_64-apple-darwin.tar.xz",
+        "native_archive_bytes": 7214152,
+        "native_archive_sha256": "195e84499ef34b3345d2ca6322cc9cc64d3da4fb040dc0fdee486c2718b0299c",
+        "packaged_docs_equal_committed_source_after_checkout_newline_normalization": true,
+        "target": "x86_64-apple-darwin",
+        "workflow_zip_sha256": "0add1ab75432297a37679c5a3defdaf97587acd3746e6ffb21f3c19512639959"
+      },
+      {
+        "GitHub_digest_matches": true,
+        "ZIP_CRC_pass": true,
+        "artifact_id": 12266886751,
+        "artifact_name": "artifacts-build-local-x86_64-unknown-linux-gnu",
+        "build_manifest_sha256": "f57f4960eb0ed7ee8435cceb8bf3d1be5a47da6d5a59410caa4b066c74347203",
+        "inner_checksum_build_global_aggregate_match": true,
+        "native_archive": "hls-cli-x86_64-unknown-linux-gnu.tar.xz",
+        "native_archive_bytes": 7653796,
+        "native_archive_sha256": "8fa056642699d20d89a525497e02730bbb519d8d2171545905b46e2459112627",
+        "packaged_docs_equal_committed_source_after_checkout_newline_normalization": true,
+        "target": "x86_64-unknown-linux-gnu",
+        "workflow_zip_sha256": "8e04f642c2c4a26c3bf5af5aa67b72047554820b5c28b7b6b49a777ab9f89b75"
+      },
+      {
+        "GitHub_digest_matches": true,
+        "ZIP_CRC_pass": true,
+        "artifact_id": 12266518875,
+        "artifact_name": "artifacts-build-local-aarch64-apple-darwin",
+        "build_manifest_sha256": "1cdb41e42b96d35caf0560cfaf60af2c354b6ab0ae054e236e32e3b2f2d63ed4",
+        "inner_checksum_build_global_aggregate_match": true,
+        "native_archive": "hls-cli-aarch64-apple-darwin.tar.xz",
+        "native_archive_bytes": 6148252,
+        "native_archive_sha256": "374c508644dba85db932309eeb7ce61a086cf4e3fdd31da63849bcb4e43bd2e7",
+        "packaged_docs_equal_committed_source_after_checkout_newline_normalization": true,
+        "target": "aarch64-apple-darwin",
+        "workflow_zip_sha256": "bc6d9ab094ce0c4f5ce198cb9f8fc8dc16fabbbe431d70509a22fcfaa4305412"
+      },
+      {
+        "GitHub_digest_matches": true,
+        "ZIP_CRC_pass": true,
+        "artifact_id": 12266072178,
+        "artifact_name": "artifacts-plan-dist-manifest",
+        "workflow_zip_sha256": "9aa47c119ecc3c6f0d7da1faa6f4b6fe64d661ff61a7dcdafc31a4969800d737"
+      },
+      {
+        "GitHub_digest_matches": true,
+        "ZIP_CRC_pass": true,
+        "artifact_id": 12266044205,
+        "artifact_name": "artifacts-build-local-x86_64-pc-windows-msvc",
+        "build_manifest_sha256": "b6b21b72817bca0e7e0c60d47b9d264b1e1fbf19dd70f31fdbd55f461a728625",
+        "inner_checksum_build_global_aggregate_match": true,
+        "native_archive": "hls-cli-x86_64-pc-windows-msvc.zip",
+        "native_archive_bytes": 9771064,
+        "native_archive_sha256": "36022361da8d45cdd3f0a904079b3629820a331e1af7ed98f8906740848c37e7",
+        "packaged_docs_equal_committed_source_after_checkout_newline_normalization": true,
+        "target": "x86_64-pc-windows-msvc",
+        "workflow_zip_sha256": "6e5544763d60e65d128f87c110504685f483779c38a72cd01561dec75b0fa79c"
+      }
+    ],
+    "targets": [
+      {
+        "actual_checkout_merge": "da805ecc82701790302a144c625ecf5abd624938",
+        "job_and_validation_step": "success",
+        "job_id": 118641062008,
+        "pass_marker_line": 1326,
+        "strict_UTF8_readerthread_failure_markers_absent": true,
+        "target": "x86_64-unknown-linux-gnu",
+        "rawlog_sha256": "8e7e9cf057c5eb04f6aaeddb08c3a77338e6fb6eb2eebf15bd01f26a3baec256"
+      },
+      {
+        "actual_checkout_merge": "da805ecc82701790302a144c625ecf5abd624938",
+        "job_and_validation_step": "success",
+        "job_id": 118641062033,
+        "pass_marker_line": 1335,
+        "strict_UTF8_readerthread_failure_markers_absent": true,
+        "target": "x86_64-pc-windows-msvc",
+        "rawlog_sha256": "c6262d9aaa63b9be8f907087cf6b2e5d4cee5cedaa7339a5e9170adeaa417859"
+      },
+      {
+        "actual_checkout_merge": "da805ecc82701790302a144c625ecf5abd624938",
+        "job_and_validation_step": "success",
+        "job_id": 118641061978,
+        "pass_marker_line": 1834,
+        "strict_UTF8_readerthread_failure_markers_absent": true,
+        "target": "aarch64-apple-darwin",
+        "rawlog_sha256": "ac49c5504f5ab9ecda4f9157c033f75e55782a3bac2208e23d2e497fe32d5c1c"
+      },
+      {
+        "actual_checkout_merge": "da805ecc82701790302a144c625ecf5abd624938",
+        "job_and_validation_step": "success",
+        "job_id": 118641061900,
+        "pass_marker_line": 1834,
+        "strict_UTF8_readerthread_failure_markers_absent": true,
+        "target": "x86_64-apple-darwin",
+        "rawlog_sha256": "6ec690b30eee7454bc36c2040609e324991898a179bb90ce1e8c21e41f6ee744"
+      }
+    ]
+  },
+  "preservation": {
+    "ENOSPC_local_failure": "Retained in source-bound local receipt; never relabeled success.",
+    "historical33_bytes_and_full_recorded_stats_unchanged_and_committed_blobs_equal": true,
+    "new_own2_evidence_files": "Additions in exact313file source export; prior33 files preserved",
+    "old05ef_Windows_falsegreen_log_preserved_and_unqualified": true,
+    "original_pilot2_bytes_and_full_recorded_stats_unchanged": true,
+    "prior_b1_HLS_CI_receipt_unchanged": true
+  },
+  "remaining_limits": [
+    "Skipped scheduled public API smoke, tag publication and announcement are not qualified.",
+    "Native artifact validation includes fixture execution and cargo-audit bin; not exchange continuity, live operational admission, arbitrary-Wasm safety or compiler-exploit regression.",
+    "HLS remains MFSF1 with all3causal headers rejected. Single-owner actual-engine MFCJ3 replay does not provide full-native-feature committed projection, multi-owner/global order, CLI/live migration or failed-workload repair.",
+    "Exact consumer whole-tree and archive checks do not establish whole-producer/transitive build-input equivalence, reproducible builds, loaded-image attestation, strict dataset/economic/full-goal qualification."
+  ]
+}

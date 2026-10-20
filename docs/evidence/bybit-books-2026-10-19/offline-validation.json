@@ -1,0 +1,103 @@
+{
+  "schema": "marketfeed.bybit_book_offline_validation.v1",
+  "recorded_utc": "2026-10-19T22:00:46.371029+00:00",
+  "source_identity": "content-pinned working-tree repair on 083b420; ownership-only commit 5d3333c; validation preceded final repair commit",
+  "source_sha256": {
+    "Cargo.lock": "366ec9d917e5942ecac5d77d075126e86c5107ab9b8312a4178d60d121f68eae",
+    "crates/model/src/events.rs": "af8100ee9277f651840879a46640d88b9e33e96292347d3e93a5c64fdf919ee2",
+    "crates/adapters/bybit/src/messages.rs": "4792da61d658d21e4a1e1ba3c2c7deafd86a85681275e1f208486740e45ea44e",
+    "crates/adapters/bybit/src/session.rs": "f8a8a7693b627d44fc235fd2813801304b4fe44449927affeca4fab0645232b5",
+    "crates/adapters/bybit/src/factory.rs": "1e3d4b616b0132d22038558523626f3faa0703bac34c6faf34127b53735b828e",
+    "crates/adapters/bybit/tests/book_semantics.rs": "df8c6d8785af2e8eb338c99992ddaef3b556d7eb4b1681f7669c2c51ca0559b1",
+    "crates/adapters/bybit/tests/l2_sync.rs": "632a731eb540d4785f88d4fdee4fe103ad7aec1e9f2b946d28ad3cb5f443a6ad",
+    "crates/recording/src/envelope_json.rs": "1ee78063a9c823f2998b173fb3cf907ab110264dc2a0696d2ae1823037bc6986",
+    "crates/sinks/src/protobuf_wire.rs": "8f31dc8c108c778c6c078828e9e9f4ace8685ce7100c89034c60aa2be72764bc",
+    "crates/sinks/examples/native_provenance_fixture.rs": "bba06fe4e96877310d37170552bd5943ec2d395039c310987c1eb62c7c0577b1",
+    "proto/marketfeed/v1/market_event.proto": "7b0c4f13b80eead2dd05744b76e8f2fc1d519ff44af1eba3a69f27a6396a436b",
+    "scripts/audit_bybit_books.py": "03532bb561b64d82cd59881096cd38e7b5cd8c1e0c785bb7d5fb9b22b38db243",
+    "scripts/tests/test_bybit_book_audit.py": "aa5b6b244115c356b7ef74e3be3d319983f6d2f650ee8a29f8995f77f6c7b74a",
+    "scripts/verify_native_provenance_wire.py": "09ee2acdd480b9c94232318991744dda2ee9a7705847fa31f4016453fb455965"
+  },
+  "checks": {
+    "workspace": {
+      "passed": 1219,
+      "failed": 0,
+      "ignored": 56
+    },
+    "bybit_all_features": {
+      "passed": 60,
+      "failed": 0,
+      "ignored": 4
+    },
+    "rust185_default_libraries": {
+      "passed": 102,
+      "failed": 0,
+      "ignored": 0
+    },
+    "python_audits": {
+      "passed": 59
+    },
+    "independent_protobuf_fixtures": {
+      "passed": 7
+    },
+    "clippy": "passed",
+    "rustdoc": "passed",
+    "locked_dependencies": "passed",
+    "staged_source_secret_scan": "passed",
+    "independent_runtime_review": "findings closed",
+    "independent_book_oracle_review": "findings closed"
+  },
+  "commands_and_retained_log_sha256": {
+    "bybit-books-workspace-03.log": {
+      "command": "cargo test --workspace --all-targets --all-features --offline",
+      "sha256": "b1686d9320ad21bda9ac3a738b739f04a9b397e54850fceaa2b029a2e3002f3a"
+    },
+    "bybit-books-focused-08.log": {
+      "command": "cargo test --offline -p marketfeed-adapter-bybit --all-features",
+      "sha256": "dbfbf38e9ef9c6f5679341f703b3bc4eafe907a4c6619c060913f03bc7f77338"
+    },
+    "bybit-books-msrv185-02.log": {
+      "command": "cargo +1.85.0 test --offline -p marketfeed-model -p marketfeed-adapter-bybit -p marketfeed-recording -p marketfeed-sinks --lib",
+      "sha256": "8681f058425f84ed9300cdaba42887e7a396f07669ebacbecfca1c4ae44285c0"
+    },
+    "bybit-books-clippy-03.log": {
+      "command": "cargo clippy --workspace --all-targets --all-features --offline -- -D warnings",
+      "sha256": "d68a601d1d174a29bd920cdf1a183467a13552dc384c06071f4edc07b62f04f9"
+    },
+    "bybit-books-rustdoc-01.log": {
+      "command": "RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --all-features --offline",
+      "sha256": "8dad441474bd20543b365c8ece09967d853b3109a2e0c03bc309dc0bfddfb250"
+    },
+    "bybit-books-oracle-03.log": {
+      "command": "python3 -m unittest discover -s scripts/tests",
+      "sha256": "df9a3c1f4cdd6e34a5e76be8db89f31c5d0645e79c3996a3d39aa3a978d4dd18"
+    },
+    "bybit-books-deny-01.log": {
+      "command": ".tools/bin/cargo-deny --locked --offline check",
+      "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    "bybit-books-oss-secrets-03.log": {
+      "command": "PATH=<repo>/.tools/bin:$PATH bash scripts/check-oss-readiness.sh",
+      "sha256": "f6aab0e047dc2ab7b1f72de935519dcb5c06a93b37df8a29d2d8e881e451d608"
+    },
+    "native-wire-books-verify-01.log": {
+      "command": "generated Google protobuf reader via scripts/verify_native_provenance_wire.py; seven retained fixture pairs",
+      "sha256": "131376c8ab85b0b28b6b26aea1aa2c15a6c894e0bc0dc38f706cf11a8f33f872"
+    }
+  },
+  "new_book_live_probe": "not-run",
+  "source_continuity": "unknown; observed update IDs are not a consecutive delivery contract",
+  "dataset_admitted": false,
+  "goal_complete": false,
+  "remaining": [
+    "Bybit catalog pagination",
+    "liquidation native price/position/units",
+    "exact per-channel ACK readiness",
+    "forward L2 probe",
+    "source continuity and WS units",
+    "general exact datasets/mixed replay",
+    "rsibot live observations/features/owner integration",
+    "hlscreen final dependency migration",
+    "calendar-spaced canaries and multi-day operational gates"
+  ]
+}

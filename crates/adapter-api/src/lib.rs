@@ -5,12 +5,14 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod exact_json;
 mod factory;
 mod session;
 mod subscription;
 mod venue;
 
 pub use error::*;
+pub use exact_json::*;
 pub use factory::*;
 pub use session::*;
 pub use subscription::*;

@@ -40,8 +40,11 @@ pub fn parse_instruments(
                 resp.status
             )));
         }
-        let body: RpcList =
-            serde_json::from_slice(&resp.body).map_err(|e| AdapterError::Catalog(e.to_string()))?;
+        let body: RpcList = serde_json::from_value(
+            marketfeed_adapter_api::exact_value_from_slice(&resp.body)
+                .map_err(AdapterError::Catalog)?,
+        )
+        .map_err(|e| AdapterError::Catalog(e.to_string()))?;
         for info in body.result {
             if info.kind != "future" {
                 continue;
@@ -114,7 +117,9 @@ fn map_active(is_active: bool) -> InstrumentStatus {
 fn fixed_from_json(v: &Value) -> Result<Fixed, String> {
     match v {
         Value::String(s) => Fixed::parse_str(s).map_err(|e| e.to_string()),
-        Value::Number(n) => Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string()),
+        Value::Number(n) if n.is_i64() || n.is_u64() => {
+            Fixed::parse_str(&n.to_string()).map_err(|e| e.to_string())
+        }
         _ => Err("expected number or string".into()),
     }
 }

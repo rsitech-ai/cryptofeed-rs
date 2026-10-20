@@ -1,0 +1,75 @@
+{
+  "schema": "bybit.finite_reqid_protocol_probe.v1",
+  "scope": "two requests per public socket; protocol investigation only, no data qualification",
+  "results": [
+    {
+      "category": "spot",
+      "symbol": "BTCUSDT",
+      "acks": [
+        {
+          "success": true,
+          "ret_msg": "subscribe",
+          "conn_id": "d9avtudnm4lujdv9k710-ikxul",
+          "req_id": "probe-spot-trade",
+          "op": "subscribe"
+        },
+        {
+          "success": true,
+          "ret_msg": "subscribe",
+          "conn_id": "d9avtudnm4lujdv9k710-ikxul",
+          "req_id": "probe-spot-quote",
+          "op": "subscribe"
+        }
+      ],
+      "failure": null,
+      "sha256": "5892773dbbc0960655392fd4cc7c60a83fce4e6926169b51bdfe346cc9a48432",
+      "bytes": 1050
+    },
+    {
+      "category": "linear",
+      "symbol": "BTCUSDT",
+      "acks": [
+        {
+          "success": true,
+          "ret_msg": "",
+          "conn_id": "db29396o6jg9l5np2l4g-4dqdc",
+          "req_id": "probe-linear-trade",
+          "op": "subscribe"
+        },
+        {
+          "success": true,
+          "ret_msg": "",
+          "conn_id": "db29396o6jg9l5np2l4g-4dqdc",
+          "req_id": "probe-linear-quote",
+          "op": "subscribe"
+        }
+      ],
+      "failure": null,
+      "sha256": "e93a3a3040d953c3fbcf44451f19f8f9610331442a7ea268d1a1d374c10626eb",
+      "bytes": 1422
+    },
+    {
+      "category": "inverse",
+      "symbol": "BTCUSD",
+      "acks": [
+        {
+          "success": true,
+          "ret_msg": "",
+          "conn_id": "db292o1dfavd6sm495j0-1xw6h",
+          "req_id": "probe-inverse-trade",
+          "op": "subscribe"
+        },
+        {
+          "success": true,
+          "ret_msg": "",
+          "conn_id": "db292o1dfavd6sm495j0-1xw6h",
+          "req_id": "probe-inverse-quote",
+          "op": "subscribe"
+        }
+      ],
+      "failure": null,
+      "sha256": "f7a19a61804944c7e48723e5c2006d6f9f194be68759b254f0c339fe42670010",
+      "bytes": 1418
+    }
+  ]
+}

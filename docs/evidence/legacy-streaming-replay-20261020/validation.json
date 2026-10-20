@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-20T01:21:25.991336+00:00",
+  "status": "legacy D5 milestone A locally verified; complete causal milestone B and full goal remain open",
+  "source_base": "a63bacbafdbc42dcd5399296ed8a6baeca6f2833",
+  "source_scope": "exact committed runtime source; subsequent receipt additions do not change these code hashes",
+  "source_sha256": {
+    "Cargo.lock": "00e826f90abf1e3fb15045d76f96fb0aa315f4dd300cf2b7ff58d7fa372f70c8",
+    "crates/recording/src/reader.rs": "ca16f48b904784a4763f7be711e2ce4f47d81781219927362756410e996d3a9b",
+    "crates/replay/Cargo.toml": "af5f238ba5d7e10f584d7c90d1e6f3221ae40e57883765ff89c619739896edc7",
+    "crates/replay/src/lib.rs": "c35007b8ee65150247018c63bef062785db955f5e4ff3ea86cc0bbbe99a6604c",
+    "crates/replay/src/streaming.rs": "dd7360a6b075032741aa1519362da5f604f3c5899496513437175e062d4d0583",
+    "crates/replay/tests/streaming.rs": "166ebb2156981be954177eff5d0f81a092f10c26cbd1a8415310d3d085f92c08"
+  },
+  "registry_lock": {
+    "records_compared": 269,
+    "all_registry_records_unchanged": true,
+    "new_local_edges": [
+      "marketfeed-replay -> serde",
+      "marketfeed-replay -> serde_json"
+    ]
+  },
+  "checks": [
+    {
+      "command": "cargo test --locked --workspace --all-targets --all-features",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-workspace-01.log",
+        "sha256": "e4d6cd797fa836c64d4b21f280895b1973bb5b8b9a0bb3d769e1bd72cd18e476"
+      },
+      "result": {
+        "passed": 1302,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 150
+      }
+    },
+    {
+      "command": "cargo test --locked -p marketfeed-replay -p marketfeed-recording",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-replay-focused-02.log",
+        "sha256": "faba6a216dc1368911e60cdf65c97cda6b93b3682b0cd02333a3b3f2df2051d2"
+      },
+      "result": {
+        "passed": 93,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 6
+      }
+    },
+    {
+      "command": "cargo +1.85.0 test --locked -p marketfeed-replay -p marketfeed-recording",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-replay-msrv-02.log",
+        "sha256": "6d105ef2e6d74de64fd884db8b68b4deb89f4f10ec76d6f616f8f51d548b2882"
+      },
+      "result": {
+        "passed": 93,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 6
+      }
+    },
+    {
+      "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-workspace-clippy-01.log",
+        "sha256": "db9bcc5045db4660a10eae170f04cfdbd24035ab915aca463823dffa2e80a615"
+      }
+    },
+    {
+      "command": "RUSTDOCFLAGS=\"-D warnings\" cargo doc --locked --workspace --all-features --no-deps",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-workspace-docs-01.log",
+        "sha256": "878ca728dc5eefefcdc57daeccf95422ee6a11fa4bfadab52b652c5deb73d9ef"
+      }
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-fmt-01.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    {
+      "command": "cargo-deny 0.20.2 check",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-deny-01.log",
+        "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+      }
+    },
+    {
+      "command": "PATH includes gitleaks8.30.1; ./scripts/check-oss-readiness.sh",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-oss-01.log",
+        "sha256": "89cd6875e93d4247fdd273f52571cc9f80888bf304c8ae118a35a1f758c3a812"
+      }
+    },
+    {
+      "command": "final staged OSS/readiness with gitleaks8.30.1 on PATH",
+      "exit_code": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-oss-staged-01.log",
+        "sha256": "b557f03dfcba2ccac01ca0c62399004a7ed9ad30de95b90e0a063356833c8a8e"
+      }
+    }
+  ],
+  "independent_review": {
+    "reviewer": "/root/trade_review",
+    "edits": false,
+    "findings_fixed": [
+      "combined system/market event budget",
+      "exact per-mode rejection assertions",
+      "ordinary-error payload cleanup",
+      "missing context factory rejection",
+      "build metadata conflicts",
+      "unwind poisoning",
+      "cross-segment byte quota",
+      "record lookahead and no-redaction documentation"
+    ],
+    "residual_actionable_findings": [],
+    "replay": {
+      "command": "cargo test --locked -p marketfeed-replay",
+      "passed": 32,
+      "failed": 0,
+      "ignored": 0,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-independent-tests-02.log",
+        "sha256": "82181a216b5b511f74c0957ea61d23011f9501077cf782ad150220f535c4884a"
+      }
+    },
+    "reader": {
+      "passed": 1,
+      "failed": 0,
+      "scope": "partial-length regression plus read_all compatibility",
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-independent-reader-01.log",
+        "sha256": "8312642a13bf074618752f9d3a0a9618a4542363509eab505d4268c8626da3be"
+      }
+    }
+  },
+  "retained_failures": [
+    {
+      "scope": "baseline partial-length header regression",
+      "exit_code": 101,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-replay-header-before-01.log",
+        "sha256": "e4238148f8556878fcc84683dd0f0a7701e2e76e98c1016195d963b43326cc94"
+      }
+    },
+    {
+      "scope": "initial result_large_err lint; fixed by boxed failure progress",
+      "exit_code": 101,
+      "log": {
+        "path": ".local/evidence/hyperliquid-integration-review/stream-replay-clippy-01.log",
+        "sha256": "af31ee4578351e10302f6f91f3c17b6c3ae358a3164c032eb7450667caad5b9d"
+      }
+    }
+  ],
+  "security": {
+    "command": "cargo-audit 0.22.2 audit --json",
+    "exit_code": 1,
+    "findings": [
+      "RUSTSEC-2026-0009 / existing time0.3.41 MSRV exception"
+    ],
+    "warnings": 0,
+    "log": {
+      "path": ".local/evidence/hyperliquid-integration-review/stream-rustsec-01.json",
+      "sha256": "91ce56647043d0e8056ca17055a6b5532a4fcdb557ba502443e00964e35e2d4b"
+    },
+    "clean_clearance": false
+  },
+  "consumer_migration": "required because recording package changed; all five hlscreen pins move together before qualification",
+  "not_established": [
+    "complete causal engine replay",
+    "MFR physical generations or observed startup",
+    "queue/drain and callback-outcome reconstruction",
+    "strict dataset admission",
+    "native units/settlement/continuity completeness",
+    "new live capture or calendar canary/24h/7d soak",
+    "ordinary-user Windows/hardware durability",
+    "rsibot live strategy context or economics",
+    "release/deployment/operational promotion"
+  ],
+  "ci_status": "source244f CI39353044076 completed successfully, all17jobs/fourplatform suites; see ci-qualification.json",
+  "source_commit": "244f40c7e7d84db4cbf6cb2d35e1a5b7b24d7cdf",
+  "independent_receipt_review": {
+    "reviewer": "/root/consumer_review",
+    "edits": false,
+    "verified": "all source/log hashes, workspace/focused/MSRV/independent totals,269registry records and sole RustSec finding; no complete B/strict/HLS/current-platform-CI overclaim",
+    "finding_closed": "appended final staged OSS/readiness log, preserving earlier pass"
+  }
+}

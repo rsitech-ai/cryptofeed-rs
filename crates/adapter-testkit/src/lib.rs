@@ -114,6 +114,7 @@ mod tests {
 
     fn trade_buy() -> MarketEvent {
         MarketEvent::Trade(Trade {
+            provenance: None,
             price: Price(Fixed::new(10000, 2)),
             quantity: Quantity(Fixed::new(1, 3)),
             aggressor: AggressorSide::Buy,
@@ -155,6 +156,7 @@ mod tests {
     #[test]
     fn book_snapshot_depth_and_reconnect() {
         let snap = BookSnapshot {
+            provenance: None,
             bids: vec![BookLevel {
                 price: Price(Fixed::new(10000, 2)),
                 quantity: Quantity(Fixed::new(1, 0)),

@@ -47,11 +47,23 @@ impl<R: Read> RawSegmentReader<R> {
 
     pub fn read_record(&mut self) -> Result<Option<RawRecord>, RecordingError> {
         let mut len_buf = [0u8; 4];
-        match self.reader.read_exact(&mut len_buf) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
-            Err(e) => return Err(e.into()),
-        }
+        // A clean EOF consumes zero bytes. read_exact alone cannot distinguish
+        // it from a torn one-to-three-byte record length word.
+        let read = loop {
+            match self.reader.read(&mut len_buf) {
+                Ok(0) => return Ok(None),
+                Ok(read) => break read,
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                Err(e) => return Err(e.into()),
+            }
+        };
+        self.reader.read_exact(&mut len_buf[read..]).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::UnexpectedEof {
+                RecordingError::Truncated
+            } else {
+                e.into()
+            }
+        })?;
         let record_len = u32::from_le_bytes(len_buf);
         if record_len < (4 + RAW_HEADER_BODY_LEN) as u32 {
             return Err(RecordingError::InvalidHeader);
@@ -313,6 +325,25 @@ mod tests {
         let mut r = RawSegmentReader::from_bytes(buf).unwrap();
         assert!(r.read_record().unwrap().is_some());
         assert_eq!(r.read_record().unwrap_err(), RecordingError::Truncated);
+    }
+
+    #[test]
+    fn partial_length_word_is_truncation_not_clean_eof() {
+        for tail_bytes in 1..4 {
+            let mut buf = Vec::new();
+            RawSegmentWriter::create(&mut buf, 0).unwrap();
+            buf.extend_from_slice(&[50, 0, 0][..tail_bytes]);
+            let mut reader = RawSegmentReader::from_bytes(buf.clone()).unwrap();
+            assert_eq!(reader.read_record().unwrap_err(), RecordingError::Truncated);
+            // The explicitly recovering API still discards an incomplete tail.
+            assert!(
+                RawSegmentReader::from_bytes(buf)
+                    .unwrap()
+                    .read_all()
+                    .unwrap()
+                    .is_empty()
+            );
+        }
     }
 
     #[test]

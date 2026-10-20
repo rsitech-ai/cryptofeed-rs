@@ -1,0 +1,24 @@
+{
+  "schema": "cryptofeed.quants_boundary_smoke.v1",
+  "at_utc": "2026-10-19T21:14:23.221360+00:00",
+  "manifest_sha256": "a146175ce1fa387e6cfe301626d28798d8136542ad723e9ccbc61dc732f68d39",
+  "trusted_inspector_binary_sha256": "bfe41ded0602251acdefb51b70501b1e79756f6e2de1fb52a4abb1c2bb8a08b5",
+  "verified_rows": 2666,
+  "integrity_inspection": "passed",
+  "admitted": false,
+  "economics_supported": false,
+  "profiles_denied": {
+    "descriptive": "producer admission refused (descriptive): dataset operation failed: dataset is not qualified for the explicitly requested profile\n",
+    "execution-count": "producer admission refused (execution-count): dataset operation failed: dataset is not qualified for the explicitly requested profile\n",
+    "signed-execution-flow": "producer admission refused (signed-execution-flow): dataset operation failed: dataset is not qualified for the explicitly requested profile\n",
+    "confirmed-candle": "producer admission refused (confirmed-candle): dataset operation failed: dataset is not qualified for the explicitly requested profile\n",
+    "observed-availability-replay": "producer admission refused (observed-availability-replay): dataset operation failed: dataset is not qualified for the explicitly requested profile\n"
+  },
+  "all_store_bytes_and_paths_unchanged": true,
+  "write_probe_denied": true,
+  "writer_lock_absent_after_inspection": true,
+  "consumer_source": "isolated Quants Lab base72c71564 plus boundary module",
+  "reader_build_parent": "8fb517d4dacca5f9d09ab6e2727e17680d793f7d",
+  "reader_source_patch_sha256": "cbf752e90ba49288d305248e0ed0067d99f31e4e25fb5511e90073bac1c5836b",
+  "claim_limit": "existing Hyperliquid capture on read-only copy; no OKXtrade compatibility, flow signal, model or economic run"
+}

@@ -17,7 +17,7 @@ use marketfeed_model::{
 };
 
 use crate::coinm_messages::{
-    CoinmDecoded, agg_id_source, coinm_index_pair, decode_text, level_op, to_book_levels,
+    CoinmDecoded, coinm_index_pair, decode_text, level_op, to_book_levels,
 };
 use crate::coinm_specification::{BINANCE_COINM_VENUE_ID, OI_POLL_INTERVAL_MS, OI_TIMER_ID};
 use crate::messages::kline_stream_interval;
@@ -296,6 +296,7 @@ impl BinanceCoinmSession {
             CoinmDecoded::AggTrade {
                 symbol,
                 agg_id,
+                provenance,
                 price,
                 quantity,
                 aggressor,
@@ -310,16 +311,14 @@ impl BinanceCoinmSession {
                         0,
                         received,
                         Some(exchange_ts_ms),
-                        Some(SequenceRange {
-                            first: agg_id,
-                            last: agg_id,
-                        }),
+                        None,
                         EventFlags::empty(),
                         MarketEvent::Trade(Trade {
+                            provenance: Some(provenance.clone()),
                             price,
                             quantity,
                             aggressor,
-                            trade_id: Some(agg_id_source(agg_id)),
+                            trade_id: Some(crate::trade_semantics::identity(agg_id, &provenance)),
                         }),
                     ),
                     output,
@@ -348,6 +347,7 @@ impl BinanceCoinmSession {
                         }),
                         EventFlags::empty(),
                         MarketEvent::Quote(Quote {
+                            provenance: None,
                             bid_price,
                             bid_quantity: Some(bid_qty),
                             ask_price,
@@ -490,6 +490,10 @@ impl BinanceCoinmSession {
                     None,
                     EventFlags::empty(),
                     MarketEvent::Candle(Candle {
+                        provenance: None,
+                        native_volume_ccy: None,
+                        is_closed: None,
+                        quote_volume: None,
                         open,
                         high,
                         low,
@@ -575,6 +579,7 @@ impl BinanceCoinmSession {
                         None,
                         EventFlags::empty(),
                         MarketEvent::Liquidation(Liquidation {
+                            provenance: None,
                             price,
                             quantity,
                             side,
@@ -593,6 +598,27 @@ impl BinanceCoinmSession {
                     self.live = true;
                     output.push(SessionAction::MarkLive);
                 }
+            }
+            CoinmDecoded::TradeExcluded {
+                symbol,
+                native_id,
+                provenance,
+                reason,
+            } => {
+                let instrument = self.instrument_for(&symbol);
+                output.push(SessionAction::EmitSystem(SystemEvent::TradeRecordExcluded(
+                    Box::new(marketfeed_model::TradeRecordExclusion {
+                        venue: BINANCE_COINM_VENUE_ID,
+                        session: self.cfg.session,
+                        connection: self.cfg.connection,
+                        frame_seq: 0,
+                        instrument,
+                        source_channel: provenance.source_channel.clone(),
+                        native_id: crate::trade_semantics::identity(native_id, &provenance),
+                        reason,
+                        native_attributes: provenance.native_attributes,
+                    }),
+                )));
             }
             CoinmDecoded::Unknown => {
                 output.push(SessionAction::EmitSystem(SystemEvent::UnknownMessage {
@@ -756,6 +782,7 @@ impl BinanceCoinmSession {
                 }),
                 EventFlags::DELTA,
                 MarketEvent::BookDelta(BookDelta {
+                    provenance: None,
                     changes,
                     checksum: None,
                 }),
@@ -853,6 +880,7 @@ impl BinanceCoinmSession {
                 }),
                 EventFlags::SNAPSHOT,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: levels_b,
                     asks: levels_a,
                     depth: Some(1000),

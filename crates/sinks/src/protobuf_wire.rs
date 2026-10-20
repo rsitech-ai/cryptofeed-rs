@@ -69,7 +69,46 @@ fn encode_trade(t: &marketfeed_model::Trade) -> Vec<u8> {
     write_msg(&mut out, 2, &encode_quantity(t.quantity));
     write_enum(&mut out, 3, aggressor_num(t.aggressor));
     if let Some(id) = &t.trade_id {
-        write_string(&mut out, 4, &id.0);
+        write_bytes(&mut out, 4, id.0.as_bytes());
+    }
+    if let Some(source) = &t.provenance {
+        let mut fields = Vec::new();
+        write_string(&mut fields, 1, &source.source_channel);
+        let granularity = match source.granularity {
+            marketfeed_model::TradeGranularity::IndividualExecution => 1,
+            marketfeed_model::TradeGranularity::NativeAggregate => 2,
+            marketfeed_model::TradeGranularity::Unverified => 3,
+        };
+        write_enum(&mut fields, 2, granularity);
+        if let Some(first) = &source.constituent_first_id {
+            write_bytes(&mut fields, 3, first.0.as_bytes());
+        }
+        if let Some(last) = &source.constituent_last_id {
+            write_bytes(&mut fields, 4, last.0.as_bytes());
+        }
+        if let Some(count) = source.native_count {
+            write_key(&mut fields, 5, WIRE_VARINT);
+            write_varint(&mut fields, count);
+        }
+        for (key, value) in &source.native_attributes {
+            let mut entry = Vec::new();
+            write_string(&mut entry, 1, key);
+            write_string(&mut entry, 2, value);
+            write_msg(&mut fields, 6, &entry);
+        }
+        write_msg(&mut out, 5, &fields);
+    }
+    out
+}
+
+fn encode_book_provenance(source: &marketfeed_model::BookProvenance) -> Vec<u8> {
+    let mut out = Vec::new();
+    write_string(&mut out, 1, &source.source_channel);
+    for (key, value) in &source.native_attributes {
+        let mut entry = Vec::new();
+        write_string(&mut entry, 1, key);
+        write_string(&mut entry, 2, value);
+        write_msg(&mut out, 2, &entry);
     }
     out
 }
@@ -83,6 +122,9 @@ fn encode_quote(q: &marketfeed_model::Quote) -> Vec<u8> {
     write_msg(&mut out, 3, &encode_price(q.ask_price));
     if let Some(qty) = q.ask_quantity {
         write_msg(&mut out, 4, &encode_quantity(qty));
+    }
+    if let Some(source) = &q.provenance {
+        write_msg(&mut out, 5, &encode_book_provenance(source));
     }
     out
 }
@@ -119,6 +161,9 @@ fn encode_book_snapshot(s: &marketfeed_model::BookSnapshot) -> Vec<u8> {
     if let Some(c) = &s.checksum {
         write_string(&mut out, 4, &c.0);
     }
+    if let Some(source) = &s.provenance {
+        write_msg(&mut out, 5, &encode_book_provenance(source));
+    }
     out
 }
 
@@ -129,6 +174,9 @@ fn encode_book_delta(d: &marketfeed_model::BookDelta) -> Vec<u8> {
     }
     if let Some(c) = &d.checksum {
         write_string(&mut out, 2, &c.0);
+    }
+    if let Some(source) = &d.provenance {
+        write_msg(&mut out, 3, &encode_book_provenance(source));
     }
     out
 }
@@ -142,6 +190,28 @@ fn encode_candle(c: &marketfeed_model::Candle) -> Vec<u8> {
     write_msg(&mut out, 5, &encode_quantity(c.volume));
     write_i64(&mut out, 6, c.interval_ns);
     write_msg(&mut out, 7, &encode_timestamp_ns(c.start_ts));
+    if let Some(quantity) = c.quote_volume {
+        write_msg(&mut out, 8, &encode_quantity(quantity));
+    }
+    if let Some(closed) = c.is_closed {
+        // Optional false must be present on the wire, unlike a proto3 default.
+        write_key(&mut out, 9, WIRE_VARINT);
+        write_varint(&mut out, u64::from(closed));
+    }
+    if let Some(quantity) = c.native_volume_ccy {
+        write_msg(&mut out, 10, &encode_quantity(quantity));
+    }
+    if let Some(provenance) = &c.provenance {
+        let mut value = Vec::new();
+        write_string(&mut value, 1, &provenance.source_channel);
+        for (key, text) in &provenance.native_attributes {
+            let mut entry = Vec::new();
+            write_string(&mut entry, 1, key);
+            write_string(&mut entry, 2, text);
+            write_msg(&mut value, 2, &entry);
+        }
+        write_msg(&mut out, 11, &value);
+    }
     out
 }
 
@@ -171,6 +241,50 @@ fn encode_liquidation(l: &marketfeed_model::Liquidation) -> Vec<u8> {
     write_msg(&mut out, 1, &encode_price(l.price));
     write_msg(&mut out, 2, &encode_quantity(l.quantity));
     write_enum(&mut out, 3, aggressor_num(l.side));
+    if let Some(source) = &l.provenance {
+        use marketfeed_model::{
+            LiquidatedPositionSide as P, LiquidationPriceBasis as B, LiquidationQuantityUnit as U,
+        };
+        let mut fields = Vec::new();
+        write_string(&mut fields, 1, &source.source_channel);
+        write_enum(
+            &mut fields,
+            2,
+            match source.price_basis {
+                B::Execution => 1,
+                B::Bankruptcy => 2,
+                B::Unverified => 3,
+            },
+        );
+        write_enum(
+            &mut fields,
+            3,
+            match source.quantity_unit {
+                U::Base => 1,
+                U::Quote => 2,
+                U::Contracts => 3,
+                U::Unverified => 4,
+            },
+        );
+        if let Some(side) = source.position_side {
+            write_enum(
+                &mut fields,
+                4,
+                match side {
+                    P::Long => 1,
+                    P::Short => 2,
+                    P::Unknown => 3,
+                },
+            );
+        }
+        for (key, value) in &source.native_attributes {
+            let mut entry = Vec::new();
+            write_string(&mut entry, 1, key);
+            write_string(&mut entry, 2, value);
+            write_msg(&mut fields, 5, &entry);
+        }
+        write_msg(&mut out, 4, &fields);
+    }
     out
 }
 
@@ -437,6 +551,7 @@ mod tests {
             source_sequence: None,
             flags: EventFlags(0),
             payload: MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::new(100_00, 2)),
                 quantity: Quantity(Fixed::new(1_5, 1)),
                 aggressor: AggressorSide::Buy,

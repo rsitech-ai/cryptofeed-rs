@@ -1,0 +1,73 @@
+{
+  "start_utc": "2026-10-19T22:13:49.373728+00:00",
+  "source": "d07f5c97e17fa24647527a33baa12258417e0f48",
+  "source_clean": true,
+  "binary_sha256": "756506140f88fe1015ff3d475035062af3b1f1e3ddf0efe63a1cc1750f7ae373",
+  "config_sha256": "af6f4b4b742954e47fc17291c2adcaa9e0c1d108c822b1aab71d2e8996692e59",
+  "plan_sha256": "c9ffa9d6666ea217d7a6aec17f9b4a3dab4f45176fc5822e9e7da18dce7713b0",
+  "health": [
+    {
+      "error": "<urlopen error [Errno 61] Connection refused>"
+    },
+    {
+      "status": 503,
+      "body": "not ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    },
+    {
+      "status": 200,
+      "body": "ready\n"
+    }
+  ],
+  "stop_condition": "duration",
+  "exit": 0,
+  "duration_with_shutdown_seconds": 30.238678874913603,
+  "end_utc": "2026-10-19T22:14:19.654456+00:00"
+}

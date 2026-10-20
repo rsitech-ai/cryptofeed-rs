@@ -1,0 +1,363 @@
+{
+  "schema_version": 1,
+  "status": "local-checks-pass; fresh producer CI and consumer repin required",
+  "parent_commit": "2b8225eeabdff7351dbfe89e36d997d6355c909c",
+  "source_snapshot_sha256": "b25bb77079d0c7ef0b7657032f9046b79dc52f2215f83562d626eeb3b95cc0dc",
+  "final_source_sha256": {
+    ".github/workflows/ci.yml": "2931c46420d78a61e902896b151dcab9a7895133c120e4ca5b27d189b027fdb1",
+    "Cargo.lock": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+    "crates/daemon/src/causal_bootstrap.rs": "1348956d85e41f5ba7d8f500199bf1fab767dec31a5dca08eb604c2d921bbc19",
+    "crates/daemon/src/causal_bootstrap/owner.rs": "1738feabd5b7d6356bec5f69056dc03b3d3ab1e3a76240b29191e7b6e1f636a1",
+    "crates/daemon/src/causal_bootstrap/owner/tests.rs": "758ba26e114221f03c279c9798acf9b7493d632c389cfc796e18478b350ea349",
+    "crates/daemon/src/causal_bootstrap_tests.rs": "ee504f440675abf936db44a392893299d77552f16e928b6aba0c7b612b432a6c",
+    "crates/daemon/tests/causal_bootstrap.rs": "b30139b2e91d3b06b42b141ba14b626620fe8ea05f88c2924811d62b0caf8933",
+    "crates/daemon/tests/causal_owner.rs": "5db314c691d6c1faad944f8123f443e89b1bc669484ea610fb8b24710a992757",
+    "crates/engine/src/causal_bootstrap.rs": "3adba1052866ea71e03f834c42ef542aec7a11db5c911a6db47da1f4e3f9948f",
+    "crates/engine/src/runner.rs": "473b63fa195d0d27a1c8505771039d7ace837cb46d1567fd5fee8aa80d4c386f",
+    "crates/recording/src/shared_batch.rs": "99dfa7cc6629a62e6189a11a56b3775ae6bb008a1f21c958cc46a02e973a4512",
+    "crates/recording/src/shared_batch_tests.rs": "46bd59339f390e749b42f97af8e0eb99d854bdd5ac471a449a4bbae8fb09565d"
+  },
+  "final_source_unchanged_through_all14_checks": true,
+  "checks": [
+    {
+      "check": "affected",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-adapter-bybit",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 195.815,
+      "log_sha256": "062f3f16f009d1bdbb3c9847836568a5b6028ff84e262530d34d19f284375b0d",
+      "test_results": {
+        "suites": 41,
+        "passed": 529,
+        "failed": 0,
+        "ignored": 4
+      }
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 17.526,
+      "log_sha256": "5b1fc293062f6538766acd46a8bb7ac9efffe8b8dbbbf381a0cf00be7170960f",
+      "test_results": {
+        "suites": 30,
+        "passed": 527,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 24.855,
+      "log_sha256": "78afef5fce040f33c54027ace1ff2b42577933a2bf0442cad4e0801bb0cca175",
+      "test_results": {
+        "suites": 1,
+        "passed": 34,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "msrv-bootstrap-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 12.007,
+      "log_sha256": "5757669ed17be014835060e77c84a1fc98f7d0e037a9539def9bc1afa35d173f",
+      "test_results": {
+        "suites": 1,
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "msrv-owner-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 14.257,
+      "log_sha256": "7f33a3be310d363a25d01e525944fac6c208481371103fd2887289e7437d5b23",
+      "test_results": {
+        "suites": 1,
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "default-disabled",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 12.806,
+      "log_sha256": "3686e1b206b1989aa6aa5704148a6e0320067519ef786b6cc631482a4ed8b9eb",
+      "test_results": {
+        "suites": 1,
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0
+      }
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 12.561,
+      "log_sha256": "ed76bae050a9e3a4746aee029748cfbd740129d295613f741ae1c16b2f9769ae"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 5.555,
+      "log_sha256": "ea69d95a7dafcae9d46df84e0b3d57229a837db568e6626a54d63fb29ec5c01c"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.037,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.614,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.033,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.067,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.856,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.019,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "independent_public_tests": {
+    "receipt_sha256": "256b67ac233f40868cdda15253bc1d6d8a97116c548246a5caf991550ed4ee62",
+    "test_source_sha256": "5db314c691d6c1faad944f8123f443e89b1bc669484ea610fb8b24710a992757",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-daemon",
+      "--features",
+      "causal-journal",
+      "--test",
+      "causal_owner"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 14.838,
+    "log_sha256": "2a971aa97a49162c1dd26b126bb54fe1c5f04a009652687c5aa751a0e7ed0099",
+    "passed": 8,
+    "failed": 0,
+    "ignored": 0,
+    "source_hashes_unchanged": true
+  },
+  "independent_code_review": {
+    "receipt_sha256": "b22a91d2fd5cb5df0d4d4e93706f060df6b4d492cebf8a15a39dca73c83cad3f",
+    "review_type": "read-only source review; no Cargo or direct test execution in this pass",
+    "all12_source_hashes_unchanged": true,
+    "material_findings_remaining": 0,
+    "closed_findings": [
+      "Original writer Closed/Failed is observed by an idle bounded-poll worker and public ingress/status/snapshot/handoff accessors; no further input is needed to poison owner.",
+      "Owner Shared.state to writer Inner.state lock order has no inverse acquisition or owner callback in the actual batch actor.",
+      "Accepted ticket loop continues to actual settlement after revocation; typed failure or late successful ACK is retained without visibility revival.",
+      "Input-ID visibility watermark suppresses older unsafe turns without cancelling valid later queued recovery.",
+      "Capture preflight Err settles NotExecuted; post-mutation incomplete/encoding failures remain ExecutedNotAdmitted.",
+      "Actual runner clears prior reconnect request before fresh connection callback actions, preserving any newly requested reconnect."
+    ]
+  },
+  "artifact_inspection": {
+    "audit_receipt_sha256": "75da3d25f86cf32d166d27a03460bf853f31ed3660026a7b1cb73605ab63beb2",
+    "declared_source_files": 523,
+    "declared_source_sha256": "bbeeee6bb7b63d586af0eddeb4c3d05a761d9aa9275f9c3a01cbac543b3770e3",
+    "matching_recipe_sha256": [
+      "82a1ff9215a3b0f50530e1d7edeb9796bbc74c9a9e286e5f879010629a0dc0c3"
+    ],
+    "preserved_artifact_sha256": "964f91ec2326314e77c5014b67fc0306125bf5083c26c7389c4df6ae4f2165d7",
+    "preserved_artifact_bytes": 49217840,
+    "scope": "Observed final-source affected-suite daemon unit artifact; preserved file fingerprint, not signed loaded-image attestation or reproducible-build claim",
+    "limits": [
+      "Declared source recipe only; no full transitive/environment input closure",
+      "Observed preserved executable file and matching recipe bytes, not signed loaded-image attestation",
+      "No reproducible-build or operational-readiness claim"
+    ]
+  },
+  "frozen_dataset_preservation": {
+    "files": 22,
+    "bytes": 37276008,
+    "all_bytes_metadata_unchanged": true,
+    "root_mode": "0555"
+  },
+  "prior_workspace_snapshot01": {
+    "source_snapshot_sha256": "4e92bb61530fc1172de5b87e7b79243dea7d695f4a2fa7ce213610b8ff9dc53a",
+    "exit_code": 0,
+    "log_sha256": "e00280ccfad83f7ecbcbf1e58176b487eba3ed9ab864baeb103796156ff62317",
+    "suites": 157,
+    "passed": 1439,
+    "failed": 0,
+    "ignored": 56,
+    "scope": "Precedes idle-writer-closure fix in owner.rs and owner/tests.rs; not final-source full-workspace qualification"
+  },
+  "registry_dependencies": "Cargo.lock unchanged; no new package/version/edge in this owner change",
+  "security": {
+    "audit_vulnerabilities": 0,
+    "warnings": {}
+  },
+  "remaining": [
+    "Fresh own-source producer CI including ARM phase evidence",
+    "Repin and rebuild/test/saved-prefix replay hlscreen after producer publication",
+    "Durable owner visibility/withholding/handoff decisions and ingress admission accounting",
+    "Committed release projection and bound external I/O intents/completions",
+    "Actual-engine physical-order replay/resume and daemon/live/control/supervisor migration",
+    "Unchanged registered failed-ingress comparison",
+    "Native units/continuity, strict datasets, rsibot context/features, calendar/hardware and operational qualification"
+  ]
+}

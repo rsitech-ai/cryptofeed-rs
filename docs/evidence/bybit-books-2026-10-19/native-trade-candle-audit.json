@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "records": {
+    "metadata": 4,
+    "artifact": 2,
+    "catalog_response": 3,
+    "connection": 6,
+    "frame": 1190,
+    "system": 18,
+    "batch": 1128,
+    "frame_accepted": 1184,
+    "timer": 3,
+    "seal": 1
+  },
+  "native_rows_by_venue_channel": {
+    "6:kline.1.BTCUSDT": 7,
+    "11:kline.1.BTCUSD": 2,
+    "5:kline.1.BTCUSDT": 4,
+    "6:publicTrade.BTCUSDT": 97,
+    "5:publicTrade.BTCUSDT": 64,
+    "11:publicTrade.BTCUSD": 1
+  },
+  "native_trade_rows": 162,
+  "native_candle_rows": 13,
+  "difference_count": 0,
+  "difference_examples": [],
+  "unaccepted_text_frames": 0,
+  "required_trade_venues_missing": [],
+  "errors": [],
+  "checks_passed": true,
+  "continuity": "unknown; exact observed rows do not prove complete source delivery",
+  "unit_qualification": "native volume/turnover retained; WS quote-volume qualification unavailable",
+  "subscription_readiness": "not audited",
+  "dataset_admitted": false,
+  "cursor": {
+    "feed_id": "a551538955eb0879ab2412fbb9cf80bf8be80742",
+    "sequence": 3539,
+    "offset": 3624618
+  },
+  "committed_prefix_sha256": "7353a61e58742518dcf7bfdfb531bff10d0445304397266a141442fa138bb9d1"
+}

@@ -38,11 +38,21 @@ pub struct ExportRequest<'a> {
     pub expected_parent: Option<&'a str>,
 }
 fn utc(ns: i64) -> Result<String> {
-    Ok(
-        time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(ns))?
-            .format(&time::format_description::well_known::Rfc3339)?,
+    let instant = chrono::DateTime::from_timestamp(
+        ns.div_euclid(1_000_000_000),
+        ns.rem_euclid(1_000_000_000) as u32,
     )
+    .ok_or_else(|| fail("UTC timestamp range"))?;
+    let mut text = instant.format("%Y-%m-%dT%H:%M:%S").to_string();
+    let fraction = ns.rem_euclid(1_000_000_000);
+    if fraction != 0 {
+        text.push('.');
+        text.push_str(format!("{fraction:09}").trim_end_matches('0'));
+    }
+    text.push('Z');
+    Ok(text)
 }
+
 fn bounded_file(path: &Path, remaining: &mut u64) -> Result<Vec<u8>> {
     let meta = fs::symlink_metadata(path)?;
     if !meta.is_file() || meta.file_type().is_symlink() || meta.len() > *remaining {
@@ -1089,4 +1099,23 @@ pub fn admit(store: &Store, pin: &str, profile: &str) -> Result<Vec<TradeRow>> {
         return Err(fail("unknown or gapped interval cannot be admitted"));
     }
     Ok(rows)
+}
+
+#[cfg(test)]
+mod timestamp_tests {
+    #[test]
+    fn exporter_retains_shortest_nanosecond_fraction_and_negative_extrema() {
+        let vectors: serde_json::Value = serde_json::from_slice(include_bytes!(
+            "../../../docs/evidence/timestamp-backend-20261020/compatibility-vectors.json"
+        ))
+        .unwrap();
+        let rows = vectors["nanos"].as_array().unwrap();
+        assert_eq!(rows.len(), 17);
+        for row in rows {
+            assert_eq!(
+                super::utc(row["input"].as_i64().unwrap()).unwrap(),
+                row["export_utc"].as_str().unwrap()
+            );
+        }
+    }
 }

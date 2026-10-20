@@ -1,0 +1,73 @@
+{
+  "schema": "marketfeed.paced_ingress_validation.v1",
+  "scope": "New timing/diagnostic slice: focused automated verification only. Terminal source384 all-platform CI is separately bound in catalog-refresh-bounds receipt; no subsequent source full-platform result claimed. No workload retries after durable failure.",
+  "checks": [
+    {
+      "check": "recording all targets/all features",
+      "result": "pass",
+      "log_sha256": "e304fe8604c8692840c1a4d046e8c49de6467d0e36f329b7d0c9d10aa7ab77f0",
+      "passed": 63,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "check": "engine/replay all targets/all features",
+      "result": "pass",
+      "log_sha256": "15b959ff360f41bfbc81cc13bcefee911dc6ee8acc8378e06cb466b5e9d37591",
+      "passed": 130,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "check": "diagnostic bounded queues/panic cleanup",
+      "result": "pass",
+      "log_sha256": "43b95440e179d8b61f0fe8706609ca00dec7cdbdd1a8732baa94325887012bcb",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "check": "Rust1.85 recording integration",
+      "result": "pass",
+      "log_sha256": "3aad197b60c49eb76980e2c523d6e268eb6d9169b2472ec4c15f28891fac9f03",
+      "passed": 11,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "check": "Rust1.85 diagnostic check",
+      "result": "pass",
+      "log_sha256": "3c3b3ff27c68f95730efc1063ad0526882872ad5a8b677e3294d61d68b656899"
+    },
+    {
+      "check": "recording/daemon all targets/all features Clippy -Dwarnings",
+      "result": "pass",
+      "log_sha256": "a52d1f0fdf49fc9247ffa5280543ba8c46a429b084c775f7328b6c8bd0f15156"
+    },
+    {
+      "check": "staged public checks including gitleaks8.30.1",
+      "result": "pass",
+      "log_sha256": "cb333a09c037315bedc74588ed4d4746f77d557248ba7dfdc9d51f6126777cfc"
+    }
+  ],
+  "original_feed_unchanged": true,
+  "runtime_source_hashes_unchanged": true,
+  "workload_verdict": {
+    "baseline": "pass within registered local scope",
+    "durable": "failed ingress bound",
+    "slow-failure": "not-run after prior unexpected failure"
+  },
+  "independent_review": {
+    "publication_and_worker_review": "read-only independent review; panic cleanup finding closed with regression; no material durability/poison regression found",
+    "oracle_review": "separate read-only audit; reproduced output byte for byte, checked original prefix/templates/runtime source and binary hashes; all17 Boolean/queue/transaction/stage/Fixed mutation probes rejected",
+    "helper_sha256": "22497db2bda98cccd9d28b7b395d09a589e25717cfe98b4ef09c606e59b2b186",
+    "independent_output_sha256": "ea64efb274f9f6f3ceebb8c1b3c0df4a2f872501137e625035a77d090729bbed",
+    "mutation_probes_rejected": 17,
+    "workload_rerun": false
+  },
+  "limitations": [
+    "No exchange acquisition, live latency, continuity or capacity claim",
+    "No qualified dataset, economic result, activation or operational promotion",
+    "Complete causal replay milestone B and bounded durability batching/admission remain required"
+  ]
+}

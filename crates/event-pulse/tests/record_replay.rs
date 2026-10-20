@@ -75,6 +75,7 @@ fn market(sequence: u64, ns: i64, price: i128) -> MechanicsInputV1 {
             source_sequence: None,
             flags: EventFlags::empty(),
             payload: MarketEvent::Trade(Trade {
+                provenance: None,
                 price: Price(Fixed::new(price, 0)),
                 quantity: Quantity(Fixed::new(1, 0)),
                 aggressor: AggressorSide::Buy,
@@ -211,6 +212,7 @@ fn snapshot_market(
 
 fn scaled_trade(price: i128) -> MarketEvent {
     MarketEvent::Trade(Trade {
+        provenance: None,
         price: Price(Fixed::new(price, 8)),
         quantity: Quantity(Fixed::new(100_000_000, 8)),
         aggressor: AggressorSide::Buy,
@@ -395,6 +397,7 @@ fn epin_json1_replay_authors_byte_identical_complete_snapshot_sequences() {
             "epoch_a",
             0,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(10_000_000_000, 8)),
                 bid_quantity: Some(Quantity(Fixed::new(100_000_000, 8))),
                 ask_price: Price(Fixed::new(10_010_000_000, 8)),
@@ -407,6 +410,7 @@ fn epin_json1_replay_authors_byte_identical_complete_snapshot_sequences() {
             "epoch_a",
             0,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: Price(Fixed::new(10_000_000_000, 8)),
                     quantity: Quantity(Fixed::new(100_000_000, 8)),
@@ -425,6 +429,7 @@ fn epin_json1_replay_authors_byte_identical_complete_snapshot_sequences() {
             "epoch_a",
             0,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: vec![BookChange {
                     side: BookSide::Bid,
                     operation: BookOperation::Upsert,
@@ -526,6 +531,7 @@ fn epin_book_snapshot_survives_a_250ms_advance_and_contiguous_delta() {
             "epoch_a",
             0,
             MarketEvent::BookSnapshot(BookSnapshot {
+                provenance: None,
                 bids: vec![BookLevel {
                     price: Price(Fixed::new(10_000_000_000, 8)),
                     quantity: Quantity(Fixed::new(100_000_000, 8)),
@@ -544,6 +550,7 @@ fn epin_book_snapshot_survives_a_250ms_advance_and_contiguous_delta() {
             "epoch_a",
             0,
             MarketEvent::BookDelta(BookDelta {
+                provenance: None,
                 changes: vec![BookChange {
                     side: BookSide::Bid,
                     operation: BookOperation::Upsert,
@@ -559,6 +566,7 @@ fn epin_book_snapshot_survives_a_250ms_advance_and_contiguous_delta() {
             "epoch_a",
             0,
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price: Price(Fixed::new(10_000_000_000, 8)),
                 bid_quantity: None,
                 ask_price: Price(Fixed::new(10_010_000_000, 8)),

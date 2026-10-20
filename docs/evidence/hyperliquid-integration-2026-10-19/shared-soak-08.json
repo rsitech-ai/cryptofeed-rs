@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "scope": "bounded shared Hyperliquid spot/perps capture; not operational promotion",
+  "collector_source": "62a8fef3ed17b23ad968eb4f0d897acd969055a1",
+  "collector_binary_sha256": "478db71b28a23244026659139c0d5aef3308d63137fe0a235ac383c503a7a286",
+  "hlscreen_source_runtime": "8367b0b (later policy/docs commits do not change shared runtime)",
+  "hlscreen_executed_binary_sha256": null,
+  "hlscreen_binary_hash_limit": "not captured at process start; concurrent test builds prevent retrospective hash attribution",
+  "native_markets": [
+    "@107",
+    "PURR/USDC",
+    "BTC",
+    "ETH",
+    "xyz:TSLA"
+  ],
+  "region": "unknown",
+  "start_utc": "2026-10-19T20:21:31.680973+00:00",
+  "end_utc": "2026-10-19T20:36:48.887283+00:00",
+  "capture_wall_cap_secs": 900,
+  "first_received_ns_by_session": {
+    "1": 1792441294282018000,
+    "2": 1792441295047853000
+  },
+  "last_received_ns_by_session": {
+    "1": 1792442191584916000,
+    "2": 1792442191528906000
+  },
+  "seal": {
+    "schema_version": 1,
+    "now_ns": 1792442191983153000,
+    "reason": "clean_shutdown;exchange_continuity_unverified"
+  },
+  "exits": {
+    "collector_exit": 0,
+    "hls_exit": 0,
+    "api_server_exit": -9
+  },
+  "readiness_polls": {
+    "startup_503": 1,
+    "ready_200": 29
+  },
+  "peak_sampled_rss_bytes": {
+    "collector": 31244288,
+    "hls_live": 19808256,
+    "hls_api": 21528576
+  },
+  "api_samples": 30,
+  "api_reported_gaps_max": 0,
+  "independent_native_audit": {
+    "schema_version": 1,
+    "records": {
+      "metadata": 3,
+      "artifact": 2,
+      "catalog_response": 3,
+      "connection": 4,
+      "batch": 19207,
+      "frame": 19425,
+      "frame_accepted": 19312,
+      "system": 20,
+      "timer": 88,
+      "seal": 1
+    },
+    "accepted_channels": {
+      "subscriptionResponse": 25,
+      "activeSpotAssetCtx": 1752,
+      "l2Book": 840,
+      "trades": 1594,
+      "bbo": 10940,
+      "activeAssetCtx": 2626,
+      "candle": 1447,
+      "pong": 88
+    },
+    "session_venues": {
+      "1": 21,
+      "2": 22
+    },
+    "normalized_trades_by_venue": {
+      "21": 883,
+      "22": 1924
+    },
+    "native_trade_rows": 2807,
+    "unaccepted_text_frames": 0,
+    "normalized_trade_rows": 2807,
+    "initial_trade_delivery_rows": 150,
+    "canonical_flagged_initial_rows": 150,
+    "other_trade_delivery_rows": 2657,
+    "trade_difference_count": 0,
+    "trade_difference_examples": [],
+    "errors": [],
+    "checks_passed": true,
+    "continuity": "unverified; finite capture and recent overlap cannot prove lossless exchange coverage",
+    "sha256": "14a434f93ea22ea2c4e02efdeeb8ac26f6f8a1be53a52d1706575d69375297d0"
+  },
+  "replay_parity": {
+    "summary_and_feature_screen_byte_identical": true,
+    "compared_bytes": 3400
+  },
+  "dataset_verification": {
+    "manifest_sha256": "a146175ce1fa387e6cfe301626d28798d8136542ad723e9ccbc61dc732f68d39",
+    "verified_rows": 2666,
+    "decision": "validated-not-qualified",
+    "strict_profiles": [],
+    "independent_json_schema": true,
+    "independent_pyarrow_financial_values": true,
+    "backup_restore_verified": true,
+    "tampering_rejected": true,
+    "profiles_denied": 5,
+    "region": "unknown"
+  },
+  "shutdown_failure": "API was SIGKILLed by harness after collector seal plus15s; this can precede its separate duration deadline. Preserve failure; do not call this combined soak a clean shutdown pass.",
+  "corrected_probe": {
+    "start": "2026-10-19T20:42:15.314387+00:00",
+    "end": "2026-10-19T20:42:37.076988+00:00",
+    "collector_sealed_at": "2026-10-19T20:42:29.671188+00:00",
+    "collector_exit": 0,
+    "hls_exit": 0,
+    "api_server_exit": 0
+  },
+  "corrected_probe_scope": "12s collector cap,18s API lifetime,30s exit allowance; all exited0; same runtime and markets. This is a distinct short probe, not a replacement15min soak.",
+  "archive_location": ".local/evidence/hyperliquid-integration-review/shared-soak-08-{feed,raw}; dataset-soak-08; dataset-soak-08-backup; dataset-soak-08-restored",
+  "limitations": [
+    "No full-window continuity proof from recentTrades10-row references.",
+    "Strict dataset profiles remain denied.",
+    "First native trade deliveries retain initial-history uncertainty.",
+    "No24h/7d or calendar-spaced canary gate satisfied."
+  ]
+}

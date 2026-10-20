@@ -297,6 +297,7 @@ impl BitstampSession {
             Some(us_to_ts(exchange_ts_us)),
             EventFlags::empty(),
             MarketEvent::Quote(Quote {
+                provenance: None,
                 bid_price,
                 ask_price,
                 bid_quantity: Some(bid_qty),
@@ -368,6 +369,7 @@ impl BitstampSession {
                 Some(us_to_ts(exchange_ts_us)),
                 EventFlags::SNAPSHOT,
                 MarketEvent::BookSnapshot(BookSnapshot {
+                    provenance: None,
                     bids: book_bids,
                     asks: book_asks,
                     depth: None,
@@ -445,6 +447,7 @@ impl BitstampSession {
                 Some(us_to_ts(exchange_ts_us)),
                 EventFlags::empty(),
                 MarketEvent::BookDelta(BookDelta {
+                    provenance: None,
                     changes,
                     checksum: None,
                 }),
@@ -477,6 +480,7 @@ impl BitstampSession {
                     Some(us_to_ts(t.exchange_ts_us)),
                     EventFlags::empty(),
                     MarketEvent::Trade(Trade {
+                        provenance: None,
                         price: t.price,
                         quantity: t.quantity,
                         aggressor: t.aggressor,
@@ -671,6 +675,10 @@ impl SessionMachine for BitstampSession {
                         self.emit_candle(
                             &pair,
                             Candle {
+                                provenance: None,
+                                native_volume_ccy: None,
+                                is_closed: None,
+                                quote_volume: None,
                                 open,
                                 high,
                                 low,

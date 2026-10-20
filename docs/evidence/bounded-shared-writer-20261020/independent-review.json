@@ -1,0 +1,40 @@
+{
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "marketfeed-recording",
+    "--lib",
+    "shared_batch::tests",
+    "--",
+    "--nocapture"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 4.0446271896362305,
+  "log_sha256": "b7633e34a57921ff2fdeaa17b6d448bd3d9512235992c94cba75f59203479b92",
+  "source_before": {
+    "crates/recording/src/shared_batch.rs": "a90253954a88abf9e90f7e1700ab3cdfe837c6dd8f23bfa5cb5eefebbc0e2efa",
+    "crates/recording/src/shared_batch_tests.rs": "b90f3e6b3a9551a03b30cb6e5af98f1aab823041870a60c391226d602dcd4547",
+    "crates/recording/src/shared_feed.rs": "0b41defceef09a1c658eabe722a4727397098a316cefc045f968c4d635f7a65d",
+    "crates/recording/src/lib.rs": "a03a90eb18d06f03240170ddf5ade0e0976c560c6eed2ee18007e9f914eaab53"
+  },
+  "source_after": {
+    "crates/recording/src/shared_batch.rs": "a90253954a88abf9e90f7e1700ab3cdfe837c6dd8f23bfa5cb5eefebbc0e2efa",
+    "crates/recording/src/shared_batch_tests.rs": "b90f3e6b3a9551a03b30cb6e5af98f1aab823041870a60c391226d602dcd4547",
+    "crates/recording/src/shared_feed.rs": "0b41defceef09a1c658eabe722a4727397098a316cefc045f968c4d635f7a65d",
+    "crates/recording/src/lib.rs": "a03a90eb18d06f03240170ddf5ade0e0976c560c6eed2ee18007e9f914eaab53"
+  },
+  "head": "7bef5217b1f294caac90c4233b9e92015f45459c",
+  "review_findings": [
+    {
+      "finding": "exact byte/record-full groups waited for age or another submission",
+      "disposition": "fixed; exact-full no-later-submission regressions pass"
+    },
+    {
+      "finding": "phase state from a previous group could break panic settlement before the next publication",
+      "disposition": "fixed; reset before selecting new work, checked range lookup and earlier ACK preserved"
+    }
+  ],
+  "scope": "Independent source review and direct focused actor test execution; no full-suite, ingress, engine integration, D5, live or operational qualification."
+}

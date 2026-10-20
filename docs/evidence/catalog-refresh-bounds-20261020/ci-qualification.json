@@ -1,0 +1,54 @@
+{
+  "schema": "marketfeed.catalog_bounds_ci.v1",
+  "source_commit": "384917297093e508e25696772820c53806523634",
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39354936034",
+  "status": "success",
+  "successful_jobs": 17,
+  "actual_merge_checkout": "b7f1775cd1b9da2cdd1c50aa3c7732fc2551057d",
+  "source_tree": "6636e39c14a4012a0b3868ef1aa544a25bea3991",
+  "actual_merge_tree": "6636e39c14a4012a0b3868ef1aa544a25bea3991",
+  "complete_tree_equal": true,
+  "jobs": [
+    {
+      "platform": "macos",
+      "passed": 1305,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 151,
+      "log_sha256": "7408eb5828c8537490d032d38cf2c0b9cd97ddb2ff1f177f9d7d8c43826b690e"
+    },
+    {
+      "platform": "linux-arm",
+      "passed": 1306,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 151,
+      "log_sha256": "8d05fce35a95290e97e8f3942bb9d224f7dfeccb08acb29b75377bac7a5cab1f"
+    },
+    {
+      "platform": "windows",
+      "passed": 1303,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 151,
+      "log_sha256": "126eb79ae92fef5e00c12b24c7d0b474a93150ab3f8fa7c2e1dbc38ec8936f87"
+    },
+    {
+      "platform": "linux",
+      "passed": 1306,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 151,
+      "log_sha256": "5da5e92933690aba929bf2159771180a8fecc01b68d5188f940712b62faef27e"
+    },
+    {
+      "platform": "windows-durability",
+      "passed": 82,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 11,
+      "log_sha256": "f93f40d7949a5ac116ef6a1754cabb757f9917a1dc761def682dc4232084e39a"
+    }
+  ],
+  "scope": "Source384 only, includes catalog index guard. Does not qualify subsequent uncommitted timing instrumentation or diagnostic example. Windows durability uses hosted admin token NTFS scope; ordinary-user/hardware gates remain open."
+}
