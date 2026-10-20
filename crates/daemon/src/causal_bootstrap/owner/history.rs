@@ -89,7 +89,7 @@ struct HistoryShared {
     origin: Instant,
     #[cfg(test)]
     clock_offset_ns: std::sync::atomic::AtomicU64,
-    #[cfg(test)]
+    #[cfg(all(test, feature = "causal-journal"))]
     text_pause: Mutex<Option<Arc<TextPauseState>>>,
     state: Mutex<Data>,
     // Acceptance cannot be cancelled by a panic or a disappearing waiter. Keep
@@ -99,15 +99,15 @@ struct HistoryShared {
 }
 // Per-owner, one-shot fixture barrier. No lock protecting owner admission or
 // source/fence state is held while the actual worker is paused.
-#[cfg(test)]
+#[cfg(all(test, feature = "causal-journal"))]
 #[derive(Default)]
 struct TextPauseState {
     state: Mutex<(bool, bool)>,
     wake: Condvar,
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "causal-journal"))]
 pub(crate) struct HistoryTextPause(Arc<TextPauseState>);
-#[cfg(test)]
+#[cfg(all(test, feature = "causal-journal"))]
 impl HistoryTextPause {
     pub(crate) fn entered(&self) -> bool {
         self.0.state.lock().unwrap().0
@@ -117,13 +117,13 @@ impl HistoryTextPause {
         self.0.wake.notify_all();
     }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "causal-journal"))]
 impl Drop for HistoryTextPause {
     fn drop(&mut self) {
         self.release();
     }
 }
-#[cfg(test)]
+#[cfg(all(test, feature = "causal-journal"))]
 fn pause_text_worker(shared: &HistoryShared, observation: &Observation) {
     let mut slot = shared.text_pause.lock().unwrap();
     if slot.is_none() {
@@ -372,7 +372,7 @@ fn bounded_json(value: &impl Serialize, cap: usize) -> Result<String, String> {
     String::from_utf8(out.bytes).map_err(|e| e.to_string())
 }
 impl HistoryIngress {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "causal-journal"))]
     pub(crate) fn pause_next_text_for_test(&self) -> HistoryTextPause {
         let pause = Arc::new(TextPauseState::default());
         let mut slot = self.shared.text_pause.lock().unwrap();
@@ -666,7 +666,7 @@ impl BootstrappedSession {
             origin: Instant::now(),
             #[cfg(test)]
             clock_offset_ns: std::sync::atomic::AtomicU64::new(0),
-            #[cfg(test)]
+            #[cfg(all(test, feature = "causal-journal"))]
             text_pause: Mutex::new(None),
             wake: Condvar::new(),
             ticket: Mutex::new(None),
@@ -966,7 +966,7 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
             s.observations.pop_front()
         };
         if let Some(observation) = observation {
-            #[cfg(test)]
+            #[cfg(all(test, feature = "causal-journal"))]
             pause_text_worker(shared, &observation);
             let Observation {
                 ordinal,

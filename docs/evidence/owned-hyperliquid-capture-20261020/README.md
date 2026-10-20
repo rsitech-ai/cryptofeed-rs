@@ -78,3 +78,20 @@ registered ingress comparison unchanged after actual consumer integration.
 Extended Razer/24-hour/7-day checks remain deferred by the user. No dataset,
 availability-time, feature/economic, strategy activation or release qualification
 is granted by these results.
+
+## Successor feature-gate repair
+
+The source05 hosted run exposed a default-feature Rust 1.85 compile failure:
+the paused-storage test helper compiled while its `causal-journal` tests were
+disabled, producing three denied dead-code errors. The retained failure remains
+part of run 39499150521. [msrv-feature-gate-fix.json](msrv-feature-gate-fix.json)
+binds the successor's nine test-only feature gates, independent review and actual
+denied-warning Rust 1.85 checks: default library 108 passed; opt-in causal library
+87 passed; formatting/diff passed. All other source bytes are unchanged. This
+narrow local check does not substitute for the successor's own hosted results.
+
+The supplement also corrects a copied sentence in the original pilot03 timing
+receipt: pilot03 has **zero unaccepted frames**. The original wording referred
+to an unaccepted frame from failed pilot02. All numeric pilot03 diagnostics,
+including the acquisition-lag failure, are unchanged; the original receipt is
+retained.

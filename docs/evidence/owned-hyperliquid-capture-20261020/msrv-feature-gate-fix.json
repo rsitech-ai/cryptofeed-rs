@@ -1,0 +1,156 @@
+{
+  "source_sha256": "a58ba7bf6012c3a48449315291e680b11e2fd71364864b9c6cae9ec6e6a4fd1b",
+  "delta": [
+    "crates/daemon/src/causal_bootstrap/owner/history.rs"
+  ],
+  "checks": [
+    {
+      "name": "default-lib",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--lib"
+      ],
+      "env": {
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv",
+        "RUSTFLAGS": "-Dwarnings"
+      },
+      "exit_code": 0,
+      "seconds": 18.679591916967183,
+      "log_sha256": "4e204f9f0e589c8974300fc6cd892b65ec6e2dca24c14deec197869755380fda",
+      "source_unchanged": true,
+      "test_totals": [
+        108,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "causal-lib",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "env": {
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv",
+        "RUSTFLAGS": "-Dwarnings"
+      },
+      "exit_code": 0,
+      "seconds": 15.585229374933988,
+      "log_sha256": "085e481132fa7b6dee51ae21892330afe8937ead4b4f088c512986718b0ba728",
+      "source_unchanged": true,
+      "test_totals": [
+        87,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "env": {
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv",
+        "RUSTFLAGS": "-Dwarnings"
+      },
+      "exit_code": 0,
+      "seconds": 0.9046128750778735,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "diff",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "env": {
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv",
+        "RUSTFLAGS": "-Dwarnings"
+      },
+      "exit_code": 0,
+      "seconds": 0.01992758270353079,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    }
+  ],
+  "scope": "Successor narrow test-fixture feature gate repair; actual no-feature and opt-in Rust1.85 checks with denied warnings. No inherited full workspace, hosted or fresh-capture qualification.",
+  "parent_head": "8debd5cb59b2145baa1fe540a981422733ee71cc",
+  "previous_recipe_sha256": "7fe5ea7c6c496997b4053acb5e3bb3711497cb95afe522aac2826f70b3ce3fd5",
+  "source_files": 566,
+  "changes": {
+    "crates/daemon/src/causal_bootstrap/owner/history.rs": {
+      "before": {
+        "bytes": 59039,
+        "sha256": "54f345875a703049a18b68503ca1647f98cbdb370963e270c7e2d9641a2b8cea"
+      },
+      "after": {
+        "bytes": 59336,
+        "sha256": "e49df3117630151cc95351f7c69a55c80712f00c017fee4e82d8a9578c8b47fc"
+      },
+      "cfg_sites": 9,
+      "production_behavior_changed": false
+    }
+  },
+  "retained_hosted_failure": {
+    "run": 39499150521,
+    "job": 118891891785,
+    "merge": "f5f17d2be90c7c55e855314e10dc3605134fbb1f",
+    "tree": "fea9b209fa0d7e41baf0ae171190f679529e4c11",
+    "actual_exit_code": 101,
+    "stage": "default-feature lib-test compile; three dead-code errors",
+    "log_sha256": "feac1445721e5b63e37487be729349c4458090d8a3791ae48fde92a0c7fe2d4b"
+  },
+  "runner_terminal": {
+    "session_id": 66803,
+    "actual_exit_code": 0
+  },
+  "independent_review": {
+    "receipt": "producer-cfg-review-06.json",
+    "sha256": "a60744b1949bd07de2944695f88c9c9fbdb171a4a4409539b9169f71eb984100"
+  },
+  "pilot03_diagnostic_scope_correction": {
+    "receipt": "causal-capture-publicpilot03-independent-physical-04.json",
+    "sha256": "3324d23fd35e50397defd519efbaae0380f148701d02dc704c75bc80aadb42ad",
+    "scope": "Additional read-only diagnostic census of persisted accepted native input and actual completed canonical queue attempts; no Rust reexecution, financial authentication, exchange clock synchronization or latency qualification. Pilot03 reports zero unaccepted frames for both markets; all persisted accepted text frames are included. This census cannot describe any unobserved exchange events.",
+    "correction": {
+      "corrects_basename": "causal-capture-publicpilot03-independent-physical-03.json",
+      "corrects_sha256": "9f378c0a1cb3ec3d8af1042d5bdf1675be0c063bba088e7febe4589031c0bf0d",
+      "created_utc": "2026-10-20T21:24:04.796711+00:00",
+      "reason": "Copied pilot02 generic unavailable-unaccepted-frame wording was misleading for pilot03, which has zero unaccepted frames. No numerical data changed."
+    },
+    "numeric_data_unchanged": true
+  }
+}
