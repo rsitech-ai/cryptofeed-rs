@@ -1,0 +1,99 @@
+{
+  "schema": "marketfeed.bootstrap_ci_failure.v1",
+  "independent_receipt_sha256": "25c08d32c310afa3ec1e4343671250cf65fa2f25d4b1b49c05313b761732864d",
+  "source": "2b8225eeabdff7351dbfe89e36d997d6355c909c",
+  "tested_merge": "81f73ea8915038baad262f33c324498469440a49",
+  "source_and_merge_tree": "dfc45205baa4df07bce00e5c0b8b2d51d8c19860",
+  "whole_tree_equal": true,
+  "declared_source_snapshot_sha256": "87c34f45e9936da231cccc887a58f9b105dc8dac14bcbefb22ba58d635c06f8d",
+  "declared_source_files": 520,
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39380784187",
+  "conclusion": "failure",
+  "successful_jobs": 16,
+  "failed_jobs": 1,
+  "qualification": "FAILED: ARM workspace test timed out; no full cross-platform qualification. Other passing scopes retained individually.",
+  "platforms": {
+    "test (ubuntu-24.04-arm)": {
+      "job_conclusion": "failure",
+      "counts": {
+        "passed": 692,
+        "failed": 1,
+        "ignored": 46
+      },
+      "suites": 83,
+      "complete_workspace_execution": false,
+      "raw_step_log_sha256": "fe2609f6310f790b636f73be97694bda1dbcfa7f96073acc3c3585490762c95d"
+    },
+    "test (windows-latest)": {
+      "job_conclusion": "success",
+      "counts": {
+        "passed": 1405,
+        "failed": 0,
+        "ignored": 56
+      },
+      "suites": 156,
+      "complete_workspace_execution": true,
+      "raw_step_log_sha256": "f6bfd65e4817570ee9008af1f48908dcbc2e67bf14dccf05f837d84c644abd8b"
+    },
+    "test (macos-latest)": {
+      "job_conclusion": "success",
+      "counts": {
+        "passed": 1407,
+        "failed": 0,
+        "ignored": 56
+      },
+      "suites": 156,
+      "complete_workspace_execution": true,
+      "raw_step_log_sha256": "36c74a6cc8f896e9c43d76d0d5e0f0b442207c6055f578ca5b65992f4ffc8bf1"
+    },
+    "test (ubuntu-latest)": {
+      "job_conclusion": "success",
+      "counts": {
+        "passed": 1408,
+        "failed": 0,
+        "ignored": 56
+      },
+      "suites": 156,
+      "complete_workspace_execution": true,
+      "raw_step_log_sha256": "123dad752192d991bbd05ad87db09343a4f181a9ffeeaae68272bf8362fe2a24"
+    }
+  },
+  "msrv_bootstrap": {
+    "commands": [
+      "cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --lib causal_bootstrap",
+      "cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --test causal_bootstrap"
+    ],
+    "counts": {
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0
+    },
+    "suites": [
+      {
+        "status": "ok",
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "status": "ok",
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "archive_member": "msrv (1.85)/5_Opt-in causal bootstrap on Rust 1.85.txt",
+    "sha256": "d7007c2bd058cba36dea5ad6829e18b23f42969b6db906b3fcbac8872ce8179d"
+  },
+  "raw_full_text_log_sha256": "56ee18050b47a19be221d4bc3321b9333009b47721864692b5d8cdbfcddef2aa",
+  "raw_original_archive_sha256": "415aec7b98c165d49b333aaa6fb5e74a901d480cb0488bb047df947657b6d691",
+  "failure_analysis": {
+    "test": "causal_bootstrap::tests::actual_bootstrap_receipt_precedes_factory_and_initialized_owner",
+    "location_at_published_source": "crates/daemon/src/causal_bootstrap_tests.rs:456",
+    "observed": "Post-close done_rx.recv_timeout(10 seconds) returned Timeout; daemon lib145 passed/1 failed; test process exits101.",
+    "limits": "The trace does not establish whether artifact hashing, storage publication, scheduling or a logic defect consumed the deadline. Other supported-category construction exceeded60s and passed. Failed gate retained; no rerun-to-green.",
+    "smallest_followup": "Review this test at the published source and instrument or deterministically synchronize receipt completion/factory readiness under bounded diagnostics before changing any timeout; register and rerun the affected ARM gate plus full CI for the repaired source."
+  },
+  "followup_scope": "New owner source adds receipt-before-factory phase logging and a120s bounded test watchdog. Runtime/registered workload thresholds are unchanged. Fresh own-source hosted ARM evidence is required; old failure remains failed, and a pass under120s does not prove the former10s completion bound.",
+  "excludes": "Subsequent owner implementation, durable availability/projection/replay/live integration or registered ingress repair"
+}

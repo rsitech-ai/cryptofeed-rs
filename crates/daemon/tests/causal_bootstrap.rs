@@ -63,7 +63,7 @@ mod enabled {
             max_entries: 1024,
         };
         BootstrapDto {
-            schema_version: 1,
+            schema_version: 2,
             build: BUILD.get_or_init(|| current_build().unwrap()).clone(),
             factory: FactoryDto::BybitPublic {
                 category: BybitCategoryDto::Spot,
@@ -100,6 +100,7 @@ mod enabled {
             catalog: (&catalog).into(),
             capture: capture.into(),
             runner_policy: capture.runtime_policy(),
+            owner_policy: Some(JournalOwnerPolicyDto::default()),
             public_inputs: vec![PublicReproductionInputDto::new(
                 "public-original-bytes",
                 b"native\0\xff",

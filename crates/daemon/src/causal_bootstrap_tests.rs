@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-fn fixture() -> BootstrapDto {
+pub(super) fn fixture() -> BootstrapDto {
     static BUILD: OnceLock<BootstrapBuildDto> = OnceLock::new();
     let instruments = (1..=10)
         .map(|id| Instrument {
@@ -81,7 +81,7 @@ fn fixture() -> BootstrapDto {
         max_entries: 8192,
     };
     BootstrapDto {
-        schema_version: 1,
+        schema_version: 2,
         build: BUILD.get_or_init(|| current_build().unwrap()).clone(),
         factory: FactoryDto::BybitPublic {
             category: BybitCategoryDto::Linear,
@@ -101,6 +101,7 @@ fn fixture() -> BootstrapDto {
         catalog: (&catalog).into(),
         capture: capture.into(),
         runner_policy: capture.runtime_policy(),
+        owner_policy: Some(JournalOwnerPolicyDto::default()),
         public_inputs: vec![PublicReproductionInputDto::new(
             "public-catalog-response",
             b"fixture",
@@ -316,7 +317,7 @@ fn hash_canonical_route_and_unknown_schema_are_verified_before_factories() {
             .is_err()
     );
     for (from, to) in [
-        ("\"schema_version\":1", "\"schema_version\":2"),
+        ("\"schema_version\":2", "\"schema_version\":3"),
         ("\"disk_null_dispatch_v1\"", "\"external_sink\""),
         ("\"bybit_public\"", "\"hyperliquid\""),
     ] {
@@ -436,7 +437,17 @@ fn actual_bootstrap_receipt_precedes_factory_and_initialized_owner() {
     let (done_tx, done_rx) = mpsc::channel();
     let thread = std::thread::spawn(move || {
         entered_tx.send(()).unwrap();
-        let owner = pending.wait().unwrap().instantiate().unwrap();
+        let started = std::time::Instant::now();
+        let committed = pending.wait().unwrap();
+        let receipt_elapsed = started.elapsed();
+        eprintln!(
+            "bootstrap test durable receipt observed at {receipt_elapsed:?}; verifying artifact/factory"
+        );
+        let owner = committed.instantiate().unwrap();
+        eprintln!(
+            "bootstrap test receipt={receipt_elapsed:?}, total including artifact verification={:?}",
+            started.elapsed()
+        );
         done_tx.send(owner).unwrap();
     });
     entered_rx.recv().unwrap();
@@ -453,7 +464,11 @@ fn actual_bootstrap_receipt_precedes_factory_and_initialized_owner() {
             .is_none()
     );
     handle.close();
-    let mut owner = done_rx.recv_timeout(Duration::from_secs(10)).unwrap();
+    // A test watchdog, not a runtime/admission deadline. Artifact verification
+    // hashes the real test executable; hosted ARM with parallel hash-heavy
+    // cases exceeded the old 10s watchdog. Preserve the pre-ACK assertions and
+    // log both phases so future failures can distinguish receipt from factory.
+    let mut owner = done_rx.recv_timeout(Duration::from_secs(120)).unwrap();
     thread.join().unwrap();
     let report = actor.shutdown().unwrap();
     assert_eq!(owner.identity(), &expected);

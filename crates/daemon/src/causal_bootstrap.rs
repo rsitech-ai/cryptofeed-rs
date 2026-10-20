@@ -14,6 +14,8 @@ use std::{
     io::{self, Read},
 };
 
+pub mod owner;
+
 #[derive(Debug, thiserror::Error)]
 pub enum BootstrapError {
     #[error(transparent)]
@@ -344,6 +346,7 @@ impl PreparedBootstrap {
                 dto,
                 identity,
                 ticket,
+                handle: handle.clone(),
             }),
             Err(rejected) => Err(RejectedBootstrap {
                 reason: rejected.reason,
@@ -371,6 +374,7 @@ pub struct PendingBootstrap {
     dto: BootstrapDto,
     identity: OperationIdentity,
     ticket: CommitTicket,
+    handle: BatchFeedHandle,
 }
 impl PendingBootstrap {
     /// Blocking dedicated-owner wait. Dropping this does not cancel accepted
@@ -390,6 +394,7 @@ impl PendingBootstrap {
             dto: self.dto,
             identity: self.identity,
             receipt,
+            handle: self.handle,
         })
     }
 }
@@ -398,6 +403,7 @@ pub struct CommittedBootstrap {
     dto: BootstrapDto,
     identity: OperationIdentity,
     receipt: CommitReceipt,
+    handle: BatchFeedHandle,
 }
 impl CommittedBootstrap {
     pub fn receipt(&self) -> &CommitReceipt {
@@ -426,6 +432,8 @@ impl CommittedBootstrap {
             capture,
             identity: self.identity,
             receipt: self.receipt,
+            handle: self.handle,
+            owner_policy: self.dto.owner_policy,
         })
     }
 }
@@ -435,6 +443,8 @@ pub struct BootstrappedSession {
     capture: CaptureSession,
     identity: OperationIdentity,
     receipt: CommitReceipt,
+    handle: BatchFeedHandle,
+    owner_policy: Option<JournalOwnerPolicyDto>,
 }
 impl BootstrappedSession {
     pub fn identity(&self) -> &OperationIdentity {

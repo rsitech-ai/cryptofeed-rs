@@ -235,6 +235,7 @@ pub struct CommitTicket {
     admission: u64,
     receiver: mpsc::Receiver<Result<CommitReceipt, CommitFailure>>,
     inner: Arc<Inner>,
+    settled: Option<Result<CommitReceipt, CommitFailure>>,
 }
 impl CommitTicket {
     pub fn admission(&self) -> u64 {
@@ -242,21 +243,38 @@ impl CommitTicket {
     }
     /// Blocking wait; use a dedicated owner thread or blocking bridge in async
     /// callers. Dropping the waiter never removes accepted work.
-    pub fn wait(self) -> Result<CommitReceipt, CommitFailure> {
-        self.receiver.recv().unwrap_or_else(|_| {
-            let status = self.inner.state.lock().unwrap_or_else(|p| p.into_inner());
-            Err(CommitFailure {
-                admission: self.admission,
-                disposition: CommitDisposition::Unknown,
-                failure: status
-                    .status
-                    .failure
-                    .clone()
-                    .unwrap_or_else(|| BatchFailure {
-                        cause: BatchFailureCause::ReceiptUnavailable,
-                        last_acknowledged: status.status.last_acknowledged.clone(),
-                    }),
-            })
+    pub fn wait(mut self) -> Result<CommitReceipt, CommitFailure> {
+        if let Some(result) = self.settled.take() {
+            return result;
+        }
+        self.receiver.recv().unwrap_or_else(|_| self.disconnected())
+    }
+    /// Nonblocking observation for an owner that must revoke safety while I/O
+    /// is outstanding. Empty is not failure. A terminal result is cached so
+    /// observing it twice cannot turn success into a disconnected-channel error.
+    pub fn try_result(&mut self) -> Option<Result<CommitReceipt, CommitFailure>> {
+        if self.settled.is_none() {
+            self.settled = match self.receiver.try_recv() {
+                Ok(result) => Some(result),
+                Err(mpsc::TryRecvError::Empty) => None,
+                Err(mpsc::TryRecvError::Disconnected) => Some(self.disconnected()),
+            };
+        }
+        self.settled.clone()
+    }
+    fn disconnected(&self) -> Result<CommitReceipt, CommitFailure> {
+        let status = self.inner.state.lock().unwrap_or_else(|p| p.into_inner());
+        Err(CommitFailure {
+            admission: self.admission,
+            disposition: CommitDisposition::Unknown,
+            failure: status
+                .status
+                .failure
+                .clone()
+                .unwrap_or_else(|| BatchFailure {
+                    cause: BatchFailureCause::ReceiptUnavailable,
+                    last_acknowledged: status.status.last_acknowledged.clone(),
+                }),
         })
     }
 }
@@ -305,6 +323,10 @@ impl BatchFeedHandle {
     /// Immutable writer format, available before constructing an engine owner.
     pub fn profile(&self) -> FeedProfile {
         self.inner.profile
+    }
+    /// Immutable admission/grouping caps for preflight owner compatibility.
+    pub fn config(&self) -> BatchConfig {
+        self.inner.config
     }
     pub fn status(&self) -> BatchStatus {
         lock(&self.inner).status.clone()
@@ -357,6 +379,7 @@ impl BatchFeedHandle {
             admission,
             receiver,
             inner: self.inner.clone(),
+            settled: None,
         })
     }
     /// Stop admission and flush every accepted transaction, including a partial

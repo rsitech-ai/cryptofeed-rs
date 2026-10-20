@@ -363,6 +363,9 @@ impl SessionRunner {
                         .map_err(|_| EngineError::Internal("connection ID exhausted".into()))?,
                 )
             };
+            // The old physical source's request has been satisfied. A new
+            // callback/action may request another reconnect on this connection.
+            self.reconnect_requested = false;
             self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Connection {
                 session: self.cfg.session,
                 connection: self.cfg.connection,

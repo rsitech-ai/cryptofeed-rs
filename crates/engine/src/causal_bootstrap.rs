@@ -331,6 +331,57 @@ pub struct PublicReproductionInputDto {
     pub bytes: u64,
     pub payload: BytesDto,
 }
+/// Bound before factory construction. Limits cover queued plus active ingress;
+/// capture, encoded transaction and one committed release are additional bounds.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JournalOwnerPolicyDto {
+    pub max_pending_operations: u32,
+    pub max_pending_bytes: u64,
+    pub max_input_bytes: u64,
+    pub max_operation_bytes: u64,
+    /// One absolute deadline from accepted ingress, including queue/execution,
+    /// admission retries and observed commit. Accepted storage still settles.
+    pub max_ingress_age: DurationDto,
+    pub receipt_poll_interval: DurationDto,
+}
+impl Default for JournalOwnerPolicyDto {
+    fn default() -> Self {
+        Self {
+            max_pending_operations: 512,
+            max_pending_bytes: 16 * 1024 * 1024,
+            max_input_bytes: 2 * 1024 * 1024,
+            max_operation_bytes: MAX_OPERATION_BYTES as u64,
+            max_ingress_age: Duration::from_secs(10).into(),
+            receipt_poll_interval: Duration::from_millis(1).into(),
+        }
+    }
+}
+impl JournalOwnerPolicyDto {
+    pub fn validate(&self) -> Result<(), CodecError> {
+        let age = self.max_ingress_age.duration()?;
+        let poll = self.receipt_poll_interval.duration()?;
+        if self.max_pending_operations == 0
+            || self.max_pending_operations > 65_536
+            || self.max_input_bytes == 0
+            || self.max_input_bytes > self.max_pending_bytes
+            || self.max_pending_bytes > 64 * 1024 * 1024
+            || self.max_operation_bytes == 0
+            || self.max_operation_bytes > MAX_OPERATION_BYTES as u64
+            || usize::try_from(self.max_pending_bytes).is_err()
+            || usize::try_from(self.max_input_bytes).is_err()
+            || usize::try_from(self.max_operation_bytes).is_err()
+            || age.is_zero()
+            || age > Duration::from_secs(3600)
+            || poll.is_zero()
+            || poll > age
+            || poll > Duration::from_millis(100)
+        {
+            return Err(invalid("invalid journal owner bounds/deadline"));
+        }
+        Ok(())
+    }
+}
 impl PublicReproductionInputDto {
     pub fn new(role: impl Into<String>, bytes: &[u8]) -> Self {
         Self {
@@ -355,13 +406,19 @@ pub struct BootstrapDto {
     pub catalog: CatalogDto,
     pub capture: CaptureConfigDto,
     pub runner_policy: CaptureRuntimePolicy,
+    /// V1 bootstrap bytes remain decodable and canonical, but cannot start the
+    /// new owner without an explicit V2 policy. No silent runtime defaults.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner_policy: Option<JournalOwnerPolicyDto>,
     pub public_inputs: Vec<PublicReproductionInputDto>,
 }
 impl BootstrapDto {
     pub fn validate(&self) -> Result<(), CodecError> {
         let c = self.capture.config()?;
-        if self.schema_version != 1
-            || self.runner_policy != c.runtime_policy()
+        if !matches!(
+            (self.schema_version, self.owner_policy.is_some()),
+            (1, false) | (2, true)
+        ) || self.runner_policy != c.runtime_policy()
             || self.catalog.venue != self.capture.venue
             || self.catalog.instruments.len() > 65536
             || self.session.subscriptions.len() > 65536
@@ -373,6 +430,9 @@ impl BootstrapDto {
             return Err(invalid(
                 "bootstrap schema, scope or effective runner policy mismatch",
             ));
+        }
+        if let Some(policy) = &self.owner_policy {
+            policy.validate()?;
         }
         self.catalog.catalog()?;
         self.session.session_spec()?;

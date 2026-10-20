@@ -97,6 +97,72 @@ fn received(ticket: CommitTicket) -> Result<CommitReceipt, CommitFailure> {
         .expect("every ticket settles within test watchdog")
 }
 
+fn polled(ticket: &mut CommitTicket) -> Result<CommitReceipt, CommitFailure> {
+    let deadline = Instant::now() + WAIT;
+    loop {
+        if let Some(result) = ticket.try_result() {
+            return result;
+        }
+        assert!(Instant::now() < deadline, "ticket poll watchdog");
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+
+#[test]
+fn nonblocking_receipt_is_empty_before_barrier_and_stable_after_success() {
+    let temp = tempfile::tempdir().unwrap();
+    let (actor, calls, replies) = gated(&temp, config());
+    let mut ticket = actor.handle().try_submit(tx("polled")).unwrap();
+    calls.recv_timeout(WAIT).unwrap();
+    assert!(ticket.try_result().is_none());
+    replies.send(Reply::Ok).unwrap();
+    let result = polled(&mut ticket).unwrap();
+    assert_eq!(ticket.try_result(), Some(Ok(result.clone())));
+    assert_eq!(ticket.try_result(), Some(Ok(result.clone())));
+    assert_eq!(ticket.wait(), Ok(result));
+    actor.shutdown().unwrap();
+}
+
+#[test]
+fn nonblocking_receipts_preserve_attempted_panic_and_unattempted_suffix() {
+    let temp = tempfile::tempdir().unwrap();
+    let (actor, calls, replies) = gated(&temp, config());
+    let mut active = actor.handle().try_submit(tx("active")).unwrap();
+    calls.recv_timeout(WAIT).unwrap();
+    let mut queued = actor.handle().try_submit(tx("queued")).unwrap();
+    replies.send(Reply::Panic).unwrap();
+    let first = polled(&mut active).unwrap_err();
+    let second = polled(&mut queued).unwrap_err();
+    assert!(matches!(
+        first.disposition,
+        CommitDisposition::Attempted { .. }
+    ));
+    assert_eq!(second.disposition, CommitDisposition::NotAttempted);
+    assert_eq!(active.try_result(), Some(Err(first.clone())));
+    assert_eq!(queued.wait(), Err(second));
+    assert_eq!(active.wait(), Err(first));
+    assert!(actor.shutdown().is_err());
+}
+
+#[test]
+fn disconnected_receipt_poll_is_unknown_and_does_not_cancel_publication() {
+    let temp = tempfile::tempdir().unwrap();
+    let (actor, calls, replies) = gated(&temp, config());
+    let mut ticket = actor.handle().try_submit(tx("accepted")).unwrap();
+    calls.recv_timeout(WAIT).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    drop(sender);
+    ticket.receiver = receiver;
+    let failure = ticket.try_result().unwrap().unwrap_err();
+    assert_eq!(failure.disposition, CommitDisposition::Unknown);
+    assert_eq!(failure.failure.cause, BatchFailureCause::ReceiptUnavailable);
+    assert_eq!(ticket.wait(), Err(failure));
+    replies.send(Reply::Ok).unwrap();
+    let report = actor.shutdown().unwrap();
+    assert_eq!(report.committed_operations, 1);
+    assert_eq!(report.published.sequence, 1);
+}
+
 #[test]
 fn preparation_validates_count_seal_and_full_envelope_sizing() {
     assert!(PreparedFeedTransaction::new(vec![]).is_err());
