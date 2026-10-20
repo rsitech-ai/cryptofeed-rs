@@ -228,5 +228,13 @@
       "ignored": 56,
       "log_sha256": "f7ae26eb4644aeb07f0edc91ff5240c11c1f1856f4a925d4ab49f9fcf5a3dfe1"
     }
+  },
+  "windows_backend_follow_up": {
+    "source_head": "4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+    "registry_package_records_unchanged": true,
+    "cargo_lock_sha256": "dc12d42054530e795a4c924c30b4f137541971da571f1958cb03c4e559e6c39d",
+    "policy": "Windows added to target graph; exact cargo-deny0.20.2 passes with pinned existing windows-sys0.59 duplicate-binding disposition forfs4. No advisory ignore added. Earlier0.19 local checks are exploratory rather than exact CI-tool parity.",
+    "rustsec": "Full-lock cargo-audit0.22.2 still exits1 only on pre-existing time0.3.41/RUSTSEC-2026-0009;0warnings. No clean security clearance claimed.",
+    "evidence": "docs/evidence/windows-directory-backend-20261020/validation.json"
   }
 }

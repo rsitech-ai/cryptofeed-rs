@@ -54,8 +54,12 @@ coexistence, nested bootstrap and the existing storage failure/recovery cases.
 The dedicated Windows job runs the actual recording/backend tests on Rust 1.85
 and dataset publication/recovery on Rust 1.88, in addition to the full platform
 matrix. The expanded job has a 20-minute budget for toolchain installation and
-compilation; it does not alter runtime shutdown or failure deadlines. Runtime
-qualification is pending until those actual native results are inspected.
+compilation; it does not alter runtime shutdown or failure deadlines.
+The focused native Windows job passes 81 tests on the hosted NTFS runner
+(0 failed, 0 ignored; two Unix-only tests are absent). Its tested PR merge tree
+is verified identical to producer head `4c2bd15`. This proves the measured native
+functional scope; full-matrix, ordinary-user and power-loss scopes remain separate.
+See docs/evidence/windows-directory-backend-20261020 for exact provenance and limits.
 
 Primary contracts:
 

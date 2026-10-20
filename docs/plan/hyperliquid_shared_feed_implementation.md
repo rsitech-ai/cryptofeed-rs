@@ -1077,3 +1077,51 @@ Original failed policy scan remains in windows-backend-deny-01.log. No advisory
 ignore was added. Local receipts use windows-backend-* under the existing
 ignored evidence root. Independent storage review found no new actionable
 safety/integration defect in this bounded source; native CI remains required.
+
+
+## Windows native qualification and consumer synchronization (2026-10-20)
+
+Producer 4c2bd1520d16573fd3cdc2fd7a818d126f28a12d now has a terminal successful
+CI run 39345628986: all 17 jobs pass, including four platform suites, MSRV, native
+storage, Clippy/docs, SIMD, ABI and dependency/SBOM gates. The focused Windows
+job 118377561165 executes 81 tests on Rust 1.85/1.88 (0 failed, 0 ignored); the full
+Windows job 118377561075 executes 1,271 tests (0 failed, 56 ignored) and the original
+daemon pagination/feed-creation regression now passes. Two Unix-only permission/
+symlink cases are absent on Windows, not silently counted as ignored coverage.
+The local final workspace passes 1,273 tests (0 failed, 56 ignored). Ignored network and
+corpus-creation cases remain ignored, not live evidence.
+
+Checkout actually executes PR merge f02bb3bc941ff0b1a691f5e26d9a350e42330da6,
+not the head commit. Its tree 58a14c234a522af09f0475a66de25aa9189cdfde is verified
+equal to the 4c producer tree; both identities, raw log hashes, commands and test
+anchors are retained. Independent review inspected native logs, counted 81 cases,
+identified the 2 cfg(unix) exclusions and corrected this provenance distinction.
+The same-handle metadata/NTFS/GUID/fixed query and flush, complete ancestor walk,
+live-reader replacement, poison, object/reference reconciliation, intent recovery,
+concurrent CAS and backup paths execute natively. The 3 unsupported-storage parser
+fixtures do not represent real FAT/ReFS/SMB/removable-media mounts. The token is
+administrative; ordinary-user ancestor permissions and power-loss behavior stay
+unqualified. See docs/evidence/windows-directory-backend-20261020.
+
+Local policy-tool inspection found the earlier .tools cargo-deny was 0.19.0.
+Those outputs are retained as exploratory checks. Exact 0.20.2 was installed
+under hlscreen/target/validation-tools and full root policy reruns pass; CI also
+uses pinned 0.20.2. The new Windows graph's scoped fs4 binding disposition is
+explicit and not an advisory ignore. Full-lock RustSec retains only the known
+time/MSRV exception. Final workspace Clippy, warning-denied rustdoc, formatting
+and staged OSS/gitleaks checks pass. No registry package changed.
+
+Hlscreen 6f13f02 now pins both direct dependencies and all 5 marketfeed packages to
+4c, including the new filesystem helper. Parent independently compares 419 registry
+records unchanged and verifies all source/log/historical hashes. Full consumer
+PR check passes 543 unique Rust tests plus 8 Python bindings (packaging reruns 23;
+566 summed executions are not 566 unique). Exact 0.20.2 policy, cargo-about 0.9.1
+attribution/notices and full-lock RustSec 0.22.2 pass. Saved 1,055-event summary,
+clock, cursor, seal and complete output SHA 41e9a8a430547be5e39cd5db318ad4b14224cb5b852ebd4056699bcb5e249629
+are unchanged with an invalid exchange URL. Original archive/reports are unchanged.
+New consumer CI is pending. No new capture, soak, schema or economic run occurs.
+
+The measured Windows writer defect is resolved for the stated NTFS runner scope;
+remaining native units/settlement, continuity, strict datasets/general mixed
+causal replay, rsibot live context and calendar 24h/7d qualification remain open.
+The full goal stays active and ordinary-user/hardware limits remain explicit.

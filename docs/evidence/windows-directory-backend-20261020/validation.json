@@ -1,0 +1,336 @@
+{
+  "schema_version": 1,
+  "producer_head": "4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+  "tested_pr_merge": "f02bb3bc941ff0b1a691f5e26d9a350e42330da6",
+  "tested_merge_tree": "58a14c234a522af09f0475a66de25aa9189cdfde",
+  "merge_tree_equals_head_tree": true,
+  "source_sha256": {
+    "crates/filesystem/Cargo.toml": "7dfbba76c96aa416ab77a740c3a5d8ae646b88d69b38b163327f9c453754fec1",
+    "crates/filesystem/src/lib.rs": "8b11511762f47fa9159fc6e4d14f63e44a3ca952213c6d0de728c69c48fc1aef",
+    "crates/filesystem/src/volume.rs": "0cdebe59ac713805ba7e76c27995a67f2532e018bd41d219e4f25272f21ac013",
+    "crates/filesystem/src/windows.rs": "8b746ce2ddba68069b42dc934438613131957f1c9b82dff7f09e9648dc744587",
+    "crates/recording/src/durability.rs": "d880ff7c791f70b820822401182ae2098f8b9ed280f58b46025925aed85424a2",
+    "crates/recording/src/shared_feed.rs": "66dfcf1049513476e87c8165b8a2dd331ab98ab29c2fde8ccc8b90e58f0bd0c4",
+    "crates/recording/src/pipeline.rs": "deffcafae3ca1a416c18f90e44b0673a98ab1fef52238d3a6c61dbdcfe078076",
+    "crates/datasets/src/store.rs": "4a349bea8235311640a583aa13064b0b68fd1d3e15d1291e162fcf07fcbf3d72",
+    "Cargo.lock": "dc12d42054530e795a4c924c30b4f137541971da571f1958cb03c4e559e6c39d",
+    "deny.toml": "1cbb8fea79fd384ee46bb8efab063ef75a5ca213b6c42b002dadbb036150b7d4"
+  },
+  "native_windows": {
+    "run": 39345628986,
+    "job": 118377561165,
+    "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561165",
+    "started_at": "2026-10-20T00:06:50Z",
+    "completed_at": "2026-10-20T00:09:10Z",
+    "conclusion": "success",
+    "passed": 81,
+    "failed": 0,
+    "ignored": 0,
+    "counts": {
+      "filesystem": 4,
+      "recording_unit": 50,
+      "shared_feed_integration": 9,
+      "dataset_unit": 12,
+      "dataset_integration": 6
+    },
+    "not_compiled_on_windows": [
+      "recording unwritable-directory permission test (cfg unix)",
+      "dataset symlink escape test (cfg unix)"
+    ],
+    "commands": [
+      "cargo +1.85.0 test --locked -p marketfeed-filesystem -p marketfeed-recording",
+      "cargo +1.88.0 test --locked -p marketfeed-datasets"
+    ],
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-native-job-01.log",
+      "sha256": "33a1f58cad9ce9f6c79ecc37a0275b8adc0d5b139e4891b0ca64f8a8ac6db817"
+    },
+    "artifact_original_sha256": "b0d7b48d6dcf5ffd3559d4ab59cc7c86b9d63f9c4cc8bde4e66fd9d33125f07c",
+    "public_probe_sha256": "a23302018f2f124c218639f5d73909407e39474f2abadece936ad09d3c405b60",
+    "public_probe_normalization": "CRLF\u2192LF only; parsed values identical; original CI/local bytes retained",
+    "administrator_token": true
+  },
+  "local_storage": {
+    "command": "cargo test --locked -p marketfeed-filesystem -p marketfeed-recording -p marketfeed-datasets",
+    "passed": 83,
+    "failed": 0,
+    "ignored": 0,
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-storage-local-01.log",
+      "sha256": "06c72e97fca4b1649c07fa7955b51e55137c567a0fe1eb63154f5dd2245d2239"
+    }
+  },
+  "local_msrv": {
+    "command": "cargo +1.85.0 test --locked -p marketfeed-filesystem -p marketfeed-recording",
+    "passed": 64,
+    "failed": 0,
+    "ignored": 0,
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-local-msrv-01.log",
+      "sha256": "c58ffc4e3dc92d9adcaa8a6b0eb0cfa6563655ef5393791ef92d9e4d833352a5"
+    }
+  },
+  "windows_cross_check": {
+    "command": "cargo +1.85.0 check --locked -p marketfeed-filesystem --all-targets --target x86_64-pc-windows-msvc",
+    "exit": 0,
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-cross-check-01.log",
+      "sha256": "e3fc4d11fab02a0cdb080c5e31e576dd92c1be19ce3674d025abbbf3708ca1bf"
+    }
+  },
+  "registry_lock_comparison": {
+    "base_head": "258111b6be192af68cd1e332740d603611b1b0db",
+    "added_package": [
+      "marketfeed-filesystem",
+      "0.1.0-alpha.1",
+      null
+    ],
+    "changed_package": "marketfeed-recording: only new local filesystem edge",
+    "all_registry_package_records_unchanged": true,
+    "cargo_lock_sha256": "dc12d42054530e795a4c924c30b4f137541971da571f1958cb03c4e559e6c39d"
+  },
+  "review": {
+    "reviewer": "trade_review",
+    "source_disposition": "No actionable safety/integration defect in bounded native backend",
+    "runtime_disposition": "Independently inspected actual native job log and identified correct81count,2cfgUnix exclusions and PR-merge provenance. Parent proved merge/head tree equality.",
+    "coverage": [
+      "same opened handle metadata/NTFS/GUID/fixed classification and real flush",
+      "complete resolved ancestor sync",
+      "live reader watermark replacement",
+      "post-replace indeterminate error and permanent poison",
+      "raw segment rotation/metadata",
+      "failed object install, reuse/direct reference barriers",
+      "post-HEAD error, reopened intent recovery",
+      "shared instance writes and competing CAS",
+      "backup, exact/read-only admission"
+    ],
+    "limits": [
+      "three unsupported-filesystem/drive/GUID/UTF16 tests are pure fixtures, not actual ReFS/FAT/SMB/removable-media mounts",
+      "hosted runner token administrative; normal-user ancestor access unqualified",
+      "process fault injection does not establish hardware power-loss behavior"
+    ]
+  },
+  "policy": {
+    "tool": "cargo-deny0.20.2",
+    "command": "cargo-deny check",
+    "exit": 0,
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-deny-exact-01.log",
+      "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    "version_log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-deny-exact-version-01.log",
+      "sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    "earlier_exploratory": "windows-backend-deny-01/02 used0.19.0; first exposed existing Windows duplicate, second passed scoped disposition; not exact CI-tool parity",
+    "graph": "Windows x86_64 MSVC now included",
+    "duplicate_disposition": "exact windows-sys0.59.0 only, needed by fs4 0.13 Windows file locking; no advisory ignore added"
+  },
+  "clippy": {
+    "command": "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+    "exit": 0,
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-clippy-final-01.log",
+      "sha256": "7902715d378297eff5728e25b92907b5951af89c37cbd63ff3a490af43b6c808"
+    }
+  },
+  "docs": {
+    "command": "RUSTDOCFLAGS=-Dwarnings cargo doc --locked --workspace --all-features --no-deps",
+    "exit": 0,
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-docs-final-01.log",
+      "sha256": "0468d8f61c7cefe062241fab0e24c725859e8fee201d80a4dd81914d3a57b287"
+    }
+  },
+  "oss": {
+    "command": "PATH=$PWD/.tools/bin:$PATH bash scripts/check-oss-readiness.sh",
+    "exit": 0,
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-oss-staged-01.log",
+      "sha256": "1f6bd7d4f1a08da38a4cb18656486a489864c807b5b5e3289165a9de5f6cc2c2"
+    },
+    "gitleaks": "present; no leaks found"
+  },
+  "rustsec": {
+    "tool": "cargo-audit0.22.2",
+    "command": "cargo audit --deny warnings --json",
+    "exit": 1,
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    },
+    "findings": [
+      {
+        "id": "RUSTSEC-2026-0009",
+        "package": "time",
+        "version": "0.3.41"
+      }
+    ],
+    "warnings": {},
+    "log": {
+      "local_path": ".local/evidence/hyperliquid-integration-review/windows-backend-audit-01.json",
+      "sha256": "91ce56647043d0e8056ca17055a6b5532a4fcdb557ba502443e00964e35e2d4b"
+    },
+    "disposition": "Existing time/MSRV advisory exception remains; no clean full-lock claim"
+  },
+  "workspace": {
+    "source_head": "4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+    "command": "cargo test --locked --workspace --all-targets --all-features",
+    "exit": 0,
+    "passed": 1273,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 149,
+    "log_sha256": "a19fefc6fa3fe900af10f9023e257f9e423851cda3463f843c942ef3ae8a9340",
+    "scope": "Final frozen source files; ignored live/corpus tests are not live evidence"
+  },
+  "full_windows_workspace": {
+    "run": 39345628986,
+    "job": 118377561075,
+    "tested_pr_merge": "f02bb3bc941ff0b1a691f5e26d9a350e42330da6",
+    "merge_tree_equals_head_tree": true,
+    "command": "cargo test --locked --workspace --all-targets --all-features",
+    "exit": 0,
+    "passed": 1271,
+    "failed": 0,
+    "ignored": 56,
+    "suites": 149,
+    "log_sha256": "a06bc1ff1d2c36e4bae05c5a6f766beb4e4c6699fa9f6e116a10020dc391bf6a",
+    "original_failure_regression": "catalog_discover::tests::bybit_pagination_publishes_both_pages_and_captures_exact_http_provenance passes",
+    "scope": "Two Unix-only tests absent relative to local1273;56ignored network/corpus tests still not live evidence"
+  },
+  "ci_matrix": {
+    "run": 39345628986,
+    "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986",
+    "status": "completed",
+    "conclusion": "success",
+    "source_head": "4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+    "tested_pr_merge": "f02bb3bc941ff0b1a691f5e26d9a350e42330da6",
+    "tested_tree_equals_head_tree": true,
+    "job_count": 17,
+    "jobs": [
+      {
+        "id": 118377560629,
+        "name": "sbom",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560629"
+      },
+      {
+        "id": 118377560861,
+        "name": "simd-json (marketfeed-adapter-kraken)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560861"
+      },
+      {
+        "id": 118377560869,
+        "name": "simd-json (marketfeed-adapter-binance)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560869"
+      },
+      {
+        "id": 118377560883,
+        "name": "test (ubuntu-24.04-arm)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560883"
+      },
+      {
+        "id": 118377560910,
+        "name": "msrv (1.85)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560910"
+      },
+      {
+        "id": 118377560915,
+        "name": "simd-json (marketfeed-adapter-bybit)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560915"
+      },
+      {
+        "id": 118377560929,
+        "name": "cargo-deny",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560929"
+      },
+      {
+        "id": 118377560957,
+        "name": "simd-json (marketfeed-adapter-okx)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377560957"
+      },
+      {
+        "id": 118377561020,
+        "name": "simd-json (marketfeed-adapter-deribit)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561020"
+      },
+      {
+        "id": 118377561061,
+        "name": "docs",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561061"
+      },
+      {
+        "id": 118377561075,
+        "name": "test (windows-latest)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561075"
+      },
+      {
+        "id": 118377561076,
+        "name": "rustfmt",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561076"
+      },
+      {
+        "id": 118377561118,
+        "name": "test (macos-latest)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561118"
+      },
+      {
+        "id": 118377561123,
+        "name": "clippy",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561123"
+      },
+      {
+        "id": 118377561165,
+        "name": "Windows directory durability",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561165"
+      },
+      {
+        "id": 118377561233,
+        "name": "test (ubuntu-latest)",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561233"
+      },
+      {
+        "id": 118377561246,
+        "name": "C header and ABI exports",
+        "conclusion": "success",
+        "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39345628986/job/118377561246"
+      }
+    ],
+    "run_metadata_sha256": "f112bd7473dc0b9929f12682aa8d87359f84abd2d9c8d459feee3f02fc300c30",
+    "jobs_metadata_sha256": "3a39477dc8288ab32bb17f14f226a698b5e526cd116d4b1581a56a42717066cf"
+  },
+  "consumer": {
+    "head": "6f13f02813d5e39f57f1588684cb8f01a2a9c6fe",
+    "producer_pin": "4c2bd1520d16573fd3cdc2fd7a818d126f28a12d",
+    "git_package_count": 5,
+    "registry_records_unchanged": 419,
+    "local_rust_workspace_passed": 543,
+    "python_binding_regressions_passed": 8,
+    "saved_market_events": 1055,
+    "saved_full_output_sha256": "41e9a8a430547be5e39cd5db318ad4b14224cb5b852ebd4056699bcb5e249629",
+    "scope": "Consumer migration local checks; original archived bytes/historical reports unchanged, no new live/soak"
+  },
+  "evidence_publication_check": {
+    "command": "PATH=$PWD/.tools/bin:$PATH bash scripts/check-oss-readiness.sh",
+    "exit": 0,
+    "log_sha256": "d9b9b2e91a8b2cf1cf8481d402a62bedf4ec4c8ea4c87dbd29dab6bc540700b4",
+    "scope": "New public source-bound native evidence staged; gitleaks present/no leaks"
+  }
+}
