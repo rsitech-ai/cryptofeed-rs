@@ -38,6 +38,7 @@ struct Owner {
     physical_active: bool,
     runner_connection: u64,
     frame_seq: u64,
+    wire: Option<WireLedger>,
     pending: BTreeMap<u64, Pending>,
     permit: Option<Permit>,
     active: Option<Active>,
@@ -122,6 +123,13 @@ impl Owner {
     fn new(bootstrap: Box<BootstrapDto>, identity: OperationIdentity) -> Self {
         let runner_connection = bootstrap.runner_policy.initial_connection;
         Self {
+            wire: bootstrap
+                .public_inputs
+                .iter()
+                .any(|p| p.role == WIRE_POLICY_ROLE)
+                .then(|| bootstrap.wire_policy().map(WireLedger::new))
+                .transpose()
+                .expect("validated projection bootstrap"),
             bootstrap,
             identity,
             ordinal: 0,
@@ -150,22 +158,27 @@ impl Owner {
             native_ordinal: self.native,
             terminal: self.terminal,
             uncertainties: self
-                .pending
-                .keys()
-                .map(|id| match self.active.as_ref().filter(|a| a.input == *id) {
-                    Some(Active {
-                        intent: Some((intent, ..)),
-                        ..
-                    }) => OwnerPrefixUncertainty::HandoffUnconfirmed {
-                        input_id: *id,
-                        intent_ordinal: *intent,
-                    },
-                    Some(a) => OwnerPrefixUncertainty::CommittedWithoutRelease {
-                        input_id: *id,
-                        operation_ordinal: a.ordinal,
-                    },
-                    None => OwnerPrefixUncertainty::ExecutionUnknown { input_id: *id },
-                })
+                .wire
+                .as_ref()
+                .and_then(WireLedger::uncertain_input)
+                .map(|input_id| OwnerPrefixUncertainty::WireUnsettled { input_id })
+                .into_iter()
+                .chain(self.pending.keys().map(|id| {
+                    match self.active.as_ref().filter(|a| a.input == *id) {
+                        Some(Active {
+                            intent: Some((intent, ..)),
+                            ..
+                        }) => OwnerPrefixUncertainty::HandoffUnconfirmed {
+                            input_id: *id,
+                            intent_ordinal: *intent,
+                        },
+                        Some(a) => OwnerPrefixUncertainty::CommittedWithoutRelease {
+                            input_id: *id,
+                            operation_ordinal: a.ordinal,
+                        },
+                        None => OwnerPrefixUncertainty::ExecutionUnknown { input_id: *id },
+                    }
+                }))
                 .collect(),
         }
     }
@@ -198,6 +211,19 @@ impl Owner {
             return Err(invalid("projection owner order/generation/origin"));
         }
         match event {
+            ProjectionOwnerEvent::Wire(event) => {
+                self.wire
+                    .as_mut()
+                    .ok_or_else(|| invalid("wire event without wire bootstrap"))?
+                    .apply(
+                        event,
+                        route.ordinal,
+                        ns,
+                        self.source,
+                        self.fence,
+                        self.source_active && !self.terminal,
+                    )?;
+            }
             ProjectionOwnerEvent::Started { unix_ns } => {
                 if self.origin.is_some() || ns != 0 {
                     return Err(invalid("projection duplicate/nonzero origin"));
@@ -211,6 +237,9 @@ impl Owner {
                 owned_bytes_bound,
                 input,
             } => {
+                if self.wire.is_some() && matches!(input, ProjectionInput::Http { .. }) {
+                    return Err(invalid("runtime HTTP outside wire projection"));
+                }
                 let policy = self
                     .bootstrap
                     .owner_policy
@@ -284,7 +313,8 @@ impl Owner {
                 } else {
                     Some(self.generation)
                 };
-                if self.terminal
+                if self.wire.as_ref().is_some_and(|wire| !wire.clean())
+                    || self.terminal
                     || self.permit.is_some()
                     || self.active.is_some()
                     || self.pending.first_key_value().map(|(id, _)| *id) != Some(*input_id)
@@ -469,6 +499,37 @@ impl Owner {
                     return Err(invalid("projection handoff eligibility/lineage"));
                 }
                 self.validate_items(&group.items, p, a)?;
+                if let Some(wire) = self.wire.as_mut() {
+                    let mut candidates = Vec::new();
+                    if r.outputs_eligible {
+                        for e in &group.outbound_evidence {
+                            let ProjectionOutbound::Write(frame) = &e.value else {
+                                return Err(invalid("wire handoff HTTP"));
+                            };
+                            if !matches!(frame.opcode, OpcodeDto::Text | OpcodeDto::Binary) {
+                                continue;
+                            }
+                            if candidates.len() >= wire.policy().max_pending_writes {
+                                return Err(CodecError::TooLarge);
+                            }
+                            candidates.push(WireBindingDto {
+                                input_id: *input_id,
+                                completion_ordinal: a.ordinal,
+                                handoff_ordinal: route.ordinal,
+                                operation: a.route.clone(),
+                                connection: a.connection,
+                                frame_seq: a.frame_seq,
+                                input_stamp: p.input.received(),
+                                drain_position: e.source_index,
+                                frame: frame.clone(),
+                            });
+                        }
+                    }
+                    if candidates.len() > group.policy.limits.max_pending_inputs {
+                        return Err(CodecError::TooLarge);
+                    }
+                    wire.install(candidates, p.deadline)?;
+                }
                 self.active = None;
                 self.pending.remove(input_id);
             }
@@ -854,7 +915,12 @@ impl ProjectionReader {
                 if self
                     .owners
                     .values()
-                    .try_fold(0usize, |n, o| n.checked_add(o.pending.len()))
+                    .try_fold(0usize, |n, o| {
+                        o.pending
+                            .len()
+                            .checked_add(o.wire.as_ref().map_or(0, WireLedger::count))
+                            .and_then(|v| n.checked_add(v))
+                    })
                     .is_none_or(|n| n > group.policy.limits.max_pending_inputs)
                 {
                     return Err(invalid("projection aggregate pending budget"));
@@ -869,6 +935,13 @@ impl ProjectionReader {
                     != *owners
                 {
                     return Err(invalid("projection seal loses owner uncertainty"));
+                }
+                if self
+                    .owners
+                    .values()
+                    .any(|o| o.wire.as_ref().is_some_and(|w| !w.clean()))
+                {
+                    return Err(invalid("projection seal with unsettled wire effects"));
                 }
                 self.sealed = true;
             }

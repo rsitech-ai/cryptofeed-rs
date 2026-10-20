@@ -1,26 +1,28 @@
 # macOS/Linux shared-feed handoff and extended verification
 
 This continues the active Hyperliquid/shared-feed/rsibot goal. Required hosts are
-macOS and Linux; preserve Windows failures separately. Razer host access and
-workspace location must be supplied before host-specific execution. A successful
+macOS and Linux; preserve Windows failures separately. The user will pull the
+reviewed revisions from Git and has deferred remote access and Razer execution.
+Finish local integration and source-specific hosted checks first. A successful
 test loop is not an exchange-data soak or operational promotion.
 
 ## Before the handoff
 
-1. Producer 696525da now passes all 17 hosted jobs, including required Mac/Linux
+1. Published reader26021f0 passes its own17 hosted jobs, including required Mac/Linux
    hosts. Preserve the earlier watchdog failures and cancelled coverage; their
    full causes remain unproven. Requalify every later source revision on its own
    hosts rather than inheriting this predecessor result.
-2. Finish the opt-in causal live transport and its durable outbound intent/result
-   protocol. Captured null-drain writes are not authorization to send over a
+2. Qualify the implemented opt-in causal live transport and its durable outbound
+   intent/result protocol as one combined source. Captured null-drain writes are not authorization to send over a
    socket. One privately owned native session must drive acquisition, control,
    timers, reconnects and shutdown; no second legacy runner may shadow it.
-3. Tail committed source observations into MFOP groups. Publish only acknowledged
+3. The new capture command tails committed source observations into MFOP groups.
+   Qualify its actual source/target lifetime and failure paths. Publish only acknowledged
    groups, preserve independent consumer cursors, and settle owners and target
    publication before sealing. Recovery creates a fresh writer lifetime; never
    silently take over an existing feed directory.
-4. The direct Quants reader and diagnostic observer are implemented and under
-   final source qualification. Bind cursor pairs to the consumer's restored
+4. The direct Quants reader and diagnostic observer are locally qualified; new
+   MFCJ5 capture/consumer integration needs its own actual checks. Bind cursor pairs to the consumer's restored
    state/config/version; acknowledging a feed does not persist feature state.
    Structural MFOP validation is separate from native source comparison and
    research dataset admission. Unknown usable time stays unavailable.
@@ -47,6 +49,14 @@ package optimization retains the real executable rechecks; do not substitute a
 cached identity, reduced corpus, relaxed watchdog or disabled durability barrier.
 HLS and Quants have their own root build/runtime settings and validation commands;
 Cargo dependency-workspace profiles do not propagate into consumer workspaces.
+
+Use the implemented [capture command](../ops/hyperliquid-causal-capture.md) from
+the exact qualified source/artifact, with a new output root for each lifetime.
+It retains the executable needed for native verification. Keep the separately
+pinned Rust observation bridge and each consumer's ACK pair. Never claim a new
+build can replay an old executable-bound source just because the Git source is
+the same. A semantic clean Stop/Seal can coexist with managed transport errors
+or no market rows; inspect actual per-market coverage and quality evidence.
 
 ## Extended verification gates
 

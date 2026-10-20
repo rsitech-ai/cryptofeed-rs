@@ -21,6 +21,8 @@ pub enum FeedProfile {
     EngineCausalV3,
     /// Native observations retained atomically with canonical owner outputs.
     EngineCausalV4,
+    /// Receipt-gated public Hyperliquid application-write owner.
+    EngineCausalV5,
 }
 impl FeedProfile {
     pub(super) fn magic(self) -> &'static [u8; 8] {
@@ -31,6 +33,7 @@ impl FeedProfile {
             Self::EngineCausalV2 => b"MFCJ2\0\0\0",
             Self::EngineCausalV3 => b"MFCJ3\0\0\0",
             Self::EngineCausalV4 => b"MFCJ4\0\0\0",
+            Self::EngineCausalV5 => b"MFCJ5\0\0\0",
         }
     }
 }
@@ -88,6 +91,7 @@ impl CausalEnvelope {
             FeedProfile::EngineCausalV2 => 2,
             FeedProfile::EngineCausalV3 => 3,
             FeedProfile::EngineCausalV4 => 4,
+            FeedProfile::EngineCausalV5 => 5,
             FeedProfile::Legacy | FeedProfile::ObservationProjectionV1 => {
                 return Err(err("causal envelope requires causal profile"));
             }
@@ -126,7 +130,7 @@ impl CausalEnvelope {
     }
 
     fn validate_fields(&self) -> Result<(), RecordingError> {
-        if !matches!(self.schema_version, 1..=4) {
+        if !matches!(self.schema_version, 1..=5) {
             return Err(RecordingError::UnsupportedVersion(self.schema_version));
         }
         if self.phase == CausalPhase::Owner && self.schema_version < 2 {
@@ -210,7 +214,8 @@ impl CausalRoutes {
                 FeedProfile::EngineCausalV1
                 | FeedProfile::EngineCausalV2
                 | FeedProfile::EngineCausalV3
-                | FeedProfile::EngineCausalV4,
+                | FeedProfile::EngineCausalV4
+                | FeedProfile::EngineCausalV5,
                 FeedRecord::Causal(envelope),
             ) => {
                 envelope.validate()?;
@@ -220,6 +225,7 @@ impl CausalRoutes {
                         FeedProfile::EngineCausalV2 => 2,
                         FeedProfile::EngineCausalV3 => 3,
                         FeedProfile::EngineCausalV4 => 4,
+                        FeedProfile::EngineCausalV5 => 5,
                         FeedProfile::Legacy | FeedProfile::ObservationProjectionV1 => {
                             unreachable!()
                         }
@@ -263,7 +269,8 @@ impl CausalRoutes {
                 FeedProfile::EngineCausalV1
                 | FeedProfile::EngineCausalV2
                 | FeedProfile::EngineCausalV3
-                | FeedProfile::EngineCausalV4,
+                | FeedProfile::EngineCausalV4
+                | FeedProfile::EngineCausalV5,
                 _,
             ) => Err(err("legacy record in causal feed")),
         }

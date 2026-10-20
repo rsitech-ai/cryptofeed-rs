@@ -1,4 +1,5 @@
-//! MFCJ3's private disk/null owner. No transport or external sink is opened.
+//! Private disk/null native owner (MFCJ3/4), with opt-in MFCJ5 application-write
+//! authorization. The owner never opens a transport or external market sink.
 //! Ordered observations and native execution have separate counters and bounds.
 //! Internal handoff precedes its observation's durable ACK: that crash interval
 //! remains explicitly uncertain, never an external-delivery acknowledgement.
@@ -10,8 +11,15 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+mod wire;
+use wire::WireRuntime;
+pub use wire::{WireAuthorization, WireSendCompletion, WireSendError};
+
 const SMALL: usize = 1024;
 const RESERVED_SLOTS: usize = 5;
+fn shared_wire_http(s: &Data, input: &CaptureInput) -> bool {
+    s.wire.is_some() && matches!(input, CaptureInput::Http { .. })
+}
 
 enum Event {
     Control(OwnerEventDto),
@@ -39,6 +47,8 @@ struct Active {
     operation: Arc<OperationDto>,
     receipt: CommitReceipt,
     deadline: Instant,
+    completion_ordinal: u64,
+    outputs_eligible: bool,
 }
 struct Ready {
     intent: u64,
@@ -68,6 +78,7 @@ struct Data {
     preparing_bytes: usize,
     preparing_observation_bytes: usize,
     journal_records: u64,
+    wire: Option<WireRuntime>,
 }
 struct HistoryShared {
     writer: BatchFeedHandle,
@@ -78,11 +89,63 @@ struct HistoryShared {
     origin: Instant,
     #[cfg(test)]
     clock_offset_ns: std::sync::atomic::AtomicU64,
+    #[cfg(test)]
+    text_pause: Mutex<Option<Arc<TextPauseState>>>,
     state: Mutex<Data>,
     // Acceptance cannot be cancelled by a panic or a disappearing waiter. Keep
     // the ticket outside the worker stack until its actual result is known.
     ticket: Mutex<Option<CommitTicket>>,
     wake: Condvar,
+}
+// Per-owner, one-shot fixture barrier. No lock protecting owner admission or
+// source/fence state is held while the actual worker is paused.
+#[cfg(test)]
+#[derive(Default)]
+struct TextPauseState {
+    state: Mutex<(bool, bool)>,
+    wake: Condvar,
+}
+#[cfg(test)]
+pub(crate) struct HistoryTextPause(Arc<TextPauseState>);
+#[cfg(test)]
+impl HistoryTextPause {
+    pub(crate) fn entered(&self) -> bool {
+        self.0.state.lock().unwrap().0
+    }
+    pub(crate) fn release(&self) {
+        self.0.state.lock().unwrap().1 = true;
+        self.0.wake.notify_all();
+    }
+}
+#[cfg(test)]
+impl Drop for HistoryTextPause {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+#[cfg(test)]
+fn pause_text_worker(shared: &HistoryShared, observation: &Observation) {
+    let mut slot = shared.text_pause.lock().unwrap();
+    if slot.is_none() {
+        return;
+    }
+    let Event::Ingress { input_json, .. } = &observation.event else {
+        return;
+    };
+    if !matches!(
+        serde_json::from_str::<InputDto>(input_json),
+        Ok(InputDto::Text { .. })
+    ) {
+        return;
+    }
+    let pause = slot.take().unwrap();
+    drop(slot);
+    let mut state = pause.state.lock().unwrap();
+    state.0 = true;
+    pause.wake.notify_all();
+    while !state.1 {
+        state = pause.wake.wait(state).unwrap();
+    }
 }
 fn state(shared: &HistoryShared) -> MutexGuard<'_, Data> {
     shared.state.lock().unwrap_or_else(|p| p.into_inner())
@@ -309,6 +372,19 @@ fn bounded_json(value: &impl Serialize, cap: usize) -> Result<String, String> {
     String::from_utf8(out.bytes).map_err(|e| e.to_string())
 }
 impl HistoryIngress {
+    #[cfg(test)]
+    pub(crate) fn pause_next_text_for_test(&self) -> HistoryTextPause {
+        let pause = Arc::new(TextPauseState::default());
+        let mut slot = self.shared.text_pause.lock().unwrap();
+        if slot.is_some() {
+            // A bad fixture must not install an orphaned, unreleasable gate or
+            // poison the owner's barrier mutex during assertion unwinding.
+            drop(slot);
+            panic!("one test pause may be installed per owner at a time");
+        }
+        *slot = Some(pause.clone());
+        HistoryTextPause(pause)
+    }
     pub fn try_submit(
         &self,
         connection: ConnectionId,
@@ -333,7 +409,9 @@ impl HistoryIngress {
                 _ if frame_input(&input) => s.source_active && connection == s.source,
                 _ => connection == s.source,
             };
-            let reason = if let Some(reason) = &s.status.failure {
+            let reason = if shared_wire_http(&s, &input) {
+                Some(OwnerFailure::UnsupportedInput)
+            } else if let Some(reason) = &s.status.failure {
                 Some(reason.clone())
             } else if s.status.closing || s.status.phase == OwnerPhase::Stopped {
                 Some(OwnerFailure::Revoked)
@@ -576,12 +654,20 @@ impl BootstrappedSession {
         let shared = Arc::new(HistoryShared {
             writer: self.handle,
             identity: self.identity,
-            schema_version: if self.native_profile { 3 } else { 2 },
+            schema_version: if self.wire_policy.is_some() {
+                4
+            } else if self.native_profile {
+                3
+            } else {
+                2
+            },
             policy,
             history,
             origin: Instant::now(),
             #[cfg(test)]
             clock_offset_ns: std::sync::atomic::AtomicU64::new(0),
+            #[cfg(test)]
+            text_pause: Mutex::new(None),
             wake: Condvar::new(),
             ticket: Mutex::new(None),
             state: Mutex::new(Data {
@@ -628,6 +714,7 @@ impl BootstrappedSession {
                 preparing_bytes: 0,
                 preparing_observation_bytes: 0,
                 journal_records: 0,
+                wire: self.wire_policy.map(WireRuntime::new),
             }),
         });
         let worker_shared = shared.clone();
@@ -879,6 +966,8 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
             s.observations.pop_front()
         };
         if let Some(observation) = observation {
+            #[cfg(test)]
+            pause_text_worker(shared, &observation);
             let Observation {
                 ordinal,
                 observed_ns,
@@ -911,7 +1000,7 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         operation,
                     } => {
                         let operation = Box::new(
-                            if shared.schema_version == 3 {
+                            if shared.schema_version >= 3 {
                                 OperationDto::from_observed_capture(&operation, &shared.identity)
                             } else {
                                 OperationDto::from_capture(&operation, &shared.identity)
@@ -1008,6 +1097,9 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                 s.ingress_observation_bytes -= ingress_bytes;
             }
             match dto.event {
+                OwnerEventDto::Wire(event) => {
+                    wire::committed(shared, &mut state(shared), &event, receipt);
+                }
                 OwnerEventDto::ExecutionPermitted {
                     input_id,
                     generation: intended_generation,
@@ -1191,8 +1283,24 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         operation: Arc::from(operation),
                         receipt,
                         deadline,
+                        completion_ordinal: ordinal,
+                        outputs_eligible: eligible,
                     });
                     refresh(shared, &mut s);
+                    if let Some(wire) = s.wire.as_ref() {
+                        let active = s.active.as_ref().expect("just installed");
+                        if wire_candidates(
+                            &active.operation,
+                            input_id,
+                            ordinal,
+                            ordinal,
+                            wire.ledger.policy(),
+                        )
+                        .is_err()
+                        {
+                            revoke_history(shared, &mut s, OwnerFailure::UnsupportedInput);
+                        }
+                    }
                     if s.status.failure.is_some() || input_id < s.visibility_fence {
                         withhold_active(shared, &mut s);
                     } else {
@@ -1246,7 +1354,44 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         s.deadline_stage = DeadlineStage::Release;
                     }
                 }
-                OwnerEventDto::Withheld { .. } | OwnerEventDto::HandoffObserved { .. } => {
+                OwnerEventDto::HandoffObserved { input_id, .. } => {
+                    let mut s = state(shared);
+                    if let Some(active) = s.active.take() {
+                        if let Some(wire) = s.wire.as_mut() {
+                            let candidates = if active.outputs_eligible {
+                                wire_candidates(
+                                    &active.operation,
+                                    input_id,
+                                    active.completion_ordinal,
+                                    ordinal,
+                                    wire.ledger.policy(),
+                                )
+                            } else {
+                                Ok(Vec::new())
+                            };
+                            let deadline = elapsed_ns(
+                                shared,
+                                active.deadline.saturating_duration_since(shared.origin),
+                            );
+                            match (candidates, deadline) {
+                                (Ok(candidates), Some(deadline)) => {
+                                    wire.deadline = active.deadline;
+                                    if wire.ledger.install(candidates, deadline).is_err() {
+                                        revoke_history(
+                                            shared,
+                                            &mut s,
+                                            OwnerFailure::InvalidReceipt,
+                                        );
+                                    }
+                                }
+                                _ => revoke_history(shared, &mut s, OwnerFailure::InvalidReceipt),
+                            }
+                        }
+                    }
+                    s.current_deadline = None;
+                    s.disposition_queued = false;
+                }
+                OwnerEventDto::Withheld { .. } => {
                     let mut s = state(shared);
                     s.active = None;
                     s.current_deadline = None;
@@ -1300,6 +1445,11 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
             continue;
         }
         if current.is_some() {
+            drop(s);
+            sleep_poll(shared);
+            continue;
+        }
+        if wire::tick(shared, &mut s) {
             drop(s);
             sleep_poll(shared);
             continue;

@@ -126,3 +126,13 @@ in the preserved local patch; publication retains the parent workflow. All 550
 compiled inputs and eight local check results are unchanged, including actual
 default-CLI exit zero. The qualification and publication workflow hashes are
 recorded separately; no extra hosted CLI regression step is claimed.
+
+
+Own-source hosted follow-up: reader `26021f0` completes all17 jobs in
+[run39482703952](https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39482703952).
+Exact550 build inputs and complete author/actual-merge tree equality, raw-log
+hashes and platform/MSRV totals are recorded in
+[the hosted receipt](../evidence/rsibot-projection-bridge-20261020/hosted-reader26021.json).
+This qualifies that reader revision only. The later implemented capture command
+and live driver have separate qualification and retained live failures; use
+[their contract](../ops/hyperliquid-causal-capture.md).

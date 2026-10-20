@@ -179,6 +179,77 @@ fn native_profile_is_explicit_before_watermark_and_cannot_mix_old_envelopes() {
 }
 
 #[test]
+fn wire_profile_is_explicit_before_watermark_and_cannot_mix_old_envelopes() {
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("native");
+    let mut writer =
+        FeedWriter::create_profile(&path, 1_000_000, FeedProfile::EngineCausalV5).unwrap();
+    assert_eq!(&files(&path).0[..8], b"MFCJ5\0\0\0");
+    fs::remove_file(path.join("committed.json")).unwrap();
+    for old in [
+        FeedProfile::Legacy,
+        CAUSAL,
+        FeedProfile::EngineCausalV2,
+        FeedProfile::EngineCausalV3,
+        FeedProfile::EngineCausalV4,
+    ] {
+        assert!(
+            FeedReader::open_profile(&path, None, old)
+                .unwrap_err()
+                .to_string()
+                .contains("header")
+        );
+    }
+    let mut bootstrap = causal(1, 0, 0);
+    change(&mut bootstrap).schema_version = 5;
+    writer.append(bootstrap).unwrap();
+    let before = files(&path);
+    for old in 1..5 {
+        let mut wrong = causal(1, 1, 0);
+        change(&mut wrong).schema_version = old;
+        assert!(writer.append(wrong).is_err());
+        assert_eq!(files(&path), before);
+    }
+    let mut started = causal(1, 1, 0);
+    change(&mut started).schema_version = 5;
+    change(&mut started).phase = CausalPhase::Owner;
+    writer.append(started).unwrap();
+    writer.append(seal()).unwrap();
+    let bytes = files(&path).0;
+    let mut reader =
+        SealedFeedReader::new_profile(&bytes, writer.cursor().clone(), FeedProfile::EngineCausalV5)
+            .unwrap();
+    assert!(
+        matches!(reader.read_next().unwrap(), Some(FeedRecord::Causal(e)) if e.schema_version==5 && e.phase==CausalPhase::Bootstrap)
+    );
+    assert!(
+        matches!(reader.read_next().unwrap(), Some(FeedRecord::Causal(e)) if e.schema_version==5 && e.phase==CausalPhase::Owner)
+    );
+    assert!(matches!(
+        reader.read_next().unwrap(),
+        Some(FeedRecord::Seal { .. })
+    ));
+    assert!(reader.read_next().unwrap().is_none());
+    for old in [
+        FeedProfile::Legacy,
+        CAUSAL,
+        FeedProfile::EngineCausalV2,
+        FeedProfile::EngineCausalV3,
+        FeedProfile::EngineCausalV4,
+    ] {
+        let old_path = temp.path().join(format!("old-{old:?}"));
+        FeedWriter::create_profile(&old_path, 1_000_000, old).unwrap();
+        fs::remove_file(old_path.join("committed.json")).unwrap();
+        assert!(
+            FeedReader::open_profile(&old_path, None, FeedProfile::EngineCausalV5)
+                .unwrap_err()
+                .to_string()
+                .contains("header")
+        );
+    }
+}
+
+#[test]
 fn owner_profile_negotiates_before_watermark_and_keeps_one_journal_ordinal() {
     for (profile, version) in [
         (FeedProfile::EngineCausalV2, 2),
@@ -606,7 +677,7 @@ fn prepared_transactions_validate_intrinsics_and_actor_rejects_profile_before_ad
     assert_eq!(rejected.reason, AdmissionFailure::ProfileMismatch);
     assert_eq!(handle.status().admitted_operations, 0);
     let mut bad = causal(1, 0, 0);
-    change(&mut bad).schema_version = 5;
+    change(&mut bad).schema_version = 6;
     assert!(PreparedFeedTransaction::new(vec![bad]).is_err());
     let ticket = handle
         .try_submit(

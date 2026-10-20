@@ -5,17 +5,7 @@ use std::path::Path;
 
 const PROFILE: FeedProfile = FeedProfile::EngineCausalV4;
 fn layout() -> ObservedBatchLimits {
-    ObservedBatchLimits {
-        layout: NativeObservationLimits {
-            rows: 64,
-            associations: 128,
-            book_levels: 40,
-            mids: 0,
-            users: 128,
-            string_bytes: 4096,
-        },
-        encoded_bytes: 64 << 10,
-    }
+    hyperliquid_fixture::native_layout()
 }
 fn reader_limits() -> OwnerHistoryLimits {
     OwnerHistoryLimits {
@@ -24,12 +14,7 @@ fn reader_limits() -> OwnerHistoryLimits {
         max_record_bytes: 256 << 10,
     }
 }
-pub(super) fn native_fixture(spot: bool) -> BootstrapDto {
-    let mut dto = fixture(spot);
-    dto.bind_observation_policy(NativeObservationPolicyDto::HyperliquidV1 { limits: layout() })
-        .unwrap();
-    dto
-}
+pub(super) use super::hyperliquid_fixture::native_fixture;
 fn start(dto: BootstrapDto, actor: &FeedBatchActor) -> (HistoryJournalOwner, OperationIdentity) {
     eprintln!(
         "native fixture begin: factory={:?} session={} selected={}",

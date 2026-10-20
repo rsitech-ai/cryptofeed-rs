@@ -66,14 +66,16 @@ impl ProjectionLimits {
 impl ProjectionPolicy {
     pub fn validate(&self) -> Result<(), CodecError> {
         self.limits.validate()?;
-        if self.schema_version != 1 || !matches!(self.source_profile, 3 | 4) {
+        if self.schema_version != 1 || !matches!(self.source_profile, 3..=5) {
             return Err(invalid("projection policy/version/source profile"));
         }
         Ok(())
     }
     pub fn source_feed_profile(&self) -> Result<FeedProfile, CodecError> {
         self.validate()?;
-        Ok(if self.source_profile == 4 {
+        Ok(if self.source_profile == 5 {
+            FeedProfile::EngineCausalV5
+        } else if self.source_profile == 4 {
             FeedProfile::EngineCausalV4
         } else {
             FeedProfile::EngineCausalV3
@@ -198,6 +200,7 @@ impl ProjectionInput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum ProjectionOwnerEvent {
+    Wire(WireEventDto),
     Started {
         unix_ns: i64,
     },
@@ -259,6 +262,7 @@ pub enum ProjectionOwnerEvent {
 impl ProjectionOwnerEvent {
     pub fn from_event(event: &OwnerEventDto) -> Result<Self, CodecError> {
         Ok(match event {
+            OwnerEventDto::Wire(event) => Self::Wire(event.clone()),
             OwnerEventDto::Started { unix_ns } => Self::Started { unix_ns: *unix_ns },
             OwnerEventDto::Ingress {
                 input_id,
@@ -557,6 +561,12 @@ impl ProjectionGroup {
                     || after.uncertainties.len() > self.policy.limits.max_pending_inputs
                 {
                     return Err(invalid("projection owner scope/status"));
+                }
+                if let ProjectionOwnerEvent::Wire(event) = event {
+                    if self.policy.source_profile != 5 {
+                        return Err(invalid("wire projection requires source profile5"));
+                    }
+                    event.validate(route)?;
                 }
                 if let ProjectionOwnerEvent::HandoffObserved {
                     input_id,

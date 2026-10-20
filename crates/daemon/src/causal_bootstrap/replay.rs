@@ -86,7 +86,7 @@ impl HistoryReplay {
         }
         if !matches!(
             profile,
-            FeedProfile::EngineCausalV3 | FeedProfile::EngineCausalV4
+            FeedProfile::EngineCausalV3 | FeedProfile::EngineCausalV4 | FeedProfile::EngineCausalV5
         ) {
             return Err(ReplayError::Invalid(
                 "unsupported actual owner replay profile",
@@ -226,6 +226,11 @@ impl HistoryReplay {
                 handoff
             }
             FeedRecord::Seal { .. } => {
+                if !self.owner.history.wire_clean() {
+                    return Err(ReplayError::Invalid(
+                        "seal with unsettled/uncertain wire effects",
+                    ));
+                }
                 self.sealed = true;
                 None
             }

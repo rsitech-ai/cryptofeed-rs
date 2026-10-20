@@ -1,6 +1,7 @@
 //! Supported causal factories: public Bybit and Hyperliquid, disk/null dispatch.
 //! Bootstrap must pass actual-artifact/config verification and a post-barrier
-//! actor receipt before any factory/machine is created. No live loop is wired.
+//! actor receipt before any factory/machine is created. The opt-in `live`
+//! module jointly owns the public Hyperliquid transport and history owner.
 use marketfeed_adapter_api::{Capability, VenueFactory};
 use marketfeed_adapter_bybit::{
     BYBIT_INVERSE_SPEC, BYBIT_LINEAR_SPEC, BYBIT_SPOT_SPEC, BybitCategory, BybitFactory,
@@ -17,6 +18,8 @@ use std::{
     io::{self, Read},
 };
 
+pub mod capture;
+pub mod live;
 pub mod owner;
 pub mod projection;
 pub mod replay;
@@ -115,6 +118,13 @@ fn category(category: BybitCategoryDto) -> BybitCategory {
 }
 fn validate_supported(dto: &BootstrapDto) -> Result<(), BootstrapError> {
     dto.validate()?;
+    if dto
+        .public_inputs
+        .iter()
+        .any(|p| p.role == live::DRIVER_POLICY_ROLE)
+    {
+        live::policy(dto)?;
+    }
     if dto
         .public_inputs
         .iter()
@@ -439,6 +449,9 @@ pub struct PreparedBootstrap {
 impl PreparedBootstrap {
     /// Explicit MFCJ3 runtime-owner negotiation; policy bytes are bound into the
     /// canonical bootstrap before the original writer receipt or factory.
+    pub fn new_wire_history(dto: BootstrapDto, max_bytes: usize) -> Result<Self, BootstrapError> {
+        Self::new_history_profile(dto, max_bytes, FeedProfile::EngineCausalV5)
+    }
     pub fn new_observed_history(
         dto: BootstrapDto,
         max_bytes: usize,
@@ -475,7 +488,7 @@ impl PreparedBootstrap {
     /// Physical-order replayers can verify bytes before any construction. A
     /// subsequent writer admission is still required by this live-start API.
     pub fn from_envelope(envelope: CausalEnvelope) -> Result<Self, BootstrapError> {
-        if !matches!(envelope.schema_version, 1 | 3 | 4) {
+        if !matches!(envelope.schema_version, 1 | 3 | 4 | 5) {
             return Err(BootstrapError::Unsupported(
                 "owner-history journal is not yet wired to the daemon owner",
             ));
@@ -597,6 +610,16 @@ impl CommittedBootstrap {
             .public_inputs
             .iter()
             .any(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE);
+        let wire_policy = if self
+            .dto
+            .public_inputs
+            .iter()
+            .any(|p| p.role == WIRE_POLICY_ROLE)
+        {
+            Some(self.dto.wire_policy()?)
+        } else {
+            None
+        };
         let history_policy = if self
             .dto
             .public_inputs
@@ -615,6 +638,7 @@ impl CommittedBootstrap {
             owner_policy: self.dto.owner_policy,
             history_policy,
             native_profile,
+            wire_policy,
         })
     }
 }
@@ -677,6 +701,7 @@ pub struct BootstrappedSession {
     owner_policy: Option<JournalOwnerPolicyDto>,
     history_policy: Option<HistoryRuntimePolicyDto>,
     native_profile: bool,
+    wire_policy: Option<WirePolicyDto>,
 }
 impl BootstrappedSession {
     pub fn identity(&self) -> &OperationIdentity {

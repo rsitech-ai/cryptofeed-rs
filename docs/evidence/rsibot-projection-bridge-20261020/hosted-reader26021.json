@@ -1,0 +1,424 @@
+{
+  "api_execution": "Authenticated gh REST run/jobs/immutable Git commit reads and6job-log downloads; every actual invocation exited0. Reviewer parsed raw logs without rerunning jobs/builds. No checkout, source/workflow mutation, cancel or exchange access.",
+  "immutable_source_provenance": {
+    "actual_checkout": "fa5589fdb5d36f12443eadc20eb11ec54f9d5ebf",
+    "author": "26021f0a4607b822cc599e20a4d269719c32e72f",
+    "compiled_source_digest_recomputed_from_author_blobs": "0a25563a511e018cb22b19520b66465ed5066d195130797aebce86e8ee5a1ce8",
+    "compiled_source_membership_count": 550,
+    "complete_author_merge_tree_equal": true,
+    "every550_path_length_and_sha_matches": true,
+    "frozen_source_manifest": {
+      "bytes": 89033,
+      "path": "projection-bridge-source-03.json",
+      "sha256": "1d18e6deeafb5f3fff24d72a3a6fa7eda821a813568d7aaec15431f7378f54c3"
+    },
+    "full_tree_sha": "2e0449093a1752e57a0c760f73d9182e05568469",
+    "github_author_commit": {
+      "bytes": 1185,
+      "path": "reader26021-hosted-independent-01-author-commit.json",
+      "sha256": "ecee77873722e7652ed255192d417d950bc444e9aacc6aba52a47c9d377ac125"
+    },
+    "github_merge_commit": {
+      "bytes": 2663,
+      "path": "reader26021-hosted-independent-01-merge-commit.json",
+      "sha256": "9372989599d15149c98bd24ce69e934b8b3787024f3bae278f422ceeed75783e"
+    },
+    "merge_parents": [
+      "e2ad84c413168aee37d130e574519c567fab978f",
+      "26021f0a4607b822cc599e20a4d269719c32e72f"
+    ],
+    "scope": "Own26021 run/actual PR merge full tree; no inherited696 proof. Current dirty capture561 and driver553 not part of this qualification.",
+    "workflow_published_sha256": "ddb2be5ad4ae82a3e5f3da9cd54ba250e21b886131441111a8b044adfe004ff3"
+  },
+  "limits": [
+    "Hosted cargo-deny success is historical to this run/advisory snapshot. Fresh capture audit against DB1348/e6f94f3760d5e6c54c1b05f204002263bc025524 subsequently finds3 TLS trust-root/verifier advisories; current security closure/live collection remains pending.",
+    "MSRV job721pass is mixed: Rust1.85.1 core577+optin124, Rust1.88.0 datasets20. Do not label all721 Rust1.85.",
+    "Windows durability job130pass is mixed: Rust1.85.0 recording/filesystem111 +Rust1.88.0 datasets19. Actual runtime/admin/localNTFS and parser fixtures remain source-scoped; no universal filesystem guarantee.",
+    "Reader structure validation is not native source authentication, exchange availability/continuity, restored Python feature-state or live/economic qualification.",
+    "No hosted claim for new capture561/driver553/wire551 or current uncommitted source.",
+    "Current hosted workflow retains published parent workflow; no claim that the rejected extra defaultCLI workflow step was hosted."
+  ],
+  "parsing_note": "Suites associated by running-N/tests-to-result blocks and native test anchors, not nearest Running stderr header; macOS stdout/stderr headers interleave. Totals contain160 execution summaries/platform, not doc-test qualification.",
+  "platforms": [
+    {
+      "bridge_test_anchors": [
+        "bridge_tests::bridge_actual_spot_perps_native_groups_preserve_exact_values_and_ack_pairs",
+        "bridge_tests::bridge_pending_eof_second_next_and_wrong_ack_fail_without_acknowledgment",
+        "bridge_tests::bridge_resume_rebuilds_only_validator_and_rejects_wrong_cursor_pair",
+        "bridge_tests::bridge_continuous_reader_observes_each_committed_prefix_without_seal_or_cursor_leak"
+      ],
+      "checkout": "fa5589fdb5d36f12443eadc20eb11ec54f9d5ebf",
+      "hyperliquid_native_and_bridge_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 52,
+        "seconds": 56.11
+      },
+      "job_id": 118835084204,
+      "platform": "linux",
+      "raw_log": {
+        "bytes": 289005,
+        "path": "reader26021-hosted-independent-01-linux.log",
+        "sha256": "398b23eccfea5cfce5ced47082005648c81273b6aaf03a148f6538580c222007"
+      },
+      "reader_unit_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 3,
+        "seconds": 0.32
+      },
+      "suite_summaries": 160,
+      "totals": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1581
+      }
+    },
+    {
+      "bridge_test_anchors": [
+        "bridge_tests::bridge_actual_spot_perps_native_groups_preserve_exact_values_and_ack_pairs",
+        "bridge_tests::bridge_pending_eof_second_next_and_wrong_ack_fail_without_acknowledgment",
+        "bridge_tests::bridge_resume_rebuilds_only_validator_and_rejects_wrong_cursor_pair",
+        "bridge_tests::bridge_continuous_reader_observes_each_committed_prefix_without_seal_or_cursor_leak"
+      ],
+      "checkout": "fa5589fdb5d36f12443eadc20eb11ec54f9d5ebf",
+      "hyperliquid_native_and_bridge_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 52,
+        "seconds": 158.29
+      },
+      "job_id": 118835084178,
+      "platform": "linux-arm",
+      "raw_log": {
+        "bytes": 289461,
+        "path": "reader26021-hosted-independent-01-linux-arm.log",
+        "sha256": "915635341f1ca8f48defdc42af5a8586dd15b76a80ccd4e78655d14151ad1df8"
+      },
+      "reader_unit_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 3,
+        "seconds": 0.88
+      },
+      "suite_summaries": 160,
+      "totals": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1581
+      }
+    },
+    {
+      "bridge_test_anchors": [
+        "bridge_tests::bridge_actual_spot_perps_native_groups_preserve_exact_values_and_ack_pairs",
+        "bridge_tests::bridge_pending_eof_second_next_and_wrong_ack_fail_without_acknowledgment",
+        "bridge_tests::bridge_resume_rebuilds_only_validator_and_rejects_wrong_cursor_pair",
+        "bridge_tests::bridge_continuous_reader_observes_each_committed_prefix_without_seal_or_cursor_leak"
+      ],
+      "checkout": "fa5589fdb5d36f12443eadc20eb11ec54f9d5ebf",
+      "hyperliquid_native_and_bridge_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 52,
+        "seconds": 103.61
+      },
+      "job_id": 118835084201,
+      "platform": "macos",
+      "raw_log": {
+        "bytes": 288602,
+        "path": "reader26021-hosted-independent-01-macos.log",
+        "sha256": "4b7764e8fc30d5d820f8b362f97b5366587e2b2e96b310f20a1737b29044cf72"
+      },
+      "reader_unit_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 3,
+        "seconds": 0.87
+      },
+      "suite_summaries": 160,
+      "totals": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1580
+      }
+    },
+    {
+      "bridge_test_anchors": [
+        "bridge_tests::bridge_actual_spot_perps_native_groups_preserve_exact_values_and_ack_pairs",
+        "bridge_tests::bridge_pending_eof_second_next_and_wrong_ack_fail_without_acknowledgment",
+        "bridge_tests::bridge_resume_rebuilds_only_validator_and_rejects_wrong_cursor_pair",
+        "bridge_tests::bridge_continuous_reader_observes_each_committed_prefix_without_seal_or_cursor_leak"
+      ],
+      "checkout": "fa5589fdb5d36f12443eadc20eb11ec54f9d5ebf",
+      "hyperliquid_native_and_bridge_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 52,
+        "seconds": 138.75
+      },
+      "job_id": 118835083896,
+      "platform": "windows",
+      "raw_log": {
+        "bytes": 293491,
+        "path": "reader26021-hosted-independent-01-windows.log",
+        "sha256": "906915e6c792c086ef939c8089ac220f4089507dad1e02f182c33a930a27e8f9"
+      },
+      "reader_unit_suite": {
+        "failed": 0,
+        "filtered_out": 0,
+        "ignored": 0,
+        "measured": 0,
+        "passed": 3,
+        "seconds": 0.72
+      },
+      "suite_summaries": 160,
+      "totals": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1578
+      }
+    }
+  ],
+  "reviewed_at_utc": "2026-10-20T19:59:43.624082+00:00",
+  "reviewer": "independent trade_review",
+  "run": {
+    "attempt": 1,
+    "conclusion": "success",
+    "event": "pull_request",
+    "head_sha": "26021f0a4607b822cc599e20a4d269719c32e72f",
+    "id": 39482703952,
+    "job_count": 17,
+    "jobs": [
+      {
+        "completed_at": "2026-10-20T19:22:00Z",
+        "conclusion": "success",
+        "id": 118835083782,
+        "name": "clippy",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:39:36Z",
+        "conclusion": "success",
+        "id": 118835083896,
+        "name": "test (windows-latest)",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:22:01Z",
+        "conclusion": "success",
+        "id": 118835083944,
+        "name": "simd-json (marketfeed-adapter-deribit)",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:21:22Z",
+        "conclusion": "success",
+        "id": 118835084001,
+        "name": "rustfmt",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:21:54Z",
+        "conclusion": "success",
+        "id": 118835084010,
+        "name": "simd-json (marketfeed-adapter-okx)",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:23:10Z",
+        "conclusion": "success",
+        "id": 118835084030,
+        "name": "cargo-deny",
+        "started_at": "2026-10-20T19:21:08Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:22:17Z",
+        "conclusion": "success",
+        "id": 118835084068,
+        "name": "simd-json (marketfeed-adapter-bybit)",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:21:35Z",
+        "conclusion": "success",
+        "id": 118835084088,
+        "name": "C header and ABI exports",
+        "started_at": "2026-10-20T19:21:08Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:22:05Z",
+        "conclusion": "success",
+        "id": 118835084105,
+        "name": "simd-json (marketfeed-adapter-kraken)",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:21:55Z",
+        "conclusion": "success",
+        "id": 118835084121,
+        "name": "docs",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:33:17Z",
+        "conclusion": "success",
+        "id": 118835084178,
+        "name": "test (ubuntu-24.04-arm)",
+        "started_at": "2026-10-20T19:21:10Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:23:16Z",
+        "conclusion": "success",
+        "id": 118835084198,
+        "name": "Windows directory durability",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:34:03Z",
+        "conclusion": "success",
+        "id": 118835084201,
+        "name": "test (macos-latest)",
+        "started_at": "2026-10-20T19:21:12Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:28:12Z",
+        "conclusion": "success",
+        "id": 118835084204,
+        "name": "test (ubuntu-latest)",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:22:09Z",
+        "conclusion": "success",
+        "id": 118835084220,
+        "name": "sbom",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:24:33Z",
+        "conclusion": "success",
+        "id": 118835084404,
+        "name": "msrv (1.85)",
+        "started_at": "2026-10-20T19:21:07Z",
+        "status": "completed"
+      },
+      {
+        "completed_at": "2026-10-20T19:23:43Z",
+        "conclusion": "success",
+        "id": 118835086133,
+        "name": "simd-json (marketfeed-adapter-binance)",
+        "started_at": "2026-10-20T19:21:08Z",
+        "status": "completed"
+      }
+    ],
+    "raw_jobs_api": {
+      "bytes": 36575,
+      "path": "reader26021-hosted-independent-01-jobs.json",
+      "sha256": "12e68f7a680a6c5affce0da1e5aedba6fa0535205311f24799ac7ef57e06b0bb"
+    },
+    "raw_run_api": {
+      "bytes": 13197,
+      "path": "reader26021-hosted-independent-01-run.json",
+      "sha256": "d401afaaf9e42467c70a0bbc0b77cbdadcea7df208bfed6982d4cb7f175a59e1"
+    },
+    "status": "completed",
+    "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39482703952"
+  },
+  "schema_version": 1,
+  "status": "published_reader_own_hosted_run_completed_all17_success",
+  "supplemental_jobs": [
+    {
+      "checkout": "fa5589fdb5d36f12443eadc20eb11ec54f9d5ebf",
+      "job": "msrv",
+      "log": {
+        "bytes": 157950,
+        "path": "reader26021-hosted-independent-01-msrv.log",
+        "sha256": "bc81de9b374b0439f71ccb3d43e2284b887462935a721f33ba2416b0a3b12cae"
+      },
+      "phases": {
+        "rust1.85.1-core": {
+          "summaries": 30,
+          "totals": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 577
+          }
+        },
+        "rust1.85.1-optin": {
+          "summaries": 4,
+          "totals": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 124
+          }
+        },
+        "rust1.88.0-datasets": {
+          "summaries": 6,
+          "totals": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 20
+          }
+        }
+      }
+    },
+    {
+      "checkout": "fa5589fdb5d36f12443eadc20eb11ec54f9d5ebf",
+      "job": "windows-durability",
+      "log": {
+        "bytes": 66260,
+        "path": "reader26021-hosted-independent-01-windows-durability.log",
+        "sha256": "df11d630fb2926f754d7b8d6342026e7efb064f55ef263b5fc59968abd8f8ba6"
+      },
+      "phases": {
+        "rust1.85.0-recording-filesystem": {
+          "summaries": 6,
+          "totals": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 111
+          }
+        },
+        "rust1.88.0-datasets": {
+          "summaries": 6,
+          "totals": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 19
+          }
+        }
+      }
+    }
+  ],
+  "independent_receipt_sha256": "3fc357be560ac209fce4460bc1edd119820801777afbc151d97647cfe4d451c5",
+  "scope_update": "Historical own-source reader26021 hosted qualification only. Subsequent TLS advisory repair and capture/live failures have separate source-bound evidence; do not inherit these17 successes to later source."
+}

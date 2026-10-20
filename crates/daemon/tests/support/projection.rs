@@ -3,6 +3,18 @@ use marketfeed_daemon::causal_bootstrap::{projection::*, replay::*};
 use marketfeed_engine::causal::projection::*;
 use std::path::Path;
 const PROFILE: FeedProfile = FeedProfile::EngineCausalV4;
+// These correctness fixtures publish many independent temporary targets on one
+// filesystem. Serialize their writer lifetimes; concurrency is exercised by the
+// actual multi-owner and batch-actor tests, not this resource gate. Waiting for
+// the gate is outside the unchanged active-publication watchdog below.
+static PUBLICATION_RESOURCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+fn publication_resource() -> std::sync::MutexGuard<'static, ()> {
+    // This mutex protects no mutable correctness state. A failed fixture must
+    // release the resource without manufacturing poison failures in other tests.
+    PUBLICATION_RESOURCE
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+}
 pub(super) fn limits() -> ProjectionLimits {
     ProjectionLimits {
         max_group_bytes: 1 << 20,
@@ -35,6 +47,9 @@ fn source(path: &Path) -> MultiHistoryReplay {
 }
 #[track_caller]
 pub(super) fn project(path: &Path, target: &Path) -> ProjectionCheckpoint {
+    let waiting = Instant::now();
+    let _publication = publication_resource();
+    let resource_wait = waiting.elapsed();
     let caller = std::panic::Location::caller();
     let mut pump =
         ProjectionPump::create(source(path), policy(), target, 64 << 20, batch()).unwrap();
@@ -49,7 +64,7 @@ pub(super) fn project(path: &Path, target: &Path) -> ProjectionCheckpoint {
         began,
     ));
     eprintln!(
-        "projection begin: caller={caller} target={:?}",
+        "projection begin: caller={caller} target={:?} resource_wait={resource_wait:?}",
         target.file_name()
     );
     wait_inspect(
@@ -105,6 +120,7 @@ pub(super) fn groups(path: &Path) -> Vec<ProjectionGroup> {
     out
 }
 fn write(path: &Path, groups: &[ProjectionGroup]) {
+    let _publication = publication_resource();
     let mut writer =
         FeedWriter::create_profile(path, 64 << 20, FeedProfile::ObservationProjectionV1).unwrap();
     for g in groups {

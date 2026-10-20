@@ -718,10 +718,19 @@ fn validate_bootstrap_profile(dto: &BootstrapDto, profile: FeedProfile) -> Resul
         .public_inputs
         .iter()
         .any(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE);
-    if native != (profile == FeedProfile::EngineCausalV4) {
+    if native
+        != matches!(
+            profile,
+            FeedProfile::EngineCausalV4 | FeedProfile::EngineCausalV5
+        )
+    {
         return Err(invalid(
             "native observations require explicit MFCJ4 policy negotiation",
         ));
+    }
+    let wire = dto.public_inputs.iter().any(|p| p.role == WIRE_POLICY_ROLE);
+    if wire != (profile == FeedProfile::EngineCausalV5) {
+        return Err(invalid("wire policy requires MFCJ5"));
     }
     let has_runtime_policy = dto
         .public_inputs
@@ -734,6 +743,11 @@ fn validate_bootstrap_profile(dto: &BootstrapDto, profile: FeedProfile) -> Resul
         FeedProfile::EngineCausalV4 if dto.schema_version == 2 => {
             dto.history_policy()?;
             dto.observation_policy().map(|_| ())
+        }
+        FeedProfile::EngineCausalV5 if dto.schema_version == 2 => {
+            dto.history_policy()?;
+            dto.observation_policy()?;
+            dto.wire_policy().map(|_| ())
         }
         _ => Err(invalid(
             "bootstrap/profile or explicit runtime policy mismatch",
@@ -757,6 +771,7 @@ pub fn decode_bootstrap(envelope: &CausalEnvelope) -> Result<BootstrapDto, Codec
             2 => FeedProfile::EngineCausalV2,
             3 => FeedProfile::EngineCausalV3,
             4 => FeedProfile::EngineCausalV4,
+            5 => FeedProfile::EngineCausalV5,
             _ => return Err(invalid("unsupported bootstrap envelope")),
         },
     )?;

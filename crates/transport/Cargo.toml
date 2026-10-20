@@ -16,6 +16,13 @@ reqwest = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-tungstenite = { workspace = true }
+rustls = { workspace = true }
+webpki-roots = { workspace = true }
+# Intentionally enforces the patched verifier floor alongside Rustls's range.
+rustls-webpki = { workspace = true }
+
+[dev-dependencies]
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 
 [lints]
 workspace = true

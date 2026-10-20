@@ -33,6 +33,9 @@ pub use bootstrap::*;
 pub use owner_history::*;
 #[path = "causal_projection.rs"]
 pub mod projection;
+#[path = "causal_wire.rs"]
+mod wire;
+pub use wire::*;
 #[cfg(test)]
 #[path = "causal_tests.rs"]
 mod tests;

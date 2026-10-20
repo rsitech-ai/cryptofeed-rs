@@ -413,6 +413,7 @@ fn history() -> OwnerHistory {
         pending: BTreeMap::new(),
         active: None,
         previous_after: None,
+        wire: None,
     }
 }
 fn operations(fail: bool) -> (CapturedOperation, CapturedOperation) {

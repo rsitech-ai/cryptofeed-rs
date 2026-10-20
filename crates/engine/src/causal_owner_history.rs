@@ -18,6 +18,7 @@ pub struct OwnerHistoryDto {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum OwnerEventDto {
+    Wire(WireEventDto),
     Started {
         unix_ns: i64,
     },
@@ -215,11 +216,17 @@ fn same_owner(route: &CausalRoute, identity: &OperationIdentity) -> bool {
 }
 impl OwnerHistoryDto {
     fn validate(&self, identity: &OperationIdentity) -> Result<(), CodecError> {
-        if !matches!(self.schema_version, 1..=3)
+        if !matches!(self.schema_version, 1..=4)
             || self.route.ordinal == 0
             || !same_owner(&self.route, identity)
         {
             return Err(invalid("owner-history schema or identity mismatch"));
+        }
+        if matches!(self.event, OwnerEventDto::Wire(_)) && self.schema_version != 4 {
+            return Err(invalid("wire event requires MFCJ5"));
+        }
+        if let OwnerEventDto::Wire(event) = &self.event {
+            event.validate(&self.route)?;
         }
         let modern = matches!(
             self.event,
@@ -274,7 +281,7 @@ impl OwnerHistoryDto {
                 {
                     return Err(invalid("owner-history native identity mismatch"));
                 }
-                if operation.schema_version != if self.schema_version == 3 { 2 } else { 1 } {
+                if operation.schema_version != if self.schema_version >= 3 { 2 } else { 1 } {
                     return Err(invalid("operation requires matching owner-history profile"));
                 }
                 operation.validate()?;
@@ -358,6 +365,7 @@ pub fn encode_owner_history(
             1 => FeedProfile::EngineCausalV2,
             2 => FeedProfile::EngineCausalV3,
             3 => FeedProfile::EngineCausalV4,
+            4 => FeedProfile::EngineCausalV5,
             _ => unreachable!("validated owner-history version"),
         },
         if matches!(
@@ -383,7 +391,7 @@ fn decode_limited(
     identity: &OperationIdentity,
     max_bytes: usize,
 ) -> Result<OwnerHistoryDto, CodecError> {
-    if !matches!(envelope.schema_version, 2..=4) || envelope.phase == CausalPhase::Bootstrap {
+    if !matches!(envelope.schema_version, 2..=5) || envelope.phase == CausalPhase::Bootstrap {
         return Err(invalid("expected negotiated owner-history record"));
     }
     let payload = envelope.payload()?;
@@ -416,6 +424,9 @@ fn decode_limited(
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum OwnerPrefixUncertainty {
+    WireUnsettled {
+        input_id: u64,
+    },
     /// An ingress record alone cannot prove whether a callback ran before crash.
     ExecutionUnknown {
         input_id: u64,
@@ -505,6 +516,7 @@ pub struct OwnerHistory {
     active: Option<ActiveOperation>,
     permit: Option<ExecutionPermit>,
     previous_after: Option<StateDto>,
+    wire: Option<WireLedger>,
 }
 /// Explicit reader retention caps. Native owner budgets measure source-owned
 /// capacities; canonical/base64 JSON size is a different quantity. Neither is RSS.
@@ -519,7 +531,9 @@ pub struct OwnerHistoryLimits {
 /// decoding/comparison work are outside these counters.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct OwnerHistoryRetention {
+    /// Retained native inputs plus MFCJ5 wire-candidate references.
     pub pending_inputs: usize,
+    /// Canonical native ingress bytes plus bounded wire payload/identity reservations.
     pub pending_input_bytes: usize,
     pub active_operation_and_state_bytes: usize,
     pub source_owned_pending_inputs: usize,
@@ -546,11 +560,11 @@ impl OwnerHistory {
         limits: OwnerHistoryLimits,
     ) -> Result<Self, CodecError> {
         limits.validate()?;
-        if !matches!(envelope.schema_version, 2..=4) {
+        if !matches!(envelope.schema_version, 2..=5) {
             return Err(invalid("owner history requires negotiated bootstrap"));
         }
         let dto = decode_bootstrap(envelope)?;
-        let observation_policy = if envelope.schema_version == 4 {
+        let observation_policy = if envelope.schema_version >= 4 {
             Some(dto.observation_policy()?)
         } else {
             None
@@ -565,6 +579,11 @@ impl OwnerHistory {
                 .as_ref()
                 .expect("bound V2")
                 .max_operation_bytes as usize
+        };
+        let wire = if envelope.schema_version == 5 {
+            Some(WireLedger::new(dto.wire_policy()?))
+        } else {
+            None
         };
         let policy = dto
             .owner_policy
@@ -601,6 +620,7 @@ impl OwnerHistory {
             active: None,
             permit: None,
             previous_after: None,
+            wire,
         })
     }
     pub fn identity(&self) -> &OperationIdentity {
@@ -613,7 +633,7 @@ impl OwnerHistory {
         self.native_ordinal
     }
     pub fn pending_inputs(&self) -> usize {
-        self.pending.len()
+        self.pending.len() + self.wire.as_ref().map_or(0, WireLedger::count)
     }
     /// Count the active operation and separately retained previous state as
     /// well as pending inputs. Counting serializes into a bounded counter,
@@ -651,8 +671,11 @@ impl OwnerHistory {
             .transpose()?
             .unwrap_or(0);
         Ok(OwnerHistoryRetention {
-            pending_inputs: self.pending.len(),
-            pending_input_bytes: self.pending_bytes,
+            pending_inputs: self.pending.len() + self.wire.as_ref().map_or(0, WireLedger::count),
+            pending_input_bytes: self
+                .pending_bytes
+                .checked_add(self.wire.as_ref().map_or(0, WireLedger::bytes))
+                .ok_or(CodecError::TooLarge)?,
             active_operation_and_state_bytes: active
                 .checked_add(previous)
                 .ok_or_else(|| invalid("owner canonical retention sum overflow"))?,
@@ -660,13 +683,19 @@ impl OwnerHistory {
             source_owned_pending_bytes: self.pending_owned_bytes,
         })
     }
+    pub fn wire_clean(&self) -> bool {
+        self.wire.as_ref().is_none_or(WireLedger::clean)
+    }
     pub fn is_terminal(&self) -> bool {
         self.terminal
     }
     pub fn uncertainties(&self) -> Vec<OwnerPrefixUncertainty> {
-        self.pending
-            .keys()
-            .map(|id| {
+        self.wire
+            .as_ref()
+            .and_then(WireLedger::uncertain_input)
+            .map(|input_id| OwnerPrefixUncertainty::WireUnsettled { input_id })
+            .into_iter()
+            .chain(self.pending.keys().map(|id| {
                 if let Some(a) = self.active.as_ref().filter(|a| a.input_id == *id) {
                     if let Some((intent_ordinal, _)) = a.intent {
                         OwnerPrefixUncertainty::HandoffUnconfirmed {
@@ -682,7 +711,7 @@ impl OwnerHistory {
                 } else {
                     OwnerPrefixUncertainty::ExecutionUnknown { input_id: *id }
                 }
-            })
+            }))
             .collect()
     }
     pub fn apply(
@@ -719,6 +748,19 @@ impl OwnerHistory {
         }
         let mut handoff = None;
         match dto.event {
+            OwnerEventDto::Wire(ref event) => {
+                self.wire
+                    .as_mut()
+                    .ok_or_else(|| invalid("wire event without wire profile"))?
+                    .apply(
+                        event,
+                        dto.route.ordinal,
+                        dto.observed_ns,
+                        self.source,
+                        self.fence,
+                        self.source_active && !self.terminal,
+                    )?;
+            }
             OwnerEventDto::Started { .. } => {
                 if self.started || dto.observed_ns != 0 {
                     return Err(invalid("duplicate or nonzero owner origin"));
@@ -732,6 +774,9 @@ impl OwnerHistory {
                 owned_bytes_bound,
                 input,
             } => {
+                if self.wire.is_some() && matches!(input, InputDto::Http { .. }) {
+                    return Err(invalid("runtime HTTP outside wire profile"));
+                }
                 if self.terminal
                     || Some(input_id) != self.accepted.checked_add(1)
                     || self.native_pending_operations >= self.policy.max_pending_operations as usize
@@ -810,7 +855,8 @@ impl OwnerHistory {
                     }
                     _ => p.connection == self.physical_source,
                 };
-                if self.terminal
+                if self.wire.as_ref().is_some_and(|wire| !wire.clean())
+                    || self.terminal
                     || self.permit.is_some()
                     || self.active.is_some()
                     || self.pending.first_key_value().map(|(id, _)| *id) != Some(input_id)
@@ -1078,6 +1124,20 @@ impl OwnerHistory {
                     return Err(invalid("handoff reference, fence or deadline mismatch"));
                 }
                 let a = self.active.take().expect("checked active");
+                if let Some(wire) = self.wire.as_mut() {
+                    let candidates = if outputs_eligible {
+                        wire_candidates(
+                            &a.operation,
+                            input_id,
+                            a.journal_ordinal,
+                            dto.route.ordinal,
+                            wire.policy(),
+                        )?
+                    } else {
+                        Vec::new()
+                    };
+                    wire.install(candidates, p.deadline_ns)?;
+                }
                 let pending = self.pending.remove(&input_id).expect("checked input");
                 self.pending_bytes -= pending.bytes;
                 handoff = Some(RecordedOwnerHandoff {
@@ -1153,6 +1213,11 @@ impl OwnerHistory {
                 self.fence = through_input_id;
                 self.terminal = true;
             }
+        }
+        if self.wire.is_some()
+            && self.retention()?.pending_input_bytes > self.limits.max_retained_input_bytes
+        {
+            return Err(CodecError::TooLarge);
         }
         self.ordinal = dto.route.ordinal;
         self.generation = dto.route.generation;

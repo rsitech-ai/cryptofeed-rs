@@ -60,7 +60,6 @@ skip = [
     { crate = "foldhash@0.1.5", reason = "simd-json hashbrown 0.15 uses foldhash 0.1 while offline schema validation uses foldhash 0.2" },
     { crate = "num-bigint@0.4.8", reason = "jsonschema fraction uses num-bigint 0.4 while Parquet 60 uses num-bigint 0.5" },
     { crate = "syn@2.0.119", reason = "transitive procedural macro dependencies currently span syn 2 and syn 3" },
-    { crate = "webpki-roots@0.26.11", reason = "tokio-tungstenite 0.26 and reqwest 0.12 currently resolve different webpki-roots majors" },
 ]
 
 [sources]

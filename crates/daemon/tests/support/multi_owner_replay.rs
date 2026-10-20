@@ -1,35 +1,13 @@
 use super::*;
 use marketfeed_daemon::causal_bootstrap::replay::{
-    HistoryReplay, MultiHistoryReplay, MultiReplayLimits, ReplayError, ReplayResources,
+    HistoryReplay, MultiHistoryReplay, ReplayError, ReplayResources,
 };
 use std::{
     collections::{BTreeMap, VecDeque},
     path::Path,
 };
 
-pub(super) fn limits() -> MultiReplayLimits {
-    MultiReplayLimits {
-        per_owner: OwnerHistoryLimits {
-            max_retained_input_bytes: 4 << 20,
-            max_input_bytes: 256 << 10,
-            max_record_bytes: 256 << 10,
-        },
-        maximum: ReplayResources {
-            owners: 8,
-            bootstrap_payload_bytes: 8 << 20,
-            pending_inputs: 128,
-            pending_input_bytes: 8 << 20,
-            active_operation_and_state_bytes: 8 << 20,
-            source_owned_pending_inputs: 128,
-            source_owned_pending_bytes: 8 << 20,
-            capture_trace_reservation_bytes: 16 << 20,
-            catalog_entries: 64,
-            selected_instruments: 64,
-            maintained_book_levels: 4096,
-            cached_book_levels: 32768,
-        },
-    }
-}
+pub(super) use super::hyperliquid_fixture::replay_limits as limits;
 
 #[test]
 fn multi_replay_bootstraps_physically_and_retains_independent_idle_owners() {
