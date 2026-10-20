@@ -149,6 +149,12 @@ fn bounds() -> DriverPolicy {
         max_session_ms: 30000,
     }
 }
+fn due_bounds() -> DriverPolicy {
+    DriverPolicy {
+        schema_version: 2,
+        ..bounds()
+    }
+}
 #[derive(Clone, Copy)]
 enum WriteMode {
     Success,
@@ -158,6 +164,7 @@ enum WriteMode {
 #[derive(Default)]
 struct Probe {
     connects: AtomicUsize,
+    reads_started: AtomicUsize,
     delivered: AtomicUsize,
     closes: AtomicUsize,
     close_error: Mutex<Option<TransportError>>,
@@ -188,6 +195,7 @@ impl WebSocketTransport for TestTransport {
         &mut self,
         _: &mut FrameBuffer,
     ) -> Result<marketfeed_transport::InboundFrame, marketfeed_transport::TransportError> {
+        self.probe.reads_started.fetch_add(1, Ordering::SeqCst);
         let frame = self
             .inbound
             .recv()
@@ -250,8 +258,13 @@ fn start(mode: WriteMode) -> Fixture {
     start_with_capacity(mode, 16)
 }
 fn start_with_capacity(mode: WriteMode, capacity: usize) -> Fixture {
+    start_with_policy(mode, capacity, bounds())
+}
+fn start_with_policy(mode: WriteMode, capacity: usize, driver_policy: DriverPolicy) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
-    let dto = fixture(true);
+    let mut dto = fixture(true);
+    dto.public_inputs.retain(|p| p.role != DRIVER_POLICY_ROLE);
+    driver_policy.clone().bind(&mut dto).unwrap();
     let topic = dto.protocol_topics[0].clone();
     let actor = FeedBatchActor::spawn(
         FeedWriter::create_profile(
@@ -292,7 +305,7 @@ fn start_with_capacity(mode: WriteMode, capacity: usize) -> Fixture {
     let (core, control) = Core::new(
         owner,
         transport,
-        bounds(),
+        driver_policy,
         WebSocketSpec::default(),
         BTreeSet::from([1]),
         Reservation {
@@ -1134,4 +1147,295 @@ async fn idle_socket_still_executes_overdue_timer_polls_without_acquiring_frames
     assert_eq!(report.inbound_text, 0);
     assert_eq!(report.native_controls, 0);
     actor.shutdown().unwrap();
+}
+
+async fn idle_timer_operations(driver_policy: DriverPolicy) -> Vec<OperationDto> {
+    let Fixture {
+        _dir,
+        actor,
+        core,
+        control,
+        probe,
+        input: _input,
+        ..
+    } = start_with_policy(WriteMode::Success, 16, driver_policy);
+    let task = tokio::spawn(guarded(core));
+    wait_for(|| {
+        // read_frame is polled only after complete owner/wire quiescence.
+        control.shared.ingress.status().owner.handed_off >= 1
+            && probe.writes.lock().unwrap().len() == 1
+            && probe.reads_started.load(Ordering::SeqCst) > 0
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    control.request_stop().unwrap();
+    let report = task.await.unwrap();
+    assert!(report.clean_stop, "{report:?}");
+    actor.shutdown().unwrap();
+    let mut reader =
+        FeedReader::open_profile(_dir.path().join("feed"), None, FeedProfile::EngineCausalV5)
+            .unwrap();
+    let mut polls = Vec::new();
+    while let Some(record) = reader.read_next().unwrap() {
+        let FeedRecord::Causal(envelope) = record else {
+            continue;
+        };
+        if envelope.phase != CausalPhase::Operation {
+            continue;
+        }
+        let dto: OwnerHistoryDto = serde_json::from_slice(&envelope.payload().unwrap()).unwrap();
+        if let OwnerEventDto::ExecutionCompleted { operation, .. } = dto.event {
+            if matches!(operation.input, InputDto::TimerPoll { .. }) {
+                polls.push(*operation);
+            }
+        }
+    }
+    polls
+}
+#[tokio::test]
+async fn due_only_idle_driver_does_not_journal_no_due_timer_polls() {
+    // Same startup/wire-quiescence gate and250ms window as the retained legacy
+    // red. Version2 is explicitly admitted before factory/owner construction.
+    assert!(idle_timer_operations(due_bounds()).await.is_empty());
+}
+#[tokio::test]
+async fn legacy_policy_keeps_actual_periodic_empty_timer_turns() {
+    let polls = idle_timer_operations(bounds()).await;
+    assert!(!polls.is_empty());
+    for operation in polls {
+        assert_eq!(operation.before, operation.after);
+        assert!(
+            operation
+                .entries
+                .iter()
+                .all(|e| !matches!(e.effect, EffectDto::Invocation { .. }))
+        );
+    }
+}
+
+#[test]
+fn committed_timer_schedule_replaces_cancels_and_keeps_signed_due_deadlines() {
+    let mut schedule = CommittedTimerSchedule::default();
+    assert!(!schedule.due(TimestampNs(i64::MAX)), "unknown startup");
+    schedule.replace(&[(1, 100), (2, 50)]);
+    assert!(!schedule.due(TimestampNs(49)));
+    assert!(schedule.due(TimestampNs(50)));
+    // A complete new committed schedule postpones the previously earliest ID.
+    schedule.replace(&[(1, 100), (2, 200)]);
+    assert!(!schedule.due(TimestampNs(50)));
+    assert!(schedule.due(TimestampNs(100)));
+    // Cancellation removes old IDs; this is replacement, never an accumulating
+    // cache. A still-due reschedule remains eligible for another actual poll,
+    // including after the engine's64-callback-per-poll ceiling.
+    schedule.replace(&[(2, 40)]);
+    assert!(schedule.due(TimestampNs(100)));
+    schedule.replace(&[]);
+    assert!(!schedule.due(TimestampNs(i64::MAX)));
+    schedule.replace(&[(1, i64::MAX)]);
+    assert!(!schedule.due(TimestampNs(i64::MIN)));
+    assert!(schedule.due(TimestampNs(i64::MAX)));
+    schedule.replace(&[(1, i64::MIN)]);
+    assert!(schedule.due(TimestampNs(i64::MIN)));
+    assert!(schedule.due(TimestampNs(i64::MAX)));
+}
+
+#[test]
+fn due_only_policy_is_explicitly_committed_and_legacy_bytes_stay_distinct() {
+    let legacy = fixture(true);
+    let legacy_bytes = serde_json::to_vec(&bounds()).unwrap();
+    assert_eq!(policy(&legacy).unwrap().schema_version, 1);
+    let mut due = legacy.clone();
+    due.public_inputs.retain(|p| p.role != DRIVER_POLICY_ROLE);
+    due_bounds().bind(&mut due).unwrap();
+    assert_eq!(policy(&due).unwrap(), due_bounds());
+    assert_ne!(serde_json::to_vec(&due_bounds()).unwrap(), legacy_bytes);
+    assert_ne!(
+        encode_bootstrap_for_profile(&legacy, MAX_OPERATION_BYTES, FeedProfile::EngineCausalV5)
+            .unwrap(),
+        encode_bootstrap_for_profile(&due, MAX_OPERATION_BYTES, FeedProfile::EngineCausalV5)
+            .unwrap()
+    );
+    let mut unknown = due_bounds();
+    unknown.schema_version = 3;
+    assert!(unknown.validate(&legacy).is_err());
+    let mut unsupported = legacy.clone();
+    unsupported
+        .public_inputs
+        .retain(|p| p.role != DRIVER_POLICY_ROLE);
+    unsupported
+        .public_inputs
+        .push(PublicReproductionInputDto::new(
+            DRIVER_POLICY_ROLE,
+            &serde_json::to_vec(&unknown).unwrap(),
+        ));
+    assert!(PreparedBootstrap::new_wire_history(unsupported, MAX_OPERATION_BYTES).is_err());
+}
+
+fn native_operations(directory: &std::path::Path) -> Vec<OperationDto> {
+    let mut reader =
+        FeedReader::open_profile(directory.join("feed"), None, FeedProfile::EngineCausalV5)
+            .unwrap();
+    let mut out = Vec::new();
+    while let Some(record) = reader.read_next().unwrap() {
+        let FeedRecord::Causal(envelope) = record else {
+            continue;
+        };
+        if envelope.phase != CausalPhase::Operation {
+            continue;
+        }
+        let dto: OwnerHistoryDto = serde_json::from_slice(&envelope.payload().unwrap()).unwrap();
+        if let OwnerEventDto::ExecutionCompleted { operation, .. } = dto.event {
+            out.push(*operation);
+        }
+    }
+    out
+}
+
+#[tokio::test]
+async fn due_only_actual_callback_reschedules_and_does_not_starve_ready_frames_or_stop() {
+    let Fixture {
+        _dir,
+        actor,
+        mut core,
+        control,
+        probe,
+        input,
+        topic,
+    } = start_with_policy(WriteMode::Success, 16, due_bounds());
+    let clock = Arc::new(std::sync::atomic::AtomicI64::new(0));
+    core.wall_clock = Some(clock.clone());
+    let task = tokio::spawn(guarded(core));
+    wait_for(|| probe.reads_started.load(Ordering::SeqCst) > 0).await;
+    let connected = native_operations(_dir.path());
+    let deadline = connected
+        .iter()
+        .find(|op| matches!(op.input, InputDto::Connected { .. }))
+        .unwrap()
+        .after
+        .timers
+        .iter()
+        .map(|(_, deadline)| *deadline)
+        .min()
+        .expect("actual connected callback scheduled a native timer");
+    assert!(deadline > 0);
+    input
+        .send(Ok(marketfeed_transport::InboundFrame {
+            opcode: FrameOpcode::Text,
+            payload: format!(r#"{{"channel":"subscriptionResponse","data":{{"method":"subscribe","subscription":{topic}}}}}"#).into_bytes(),
+        }))
+        .await
+        .unwrap();
+    wait_for(|| {
+        let s = control.shared.ingress.status();
+        s.owner.executed == 2 && s.owner.handed_off == 2 && s.owner.phase == OwnerPhase::Idle
+    })
+    .await;
+    clock.store(deadline - 1, Ordering::SeqCst);
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    assert_eq!(control.shared.ingress.status().owner.executed, 2);
+    // Pause the first accepted frame outside the owner lock. This proves the
+    // local wake is already overdue before releasing the owner into simultaneous
+    // ready-frame/timer choices, independently of filesystem speed.
+    let pause = control.shared.ingress.pause_next_text_for_test();
+    input
+        .try_send(Ok(marketfeed_transport::InboundFrame {
+            opcode: FrameOpcode::Text,
+            payload: br#"{"channel":"pong"}"#.to_vec(),
+        }))
+        .unwrap();
+    wait_for(|| pause.entered()).await;
+    for _ in 0..7 {
+        input
+            .try_send(Ok(marketfeed_transport::InboundFrame {
+                opcode: FrameOpcode::Text,
+                payload: br#"{"channel":"pong"}"#.to_vec(),
+            }))
+            .unwrap();
+    }
+    clock.store(deadline, Ordering::SeqCst);
+    tokio::time::sleep(Duration::from_millis(bounds().timer_interval_ms + 1)).await;
+    pause.release();
+    wait_for(|| {
+        probe.delivered.load(Ordering::SeqCst) == 9
+            && probe.writes.lock().unwrap().len() == 2
+            && control.shared.ingress.status().owner.phase == OwnerPhase::Idle
+    })
+    .await;
+    assert_eq!(
+        probe.writes.lock().unwrap()[1].payload,
+        br#"{"method":"ping"}"#
+    );
+    // The actual callback replaces its timer with a future deadline. Further
+    // unchanged local ticks cannot turn that stale cached deadline into polls.
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    let stop_id = control.request_stop().unwrap();
+    let report = task.await.unwrap();
+    assert!(report.clean_stop && report.stop_committed, "{report:?}");
+    assert_eq!(report.stop_input_id, Some(stop_id));
+    assert_eq!(report.unaccepted_frames, 0);
+    actor.shutdown().unwrap();
+    let ops = native_operations(_dir.path());
+    let timers = ops
+        .iter()
+        .filter(|op| matches!(op.input, InputDto::TimerPoll { .. }))
+        .collect::<Vec<_>>();
+    assert_eq!(timers.len(), 1, "only the actual due poll is journaled");
+    let timer = timers[0];
+    assert!(timer.entries.iter().any(|e| matches!(e.effect, EffectDto::Invocation { kind: InvocationDto::Timer { now, .. }, .. } if now == deadline)));
+    assert!(timer.after.timers.iter().all(|(_, next)| *next > deadline));
+    assert!(
+        ops.iter().any(|op| op.route.ordinal > timer.route.ordinal
+            && matches!(op.input, InputDto::Text { .. })),
+        "a ready frame must run after the actual timer"
+    );
+    // Every physical record is checked by the real persistent native replayer,
+    // including the committed policy2 bootstrap, exact timer callback/state,
+    // application-wire decisions and terminal withheld Stop. This is not just
+    // serde/physical inspection of the expected OperationDto.
+    use crate::causal_bootstrap::replay::{MultiHistoryReplay, VerifiedSourceRecord};
+    let mut replay = MultiHistoryReplay::open_profile(
+        _dir.path().join("feed"),
+        crate::causal_bootstrap::capture::replay_limits(),
+        FeedProfile::EngineCausalV5,
+    )
+    .unwrap();
+    let mut physical = 0;
+    let mut completions = 0;
+    let mut due_completions = 0;
+    let mut successful_wires = 0;
+    let mut handoffs = 0;
+    while let Some(step) = replay.read_next_verified().unwrap() {
+        physical += 1;
+        handoffs += usize::from(step.handoff().is_some());
+        match step.record() {
+            VerifiedSourceRecord::Bootstrap(dto) => {
+                assert_eq!(policy(dto).unwrap().schema_version, 2);
+            }
+            VerifiedSourceRecord::Owner { observation, .. } => match &observation.event {
+                OwnerEventDto::ExecutionCompleted { operation, .. } => {
+                    completions += 1;
+                    if matches!(operation.input, InputDto::TimerPoll { .. }) {
+                        assert_eq!(**operation, *timer);
+                        due_completions += 1;
+                    }
+                }
+                OwnerEventDto::Wire(WireEventDto::Settled { outcome, .. }) => {
+                    assert_eq!(*outcome, WireOutcomeDto::Succeeded);
+                    successful_wires += 1;
+                }
+                _ => {}
+            },
+            VerifiedSourceRecord::Seal { .. } => panic!("owner shutdown does not fabricate Seal"),
+        }
+    }
+    let progress = replay.progress().unwrap();
+    assert_eq!(physical, progress.cursor.sequence);
+    assert_eq!(completions, ops.len());
+    assert_eq!(due_completions, 1);
+    assert_eq!(successful_wires, 2);
+    assert_eq!(handoffs as u64, report.handoffs);
+    assert_eq!(progress.owners.len(), 1);
+    assert!(progress.owners[0].terminal);
+    assert!(progress.owners[0].uncertainties.is_empty());
+    assert!(!progress.sealed);
 }

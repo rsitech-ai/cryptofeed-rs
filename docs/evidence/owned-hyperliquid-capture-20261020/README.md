@@ -6,8 +6,16 @@ reexecutes committed history into the shared MFOP feed. See the
 [capture runbook](../../ops/hyperliquid-causal-capture.md) and
 [wire contract](../../plan/causal_application_wire_owner.md).
 
-This slice passes local correctness checks. **Timely collection remains a failed
-gate**: in the 30-second public pilot, spot BBO acquisition-minus-native-clock
+The latest policy-2 successor passes all ten local gates and a new public capture:
+1,415 groups / 271 items agree across native verification and Quants. BBO
+acquisition-minus-native-clock peaks are 0.940 seconds spot / 1.445 seconds perps
+in this short sample. See [the successor validation](timer-policy-v2-validation.json)
+and [its exact source](timer-policy-v2-source.json). This is not a clock, latency
+SLA, continuity or extended-soak qualification. hlscreen's coordinated revision
+and the successor's own hosted checks remain separate gates.
+
+The earlier source05 slice passed its local correctness checks but **failed its
+timing diagnostic**: in that 30-second public pilot, spot BBO acquisition-minus-native-clock
 median/max was 6.378/11.163 seconds; perpetual BBO was 7.056/10.701 seconds.
 Remote/local clock synchronization is unqualified, and context updates carry no
 native timestamp. A clean storage seal establishes neither freshness nor complete
@@ -71,7 +79,8 @@ private; only hashes, counts and diagnostic summaries are published.
 ## Remaining gates
 
 Finish the coordinated immutable hlscreen dependency upgrade and native artifact
-smokes, and qualify Quants durable application-state restart against this feed.
+smokes. Quants RAM-only checkpoint restarts are now locally verified; strategy
+feature admission and the current native owner contract package remain separate.
 The new producer requires its own hosted macOS/Linux results; predecessor hosted
 passes are historical evidence only. Diagnose acquisition backlog, then rerun the
 registered ingress comparison unchanged after actual consumer integration.
@@ -95,3 +104,40 @@ receipt: pilot03 has **zero unaccepted frames**. The original wording referred
 to an unaccepted frame from failed pilot02. All numeric pilot03 diagnostics,
 including the acquisition-lag failure, are unchanged; the original receipt is
 retained.
+
+## Policy-2 successor and latest public pilot
+
+The original driver journaled 153 no-due timer polls in pilot03. Policy 2 uses
+the latest observed committed native timer schedule to admit only due polls.
+Version 1 remains supported with its periodic behavior. Wake frequency, native
+64-fire cap, queue/frame bounds, quiescent admission, ACK barriers and Stop checks
+are unchanged. Genuine legacy red evidence, deterministic due/read/Stop tests and
+full native replay are retained. Unknown policy versions reject preflight.
+
+The successor source recipe is `16a538c033fb37fa10112f66a6371ab7408512a7f991e95add1640af5a8afa95`.
+All ten local gates pass with denied warnings: workspace 1,642/0/56; Rust 1.85
+default library 108, core 308, native/bootstrap 92 and public integration 80 pass;
+formatting, Clippy, docs and default CLI pass. Fresh audit and cargo-deny pass with
+zero advisory exceptions. [The prior hosted run](hosted8de.json) passed the full
+Mac/Linux suites but failed MSRV compilation and a secondary Windows watchdog;
+it is not relabelled as a successor result.
+
+Pilot04 used identical request bytes and bounds. Both markets have one actual due
+timer callback, zero empty polls, five successful wire triplets, clean committed
+Stop and zero abandoned/unaccepted inputs or reported transport errors. CRCs,
+native routing/counts, final paired cursor and Quants ACK agree. Source publication
+has 1,415 committed records / 1,347 transactions; target has 1,415 / 1,415. All 83
+previous original files retain their recorded hashes and metadata.
+
+Initial historical trade rows remain excluded only from the subsequent-delivery
+timing proxy. Context has no native timestamp. These sequential public samples
+do not isolate the cause of the lower observed acquisition deltas. Full external
+delivery latency and decision-time availability remain unqualified.
+
+The unchanged Quants checkpoint code also passes actual producer-backed restarts
+at groups 5, 11 and 1,415, plus final sealed idle, with exact 1,415/271 state and
+cursor agreement. It remains a locally committed RAM-only structural consumer;
+no rsibot push, root gitlink or strategy admission follows. A harness bookkeeping
+error caught normal `SystemExit(0)` after all three capture/observer/verify exits
+were zero; the original script/log/diagnostic and a future-only correction are
+retained. No capture was rerun or overwritten for that error.

@@ -6,6 +6,15 @@ Use a new output directory for every lifetime. The current candidate still needs
 its combined platform, live and consumer qualification; a successful command is
 not operational promotion or proof of uninterrupted market coverage.
 
+New captures explicitly bind driver policy version 2: a local timer wake admits
+a native poll only when the latest observed committed native schedule has a due
+deadline. The 100 ms wake, owner polling, queue/frame limits and durability gates
+are unchanged. The driver still alternates ready frames with due polls and checks
+Stop while waiting for accepted work. Version 1 retains its recorded periodic-poll
+behavior for existing profiles; an unknown policy version fails preflight. This
+removes unnecessary no-due journal turns, but its effect on acquisition delay must
+be measured separately from storage correctness.
+
 Build and retain both tools from the same reviewed source and lockfile:
 
 ```sh

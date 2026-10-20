@@ -28,8 +28,11 @@ use std::{
 use tokio::sync::Notify;
 
 pub const DRIVER_POLICY_ROLE: &str = "hyperliquid-owned-public-driver-v1";
-/// Canonical bounds committed BEFORE constructing the driver. These bound
-/// cooperative calls/queues, not uninterruptible OS operations or final joins.
+/// Canonical bounds committed BEFORE constructing the driver. Version 1 admits
+/// periodic native timer polls. Version 2 admits a poll only when the latest
+/// committed native timer schedule has a due deadline. Local wake frequency and
+/// all other bounds are identical. These bound cooperative calls/queues, not
+/// uninterruptible OS operations or final joins.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DriverPolicy {
@@ -71,7 +74,7 @@ impl DriverPolicy {
             || dto.runner_policy.external_handles
             || dto.runner_policy.record
             || dto.runner_policy.mirror_capacity != 0
-            || self.schema_version != 1
+            || !matches!(self.schema_version, 1 | 2)
             || self.max_frame_bytes == 0
             || self.max_frame_bytes > 2 * 1024 * 1024
             || !(1..=60_000).contains(&self.connect_timeout_ms)
@@ -427,6 +430,23 @@ fn wall_time() -> Option<TimestampNs> {
     .ok()
     .map(TimestampNs)
 }
+
+/// Replaced only from an observed committed native release. Unknown startup
+/// state differs from a known empty schedule; neither invents a native poll.
+#[derive(Default)]
+struct CommittedTimerSchedule {
+    known: bool,
+    next: Option<i64>,
+}
+impl CommittedTimerSchedule {
+    fn replace(&mut self, timers: &[(u64, i64)]) {
+        self.known = true;
+        self.next = timers.iter().map(|(_, deadline)| *deadline).min();
+    }
+    fn due(&self, now: TimestampNs) -> bool {
+        self.known && self.next.is_some_and(|deadline| deadline <= now.0)
+    }
+}
 struct Core<T> {
     owner: HistoryJournalOwner,
     transport: T,
@@ -434,6 +454,8 @@ struct Core<T> {
     spec: WebSocketSpec,
     control: DriverControl,
     _reservation: Reservation,
+    #[cfg(all(test, feature = "causal-journal"))]
+    wall_clock: Option<Arc<std::sync::atomic::AtomicI64>>,
 }
 impl<T: WebSocketTransport> Core<T> {
     fn new(
@@ -466,12 +488,21 @@ impl<T: WebSocketTransport> Core<T> {
                 spec,
                 control: control.clone(),
                 _reservation: reservation,
+                #[cfg(all(test, feature = "causal-journal"))]
+                wall_clock: None,
             },
             control,
         )
     }
     fn stopping(&self) -> bool {
         lock(&self.control.shared).stopping
+    }
+    fn wall_time(&self) -> Option<TimestampNs> {
+        #[cfg(all(test, feature = "causal-journal"))]
+        if let Some(clock) = &self.wall_clock {
+            return Some(TimestampNs(clock.load(Ordering::SeqCst)));
+        }
+        wall_time()
     }
     fn owner_quiescent(&self) -> bool {
         let status = self.owner.status();
@@ -514,6 +545,7 @@ impl<T: WebSocketTransport> Core<T> {
         poll.set_missed_tick_behavior(MissedTickBehavior::Skip);
         timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
         let mut timer_pending: Option<IngressAdmission> = None;
+        let mut committed_timers = CommittedTimerSchedule::default();
         let mut prefer_read = false;
         let mut connected = false;
         let mut next_connection = 1u64;
@@ -532,6 +564,9 @@ impl<T: WebSocketTransport> Core<T> {
             // notifications. No release value escapes as authoritative output.
             while let Some(release) = self.owner.try_next() {
                 report.handoffs += 1;
+                // This is the actual post-ACK release, never a prepared trace,
+                // provisional runner peek, or inferred metadata timer.
+                committed_timers.replace(&release.evidence().after.timers);
                 reconnect_requested |= release.evidence().after.reconnect_requested;
                 if release.evidence().after.pending_http != 0 {
                     self.control.shared.ingress.revoke();
@@ -552,7 +587,7 @@ impl<T: WebSocketTransport> Core<T> {
                 break;
             }
             if reconnect_requested && connected {
-                let Some(now) = wall_time() else {
+                let Some(now) = self.wall_time() else {
                     reason = ExitReason::ClockFailure;
                     break;
                 };
@@ -657,7 +692,7 @@ impl<T: WebSocketTransport> Core<T> {
                 match outcome {
                     Connect::Stop => break,
                     Connect::Ready(Ok(())) => {
-                        let Some(now) = wall_time() else {
+                        let Some(now) = self.wall_time() else {
                             reason = ExitReason::ClockFailure;
                             break;
                         };
@@ -674,7 +709,7 @@ impl<T: WebSocketTransport> Core<T> {
                     }
                     Connect::Ready(Err(error)) => {
                         report.error(TransportStage::Connect, error, started);
-                        let Some(now) = wall_time() else {
+                        let Some(now) = self.wall_time() else {
                             reason = ExitReason::ClockFailure;
                             break;
                         };
@@ -743,13 +778,15 @@ impl<T: WebSocketTransport> Core<T> {
                 Read::Stop => break,
                 Read::Poll => {}
                 Read::Timer => {
-                    let Some(now) = wall_time() else {
+                    let Some(now) = self.wall_time() else {
                         reason = ExitReason::ClockFailure;
                         break;
                     };
                     // Readiness ticks coalesce while the previous actual poll
                     // is outstanding. No acquired native frame is discarded.
-                    if timer_pending.is_none() {
+                    if timer_pending.is_none()
+                        && (self.policy.schema_version == 1 || committed_timers.due(now))
+                    {
                         timer_pending = self.admit(CaptureInput::TimerPoll { now });
                         if timer_pending.is_none() {
                             reason = ExitReason::IngressFailure;
@@ -769,9 +806,10 @@ impl<T: WebSocketTransport> Core<T> {
                         reason = ExitReason::IngressFailure;
                         break;
                     }
-                    let (Some(receive_ts), Ok(mono_ns)) =
-                        (wall_time(), u64::try_from(started.elapsed().as_nanos()))
-                    else {
+                    let (Some(receive_ts), Ok(mono_ns)) = (
+                        self.wall_time(),
+                        u64::try_from(started.elapsed().as_nanos()),
+                    ) else {
                         reason = ExitReason::ClockFailure;
                         break;
                     };
@@ -825,7 +863,7 @@ impl<T: WebSocketTransport> Core<T> {
                 }
                 Read::Frame(Err(error)) => {
                     report.error(TransportStage::Read, error, started);
-                    let Some(now) = wall_time() else {
+                    let Some(now) = self.wall_time() else {
                         reason = ExitReason::ClockFailure;
                         break;
                     };

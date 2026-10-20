@@ -271,7 +271,7 @@ fn prepare(
                 TransportControlsDto::ManagedConnectReadAutomaticPongCloseUnjournaledV1,
         })?;
         DriverPolicy {
-            schema_version: 1,
+            schema_version: 2,
             max_frame_bytes: MAX_CAPTURE_FRAME_BYTES as u64,
             connect_timeout_ms: 15_000,
             write_timeout_ms: 5_000,
