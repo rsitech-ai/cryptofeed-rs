@@ -146,10 +146,23 @@ fn fixture_with_meta(
     .unwrap();
     dto
 }
+#[track_caller]
 fn wait(mut check: impl FnMut() -> bool) {
     let until = Instant::now() + WAIT;
     while !check() {
         assert!(Instant::now() < until, "Hyperliquid causal watchdog");
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+// Same deadline, predicate order and cadence as wait. Snapshot diagnostics only
+// at the existing failure boundary; do not reset the clock or retry a source.
+#[track_caller]
+fn wait_inspect(mut check: impl FnMut() -> bool, inspect: impl FnOnce() -> String) {
+    let until = Instant::now() + WAIT;
+    while !check() {
+        if Instant::now() >= until {
+            panic!("Hyperliquid causal watchdog: {}", inspect());
+        }
         thread::sleep(Duration::from_millis(1));
     }
 }

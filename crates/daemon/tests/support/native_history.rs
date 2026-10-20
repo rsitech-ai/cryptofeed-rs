@@ -31,6 +31,12 @@ pub(super) fn native_fixture(spot: bool) -> BootstrapDto {
     dto
 }
 fn start(dto: BootstrapDto, actor: &FeedBatchActor) -> (HistoryJournalOwner, OperationIdentity) {
+    eprintln!(
+        "native fixture begin: factory={:?} session={} selected={}",
+        dto.factory,
+        dto.capture.session,
+        dto.session.subscriptions.len()
+    );
     let committed = PreparedBootstrap::new_observed_history(dto, MAX_OPERATION_BYTES)
         .unwrap()
         .try_admit(&actor.handle())
@@ -54,25 +60,46 @@ fn actor(path: &Path) -> FeedBatchActor {
     )
     .unwrap()
 }
+#[track_caller]
 fn finish(owner: HistoryJournalOwner) {
     owner.close_ingress();
-    wait(|| owner.status().owner.phase == OwnerPhase::Stopped);
+    wait_inspect(
+        || owner.status().owner.phase == OwnerPhase::Stopped,
+        || format!("native history stop: {:?}", owner.status()),
+    );
     assert!(owner.shutdown().owner.failure.is_none());
+    eprintln!("native fixture stopped");
 }
+#[track_caller]
 fn submit(owner: &HistoryJournalOwner, connection: u64, input: CaptureInput) -> CommittedRelease {
-    assert!(matches!(
-        owner
-            .ingress()
-            .try_submit(ConnectionId(connection), input)
-            .unwrap()
-            .wait(),
-        InputSettlement::Committed { .. }
-    ));
+    let input_kind = match &input {
+        CaptureInput::Connected { .. } => "connected",
+        CaptureInput::Disconnected { .. } => "disconnected",
+        CaptureInput::TransportLost { .. } => "transport-lost",
+        CaptureInput::Text { .. } => "text",
+        CaptureInput::TimerPoll { .. } => "timer-poll",
+        CaptureInput::Control { .. } => "control",
+        _ => "other non-text input",
+    };
+    let settlement = owner
+        .ingress()
+        .try_submit(ConnectionId(connection), input)
+        .unwrap()
+        .wait();
+    assert!(matches!(settlement, InputSettlement::Committed { .. }));
     let mut release = None;
-    wait(|| {
-        release = owner.try_next();
-        release.is_some()
-    });
+    wait_inspect(
+        || {
+            release = owner.try_next();
+            release.is_some()
+        },
+        || {
+            format!(
+                "native handoff: connection={connection} input={input_kind} settlement={settlement:?} status={:?}",
+                owner.status()
+            )
+        },
+    );
     // This is the owner's internal handoff, before its observation ACK. Only
     // the committed reader below may authorize projected market observations.
     release.unwrap()

@@ -194,3 +194,14 @@ schedule, thresholds and abort rules. Its present result remains failed.
 Continuity, strict datasets, calendar/hardware qualification and native restart
 remain required. No economics, trading activation, deployment, merge or release
 is authorized by this contract.
+
+## Hosted Windows failure and diagnostic successor
+
+Published e812e44/PR52 has a real Windows47/48 Hyperliquid target failure in
+CI39462645500 at the existing15s watchdog. Failure phase and root cause are
+unknown. The [test-only diagnostic successor](../evidence/hyperliquid-projection-watchdog-20261020/README.md)
+keeps workload/caps/deadlines and adds phase, owner-settlement/status and pump
+ACK-progress diagnostics. Local48-case Rust1.91/1.85 passes do not close Windows
+or grant whole-source hosted qualification. HLS's typed-reader candidate is
+still uncommitted and undergoing separate frozen local checks at pine812.
+The broader live/control/ingress/dataset/rsibot/operational gates remain open.

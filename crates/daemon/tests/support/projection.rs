@@ -33,14 +33,66 @@ fn batch() -> BatchConfig {
 fn source(path: &Path) -> MultiHistoryReplay {
     MultiHistoryReplay::open_profile(path, multi_owner_tests::limits(), PROFILE).unwrap()
 }
+#[track_caller]
 fn project(path: &Path, target: &Path) -> ProjectionCheckpoint {
+    let caller = std::panic::Location::caller();
     let mut pump =
         ProjectionPump::create(source(path), policy(), target, 64 << 20, batch()).unwrap();
-    wait(|| {
-        pump.poll().unwrap();
-        pump.last_acknowledged().sealed
-    });
+    let began = Instant::now();
+    // RefCell permits the timeout-only inspector to observe the same snapshot
+    // without borrowing the pump or adding owner/writer refreshes to polling.
+    let snapshot = std::cell::RefCell::new((
+        [0u64; 6],
+        None,
+        pump.last_acknowledged().clone(),
+        0u64,
+        began,
+    ));
+    eprintln!(
+        "projection begin: caller={caller} target={:?}",
+        target.file_name()
+    );
+    wait_inspect(
+        || {
+            let poll = pump.poll().unwrap();
+            let index = match poll {
+                ProjectionPoll::Prepared => 0,
+                ProjectionPoll::Writing => 1,
+                ProjectionPoll::Full => 2,
+                ProjectionPoll::Committed => 3,
+                ProjectionPoll::CaughtUp => 4,
+                ProjectionPoll::Sealed => 5,
+            };
+            let mut s = snapshot.borrow_mut();
+            s.0[index] += 1;
+            s.1 = Some(poll);
+            if &s.2 != pump.last_acknowledged() {
+                s.2 = pump.last_acknowledged().clone();
+                s.4 = Instant::now();
+            }
+            s.3 = pump.prepared_groups();
+            s.2.sealed
+        },
+        || {
+            let s = snapshot.borrow();
+            format!(
+                "projection caller={caller} target={:?} elapsed={:?} polls[prepared,writing,full,committed,caught_up,sealed]={:?} last={:?} acknowledged={:?} prepared_groups={} since_last_ack={:?}",
+                target.file_name(),
+                began.elapsed(),
+                s.0,
+                s.1,
+                s.2,
+                s.3,
+                s.4.elapsed()
+            )
+        },
+    );
     let checkpoint = pump.last_acknowledged().clone();
+    eprintln!(
+        "projection sealed: caller={caller} groups={} elapsed={:?} checkpoint={checkpoint:?}",
+        pump.prepared_groups(),
+        began.elapsed()
+    );
     pump.shutdown().unwrap();
     checkpoint
 }

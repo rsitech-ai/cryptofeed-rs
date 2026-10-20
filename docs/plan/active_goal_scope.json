@@ -9,7 +9,7 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Local MFOP1 atomic observation projection now builds on qualified carrier662/MFCJ4cf58/verified-source-viewa63. Exact548-input source141e4c967daa4f3a15f98b41ef01dfc9e2a5d7de10d9b43c59893a5674d74f1c passes ten local commands with21newregressions on stable+MSRV; static source findings closed, final independent evidence audit85fdbff152678149e7ee20309a0f95f76b00f6aeca0b49badb2949d553cef190passes. One prepared/ticket, ACK-owned cursor, final source-seal group, original metadata/control/clocks/uncertainty, exact native/canonical values and source comparison are implemented. Compact target reader checks structure rather than authenticating rewritten values. HLS735/pin95 and isolated rsibot97 remain unchanged/unmigrated. Published e2 own17-job hosted closure remains scoped solely to e2 (portableSHA463c85617ef2a574a920fa3fcc75b07e973bae4cf88bb1f678236c6e82681f82). Actual availability, allMids admission, consumer checkpoints/pins, real daemon/live/control/externalI/O and original failed-load rerun remain open. Full goal active.",
+  "current_slice": "Published producer MFOP1 e812e44/PR52 owns passing local548-input qualification, but hosted run39462645500 has a genuine Windows Hyperliquid47/48 watchdog failure. Phase/cause remain unknown. A test-only diagnostic successor retains original deadlines/workload/caps and passes local48 cases on Rust1.91.0 and1.85.0 plus daemon all-target/all-feature denied-warning Clippy; source0db44c52cfa2499addb74491485bae055c541f620c826efb89c389306743f33f. This is instrumentation, not Windows repair or hosted qualification. HLS735-based typed-consumer candidate remains uncommitted/pine812; frozen-source local qualification is in progress, with independent fixes for application acknowledgment, panic poison, original context fields, bounded converted updates, pending metadata and exact native release-artifact packaging. Rsibot continuous reading/features, actual daemon/live/control/external-I/O integration, original registered ingress comparison, strict dataset and operational gates remain open. No economics, deployment, merge or release.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)",
   "implementation_owners": {
     "cryptofeed-rs": "Exchange adapters, exact native semantics, instrument metadata, acquisition timestamps, quality events, authoritative live feed, durable raw/canonical storage and deterministic replay",
@@ -50,5 +50,6 @@
     "qualification": "docs/evidence/atomic-observation-projection-20261020/qualification.json",
     "independent_evidence_audit_sha256": "85fdbff152678149e7ee20309a0f95f76b00f6aeca0b49badb2949d553cef190"
   },
-  "native_observation_projection_qualification": "docs/evidence/atomic-observation-projection-20261020/qualification.json"
+  "native_observation_projection_qualification": "docs/evidence/atomic-observation-projection-20261020/qualification.json",
+  "projection_watchdog_diagnostics": "docs/evidence/hyperliquid-projection-watchdog-20261020/validation.json"
 }
