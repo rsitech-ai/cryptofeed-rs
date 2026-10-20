@@ -1,0 +1,59 @@
+{
+  "schema": "marketfeed.ingress_diagnostic_platform_ci.v1",
+  "source_commit": "82a871bdb80f1c4c2df0574f05f0e45012989918",
+  "actual_merge": "2a086db46f1a93cd22844a9e73e9f280998c87f7",
+  "source_tree": "9ce62f8db024ac5dbe24bd433052a9346c4e505d",
+  "merge_tree": "9ce62f8db024ac5dbe24bd433052a9346c4e505d",
+  "complete_tree_equal": true,
+  "run_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39357518704",
+  "successful_jobs": 17,
+  "jobs": [
+    {
+      "platform": "linux",
+      "passed": 1312,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 152,
+      "log_sha256": "1bf26616e8cbb7385ebfa1d8fbba3fd7c9baa75e147e168469ee6ed6ec0d40eb"
+    },
+    {
+      "platform": "linux-arm",
+      "passed": 1312,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 152,
+      "log_sha256": "7a4e66cbbcb58f52980360eeff673c75049b475e048fcc996323a5124b97254e"
+    },
+    {
+      "platform": "macos",
+      "passed": 1311,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 152,
+      "log_sha256": "dad81b0caab629a103ba93a69fdb8e3e506a994decba84b1419a084f99c4cd72"
+    },
+    {
+      "platform": "windows",
+      "passed": 1309,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 152,
+      "log_sha256": "fb3e2d8b40c44eb06e3a1d5cb4d772ecf6e3ab28712d0ff139280099c28375d2"
+    },
+    {
+      "platform": "windows-durability",
+      "passed": 84,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 11,
+      "log_sha256": "3735048680aa0eecff63eaadc59c43f24f5d0a34f1db53fb4a18fa823b0c8247"
+    }
+  ],
+  "all_six_new_observation_and_harness_cases_pass_each_full_platform": true,
+  "does_not_establish": [
+    "durable_ingress_workload_success; it remains failed",
+    "subsequent timestamp migration qualification",
+    "ordinary-user Windows/hardware durability",
+    "strict datasets,live continuity,calendar soak or operational promotion"
+  ]
+}

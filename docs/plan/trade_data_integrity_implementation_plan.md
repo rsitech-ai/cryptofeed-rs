@@ -261,29 +261,79 @@ escape paths cannot support an honest atomic-batch claim by themselves.
 Strategy alignment/features/models/ETF/economics remain in existing rsibot owners.
 Neither a storage repair nor this diagnostic adds a strategy-context engine here.
 
-## Remaining advisory: compatible timestamp backend migration
+### Engine boundary settled by independent source review
 
-The read-only dependency audit identifies only three direct `time` users:
-EventPulse, prospective capture and dataset export. Already-locked Chrono 0.4.45
-has MSRV 1.62, so a narrow migration can remove the vulnerable package without
-raising core Rust 1.85. This is not implemented yet. Preserve existing strict
-ASCII/uppercase RFC3339 guards and offset/leap-second rejection; Chrono's parser
-alone accepts aliases currently refused by the owner contract.
+At source82a871b, `record_frame` publishes input before the callback and
+`apply_frame_actions` opens a separate transaction afterward. Dispatch, timers,
+pending writes and readiness can already have changed before the second ACK.
+A background writer alone cannot combine these dependent calls, capture failed
+callback outcomes or hide that uncommitted state. Do not label it a complete
+ingress/D5 repair.
 
-Reuse an EventPulse UTC microsecond helper for capture, retaining year 0000 core
-acceptance and separate stricter manifest rules. Year 9999 is valid in microseconds
-but not i64 nanoseconds; avoid `timestamp_nanos_opt` or i64 multiplication.
-Preserve UTC formatting refusal outside years 0..9999 when offsets cross a year
-boundary, and Euclidean handling of negative nanoseconds including i64::MIN.
-Dataset export separately preserves shortest nanosecond spelling; Chrono AutoSi
-would pad fractions and change bytes. Existing golden/EPIN/capture-v4 byte/hash
-tests must remain unchanged, with exact offset/fraction/year/negative-extrema
-challenges. Read existing frozen datasets without rewriting any object.
+Implement a private engine owner (proposed `JournaledSession`) with typed entry
+operations and immutable committed snapshots, without runner/dispatcher mutation
+escapes. Replace the nested transaction with one outer capture scope spanning
+input, actual callback, action application and error settlement. Record produced
+effects separately from queue-admitted effects and preserve typed failures after
+partial mutation. Reserve outcome space; a capture limit must not acknowledge an
+incomplete operation. Inject recorded connection identity and retain the actual
+machine across reconnects.
 
-Exporter source participates in decoder provenance, so future revision IDs may
-legitimately change after a source edit. Compare timestamp and economic-field
-semantics, preserve old manifests/objects, and record new lineage rather than
-regenerate frozen hashes. Remove all three time edges and its exact deny exception
-only after full graph inspection, Rust 1.85 core checks, dataset checks and a clean
-full-lock RustSec scan prove the migration. No new shared crate or dataset-to-
-EventPulse dependency is required.
+A bounded writer actor accepts complete prepared operations and groups by
+operation count, encoded bytes and maximum age, using the unchanged publication
+barriers. Admission tickets are not durability acknowledgments. Start with one
+executed/unacknowledged operation per session and independent bounded ingress;
+never wait for an exact number of active sessions or hold the writer mutex while
+awaiting submissions. This conservative concurrency profile may still fail the
+registered 480-frame/s workload. Preserve that result; a larger same-session
+window requires explicit speculative-state/drain semantics, not a relaxed load.
+
+Positive readiness, books, canonical dispatch and wire/HTTP release stay private
+until commit. Safety revocation remains immediate; a late ACK must not revive a
+stopped or superseded generation. Writer errors poison owners, settle all tickets
+and stop execution; post-replace barrier failure remains indeterminate. A dropped
+waiter cannot cancel an executed operation or make retry safe.
+
+Capture timer polls once with their observed firing list, retaining the 64-fire
+cap. Capture stop observations and all supervisor/catalog/status transitions.
+Preserve HTTP take-all behavior versus sink forwarding's retained rejected front
+item through typed drain intents and recorded completions. Network/sink I/O needs
+committed intents followed by completion/failure observations; it is not atomic
+with local publication and its crash windows remain uncertain. Transport automatic
+Pong behavior also needs an explicit capture disposition. Raw MFR queue acceptance
+is separate from shared-journal durability; never claim a cross-file atomic ACK.
+
+Negotiate a distinct causal stream/profile and one compatibility projection.
+Old decoders reject unknown kinds; migrate hlscreen deliberately and never apply
+both operations and projections twice. Replay belongs in engine or above it to
+avoid the current engine-to-replay dependency cycle. Required tests include zero
+premature release under delayed commits, idle-session grouping, callback partial
+mutation, drain-dependent overload, generations, timer polls, cancellation, every
+publication failure stage and captured/reexecuted prefix equality. The actor,
+schema/reader and capture seam can be delivered independently, but none closes
+the full repair before live integration and these acceptance checks.
+
+## Timestamp advisory repair with compatible bytes
+
+The three direct `time` users have migrated: EventPulse uses already-locked
+Chrono 0.4.45 (declared MSRV 1.62), capture reuses its UTC microsecond helper and
+dataset export retains a separate exact nanosecond formatter. Core Rust 1.85 and
+offline dataset Rust 1.88 remain unchanged. Six time-only registry packages are
+removed; no registry package is added and all remaining records retain their
+prior complete contents. The exact advisory exception is removed. Source-scoped
+checks and the full-lock RustSec result are bound in the
+[timestamp receipt](../evidence/timestamp-backend-20261020/README.md).
+
+Strict ASCII/calendar/uppercase RFC3339 guards, offset/leap-second rejection,
+year 0000 core acceptance, stricter capture-manifest minimum year and zero-or-six
+fractional wire bytes remain intact. UTC formatting uses microseconds directly,
+refuses UTC years outside 0000..9999 and retains Euclidean negative-nanosecond
+flooring. Dataset export preserves shortest nanosecond fractions rather than
+Chrono AutoSi padding. Frozen pre-change compatibility vectors and original
+contract files are retained, and original datasets are inspected read-only.
+
+Exporter source participates in decoder provenance, so future revision IDs
+legitimately change after this source edit even when timestamp bytes match.
+Preserve old manifests/objects and record the new lineage; never regenerate old
+hashes to disguise the source change. This repair does not qualify datasets,
+complete causal replay, fix the ingress workload or grant operational promotion.

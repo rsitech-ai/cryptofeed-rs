@@ -7,10 +7,9 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
 #[test]
-fn time_advisory_exception_forbids_rfc2822_in_workspace_source() {
-    // The deny exception applies to the entire workspace, including the direct
-    // time consumers in datasets and event-pulse-capture. Scan every crate's
-    // source so a new consumer cannot silently escape this regression guard.
+fn workspace_timestamp_consumers_forbid_rfc2822_in_source() {
+    // Keep the strict RFC3339 boundary after removing the old backend and its
+    // advisory exception. Scan all crates so new callers cannot bypass it.
     let crates_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap();
@@ -30,7 +29,7 @@ fn time_advisory_exception_forbids_rfc2822_in_workspace_source() {
                 let source = std::fs::read_to_string(&path).unwrap();
                 assert!(
                     !source.contains("Rfc2822"),
-                    "cargo-deny RUSTSEC-2026-0009 exception forbids Rfc2822 in {}",
+                    "strict timestamp consumers forbid Rfc2822 in {}",
                     path.display()
                 );
             }

@@ -1,0 +1,150 @@
+{
+  "schema": "marketfeed.timestamp_backend_validation.v1",
+  "base_source": "82a871bdb80f1c4c2df0574f05f0e45012989918",
+  "checks_before_commit": true,
+  "compatibility_vectors_sha256": "b157a0effdcb92f8e187aa2954ec713826ef3a58ec09fe2331b2e25175ae3dc7",
+  "legacy_probe_sha256": "ca72d28db8773249a557a56ac8e71d1a13566bc1fab61fc00afb15164fcd35f7",
+  "parser_cases": 302,
+  "accepted": 274,
+  "rejected": 28,
+  "nanosecond_cases": 17,
+  "checks": [
+    {
+      "check": "workspace/all-target/all-feature",
+      "passed": 1316,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153,
+      "log_sha256": "2123342c3277f1fd1fb00c0784641d2d49d705d8158c31d0b63eb2d78182c276"
+    },
+    {
+      "check": "Rust1.85core CI --lib",
+      "passed": 451,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 30,
+      "log_sha256": "422004dec2160b47ef5306daddd4705d8c53a8919f6ab73749bb164d036a3e39"
+    },
+    {
+      "check": "Rust1.85final timestamp integration",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 1,
+      "log_sha256": "d5714032153a428ffbe84d1fc593235843135709bfdec2b5354e74848bd572d0"
+    },
+    {
+      "check": "Rust1.88final datasets",
+      "passed": 20,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 6,
+      "log_sha256": "2b96b974146827d1dbfb4716fa7a075af7ef0ef7ac941f3c662970faab266a04"
+    },
+    {
+      "check": "workspaceClippy -Dwarnings",
+      "result": "pass",
+      "log_sha256": "a3f42b7e20b04cbf8bab1845e21ca688a3e7b0ce86f462e1c4eed2ca0e47ef21"
+    },
+    {
+      "check": "workspace docs -Dwarnings",
+      "result": "pass",
+      "log_sha256": "3091f38af8d638b173f9d5b7afe2c46880cc14c4ac09db1c70400721ddc67a38"
+    },
+    {
+      "check": "cargo-deny0.20.2 all checks",
+      "result": "pass",
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    }
+  ],
+  "rustsec": {
+    "before": {
+      "exit": 1,
+      "vulnerabilities": 1,
+      "warnings": 0,
+      "database": {
+        "advisory-count": 1338,
+        "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+        "last-updated": "2026-10-17T17:23:59+02:00"
+      },
+      "log_sha256": "91ce56647043d0e8056ca17055a6b5532a4fcdb557ba502443e00964e35e2d4b"
+    },
+    "after": {
+      "exit": 0,
+      "vulnerabilities": 0,
+      "warnings": 0,
+      "database": {
+        "advisory-count": 1338,
+        "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+        "last-updated": "2026-10-17T17:23:59+02:00"
+      },
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    }
+  },
+  "source_sha256": {
+    "Cargo.toml": "6df075c6ee9176cc03d203f2a6255edbd127cba808408ea92f039f9f72b77e7c",
+    "Cargo.lock": "c25d121813202d10243a89557e98097b60d45d76b502b17f0043291c51535b7c",
+    "deny.toml": "0b01fc83b7d11dfb12175661a57e42c72f5008a30fe8cb980deff54e7d937dc2",
+    "crates/event-pulse/Cargo.toml": "016da10c710f83ebb777677af58594a2d05f02715d81c511f9928eebfbcad78e",
+    "crates/event-pulse/src/wire.rs": "6677d7e1fad07a53d611c7bdb46f13e1255f8eee613ef3d3131269a4206eab0a",
+    "crates/event-pulse-capture/Cargo.toml": "30a06343249482e921980e5af65f37165010ab160257f20ce924e328ba64ebbc",
+    "crates/event-pulse-capture/src/fixture_v4.rs": "024f054fe38b89586dc676f3b4d6e12edabfb9f1e99acf708c0e949e436096dd",
+    "crates/datasets/Cargo.toml": "727380574a6a211d3168e9f23d3bd3767af0096b34623d633ab802a92ee7981d",
+    "crates/datasets/src/export.rs": "9902d59ef1ef78afef01cc981121e9b94a5b152ddcb3d8ba7a24ab1acc2de569",
+    "crates/event-pulse/tests/timestamp_backend_compatibility.rs": "d64de0bb780cdcedd8f0859bb325704fc03627b5fbfdae066ea680aa1351497c",
+    "crates/event-pulse/tests/wire_regressions.rs": "fb843303180d1da53ce383b47d3d24a54e5486376867581a8b2b7bfbb2e0fdad"
+  },
+  "shared_packages_unchanged": [
+    {
+      "path": "crates/adapter-api",
+      "git_object_oid": "047d9ed2e6758ed0b7704b29c965ebf27c34ae7d",
+      "unchanged_in_migration": true
+    },
+    {
+      "path": "crates/adapters/hyperliquid",
+      "git_object_oid": "7e3fd1666f2bd7b127602362ba796762105e769b",
+      "unchanged_in_migration": true
+    },
+    {
+      "path": "crates/filesystem",
+      "git_object_oid": "d84155d967f3df46e12dfbdc97f2e9e99082860f",
+      "unchanged_in_migration": true
+    },
+    {
+      "path": "crates/model",
+      "git_object_oid": "6010258e241b33e39c8772769765a897571bc9a7",
+      "unchanged_in_migration": true
+    },
+    {
+      "path": "crates/recording",
+      "git_object_oid": "cb9f01986f60d3eeb373ab4da19106ee2a92f2d3",
+      "unchanged_in_migration": true
+    }
+  ],
+  "independent_review": {
+    "result": "pass; separate reviewer authored/ran independent calendar/lock/contract checker and inspected parent receipts, without claiming parent execution as its own",
+    "integer_gregorian_epochs": 274,
+    "python_datetime_crosschecks": 272,
+    "nanosecond_cases": 17,
+    "frozen_contract_files": 17,
+    "helper_sha256": "e1e5a73e9d7b80c989268216fcd7f7b98f3aaa6337578924058f5ccac7f0cb84",
+    "result_sha256": "23289a690cc1d6d5525b2e416a525624d063a68a986f1265d2e80ddcedfe4955"
+  },
+  "retained_failed_gate": {
+    "check": "initialClippy",
+    "reason": "test module placed before production items; moved intact to EOF, no runtime function change",
+    "log_sha256": "9549ee996749828ed999f72d414ef869995a2f95c0715a005da9f268ed471986"
+  },
+  "final_public_check": {
+    "result": "pass",
+    "gitleaks": "8.30.1",
+    "log_sha256": "781072f99236b83e97b18120831388f74cf3904efa1beccd8318af145445384f",
+    "scope": "staged intentional source, plans and public evidence; final metadata recheck required before commit"
+  },
+  "future_exporter_provenance": "export.rs participates in decoder hash; new exports/revision IDs change legitimately. Original frozen manifests/objects/contracts/goldens unchanged.",
+  "not_established": [
+    "durable-ingress workload repair or complete causal engine replay",
+    "native units/continuity/strict datasets or rsibot live context",
+    "calendar24h/7d,ordinary-userWindows/hardware or operational promotion"
+  ]
+}

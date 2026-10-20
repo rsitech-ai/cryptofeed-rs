@@ -1,0 +1,172 @@
+{
+  "schema": "marketfeed.timestamp_independent_audit.v2",
+  "passed": true,
+  "helper_sha256": "e1e5a73e9d7b80c989268216fcd7f7b98f3aaa6337578924058f5ccac7f0cb84",
+  "runtime": {
+    "executable": "/opt/anaconda3/envs/hummingbot/bin/python3.13",
+    "version": "3.13.15"
+  },
+  "scope": "independent calendar/lock/contract verification; no Rust tests, builds, workloads, network or economic runs",
+  "calendar": {
+    "legacy_parse_vectors": 302,
+    "accepted_integer_gregorian_epochs": 274,
+    "also_python_datetime_epochs": 272,
+    "nanosecond_strings_and_floor_cases": 17,
+    "rejected_vectors": "not independently executed; reviewed Rust boundary separately"
+  },
+  "lock": {
+    "unchanged_complete_registry_records": 263,
+    "removed": [
+      [
+        "deranged",
+        "0.4.0",
+        "registry+https://github.com/rust-lang/crates.io-index"
+      ],
+      [
+        "num-conv",
+        "0.1.0",
+        "registry+https://github.com/rust-lang/crates.io-index"
+      ],
+      [
+        "powerfmt",
+        "0.2.0",
+        "registry+https://github.com/rust-lang/crates.io-index"
+      ],
+      [
+        "time",
+        "0.3.41",
+        "registry+https://github.com/rust-lang/crates.io-index"
+      ],
+      [
+        "time-core",
+        "0.1.4",
+        "registry+https://github.com/rust-lang/crates.io-index"
+      ],
+      [
+        "time-macros",
+        "0.2.22",
+        "registry+https://github.com/rust-lang/crates.io-index"
+      ]
+    ],
+    "added_registry_records": 0
+  },
+  "existing_contract_files_unchanged": 17,
+  "contract_file_sha256": {
+    "crates/event-pulse/contracts/provenance.json": "69e59c411cb44713414e56d6aa9060a86dd55047a46d1f03a976dfb3ddc85782",
+    "crates/event-pulse/contracts/event-pulse/contract-lock.json": "f0c85ebb498dd96a1cda0f918733ed7a237a4f16640b4e1d86e0268fd6cb69c2",
+    "crates/event-pulse/contracts/event-pulse/event_pulse_v1_golden.json": "0170e425247348c16391b2d3575c22664c0e274f08c0f4dbaa79722c2c0572e8",
+    "crates/event-pulse/contracts/event-pulse/event_pulse_v1_rejections.json": "74d69764d6db3436f608a28bb90a7fe8888ea1d5b81d527b120d40a53a84bd39",
+    "crates/event-pulse/contracts/event-pulse/event_pulse_v1.schema.json": "a56e39cbc6c27d851aeec20b6923f6320d8740073b637bcfe87cfae463856b30",
+    "crates/event-pulse/contracts/snapshot-v2/2026-08-23-event-pulse-e2-snapshot-v2-amendment.md": "6061466bad7e206f9044756fbcc368c1776c827c46575321e0771bb027444102",
+    "crates/event-pulse/contracts/snapshot-v2/event-pulse-e2-snapshot-v2-contract.json": "b9062e8e8bdc08e61f92b7890fe4d1dcebbb2eb975cc145c34ddf19f94be28af",
+    "crates/event-pulse/contracts/quant-harness/risk_decision_v1.schema.json": "06a483c06d4186bc05979bcd9f232f0ccc67aee5fbe453ac0e2e9bf74462cf48",
+    "crates/event-pulse/contracts/quant-harness/risk_decision_v1_golden.json": "97eb8772358470a9885797d19c24e9449245823ec42ec28cd8d62e8004bfe984",
+    "crates/event-pulse/contracts/quant-harness/quant_harness_v1_rejections.json": "ceddd2c43858cbbfb102e27af768be1bcc5aeed39b715eab5cec47d9420b0ed4",
+    "crates/event-pulse/contracts/quant-harness/contract-lock.json": "0b9dbc6aab8085951da6d189d191f22ad26a86b55f13f353c889d375de519557",
+    "crates/event-pulse/contracts/quant-harness/quant_harness_v1_golden.json": "9a76e0192b46cee859233c67b3a0413e1b4a05d86367ca28d0b3116fe219d117",
+    "crates/event-pulse/contracts/quant-harness/risk_decision_v1_rejections.json": "c706eec6777c9c4f7b6e99db555abf922d5907dc9a2767ade254a36d3c2365a0",
+    "crates/event-pulse/contracts/quant-harness/quant_harness_v1.schema.json": "8ab03a198d257bd30d934591776ec2855194ea9e192a64752484740b5998b2ca",
+    "crates/event-pulse/contracts/prospective/event-pulse-e2-producer-evidence-freeze-v2.json": "7216d9c5bc4b5bcd463b644c53309594413608586288beb0d32623412a42f0d7",
+    "crates/event-pulse/contracts/prospective/event-pulse-e2-producer-evidence-freeze.json": "665490e794f72333ba684cdfdcec65494f89cb72d76bd1237a69993e8ea37c29",
+    "crates/event-pulse/contracts/prospective/event-pulse-e2-wire-admission-v2-contract.json": "dc79576062caf952be44e4808359c4328c2976282291838973d4884fadafa50b"
+  },
+  "input_sha256": {
+    "docs/evidence/timestamp-backend-20261020/compatibility-vectors.json": "b157a0effdcb92f8e187aa2954ec713826ef3a58ec09fe2331b2e25175ae3dc7",
+    ".local/evidence/hyperliquid-integration-review/timestamp-lock-before.toml": "00e826f90abf1e3fb15045d76f96fb0aa315f4dd300cf2b7ff58d7fa372f70c8",
+    ".local/evidence/hyperliquid-integration-review/timestamp-contract-hashes-before-01.json": "7aba962e58bd907eb1d11052ccfc7f2bba048e75f94e69ab1dcad0516b215e8c",
+    "Cargo.toml": "6df075c6ee9176cc03d203f2a6255edbd127cba808408ea92f039f9f72b77e7c",
+    "Cargo.lock": "c25d121813202d10243a89557e98097b60d45d76b502b17f0043291c51535b7c",
+    "crates/event-pulse/src/wire.rs": "6677d7e1fad07a53d611c7bdb46f13e1255f8eee613ef3d3131269a4206eab0a",
+    "crates/event-pulse-capture/src/fixture_v4.rs": "024f054fe38b89586dc676f3b4d6e12edabfb9f1e99acf708c0e949e436096dd",
+    "crates/datasets/src/export.rs": "9902d59ef1ef78afef01cc981121e9b94a5b152ddcb3d8ba7a24ab1acc2de569",
+    "crates/event-pulse/tests/timestamp_backend_compatibility.rs": "d64de0bb780cdcedd8f0859bb325704fc03627b5fbfdae066ea680aa1351497c",
+    "deny.toml": "0b01fc83b7d11dfb12175661a57e42c72f5008a30fe8cb980deff54e7d937dc2",
+    "crates/event-pulse/contracts/provenance.json": "69e59c411cb44713414e56d6aa9060a86dd55047a46d1f03a976dfb3ddc85782",
+    "crates/event-pulse/contracts/event-pulse/contract-lock.json": "f0c85ebb498dd96a1cda0f918733ed7a237a4f16640b4e1d86e0268fd6cb69c2",
+    "crates/event-pulse/contracts/event-pulse/event_pulse_v1_golden.json": "0170e425247348c16391b2d3575c22664c0e274f08c0f4dbaa79722c2c0572e8",
+    "crates/event-pulse/contracts/event-pulse/event_pulse_v1_rejections.json": "74d69764d6db3436f608a28bb90a7fe8888ea1d5b81d527b120d40a53a84bd39",
+    "crates/event-pulse/contracts/event-pulse/event_pulse_v1.schema.json": "a56e39cbc6c27d851aeec20b6923f6320d8740073b637bcfe87cfae463856b30",
+    "crates/event-pulse/contracts/snapshot-v2/2026-08-23-event-pulse-e2-snapshot-v2-amendment.md": "6061466bad7e206f9044756fbcc368c1776c827c46575321e0771bb027444102",
+    "crates/event-pulse/contracts/snapshot-v2/event-pulse-e2-snapshot-v2-contract.json": "b9062e8e8bdc08e61f92b7890fe4d1dcebbb2eb975cc145c34ddf19f94be28af",
+    "crates/event-pulse/contracts/quant-harness/risk_decision_v1.schema.json": "06a483c06d4186bc05979bcd9f232f0ccc67aee5fbe453ac0e2e9bf74462cf48",
+    "crates/event-pulse/contracts/quant-harness/risk_decision_v1_golden.json": "97eb8772358470a9885797d19c24e9449245823ec42ec28cd8d62e8004bfe984",
+    "crates/event-pulse/contracts/quant-harness/quant_harness_v1_rejections.json": "ceddd2c43858cbbfb102e27af768be1bcc5aeed39b715eab5cec47d9420b0ed4",
+    "crates/event-pulse/contracts/quant-harness/contract-lock.json": "0b9dbc6aab8085951da6d189d191f22ad26a86b55f13f353c889d375de519557",
+    "crates/event-pulse/contracts/quant-harness/quant_harness_v1_golden.json": "9a76e0192b46cee859233c67b3a0413e1b4a05d86367ca28d0b3116fe219d117",
+    "crates/event-pulse/contracts/quant-harness/risk_decision_v1_rejections.json": "c706eec6777c9c4f7b6e99db555abf922d5907dc9a2767ade254a36d3c2365a0",
+    "crates/event-pulse/contracts/quant-harness/quant_harness_v1.schema.json": "8ab03a198d257bd30d934591776ec2855194ea9e192a64752484740b5998b2ca",
+    "crates/event-pulse/contracts/prospective/event-pulse-e2-producer-evidence-freeze-v2.json": "7216d9c5bc4b5bcd463b644c53309594413608586288beb0d32623412a42f0d7",
+    "crates/event-pulse/contracts/prospective/event-pulse-e2-producer-evidence-freeze.json": "665490e794f72333ba684cdfdcec65494f89cb72d76bd1237a69993e8ea37c29",
+    "crates/event-pulse/contracts/prospective/event-pulse-e2-wire-admission-v2-contract.json": "dc79576062caf952be44e4808359c4328c2976282291838973d4884fadafa50b"
+  },
+  "frozen_store_receipt": {
+    "scope": "retained_receipt_inspection_only_no_cli_reexecution",
+    "present": true,
+    "receipt_sha256": "61d547a6490f7f05a3f3e98b3977e8a128706462a563b4247206b5a4f248d7cc",
+    "inspect_sha256": "03a8fc06c21fa6877f6a756e8b31e9eb783257bc73c32043b61fdd0ddb94a90b",
+    "before_snapshot_sha256": "73178be375555a4fd6f2e46ac50c672e2e875aa38511b34b1e48915c32e1a194",
+    "verified_rows": 2666,
+    "admitted": false,
+    "decision": "validated-not-qualified",
+    "five_profile_denials_recorded": true,
+    "original_22_file_immutability": "reported_by_parent_receipt_not_independently_reexecuted"
+  },
+  "module_relocation": {
+    "mechanical_test_module_relocation": true,
+    "production_bytes_equal_except_EOF_LF_separators": true,
+    "test_module_bytes_equal_except_EOF_LF_separators": true,
+    "pre_move_sha256": "90efa1eef23a1ea62e8fc25d9f5e2b2fcc5571cce7ec96de27ce1bdddae7813a",
+    "final_export_sha256": "9902d59ef1ef78afef01cc981121e9b94a5b152ddcb3d8ba7a24ab1acc2de569",
+    "v1_helper_sha256": "c17e1a40d6fe011afd7a35075738ba06cf0b7c9851d0d5575451ca414e15ba30",
+    "v1_result_sha256": "e9f124448da8fda69c1e065a2e94d7cbf5fa8aa7ae65773539a47d404a208684"
+  },
+  "parent_executed_evidence_inspection": {
+    "timestamp-workspace-tests-01.log": {
+      "sha256": "2123342c3277f1fd1fb00c0784641d2d49d705d8158c31d0b63eb2d78182c276",
+      "passed": 1316,
+      "failed": 0,
+      "ignored": 56,
+      "result_groups": 153
+    },
+    "timestamp-msrv-core-01.log": {
+      "sha256": "422004dec2160b47ef5306daddd4705d8c53a8919f6ab73749bb164d036a3e39",
+      "passed": 451,
+      "failed": 0,
+      "ignored": 0,
+      "result_groups": 30
+    },
+    "timestamp-msrv-compat-final-01.log": {
+      "sha256": "d5714032153a428ffbe84d1fc593235843135709bfdec2b5354e74848bd572d0",
+      "passed": 4,
+      "failed": 0,
+      "ignored": 0,
+      "result_groups": 1
+    },
+    "timestamp-msrv-dataset-final-01.log": {
+      "sha256": "2b96b974146827d1dbfb4716fa7a075af7ef0ef7ac941f3c662970faab266a04",
+      "passed": 20,
+      "failed": 0,
+      "ignored": 0,
+      "result_groups": 6
+    },
+    "timestamp-audit-after-01.json": {
+      "sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43",
+      "reported_vulnerabilities": 0,
+      "reported_warnings": 0
+    },
+    "timestamp-clippy-02.log": {
+      "sha256": "a3f42b7e20b04cbf8bab1845e21ca688a3e7b0ce86f462e1c4eed2ca0e47ef21",
+      "scope": "retained_parent_log_hash_only"
+    },
+    "timestamp-docs-01.log": {
+      "sha256": "3091f38af8d638b173f9d5b7afe2c46880cc14c4ac09db1c70400721ddc67a38",
+      "scope": "retained_parent_log_hash_only"
+    },
+    "timestamp-deny-01.log": {
+      "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+      "scope": "retained_parent_log_hash_only"
+    }
+  },
+  "qualification": false,
+  "owner_workspace_msrv_test_status": "not asserted by this audit"
+}

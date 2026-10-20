@@ -17,15 +17,10 @@ all-features = true
 
 [advisories]
 yanked = "deny"
-# RUSTSEC-2026-0009 is confined to time's well_known::Rfc2822 parser.
-# The direct consumers (EventPulse, capture, datasets) use RFC3339; EventPulse
-# rejects RFC2822 at its boundary. The regression guard scans workspace source
-# for Rfc2822, including capture/dataset source. Patched
-# time >=0.3.47 requires Rust >=1.88, above the frozen workspace Rust 1.85 MSRV.
-# Remove this exact exception and update time when the MSRV advances to 1.88.
-ignore = [
-    { id = "RUSTSEC-2026-0009", reason = "RFC2822 parser is unreachable; time >=0.3.47 requires Rust 1.88, so remove when workspace MSRV reaches 1.88" },
-]
+# Timestamp consumers use the already-locked Chrono backend. The vulnerable
+# former backend and its exact advisory exception have been removed without
+# raising the collector/core Rust 1.85 MSRV.
+ignore = []
 
 [licenses]
 confidence-threshold = 0.93

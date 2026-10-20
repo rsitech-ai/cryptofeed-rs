@@ -1,9 +1,9 @@
 use std::{cmp::Ordering, collections::BTreeMap};
 
+use chrono::{DateTime, Datelike, Utc};
 use serde::{Deserialize, Serialize, de::DeserializeSeed};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
-use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
 pub const MAX_I64_U64: u64 = i64::MAX as u64;
@@ -93,13 +93,30 @@ pub struct Rfc3339Time {
     canonical: String,
     utc_micros: i64,
 }
+
+fn utc_micros_text(micros: i64) -> Result<String, WireError> {
+    let instant = DateTime::<Utc>::from_timestamp_micros(micros).ok_or(WireError::Time)?;
+    // RFC3339's four-digit year, including the core wire contract's year 0000.
+    // A valid offset input can map outside this range when converted to UTC.
+    if !(0..=9999).contains(&instant.year()) {
+        return Err(WireError::Time);
+    }
+    let mut text = instant.format("%Y-%m-%dT%H:%M:%S").to_string();
+    let fraction = instant.timestamp_subsec_micros();
+    if fraction != 0 {
+        text.push_str(&format!(".{fraction:06}"));
+    }
+    text.push('Z');
+    Ok(text)
+}
+
 impl Rfc3339Time {
     pub fn from_unix_nanos(value: i64) -> Result<Self, WireError> {
         let micros = value.div_euclid(1_000);
-        let instant = OffsetDateTime::from_unix_timestamp_nanos(i128::from(micros) * 1_000)
-            .map_err(|_| WireError::Time)?;
-        let rendered = instant.format(&Rfc3339).map_err(|_| WireError::Time)?;
-        Self::parse(&rendered)
+        Ok(Self {
+            canonical: utc_micros_text(micros)?,
+            utc_micros: micros,
+        })
     }
     pub fn parse(value: &str) -> Result<Self, WireError> {
         if value.len() > MAX_INPUT_BYTES || !value.is_ascii() || value.contains(":60") {
@@ -111,6 +128,25 @@ impl Rfc3339Time {
             .filter(|index| *index > time_start)
             .ok_or(WireError::Time)?;
         let (body, offset) = value.split_at(zone);
+        let calendar = body
+            .split_once('.')
+            .map_or(body, |(head, _)| head)
+            .as_bytes();
+        // Chrono accepts some aliases (including a space in place of T).
+        // Keep the existing strict calendar/clock spelling at our boundary.
+        if calendar.len() != 19
+            || calendar[4] != b'-'
+            || calendar[7] != b'-'
+            || calendar[10] != b'T'
+            || calendar[13] != b':'
+            || calendar[16] != b':'
+            || !calendar
+                .iter()
+                .enumerate()
+                .all(|(index, byte)| matches!(index, 4 | 7 | 10 | 13 | 16) || byte.is_ascii_digit())
+        {
+            return Err(WireError::Time);
+        }
         if offset != "Z"
             && (offset.len() != 6
                 || offset.as_bytes()[3] != b':'
@@ -141,9 +177,8 @@ impl Rfc3339Time {
         };
         let normalized = format!("{normalized_body}{canonical_offset}");
         let parse_input = format!("{normalized_body}{offset}");
-        let parsed = OffsetDateTime::parse(&parse_input, &Rfc3339).map_err(|_| WireError::Time)?;
-        let nanos = parsed.unix_timestamp_nanos();
-        let micros = i64::try_from(nanos / 1_000).map_err(|_| WireError::Time)?;
+        let parsed = DateTime::parse_from_rfc3339(&parse_input).map_err(|_| WireError::Time)?;
+        let micros = parsed.timestamp_micros();
         Ok(Self {
             canonical: normalized,
             utc_micros: micros,
@@ -157,6 +192,12 @@ impl Rfc3339Time {
     }
     pub fn canonical(&self) -> &str {
         &self.canonical
+    }
+    /// The same instant in UTC with zero or six fractional digits. This uses
+    /// microseconds directly, so year 9999 never overflows i64 nanoseconds.
+    /// Offset instants whose UTC year is outside 0000..9999 are refused.
+    pub fn utc_canonical(&self) -> Result<String, WireError> {
+        utc_micros_text(self.utc_micros)
     }
 }
 

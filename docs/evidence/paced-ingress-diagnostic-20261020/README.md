@@ -77,3 +77,11 @@ failure visibility and ordered replay. Increasing queues, dropping sync barriers
 or calling the saved prefix complete would not repair the failure. Full causal
 milestone B, broader platform/runtime qualification, and native-unit/continuity
 gates remain open.
+
+Source `82a871b` platform CI `39357518704` subsequently completed with all 17 jobs successful.
+Actual merge `2a086db` has the identical complete source tree `9ce62f8`. Full suites
+pass Linux x64/ARM with 1,312 each, macOS with 1,311 and Windows with 1,309, with zero failures,
+56 ignored and 152 suites each; hosted Windows durability passes 84 cases. All six
+new observation/harness cases pass on each full platform. `ci-qualification.json`
+binds the actual checkout and log hashes. This validates the source tests, not
+the failed durable workload or a later timestamp migration.
