@@ -1,0 +1,310 @@
+{
+  "schema": "marketfeed.causal_storage_profile_validation.v1",
+  "base_source": "8bd1ba736260ddd3de77abcc78ec1901f5503223",
+  "checks_before_commit": true,
+  "source_sha256": {
+    "crates/recording/src/shared_feed.rs": "d68f6017118d5a5c7e947f994d55ba792088432bc1847918757cd4c989cb54f3",
+    "crates/recording/src/shared_batch.rs": "9d2b9ccf41b98e84ee4b03940993d4b5711f0d5bd9946e1933c0713d17ec1e89",
+    "crates/recording/src/shared_causal.rs": "6ec43af99f476867341d1fd8373a709e815a4135509882b703deb507b27a3124",
+    "crates/recording/src/shared_causal_tests.rs": "82d21cdc67a077bc47f413a6f1a9f76e87a796681f661c9f74ffacb07f97c270",
+    "crates/recording/tests/causal_profile.rs": "d3f85b8de3d8540a031b1fb954ac65c6e8e58c4c94b788a7212bf6930f28fbec"
+  },
+  "pre_review_broad_checks": {
+    "workspace": {
+      "passed": 1376,
+      "failed": 0,
+      "ignored": 56,
+      "suites": 153
+    },
+    "msrv_core": {
+      "rust": "1.85.0",
+      "passed": 511,
+      "failed": 0,
+      "ignored": 0,
+      "suites": 30
+    },
+    "scope": "Before late reader boundary fix; full run discovered targets before independent public actor test file existed. These totals are not relabeled as final-code full-workspace qualification.",
+    "source_snapshot_sha256": "1497ee89deb79a8dbcd91ac7e94d882a02bde4319aa06c53807fd346adac57a6",
+    "commands": [
+      {
+        "check": "workspace",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--all-features"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 616.749,
+        "log_sha256": "ff9aaa0e52d8425643abc04fc9dc6a7ae816612d00bd107d7925fb8887b80ea2"
+      },
+      {
+        "check": "msrv-core",
+        "command": [
+          "cargo",
+          "+1.85.0",
+          "test",
+          "--locked",
+          "--workspace",
+          "--exclude",
+          "marketfeed-datasets",
+          "--lib"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 86.812,
+        "log_sha256": "bf4a39d65c866c92e19ee70cc22fcc76077d4c313bef5575b4d2a4177efd9946"
+      },
+      {
+        "check": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 59.311,
+        "log_sha256": "61f9132304e0f139cecdc2ada2105319a3c38228bfc2802f8639327f3e95c6ec"
+      },
+      {
+        "check": "docs",
+        "command": [
+          "cargo",
+          "doc",
+          "--locked",
+          "--workspace",
+          "--all-features",
+          "--no-deps"
+        ],
+        "environment_overrides": {
+          "RUSTDOCFLAGS": "-D warnings"
+        },
+        "exit_code": 0,
+        "elapsed_seconds": 18.247,
+        "log_sha256": "1a0d13dfec110e1b6af0838cda61db9a9b0b745adb26a7ebd50978c503ce04c2"
+      },
+      {
+        "check": "deny-version",
+        "command": [
+          "cargo-deny",
+          "--version"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 0.012,
+        "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+      },
+      {
+        "check": "deny",
+        "command": [
+          "cargo",
+          "deny",
+          "check"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 1.401,
+        "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+      },
+      {
+        "check": "audit-version",
+        "command": [
+          "cargo-audit",
+          "--version"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 0.018,
+        "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+      },
+      {
+        "check": "audit",
+        "command": [
+          "cargo",
+          "audit",
+          "--deny",
+          "warnings",
+          "--json"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 3.343,
+        "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+      },
+      {
+        "check": "fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 0.684,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "check": "diff",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "environment_overrides": {},
+        "exit_code": 0,
+        "elapsed_seconds": 0.016,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ]
+  },
+  "final_checks": [
+    {
+      "check": "msrv-recording",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-recording",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 16.955,
+      "log_sha256": "daa26b1343d0a6e77f5f483dd994b5bbcdc4863e36a311ad8c799a0a42ea5b9b"
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 58.925,
+      "log_sha256": "16fdff89bb06cc8bf1a478327b07c951afd7b6d7de525c7559bcf92079864ad8"
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 18.773,
+      "log_sha256": "54e2c185f9b5d84985148327ea84fe11e7a5c59fd97c59b352f60a8665ef43bd"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.703,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.015,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "final_msrv_recording": {
+    "rust": "1.85.0",
+    "passed": 98,
+    "failed": 0,
+    "ignored": 0,
+    "suites": 3
+  },
+  "independent_review": {
+    "result": "pass; no remaining material defect in storage scope",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-recording",
+      "--all-targets",
+      "--all-features"
+    ],
+    "passed": 98,
+    "failed": 0,
+    "ignored": 0,
+    "causal_unit_cases": 14,
+    "independent_public_actor_cases": 2,
+    "source_before_after_unchanged": true,
+    "log_sha256": "a2ae2ed5e6f52abf66aeb2ca3e69c6502e6ba4a50d80d57cf2e411ff7e19fd44",
+    "receipt_sha256": "c2e7d3811c446b71153a32f68a9c3794734f3d907f3d18fb4cbd47943dff648d",
+    "finding": "Inherited final-byte/final-sequence mismatch exposed a record before next-read error; symmetric validation now rejects before exposure and state installation in both profiles and both readers."
+  },
+  "security": {
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "database": {
+      "advisory-count": 1338,
+      "last-commit": "999ec89d5d3f10f20be14750ec8c2d8b44e0ac9b",
+      "last-updated": "2026-10-17T17:23:59+02:00"
+    },
+    "dependencies_and_lock_unchanged": true
+  },
+  "frozen_store": {
+    "files": 22,
+    "all_bytes_sizes_modes_mtime_ctime_unchanged": true,
+    "directory_mode": "0o555",
+    "scope": "preservation only"
+  },
+  "public_check": "pass; staged source/evidence checked with gitleaks8.30.1, finalized receipt checked again before commit",
+  "scope": "Negotiated bounded opaque storage profile/routing; not engine payload meaning, verified bootstrap, actual-engine replay or committed observed availability.",
+  "remaining": [
+    "engine-owned exact DTO/codec and payload identity cross-checks",
+    "lossless hashed bootstrap verified before factory/execution",
+    "private owner, one unacknowledged operation and retained admission retries",
+    "commit-gated snapshots/readiness/dispatch/wire/HTTP and generation-safe revocation",
+    "bound sink intent/completion and committed-release consumer projection",
+    "actual-engine durable replay/live migration and unchanged registered failed-ingress comparison",
+    "native semantics/continuity, strict data admission, rsibot context/features, calendar and hardware gates"
+  ],
+  "hosted_ci": "New source not yet committed/published; preceding8bd1ba7 all17jobs passed and is separately qualified. New source requires its own hosted run.",
+  "consumer": "Five-package hlscreen repin and new header rejection/replay qualification pending source publication",
+  "public_log_sha256": "980bb6e170d7ced12bd605aca3e97d11d3dda2011ebd93da96281f9488de046c"
+}

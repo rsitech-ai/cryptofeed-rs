@@ -11,7 +11,9 @@
 //! engine owner must supply complete operations and withhold release until ACK.
 use crate::{
     RecordingError,
-    shared_feed::{FeedCursor, FeedIoTimings, FeedRecord, FeedWriter, MAX_RECORD, MAX_TRANSACTION},
+    shared_feed::{
+        FeedCursor, FeedIoTimings, FeedProfile, FeedRecord, FeedWriter, MAX_RECORD, MAX_TRANSACTION,
+    },
 };
 use serde::Serialize;
 use std::{
@@ -70,6 +72,7 @@ pub struct PreparedFeedTransaction {
     records: Vec<FeedRecord>,
     bytes: usize,
     sealing: bool,
+    profile: Option<FeedProfile>,
 }
 impl PreparedFeedTransaction {
     pub fn new(records: Vec<FeedRecord>) -> Result<Self, RecordingError> {
@@ -83,7 +86,22 @@ impl PreparedFeedTransaction {
         }
         let mut bytes = 0usize;
         let mut sealing = false;
+        let mut profile = None;
         for (index, record) in records.iter().enumerate() {
+            let record_profile = match record {
+                FeedRecord::Causal(envelope) => {
+                    envelope.validate()?;
+                    Some(FeedProfile::EngineCausalV1)
+                }
+                FeedRecord::Seal { .. } => None,
+                _ => Some(FeedProfile::Legacy),
+            };
+            if let Some(record_profile) = record_profile {
+                if profile.is_some_and(|p| p != record_profile) {
+                    return Err(error("mixed prepared feed profiles"));
+                }
+                profile = Some(record_profile);
+            }
             if let FeedRecord::Seal { schema_version, .. } = record {
                 if *schema_version != 1 || index + 1 != records.len() {
                     return Err(error("unsupported or non-final prepared seal"));
@@ -113,6 +131,7 @@ impl PreparedFeedTransaction {
             records,
             bytes,
             sealing,
+            profile,
         })
     }
     pub fn encoded_bytes_bound(&self) -> usize {
@@ -142,6 +161,7 @@ impl Write for CappedCounter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AdmissionFailure {
+    ProfileMismatch,
     Full,
     TransactionTooLarge,
     Closed,
@@ -265,6 +285,7 @@ struct State {
 #[derive(Debug)]
 struct Inner {
     config: BatchConfig,
+    profile: FeedProfile,
     state: Mutex<State>,
     wake: Condvar,
 }
@@ -281,6 +302,10 @@ pub struct BatchFeedHandle {
     inner: Arc<Inner>,
 }
 impl BatchFeedHandle {
+    /// Immutable writer format, available before constructing an engine owner.
+    pub fn profile(&self) -> FeedProfile {
+        self.inner.profile
+    }
     pub fn status(&self) -> BatchStatus {
         lock(&self.inner).status.clone()
     }
@@ -294,6 +319,8 @@ impl BatchFeedHandle {
             Some(AdmissionFailure::Failed(failure.clone()))
         } else if state.status.closed {
             Some(AdmissionFailure::Closed)
+        } else if transaction.profile.is_some_and(|p| p != self.inner.profile) {
+            Some(AdmissionFailure::ProfileMismatch)
         } else if transaction.bytes > cfg.max_group_bytes {
             Some(AdmissionFailure::TransactionTooLarge)
         } else if state.status.pending_operations >= cfg.max_pending_operations
@@ -367,6 +394,7 @@ impl FeedBatchActor {
         config.validate()?;
         let inner = Arc::new(Inner {
             config,
+            profile: writer.profile(),
             state: Mutex::new(State {
                 queue: VecDeque::new(),
                 status: BatchStatus {
@@ -444,11 +472,17 @@ impl Drop for FeedBatchActor {
 }
 
 trait PublicationTarget: Send + 'static {
+    fn profile(&self) -> FeedProfile {
+        FeedProfile::Legacy
+    }
     fn cursor(&self) -> &FeedCursor;
     fn publish(&mut self, records: Vec<FeedRecord>) -> Result<FeedCursor, RecordingError>;
     fn timings(&self) -> FeedIoTimings;
 }
 impl PublicationTarget for FeedWriter {
+    fn profile(&self) -> FeedProfile {
+        self.profile()
+    }
     fn cursor(&self) -> &FeedCursor {
         self.cursor()
     }

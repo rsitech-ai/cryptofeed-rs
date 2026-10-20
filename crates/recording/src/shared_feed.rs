@@ -1,5 +1,6 @@
-//! MFSF1 local authoritative feed. Readers see only the atomically published,
-//! synced prefix. Payloads preserve original bytes; cursors bind to a feed ID.
+//! Local authoritative feed: default MFSF1 or explicitly negotiated MFCJ1.
+//! Readers see only the atomically published, synced prefix. Payloads preserve
+//! original bytes; cursors bind to a feed ID.
 //! A fresh directory is required for each writer lifetime (no silent append or
 //! takeover). Slow consumers replay from disk rather than a lossy UI ring.
 use crate::{MetadataRecord, RecordingError, crc32c};
@@ -14,7 +15,16 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-const MAGIC: &[u8; 8] = b"MFSF1\0\0\0";
+#[path = "shared_causal.rs"]
+mod causal;
+use causal::CausalRoutes;
+#[cfg(test)]
+#[path = "shared_causal_tests.rs"]
+mod causal_tests;
+pub use causal::{
+    CausalEnvelope, CausalPhase, CausalRoute, FeedProfile, MAX_CAUSAL_ENCODED_PAYLOAD,
+    MAX_CAUSAL_ROUTES,
+};
 const HEADER_LEN: u64 = 48;
 pub(crate) const MAX_RECORD: usize = 32 * 1024 * 1024;
 pub(crate) const MAX_TRANSACTION: usize = 64 * 1024 * 1024;
@@ -31,6 +41,8 @@ pub struct FeedCursor {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", content = "data", rename_all = "snake_case")]
 pub enum FeedRecord {
+    /// Opaque engine DTO, allowed only in the negotiated causal profile.
+    Causal(CausalEnvelope),
     /// Public reproduction inputs, embedded once and content hashed by readers.
     Artifact {
         role: String,
@@ -119,6 +131,7 @@ impl<'de> Deserialize<'de> for FeedRecord {
             }};
         }
         Ok(match raw.kind.as_str() {
+            "causal" => Self::Causal(serde_json::from_str(data).map_err(serde::de::Error::custom)?),
             "artifact" => fields!(Artifact {
                 role: String,
                 payload_base64: String
@@ -241,6 +254,8 @@ pub struct FeedWriter {
     max_bytes: u64,
     poisoned: bool,
     sealed: bool,
+    profile: FeedProfile,
+    routes: CausalRoutes,
     timings: FeedIoTimings,
     #[cfg(test)]
     fail_publication_barrier: bool,
@@ -329,6 +344,15 @@ impl FeedWriter {
     /// Refuses an existing directory, preventing overwrite and concurrent owners.
     /// max_bytes includes headers and framing and must be explicitly bounded.
     pub fn create(directory: impl AsRef<Path>, max_bytes: u64) -> Result<Self, RecordingError> {
+        Self::create_profile(directory, max_bytes, FeedProfile::Legacy)
+    }
+    /// Explicit opt-in format. Existing readers reject the causal header before
+    /// seeing any record. No legacy/causal mixture is accepted under either one.
+    pub fn create_profile(
+        directory: impl AsRef<Path>,
+        max_bytes: u64,
+        profile: FeedProfile,
+    ) -> Result<Self, RecordingError> {
         if max_bytes < HEADER_LEN {
             return Err(err("shared feed byte budget too small"));
         }
@@ -346,7 +370,7 @@ impl FeedWriter {
             .write(true)
             .create_new(true)
             .open(directory.join("events.mfsf"))?;
-        file.write_all(MAGIC)?;
+        file.write_all(profile.magic())?;
         file.write_all(id.as_bytes())?;
         file.sync_all()?;
         let mut writer = Self {
@@ -360,6 +384,8 @@ impl FeedWriter {
             max_bytes,
             poisoned: false,
             sealed: false,
+            profile,
+            routes: CausalRoutes::default(),
             timings: FeedIoTimings::default(),
             #[cfg(test)]
             fail_publication_barrier: false,
@@ -377,6 +403,9 @@ impl FeedWriter {
     /// writer cannot acknowledge or append anything further.
     pub fn cursor(&self) -> &FeedCursor {
         &self.cursor
+    }
+    pub fn profile(&self) -> FeedProfile {
+        self.profile
     }
     /// Cumulative observations for this unique writer lifetime.
     pub fn timings(&self) -> FeedIoTimings {
@@ -420,6 +449,9 @@ impl FeedWriter {
             return Err(err("invalid shared feed transaction count"));
         }
         let initial_sequence = self.cursor.sequence;
+        // Stage the entire group before encoding or writing. A later invalid
+        // member cannot publish an earlier bootstrap or advance its routing.
+        let routes = self.routes.prepare(self.profile, &records)?;
         let (bytes, sequence, sealing) = timed(&mut self.timings.encode, || {
             let mut bytes = Vec::new();
             let mut sequence = initial_sequence;
@@ -486,6 +518,7 @@ impl FeedWriter {
             return Err(e);
         }
         self.sealed = sealing;
+        self.routes.install(routes);
         Ok(self.cursor.clone())
     }
     fn publish(&mut self) -> Result<(), RecordingError> {
@@ -573,6 +606,8 @@ pub struct FeedReader {
     cursor: FeedCursor,
     seen_commit: FeedCursor,
     sealed: bool,
+    profile: FeedProfile,
+    routes: CausalRoutes,
 }
 /// Read an immutable, completely sealed journal against its pinned checkpoint.
 /// Unlike the live reader this never consults a mutable filesystem watermark.
@@ -581,11 +616,20 @@ pub struct SealedFeedReader<'a> {
     checkpoint: FeedCursor,
     cursor: FeedCursor,
     sealed: bool,
+    profile: FeedProfile,
+    routes: CausalRoutes,
 }
 impl<'a> SealedFeedReader<'a> {
     pub fn new(bytes: &'a [u8], checkpoint: FeedCursor) -> Result<Self, RecordingError> {
+        Self::new_profile(bytes, checkpoint, FeedProfile::Legacy)
+    }
+    pub fn new_profile(
+        bytes: &'a [u8],
+        checkpoint: FeedCursor,
+        profile: FeedProfile,
+    ) -> Result<Self, RecordingError> {
         if bytes.len() < HEADER_LEN as usize
-            || &bytes[..8] != MAGIC
+            || &bytes[..8] != profile.magic()
             || bytes[8..48] != *checkpoint.feed_id.as_bytes()
             || checkpoint.offset != bytes.len() as u64
         {
@@ -600,6 +644,8 @@ impl<'a> SealedFeedReader<'a> {
             },
             checkpoint,
             sealed: false,
+            profile,
+            routes: CausalRoutes::default(),
         })
     }
     pub fn read_next(&mut self) -> Result<Option<FeedRecord>, RecordingError> {
@@ -632,9 +678,14 @@ impl<'a> SealedFeedReader<'a> {
             return Err(err("journal CRC mismatch"));
         }
         let wire: WireRecord = serde_json::from_slice(payload).map_err(err)?;
-        if wire.sequence != self.cursor.sequence + 1 || wire.sequence > self.checkpoint.sequence {
+        if Some(wire.sequence) != self.cursor.sequence.checked_add(1)
+            || wire.sequence > self.checkpoint.sequence
+            || ((end as u64 == self.checkpoint.offset)
+                != (wire.sequence == self.checkpoint.sequence))
+        {
             return Err(err("journal sequence gap"));
         }
+        let routes = self.routes.prepare(self.profile, [&wire.record])?;
         if let FeedRecord::Seal { schema_version, .. } = &wire.record {
             if *schema_version != 1
                 || end as u64 != self.checkpoint.offset
@@ -646,6 +697,7 @@ impl<'a> SealedFeedReader<'a> {
         }
         self.cursor.sequence = wire.sequence;
         self.cursor.offset = end as u64;
+        self.routes.install(routes);
         Ok(Some(wire.record))
     }
 }
@@ -654,11 +706,21 @@ impl FeedReader {
         directory: impl AsRef<Path>,
         cursor: Option<FeedCursor>,
     ) -> Result<Self, RecordingError> {
+        Self::open_profile(directory, cursor, FeedProfile::Legacy)
+    }
+    /// Validates the storage prefix and rebuilds routing before the cursor.
+    /// This does not restore engine state: actual engine replay must reexecute
+    /// that prefix (or use a separately verified complete engine checkpoint).
+    pub fn open_profile(
+        directory: impl AsRef<Path>,
+        cursor: Option<FeedCursor>,
+        profile: FeedProfile,
+    ) -> Result<Self, RecordingError> {
         let directory = directory.as_ref().to_path_buf();
         let mut file = File::open(directory.join("events.mfsf"))?;
         let mut header = [0; 48];
         file.read_exact(&mut header)?;
-        if &header[..8] != MAGIC {
+        if &header[..8] != profile.magic() {
             return Err(err("unsupported shared feed header"));
         }
         let id = String::from_utf8(header[8..].to_vec()).map_err(err)?;
@@ -690,6 +752,8 @@ impl FeedReader {
             },
             seen_commit: watermark,
             sealed: false,
+            profile,
+            routes: CausalRoutes::default(),
         };
         while reader.cursor.sequence < target.sequence {
             reader
@@ -724,9 +788,8 @@ impl FeedReader {
         if self.sealed && w != self.seen_commit {
             return Err(err("sealed shared feed grew"));
         }
-        self.seen_commit = w;
-        if self.cursor.offset == self.seen_commit.offset {
-            if self.cursor.sequence != self.seen_commit.sequence {
+        if self.cursor.offset == w.offset {
+            if self.cursor.sequence != w.sequence {
                 return Err(err("inconsistent shared feed watermark"));
             }
             return Ok(None);
@@ -740,7 +803,7 @@ impl FeedReader {
             .offset
             .checked_add(len as u64 + 8)
             .ok_or_else(|| err("feed record overflow"))?;
-        if len > MAX_RECORD || end > self.seen_commit.offset {
+        if len > MAX_RECORD || end > w.offset {
             return Err(err("record exceeds committed shared feed prefix"));
         }
         let mut bytes = vec![0; len];
@@ -749,20 +812,23 @@ impl FeedReader {
             return Err(err("shared feed CRC mismatch"));
         }
         let wire: WireRecord = serde_json::from_slice(&bytes).map_err(err)?;
-        if wire.sequence != self.cursor.sequence + 1 || wire.sequence > self.seen_commit.sequence {
+        if Some(wire.sequence) != self.cursor.sequence.checked_add(1)
+            || wire.sequence > w.sequence
+            || ((end == w.offset) != (wire.sequence == w.sequence))
+        {
             return Err(err("shared feed sequence gap"));
         }
+        let routes = self.routes.prepare(self.profile, [&wire.record])?;
         if let FeedRecord::Seal { schema_version, .. } = &wire.record {
-            if *schema_version != 1
-                || end != self.seen_commit.offset
-                || wire.sequence != self.seen_commit.sequence
-            {
+            if *schema_version != 1 || end != w.offset || wire.sequence != w.sequence {
                 return Err(err("invalid or non-final shared feed seal"));
             }
             self.sealed = true;
         }
         self.cursor.sequence = wire.sequence;
         self.cursor.offset = end;
+        self.routes.install(routes);
+        self.seen_commit = w;
         Ok(Some(wire.record))
     }
 }
