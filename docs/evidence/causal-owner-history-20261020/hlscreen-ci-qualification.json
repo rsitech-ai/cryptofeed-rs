@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "source": "6d5fb9e81591d772cc20cc795339953588b740ca",
+  "producer_pin": "7f383b2dba580740e5c60c3dcb572e236e89f588",
+  "independent_receipt_sha256": "6c2f89700d7ccc81f277bb8365450d34b21e0634d9174579022f5958ef4afbda",
+  "decision": "pass-with-source-and-skipped-gate-limits",
+  "source_tested_merge_binding": {
+    "main_and_all4_native_rawlogs_bind_merge": true,
+    "merge": "465a0c31f1cfa84aa0a1dc6d82b19b28b50c5597",
+    "method": "Exact merge fetched without checkout; full Git tree comparison and raw checkout logs. Current producer worktree is excluded.",
+    "source": "6d5fb9e81591d772cc20cc795339953588b740ca",
+    "whole_tree": "3d26dbce433af3fd08cd2908805f9727e7a3ac1d",
+    "whole_trees_identical": true
+  },
+  "main_ci": {
+    "url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39395743642",
+    "run": 39395743642,
+    "status": "completed",
+    "conclusion": "success",
+    "rust_executions": 567,
+    "rust_unique": 544,
+    "rust_suites": 82,
+    "python_total": 12,
+    "failed": 0,
+    "ignored": 0,
+    "separate_PTY_jobs": "macOS and Linux each 6 passed, zero failed/ignored",
+    "scheduled_public_API_smoke": "skipped"
+  },
+  "native_ci": {
+    "url": "https://github.com/rsitech-ai/hlscreen/actions/runs/39395743525",
+    "run": 39395743525,
+    "status": "completed",
+    "conclusion": "success",
+    "all4_native_archives_match_checksum_build_manifest_global_manifest_aggregate_sha256_sum": true,
+    "source_archive_matches_exact_source_git_archive": true,
+    "publication": "skipped",
+    "announcement": "skipped"
+  },
+  "native_validations": [
+    {
+      "hidden_decode_readerthread_errors": false,
+      "job": 118538934407,
+      "job_conclusion": "success",
+      "target": "x86_64-unknown-linux-gnu",
+      "tested_merge": "465a0c31f1cfa84aa0a1dc6d82b19b28b50c5597",
+      "validation_pass_marker_line": 1326,
+      "validation_step_conclusion": "success",
+      "rawlog_sha256": "3055dfa1b17d1a8be92271796aba6ecb810f1c70a7e1e68ec6a4c0036dd3e5df"
+    },
+    {
+      "hidden_decode_readerthread_errors": false,
+      "job": 118538934451,
+      "job_conclusion": "success",
+      "target": "x86_64-pc-windows-msvc",
+      "tested_merge": "465a0c31f1cfa84aa0a1dc6d82b19b28b50c5597",
+      "validation_pass_marker_line": 1335,
+      "validation_step_conclusion": "success",
+      "rawlog_sha256": "719d96d672679dc1564d8308f77588a70dc3a5e672569da3fdca8f4a7f83f5aa"
+    },
+    {
+      "hidden_decode_readerthread_errors": false,
+      "job": 118538934546,
+      "job_conclusion": "success",
+      "target": "aarch64-apple-darwin",
+      "tested_merge": "465a0c31f1cfa84aa0a1dc6d82b19b28b50c5597",
+      "validation_pass_marker_line": 1834,
+      "validation_step_conclusion": "success",
+      "rawlog_sha256": "6560f732aab8cf1ca0c56e7dbd342cf2bf83959e9a940b025d6cbdda6f80cb61"
+    },
+    {
+      "hidden_decode_readerthread_errors": false,
+      "job": 118538934633,
+      "job_conclusion": "success",
+      "target": "x86_64-apple-darwin",
+      "tested_merge": "465a0c31f1cfa84aa0a1dc6d82b19b28b50c5597",
+      "validation_pass_marker_line": 1855,
+      "validation_step_conclusion": "success",
+      "rawlog_sha256": "b5c4da7ebdfb7d201d04f339c18edcb9352aca7f0aa3475d8af650fd2157ff3b"
+    }
+  ],
+  "archives": [
+    {
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "artifact_id": 12254780193,
+      "artifact_name": "artifacts-build-local-x86_64-apple-darwin",
+      "build_manifest_sha256": "c602cb186343a337e0eed8bdf50affa840ab625845002dc7c01711009f3cca26",
+      "bytes": 7217768,
+      "checksum_build_manifest_global_manifest_aggregate_match": true,
+      "native_archive": "hls-cli-x86_64-apple-darwin.tar.xz",
+      "native_archive_bytes": 7211760,
+      "native_archive_sha256": "bebffc4d9961ebe2a85e70b568ad2fcb760b46a690a265831755d715406352d5",
+      "packaged_documents_match_source_after_checkout_line_ending_normalization": true,
+      "sha256": "5e57e8e00be59077a02e393158c8830d8b2609057d9ec278f740b6ee71796007",
+      "target": "x86_64-apple-darwin"
+    },
+    {
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "aggregate_checksums_sha256": "b74f76a4e0cf1092af0b9f5224b645ccef9d885c07e93bc0b7ea64bcbd2ed328",
+      "artifact_id": 12254425669,
+      "artifact_name": "artifacts-build-global",
+      "bytes": 683905,
+      "global_manifest_sha256": "9516d1a3ad9d7fca7fbd77e92120cc54fd3c336fa44b67406f0e1b1d36630d35",
+      "sha256": "99b6697c6004cf6fad942edc11f167df9f9f7e13dd99a4b94d424685aec9d14a",
+      "source_archive": {
+        "all_file_paths_bytes_equal_git_archive_of_source": true,
+        "bytes": 528266,
+        "exported_files": 307,
+        "file_hash_manifest_sha256": "c19dbe432a9e9027de4fb6ecd83facd44dbff92549937128f71332aeab6dceb6",
+        "name": "source.tar.gz",
+        "sha256": "46f81d62ad91c735f0cee70977eedbf54dfd8b8635c75e0d258bfd231b278c5b"
+      }
+    },
+    {
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "artifact_id": 12252685802,
+      "artifact_name": "artifacts-build-local-aarch64-apple-darwin",
+      "build_manifest_sha256": "870425d09eff2fc589e1164c4a5bb5843170858f98e68b3d81f6795ffa1233a4",
+      "bytes": 6146992,
+      "checksum_build_manifest_global_manifest_aggregate_match": true,
+      "native_archive": "hls-cli-aarch64-apple-darwin.tar.xz",
+      "native_archive_bytes": 6141432,
+      "native_archive_sha256": "6735c11a644bad45f6dab51507ca852476e47a5febe419f0f9635f27e7d0468a",
+      "packaged_documents_match_source_after_checkout_line_ending_normalization": true,
+      "sha256": "3539f482aabcd66cddeb9f45f29d9c550b85b49b6559ce5b5e41044eab351525",
+      "target": "aarch64-apple-darwin"
+    },
+    {
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "artifact_id": 12252411139,
+      "artifact_name": "artifacts-build-local-x86_64-unknown-linux-gnu",
+      "build_manifest_sha256": "572b71052e89c19f5c451bf07f1b61e7ef3ebd804f18ccb218a577d53def6c42",
+      "bytes": 7657542,
+      "checksum_build_manifest_global_manifest_aggregate_match": true,
+      "native_archive": "hls-cli-x86_64-unknown-linux-gnu.tar.xz",
+      "native_archive_bytes": 7651548,
+      "native_archive_sha256": "edbf10259381594c68bfbb51ed94d2506a94cde729cd41c5db105baf7e73ca8b",
+      "packaged_documents_match_source_after_checkout_line_ending_normalization": true,
+      "sha256": "73ae9aa8b332c21fc36a77b14893e0d495d3165ae166c15b914e44a3c5483f96",
+      "target": "x86_64-unknown-linux-gnu"
+    },
+    {
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "artifact_id": 12252153382,
+      "artifact_name": "artifacts-build-local-x86_64-pc-windows-msvc",
+      "build_manifest_sha256": "c60d5dc4daa41ea09ef918f07bc24a587cb61156cf8b31b93d99b8c149a5a808",
+      "bytes": 9751686,
+      "checksum_build_manifest_global_manifest_aggregate_match": true,
+      "native_archive": "hls-cli-x86_64-pc-windows-msvc.zip",
+      "native_archive_bytes": 9763232,
+      "native_archive_sha256": "fa41e9bb69efe599d1c5d514c9eac0b965ad1ec3273bbd11326bfff6665e32be",
+      "packaged_documents_match_source_after_checkout_line_ending_normalization": true,
+      "sha256": "6c7a782e39fa3b8b21d7742f8b04e07ed519169ab98f0b21fa4e26a99a40d30e",
+      "target": "x86_64-pc-windows-msvc"
+    },
+    {
+      "GitHub_digest_matches": true,
+      "ZIP_CRC_pass": true,
+      "artifact_id": 12251093485,
+      "artifact_name": "artifacts-plan-dist-manifest",
+      "bytes": 3090,
+      "sha256": "f4335086c5524843444075c4dca33c2c9d601167e43a8845b5d52f2be324fd3b"
+    }
+  ],
+  "raw_main_log_sha256": "1a768839eff52c87a26b9993adc6ffcd102efd706b25a8b3a5923c67f785a066",
+  "raw_native_log_sha256": "46191ca92bc007d56a5e6f80f4e5c0bf1450c7c20dfeec0d26efc5c9e5dbea9f",
+  "remaining_limits": "Source-specific HLS main and native packaged-artifact validation only. Scheduled external API smoke, publication and announcement skipped. No economics, strict dataset admission, source continuity, native producer writer durability, runtime causal recording/projection, actual-engine replay, live operations or complete-goal qualification or promotion. No equivalence to the local debug executable or any newer producer worktree is claimed.",
+  "prior_scope": {
+    "old05ef_Windows_qualification": "Still unqualified despite green status: reader-thread UnicodeDecodeError followed by false pass. Original bytes preserved.",
+    "old05ef_Windows_rawlog_sha256": "d9fae7a869a1e0c684ff8a9939cdca03f6eb14028c72f8e36197602ff2ce542c",
+    "prior_3c": "Remains source-scoped to 3cabbcb and pin 8ba199a; not reused for this qualification.",
+    "prior_3c_receipt_sha256": "c17caecda6d942af7c46ad69a8cc1fd9837c03e6dcddc6be74b1be149dd3dd3d"
+  }
+}

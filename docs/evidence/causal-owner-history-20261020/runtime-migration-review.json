@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "reviewed_source": "7f383b2dba580740e5c60c3dcb572e236e89f588",
+  "scope": "Read-only prospective MFCJ2 runtime migration ordering review. No source/test edits, Cargo, network, captures or publication.",
+  "classification": "Actual representational limitation for future runtime migration; no currently integrated MFCJ2 runtime failure claimed.",
+  "finding": {
+    "classification": "Actual representational limitation for future runtime migration; no currently integrated MFCJ2 runtime failure claimed.",
+    "scenario": [
+      "Ingress accepted",
+      "Worker grants execution under shared lock and calls execute_turn outside lock",
+      "Another caller observes explicit revocation or writer failure and clears visibility; a future independent deadline watcher would require its own seam.",
+      "Native callback finishes with a complete available operation",
+      "Faithful physical order records terminal Fence before native Executed completion"
+    ],
+    "current_constraints": [
+      "owner.rs759-764 separates execution grant from callback by releasing shared lock; revoke/status may run concurrently.",
+      "causal_owner_history.rs589 rejects Executed after terminal; Fence819 sets terminal.",
+      "Simply removing terminal rejection is insufficient: assignment684 would clear terminal on a later successful completion.",
+      "Docs causal_owner_history.md51-53 require a late complete operation remain evidence and be withheld."
+    ]
+  },
+  "recommended_contract": [
+    "Before runtime migration add a typed ExecutionPermitted/ExecutionStarted observation naming exact input and unique execution token/reserved native ordinal. Define it as the linearized authorization/entry boundary, not proof of first adapter mutation or callback completion.",
+    "Serialize permit and concurrent fences through the same ordered owner sequencer/lock transition; do not hold the lock across adapter execution or filesystem waits. Immediate safety revocation remains independent of journal admission/durability.",
+    "Permit only earliest eligible input before terminal, with one in-flight token and no active prior completed release. Check source/generation/state/budgets at the appropriate entry boundary.",
+    "After terminal accept only the matching already-permitted complete operation as evidence. Validate exact input/token/native ordinal/generation/state linkage and preserve terminal with monotonic OR. No new execution permit, release intent, handoff, snapshot availability or successor execution is allowed.",
+    "Matching complete operation must be retained and attempted for bounded durable finalization when the journal remains writable, then Withheld. A visibility deadline must not silently erase complete evidence or grant new execution.",
+    "A proved CaptureSession preflight rejection may explicitly close a permit as not invoked without native ordinal advance; do not use generic terminal NotExecuted for a callback that may have mutated. Panic/incomplete/uncertain failure remains ExecutionUnknown.",
+    "If the original writer is failed/closed and cannot durably accept either fence or completion, retain honest prefix uncertainty and typed local failure/indeterminate settlement. Do not claim those observations persisted, seal the prefix as complete, invent a successful fallback or resume the mutated engine.",
+    "A permit-only crash remains execution-unknown: a permit does not prove callback invocation. A late completed record is evidence even when success cannot be handed off.",
+    "Keep observation timestamp distinct from durable ACK time; do not serialize a fabricated own post-barrier acknowledgement time into bytes prepared before the barrier.",
+    "Negotiate added event semantics explicitly before runtime activation; existing readers must reject unsupported variants rather than silently treating them as old MFCJ2 semantics."
+  ],
+  "required_tests": [
+    "Deterministic barrier-controlled actual SessionMachine: callback enters and blocks; revoke concurrently; unblock, preserve full native operation and ordered Fence-before-completion; no outputs/snapshot/new execution.",
+    "Fence before execution permit: no callback, no native ordinal increment; later permit/Executed refused without changing prefix.",
+    "Permit before fence but callback not yet invoked: explicit permit semantics, then either proved preflight/not-invoked settlement or matching withheld completion; never assert actual mutation from permit alone.",
+    "Equivalent source/deadline/writer observation races with callback completion and already-admitted late ACK; original ticket settles, no release revival.",
+    "Wrong/duplicate execution token, skipped earlier input, wrong source/generation/state, second in-flight permit, successor after terminal, ReleaseIntent/HandoffObserved after terminal all refuse without prefix mutation.",
+    "Crash prefixes after ingress, permit, fence, completed native operation and withheld settlement retain distinct honest uncertainties; no released QueueDrain items.",
+    "Writer failure prevents additional durable evidence: actual raw prefix and typed local settlement agree; no claimed durable fence/completion or retry execution.",
+    "Recording count/byte retention and retirement tested separately across permit, late completion and withholding; no double release or unbounded finalization backlog."
+  ],
+  "qualification_limits": [
+    "This review does not invalidate prior passed source tests or reopen source06 closure findings; those tests cover implemented validator semantics.",
+    "Current daemon explicitly rejects MFCJ2 before factory; this is a prerequisite for next runtime integration, not an assertion that existing MFCJ2 live behavior is broken.",
+    "No hosted CI or HLS qualification was rerun or changed; committed7f and prior published qualifications remain separately scoped.",
+    "No actual engine replay, external sink delivery, live ingress repair or full goal completion claim."
+  ],
+  "reviewed_source_sha256": {
+    "crates/engine/src/causal_owner_history.rs": "f90e69e8a9124a8bbbf2742671d02f9a7ff7b9650cce4b69d4b612aed0b2b71d",
+    "crates/daemon/src/causal_bootstrap/owner.rs": "1738feabd5b7d6356bec5f69056dc03b3d3ab1e3a76240b29191e7b6e1f636a1"
+  },
+  "reviewed_migration_contract_sha256": "a2f99650a36552200806de12b198e8d4ceabe5845430d7789d8d045354ce52a3",
+  "independent_receipt_sha256": "c6e24315e7be8454563492e731d756b449c0ae045304455fe218ea0049ba9c93",
+  "status": "Prospective runtime migration gate recorded; permit/late-completion implementation and tests remain required. Existing source tests unchanged; daemon still refuses MFCJ2."
+}

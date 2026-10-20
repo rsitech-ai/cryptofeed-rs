@@ -291,6 +291,18 @@ pub struct PreparedBootstrap {
     transaction: PreparedFeedTransaction,
 }
 impl PreparedBootstrap {
+    /// Explicit MFCJ3 runtime-owner negotiation; policy bytes are bound into the
+    /// canonical bootstrap before the original writer receipt or factory.
+    pub fn new_history(dto: BootstrapDto, max_bytes: usize) -> Result<Self, BootstrapError> {
+        validate_supported(&dto)?;
+        if dto.build != current_build()? {
+            return Err(BootstrapError::Unsupported(
+                "build or actual executable mismatch",
+            ));
+        }
+        let envelope = encode_bootstrap_for_profile(&dto, max_bytes, FeedProfile::EngineCausalV3)?;
+        Self::from_verified(dto, envelope)
+    }
     pub fn new(dto: BootstrapDto, max_bytes: usize) -> Result<Self, BootstrapError> {
         validate_supported(&dto)?;
         if dto.build != current_build()? {
@@ -304,7 +316,7 @@ impl PreparedBootstrap {
     /// Physical-order replayers can verify bytes before any construction. A
     /// subsequent writer admission is still required by this live-start API.
     pub fn from_envelope(envelope: CausalEnvelope) -> Result<Self, BootstrapError> {
-        if envelope.schema_version != 1 {
+        if !matches!(envelope.schema_version, 1 | 3) {
             return Err(BootstrapError::Unsupported(
                 "owner-history journal is not yet wired to the daemon owner",
             ));
@@ -433,12 +445,23 @@ impl CommittedBootstrap {
             .map_err(|e| BootstrapError::Factory(e.to_string()))?;
         let capture = CaptureSession::new(machine, self.dto.capture.config()?)
             .map_err(|e| BootstrapError::Factory(e.to_string()))?;
+        let history_policy = if self
+            .dto
+            .public_inputs
+            .iter()
+            .any(|p| p.role == HISTORY_RUNTIME_POLICY_ROLE)
+        {
+            Some(self.dto.history_policy()?)
+        } else {
+            None
+        };
         Ok(BootstrappedSession {
             capture,
             identity: self.identity,
             receipt: self.receipt,
             handle: self.handle,
             owner_policy: self.dto.owner_policy,
+            history_policy,
         })
     }
 }
@@ -450,6 +473,7 @@ pub struct BootstrappedSession {
     receipt: CommitReceipt,
     handle: BatchFeedHandle,
     owner_policy: Option<JournalOwnerPolicyDto>,
+    history_policy: Option<HistoryRuntimePolicyDto>,
 }
 impl BootstrappedSession {
     pub fn identity(&self) -> &OperationIdentity {

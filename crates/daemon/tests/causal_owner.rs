@@ -1,4 +1,4 @@
-//! Independently authored adversaries for the public journal-owner boundary.
+//! Public journal-owner boundary regressions.
 //! Uses the complete native Bybit spot bundle; no private owner/test hooks.
 #![cfg(feature = "causal-journal")]
 
@@ -632,4 +632,259 @@ fn v2_binds_the_owner_policy_and_preserves_the_full_native_bundle() {
     assert!(PreparedBootstrap::new(mismatched, MAX_OPERATION_BYTES).is_err());
     changed.owner_policy = None;
     assert!(PreparedBootstrap::new(changed, MAX_OPERATION_BYTES).is_err());
+}
+
+#[test]
+fn public_history_owner_preserves_real_spot_trade_and_committed_cursor_resume() {
+    let mut dto = fixture(91);
+    dto.owner_policy.as_mut().unwrap().max_input_bytes = 8192;
+    dto.bind_history_policy(HistoryRuntimePolicyDto {
+        schema_version: 1,
+        max_pending_observations: 32,
+        max_pending_observation_bytes: 4 << 20,
+        max_record_bytes: 256 << 10,
+        max_finalization_age: Duration::from_secs(2).into(),
+    })
+    .unwrap();
+    let temp = tempfile::tempdir().unwrap();
+    let path = temp.path().join("history");
+    let actor = FeedBatchActor::spawn(
+        FeedWriter::create_profile(&path, 64 << 20, FeedProfile::EngineCausalV3).unwrap(),
+        BatchConfig {
+            max_pending_operations: 32,
+            max_pending_bytes: 8 << 20,
+            max_group_operations: 32,
+            max_group_bytes: 8 << 20,
+            max_age: Duration::from_millis(2),
+        },
+    )
+    .unwrap();
+    let owner = PreparedBootstrap::new_history(dto, MAX_OPERATION_BYTES)
+        .unwrap()
+        .try_admit(&actor.handle())
+        .unwrap()
+        .wait()
+        .unwrap()
+        .instantiate()
+        .unwrap()
+        .spawn_history_owner()
+        .unwrap();
+    let first = owner
+        .ingress()
+        .try_submit(ConnectionId(1), connected(1))
+        .unwrap();
+    let raw = br#"{"topic":"publicTrade.BTCUSDT","type":"snapshot","ts":1000,"data":[{"T":1000,"s":"BTCUSDT","S":"Buy","v":"0.001","p":"1.25","i":"history-public-trade","BT":false}]}"#;
+    let second = owner
+        .ingress()
+        .try_submit(
+            ConnectionId(1),
+            CaptureInput::Text {
+                payload: raw.to_vec(),
+                received: stamp(),
+            },
+        )
+        .unwrap();
+    let mut released = Vec::new();
+    wait_until(|| {
+        if let Some(value) = owner.try_next() {
+            released.push(value);
+        }
+        released.len() == 2
+    });
+    assert!(matches!(
+        first.wait(),
+        InputSettlement::Committed { id: 1, .. }
+    ));
+    assert!(matches!(
+        second.wait(),
+        InputSettlement::Committed { id: 2, .. }
+    ));
+    let trades: Vec<_> = released[1]
+        .released_items()
+        .filter_map(|item| match item {
+            ItemDto::Market(batch) => {
+                let FeedRecord::Batch(batch) = batch.record().unwrap() else {
+                    panic!()
+                };
+                Some(batch.events)
+            }
+            _ => None,
+        })
+        .flatten()
+        .filter_map(|e| match e.payload {
+            MarketEvent::Trade(t) => Some(t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(trades.len(), 1);
+    assert_eq!(trades[0].price, Price(Fixed::new(125, 2)));
+    assert_eq!(trades[0].quantity, Quantity(Fixed::new(1, 3)));
+    assert_eq!(
+        trades[0].trade_id.as_ref().unwrap().0,
+        "history-public-trade"
+    );
+    assert_eq!(trades[0].aggressor, AggressorSide::Buy);
+    owner.close_ingress();
+    wait_until(|| owner.status().owner.phase == OwnerPhase::Stopped);
+    let status = owner.shutdown();
+    assert!(status.owner.failure.is_none());
+    actor
+        .handle()
+        .try_submit(
+            PreparedFeedTransaction::new(vec![FeedRecord::Seal {
+                schema_version: 1,
+                now_ns: 3,
+                reason: "settled-test-owner".into(),
+            }])
+            .unwrap(),
+        )
+        .unwrap()
+        .wait()
+        .unwrap();
+    actor.shutdown().unwrap();
+    let mut reader = FeedReader::open_profile(&path, None, FeedProfile::EngineCausalV3).unwrap();
+    let Some(FeedRecord::Causal(bootstrap)) = reader.read_next().unwrap() else {
+        panic!()
+    };
+    let mut history = OwnerHistory::from_bootstrap(
+        &bootstrap,
+        OwnerHistoryLimits {
+            max_retained_input_bytes: 4 << 20,
+            max_input_bytes: 256 << 10,
+            max_record_bytes: 256 << 10,
+        },
+    )
+    .unwrap();
+    let mut checkpoint = None;
+    let mut saw_seal = false;
+    let mut replayed = Vec::new();
+    while let Some(record) = reader.read_next().unwrap() {
+        if matches!(record, FeedRecord::Seal { .. }) {
+            saw_seal = true;
+        }
+        if let FeedRecord::Causal(record) = record {
+            if let Some(h) = history.apply(&record).unwrap() {
+                replayed.push(h);
+            }
+            if checkpoint.is_none() {
+                checkpoint = Some((history.clone(), reader.cursor().clone()));
+            }
+        }
+    }
+    assert!(saw_seal);
+    assert!(history.uncertainties().is_empty());
+    assert_eq!(replayed.len(), 2);
+    for (actual, saved) in released.iter().zip(&replayed) {
+        assert_eq!(actual.evidence(), &*saved.operation);
+    }
+    let (mut continued, cursor) = checkpoint.unwrap();
+    let mut resumed =
+        FeedReader::open_profile(&path, Some(cursor), FeedProfile::EngineCausalV3).unwrap();
+    while let Some(record) = resumed.read_next().unwrap() {
+        if let FeedRecord::Causal(record) = record {
+            continued.apply(&record).unwrap();
+        }
+    }
+    assert_eq!(continued, history);
+    assert_eq!(resumed.cursor(), reader.cursor());
+    let bytes = std::fs::read(path.join("events.mfsf")).unwrap();
+    let mut immutable =
+        SealedFeedReader::new_profile(&bytes, reader.cursor().clone(), FeedProfile::EngineCausalV3)
+            .unwrap();
+    let mut records = 0;
+    while immutable.read_next().unwrap().is_some() {
+        records += 1;
+    }
+    assert!(records > 10);
+}
+
+#[test]
+fn public_history_policy_rejects_missing_ambiguous_noncanonical_or_corrupt_binding_before_factory()
+{
+    let mut dto = fixture(92);
+    dto.owner_policy.as_mut().unwrap().max_input_bytes = 8192;
+    let policy = HistoryRuntimePolicyDto {
+        schema_version: 1,
+        max_pending_observations: 32,
+        max_pending_observation_bytes: 4 << 20,
+        max_record_bytes: 256 << 10,
+        max_finalization_age: Duration::from_secs(2).into(),
+    };
+    dto.bind_history_policy(policy.clone()).unwrap();
+    let role = "owner-history-runtime-v1";
+    let index = dto
+        .public_inputs
+        .iter()
+        .position(|p| p.role == role)
+        .unwrap();
+    for variant in [
+        "missing",
+        "duplicate",
+        "noncanonical",
+        "length",
+        "hash",
+        "unknown-field",
+    ] {
+        let mut bad = dto.clone();
+        match variant {
+            "missing" => {
+                bad.public_inputs.remove(index);
+            }
+            "duplicate" => bad.public_inputs.push(bad.public_inputs[index].clone()),
+            "noncanonical" => {
+                bad.public_inputs[index] = PublicReproductionInputDto::new(
+                    role,
+                    &serde_json::to_vec_pretty(&policy).unwrap(),
+                )
+            }
+            "length" => bad.public_inputs[index].bytes += 1,
+            "hash" => bad.public_inputs[index].sha256 = "a".repeat(64),
+            "unknown-field" => {
+                let mut bytes = serde_json::to_vec(&policy).unwrap();
+                assert_eq!(bytes.pop(), Some(b'}'));
+                bytes.extend_from_slice(br#","unknown":1}"#);
+                bad.public_inputs[index] = PublicReproductionInputDto::new(role, &bytes);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            PreparedBootstrap::new_history(bad.clone(), MAX_OPERATION_BYTES).is_err(),
+            "{variant}"
+        );
+        // Construct a self-consistent outer envelope rather than allowing the
+        // encoder to reject it first. Typed configuration bytes are the only
+        // mutated payload; no financial values are projected through Value.
+        let bytes = serde_json::to_vec(&bad).unwrap();
+        let wire = CausalEnvelope::for_profile(
+            FeedProfile::EngineCausalV3,
+            CausalPhase::Bootstrap,
+            CausalRoute {
+                venue: bad.capture.venue,
+                session: bad.capture.session,
+                ordinal: 0,
+                generation: 0,
+                bootstrap_id: bootstrap_sha256(&bytes),
+            },
+            &bytes,
+        )
+        .unwrap();
+        assert!(PreparedBootstrap::from_envelope(wire).is_err(), "{variant}");
+    }
+    for profile in [FeedProfile::EngineCausalV1, FeedProfile::EngineCausalV2] {
+        let bytes = serde_json::to_vec(&dto).unwrap();
+        let wire = CausalEnvelope::for_profile(
+            profile,
+            CausalPhase::Bootstrap,
+            CausalRoute {
+                venue: dto.capture.venue,
+                session: dto.capture.session,
+                ordinal: 0,
+                generation: 0,
+                bootstrap_id: bootstrap_sha256(&bytes),
+            },
+            &bytes,
+        )
+        .unwrap();
+        assert!(PreparedBootstrap::from_envelope(wire).is_err());
+    }
 }

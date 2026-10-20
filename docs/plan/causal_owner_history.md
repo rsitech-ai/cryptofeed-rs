@@ -3,8 +3,9 @@
 This continues the [operation owner](causal_operation_owner.md) and
 [integration contract](causal_journal_integration_contract.md). The MFCJ2 codec,
 writer/reader negotiation and bounded physical-order validator are implemented.
-The current daemon owner has not migrated: its factory entry explicitly rejects
-this profile before construction. No live availability or registered-ingress
+The daemon factory explicitly rejects MFCJ2 before construction. A separate
+[MFCJ3 private runtime](causal_owner_history_runtime.md) now adds the permit and
+late-completion semantics required by the migration review below. No live availability or registered-ingress
 repair follows from this format change.
 
 ## Negotiated records
@@ -87,3 +88,38 @@ physical-order comparison/checkpoints, clock continuity and live/control/
 supervisor migration remain required. Then rerun the unchanged registered failed
 ingress workload. Native semantics/continuity, strict datasets, rsibot context,
 calendar and hardware gates remain part of the full goal.
+
+## Runtime migration gate: revocation during a callback
+
+Separate source review identified a prospective format limitation. The existing
+private owner can observe revocation or writer failure while its native
+callback runs outside the owner lock. An honestly ordered history can therefore
+observe a terminal fence before the already running callback completes. The
+current validator rejects every Executed record after a terminal fence; it
+cannot preserve that complete late operation in this order. This profile is
+still unavailable to the daemon, so this is a migration gate rather than a
+claim of a newly observed live failure.
+
+Before enabling runtime recording, bind an explicit execution permit/start
+observation to its accepted input before native mutation. This is the linearized
+authorization/entry boundary, not proof that the first adapter mutation occurred;
+a permit-only crash still reports ExecutionUnknown. Terminal revocation
+must forbid new execution and releases while allowing complete evidence for
+the one operation already in flight. Completion must never clear terminal
+state, and a revoked operation must settle as withheld. Preserve the actual
+observation order; moving the fence after completion changes its meaning.
+ExecutionUnknown remains appropriate for crash/incomplete capture or an
+unwritable journal, not deliberate omission of complete available evidence.
+
+Required integration regressions include a callback blocked across explicit
+revocation or status-observed writer failure, and expiry after callback return
+before writer admission. A mid-callback deadline observation needs
+an explicit watcher seam; the MFCJ3 private runtime refreshes it when status or
+ingress APIs are called, without claiming an autonomous callback watchdog. Check exactly one execution, original
+fence/completion order, no snapshot or output revival, terminal state retained
+after completion, queued inputs settled without native execution, and crash
+prefixes around start, fence, completion and withholding. Test later-source
+ingress separately: its visibility/source fence is nonterminal and must preserve
+valid newer recovery inputs.
+Adding only an exception to the current Executed guard is insufficient: its
+terminal assignment could otherwise clear an earlier revocation.

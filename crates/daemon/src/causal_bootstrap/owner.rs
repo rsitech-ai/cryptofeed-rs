@@ -27,6 +27,7 @@ pub enum OwnerPhase {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeadlineStage {
     Queued,
+    Executing,
     Executed,
     Admitted,
     Release,
@@ -49,6 +50,9 @@ pub enum OwnerFailure {
     Native(EngineErrorDto),
     NativeStopped,
     WorkerPanicked,
+    ObservationFull,
+    ClockExhausted,
+    FinalizationDeadline,
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CommitSettlement {
@@ -135,11 +139,30 @@ pub struct RejectedIngress {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputSettlement {
-    NotExecuted { id: u64, reason: OwnerFailure },
-    ExecutedNotAdmitted { id: u64, reason: OwnerFailure },
-    Committed { id: u64, receipt: CommitReceipt },
-    CommitFailed { id: u64, failure: CommitFailure },
-    Unknown { id: u64 },
+    NotExecuted {
+        id: u64,
+        reason: OwnerFailure,
+    },
+    ExecutedNotAdmitted {
+        id: u64,
+        reason: OwnerFailure,
+    },
+    Committed {
+        id: u64,
+        receipt: CommitReceipt,
+    },
+    CommitFailed {
+        id: u64,
+        failure: CommitFailure,
+    },
+    Unknown {
+        id: u64,
+    },
+    NotExecutedCommitted {
+        id: u64,
+        reason: OwnerFailure,
+        receipt: CommitReceipt,
+    },
 }
 /// Settlement is evidence about this accepted input, not an output permit.
 /// Dropping the waiter never cancels accepted input or storage work.
@@ -359,6 +382,8 @@ pub enum OwnerStartError {
     WriterUnavailable,
     #[error("declared operation bound cannot fit original writer admission caps")]
     IncompatibleBounds,
+    #[error("owner startup selected a different negotiated journal profile")]
+    Profile,
     #[error(transparent)]
     Io(#[from] io::Error),
 }
@@ -368,6 +393,9 @@ pub struct JournalOwner {
 }
 impl BootstrappedSession {
     pub fn spawn_owner(self) -> Result<JournalOwner, OwnerStartError> {
+        if self.history_policy.is_some() {
+            return Err(OwnerStartError::Profile);
+        }
         let policy = self.owner_policy.ok_or(OwnerStartError::MissingPolicy)?;
         let writer = self.handle.status();
         if writer.closed
@@ -1022,3 +1050,5 @@ fn input_bytes(input: &CaptureInput) -> usize {
 
 #[cfg(all(test, feature = "causal-journal"))]
 mod tests;
+
+pub mod history;

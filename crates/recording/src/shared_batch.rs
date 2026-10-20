@@ -91,10 +91,11 @@ impl PreparedFeedTransaction {
             let record_profile = match record {
                 FeedRecord::Causal(envelope) => {
                     envelope.validate()?;
-                    Some(if envelope.schema_version == 2 {
-                        FeedProfile::EngineCausalV2
-                    } else {
-                        FeedProfile::EngineCausalV1
+                    Some(match envelope.schema_version {
+                        1 => FeedProfile::EngineCausalV1,
+                        2 => FeedProfile::EngineCausalV2,
+                        3 => FeedProfile::EngineCausalV3,
+                        _ => unreachable!("validated causal version"),
                     })
                 }
                 FeedRecord::Seal { .. } => None,

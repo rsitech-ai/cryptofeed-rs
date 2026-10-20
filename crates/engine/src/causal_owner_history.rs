@@ -33,6 +33,26 @@ pub enum OwnerEventDto {
         input_id: u64,
         operation: Box<OperationDto>,
     },
+    ExecutionPermitted {
+        input_id: u64,
+        native_ordinal: u64,
+        generation: u64,
+    },
+    ExecutionCompleted {
+        input_id: u64,
+        permit_ordinal: u64,
+        operation: Box<OperationDto>,
+    },
+    ExecutionNotInvoked {
+        input_id: u64,
+        permit_ordinal: u64,
+        cause: OwnerNotExecutedCause,
+    },
+    ExecutionIndeterminate {
+        input_id: u64,
+        permit_ordinal: u64,
+        cause: OwnerIndeterminateCause,
+    },
     ReleaseIntent {
         input_id: u64,
         operation_ordinal: u64,
@@ -53,6 +73,35 @@ pub enum OwnerEventDto {
     Fence {
         through_input_id: u64,
     },
+    Revoked {
+        through_input_id: u64,
+        cause: OwnerTerminalCause,
+    },
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OwnerIndeterminateCause {
+    Incomplete,
+    Encoding,
+    Panic,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OwnerTerminalCause {
+    Revoked,
+    IngressFull,
+    InputTooLarge,
+    UnsupportedInput,
+    OrdinalExhausted,
+    ObservationFull,
+    WriterUnavailable,
+    Deadline,
+    Encoding,
+    Incomplete,
+    NativeError,
+    NativeStopped,
+    WorkerPanicked,
+    InvalidReceipt,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -166,9 +215,33 @@ fn same_owner(route: &CausalRoute, identity: &OperationIdentity) -> bool {
 }
 impl OwnerHistoryDto {
     fn validate(&self, identity: &OperationIdentity) -> Result<(), CodecError> {
-        if self.schema_version != 1 || self.route.ordinal == 0 || !same_owner(&self.route, identity)
+        if !matches!(self.schema_version, 1 | 2)
+            || self.route.ordinal == 0
+            || !same_owner(&self.route, identity)
         {
             return Err(invalid("owner-history schema or identity mismatch"));
+        }
+        let modern = matches!(
+            self.event,
+            OwnerEventDto::ExecutionPermitted { .. }
+                | OwnerEventDto::ExecutionCompleted { .. }
+                | OwnerEventDto::ExecutionNotInvoked { .. }
+                | OwnerEventDto::ExecutionIndeterminate { .. }
+                | OwnerEventDto::Revoked { .. }
+        );
+        if (self.schema_version == 1 && modern)
+            || (self.schema_version == 2
+                && matches!(
+                    self.event,
+                    OwnerEventDto::Executed { .. } | OwnerEventDto::Fence { .. }
+                ))
+        {
+            return Err(invalid("owner event requires negotiated permit semantics"));
+        }
+        if let OwnerEventDto::ExecutionCompleted { permit_ordinal, .. } = &self.event {
+            if *permit_ordinal == 0 || *permit_ordinal >= self.route.ordinal {
+                return Err(invalid("invalid execution completion reference"));
+            }
         }
         match &self.event {
             OwnerEventDto::Ingress {
@@ -189,6 +262,11 @@ impl OwnerHistoryDto {
             OwnerEventDto::Executed {
                 input_id,
                 operation,
+            }
+            | OwnerEventDto::ExecutionCompleted {
+                input_id,
+                operation,
+                ..
             } => {
                 if *input_id == 0
                     || !same_owner(&operation.route, identity)
@@ -197,6 +275,29 @@ impl OwnerHistoryDto {
                     return Err(invalid("owner-history native identity mismatch"));
                 }
                 operation.validate()?;
+            }
+            OwnerEventDto::ExecutionPermitted {
+                input_id,
+                native_ordinal,
+                ..
+            } => {
+                if *input_id == 0 || *native_ordinal == 0 {
+                    return Err(invalid("invalid execution permit"));
+                }
+            }
+            OwnerEventDto::ExecutionNotInvoked {
+                input_id,
+                permit_ordinal,
+                ..
+            }
+            | OwnerEventDto::ExecutionIndeterminate {
+                input_id,
+                permit_ordinal,
+                ..
+            } => {
+                if *input_id == 0 || *permit_ordinal == 0 || *permit_ordinal >= self.route.ordinal {
+                    return Err(invalid("invalid execution settlement reference"));
+                }
             }
             OwnerEventDto::ReleaseIntent {
                 input_id,
@@ -250,8 +351,15 @@ pub fn encode_owner_history(
         });
     }
     Ok(CausalEnvelope::for_profile(
-        FeedProfile::EngineCausalV2,
-        if matches!(dto.event, OwnerEventDto::Executed { .. }) {
+        if dto.schema_version == 1 {
+            FeedProfile::EngineCausalV2
+        } else {
+            FeedProfile::EngineCausalV3
+        },
+        if matches!(
+            dto.event,
+            OwnerEventDto::Executed { .. } | OwnerEventDto::ExecutionCompleted { .. }
+        ) {
             CausalPhase::Operation
         } else {
             CausalPhase::Owner
@@ -271,7 +379,7 @@ fn decode_limited(
     identity: &OperationIdentity,
     max_bytes: usize,
 ) -> Result<OwnerHistoryDto, CodecError> {
-    if envelope.schema_version != 2 || envelope.phase == CausalPhase::Bootstrap {
+    if !matches!(envelope.schema_version, 2 | 3) || envelope.phase == CausalPhase::Bootstrap {
         return Err(invalid("expected negotiated owner-history record"));
     }
     let payload = envelope.payload()?;
@@ -280,9 +388,13 @@ fn decode_limited(
     }
     let dto: OwnerHistoryDto = serde_json::from_slice(&payload)?;
     dto.validate(identity)?;
-    if dto.route != envelope.route
+    if dto.schema_version + 1 != envelope.schema_version
+        || dto.route != envelope.route
         || (envelope.phase == CausalPhase::Operation)
-            != matches!(dto.event, OwnerEventDto::Executed { .. })
+            != matches!(
+                dto.event,
+                OwnerEventDto::Executed { .. } | OwnerEventDto::ExecutionCompleted { .. }
+            )
     {
         return Err(invalid("owner-history route or phase mismatch"));
     }
@@ -349,10 +461,20 @@ struct ActiveOperation {
     operation: Box<OperationDto>,
     intent: Option<(u64, bool)>,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ExecutionPermit {
+    input_id: u64,
+    journal_ordinal: u64,
+    native_ordinal: u64,
+    generation: u64,
+    indeterminate: bool,
+}
 /// Consumes already committed records in physical order. Validating this ledger
 /// does not execute a factory, establish native truth or prove external delivery.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnerHistory {
+    envelope_version: u16,
+    record_bytes: usize,
     identity: OperationIdentity,
     policy: JournalOwnerPolicyDto,
     limits: OwnerHistoryLimits,
@@ -375,6 +497,7 @@ pub struct OwnerHistory {
     native_pending_operations: usize,
     pending: BTreeMap<u64, PendingInput>,
     active: Option<ActiveOperation>,
+    permit: Option<ExecutionPermit>,
     previous_after: Option<StateDto>,
 }
 /// Explicit reader retention caps. Native owner budgets measure source-owned
@@ -406,17 +529,27 @@ impl OwnerHistory {
         limits: OwnerHistoryLimits,
     ) -> Result<Self, CodecError> {
         limits.validate()?;
-        if envelope.schema_version != 2 {
-            return Err(invalid("owner history requires MFCJ2 bootstrap"));
+        if !matches!(envelope.schema_version, 2 | 3) {
+            return Err(invalid("owner history requires negotiated bootstrap"));
         }
         let dto = decode_bootstrap(envelope)?;
         if dto.schema_version != 2 {
             return Err(invalid("owner history requires bound owner policy"));
         }
+        let record_bytes = if envelope.schema_version == 3 {
+            dto.history_policy()?.max_record_bytes as usize
+        } else {
+            dto.owner_policy
+                .as_ref()
+                .expect("bound V2")
+                .max_operation_bytes as usize
+        };
         let policy = dto
             .owner_policy
             .ok_or_else(|| invalid("missing owner policy"))?;
         Ok(Self {
+            envelope_version: envelope.schema_version,
+            record_bytes,
             identity: OperationIdentity {
                 venue: envelope.route.venue,
                 session: envelope.route.session,
@@ -443,6 +576,7 @@ impl OwnerHistory {
             native_pending_operations: 0,
             pending: BTreeMap::new(),
             active: None,
+            permit: None,
             previous_after: None,
         })
     }
@@ -487,11 +621,15 @@ impl OwnerHistory {
         &mut self,
         envelope: &CausalEnvelope,
     ) -> Result<Option<RecordedOwnerHandoff>, CodecError> {
+        if envelope.schema_version != self.envelope_version {
+            return Err(invalid("owner profile changed"));
+        }
         let dto = decode_limited(
             envelope,
             &self.identity,
             self.limits
                 .max_record_bytes
+                .min(self.record_bytes)
                 .min(self.policy.max_operation_bytes as usize),
         )?;
         if Some(dto.route.ordinal) != self.ordinal.checked_add(1)
@@ -499,7 +637,10 @@ impl OwnerHistory {
         {
             return Err(invalid("owner journal order or clock regression"));
         }
-        let executing = matches!(dto.event, OwnerEventDto::Executed { .. });
+        let executing = matches!(
+            dto.event,
+            OwnerEventDto::Executed { .. } | OwnerEventDto::ExecutionCompleted { .. }
+        );
         if dto.route.generation != self.generation
             && (!executing || Some(dto.route.generation) != self.generation.checked_add(1))
         {
@@ -578,15 +719,77 @@ impl OwnerHistory {
                 self.native_pending_operations += 1;
                 self.accepted = input_id;
             }
-            OwnerEventDto::Executed {
+            OwnerEventDto::ExecutionPermitted {
                 input_id,
-                operation,
+                native_ordinal,
+                generation,
             } => {
+                let p = self
+                    .pending
+                    .get(&input_id)
+                    .ok_or_else(|| invalid("permit without ingress"))?;
+                let expected_generation = if matches!(p.input, InputDto::Connected { .. }) {
+                    self.generation.checked_add(1)
+                } else {
+                    Some(self.generation)
+                };
+                let source_matches = match &p.input {
+                    InputDto::Connected { connection, .. } => {
+                        *connection == p.connection && *connection > self.physical_source
+                    }
+                    _ if frame(&p.input) => {
+                        self.physical_active && p.connection == self.physical_source
+                    }
+                    _ => p.connection == self.physical_source,
+                };
+                if self.terminal
+                    || self.permit.is_some()
+                    || self.active.is_some()
+                    || self.pending.first_key_value().map(|(id, _)| *id) != Some(input_id)
+                    || Some(native_ordinal) != self.native_ordinal.checked_add(1)
+                    || Some(generation) != expected_generation
+                    || !source_matches
+                    || dto.observed_ns >= p.deadline_ns
+                {
+                    return Err(invalid("execution permit order, source, deadline or token"));
+                }
+                self.permit = Some(ExecutionPermit {
+                    input_id,
+                    journal_ordinal: dto.route.ordinal,
+                    native_ordinal,
+                    generation,
+                    indeterminate: false,
+                });
+            }
+            event @ (OwnerEventDto::Executed { .. } | OwnerEventDto::ExecutionCompleted { .. }) => {
+                let (input_id, operation, permit_ordinal) = match event {
+                    OwnerEventDto::Executed {
+                        input_id,
+                        operation,
+                    } => (input_id, operation, None),
+                    OwnerEventDto::ExecutionCompleted {
+                        input_id,
+                        permit_ordinal,
+                        operation,
+                    } => (input_id, operation, Some(permit_ordinal)),
+                    _ => unreachable!(),
+                };
+                if self.envelope_version == 3
+                    && self.permit.as_ref().is_none_or(|p| {
+                        p.indeterminate
+                            || p.input_id != input_id
+                            || Some(p.journal_ordinal) != permit_ordinal
+                            || p.native_ordinal != operation.route.ordinal
+                            || p.generation != operation.route.generation
+                    })
+                {
+                    return Err(invalid("completion without matching execution permit"));
+                }
                 let pending = self
                     .pending
                     .get(&input_id)
                     .ok_or_else(|| invalid("operation without ingress"))?;
-                if self.terminal
+                if (self.envelope_version == 2 && self.terminal)
                     || self.active.is_some()
                     || operation.retained_bytes_bound > self.capture.max_bytes
                     || operation.observed_entries > self.capture.max_entries
@@ -681,10 +884,11 @@ impl OwnerHistory {
                 if operation.after.reconnect_requested || operation.after.stop_requested {
                     self.physical_active = false;
                 }
-                self.terminal = operation.outcome.is_err()
+                self.terminal |= operation.outcome.is_err()
                     || operation.after.stop_requested
                     || dto.observed_ns >= pending.deadline_ns;
                 self.native_ordinal = operation.route.ordinal;
+                self.permit = None;
                 self.pending_owned_bytes -= pending.owned_bytes;
                 self.native_pending_operations -= 1;
                 self.previous_after = Some(operation.after.clone());
@@ -694,6 +898,61 @@ impl OwnerHistory {
                     operation,
                     intent: None,
                 });
+            }
+            OwnerEventDto::ExecutionNotInvoked {
+                input_id,
+                permit_ordinal,
+                cause,
+            } => {
+                let permit = self
+                    .permit
+                    .as_ref()
+                    .ok_or_else(|| invalid("noninvocation without permit"))?;
+                let p = self
+                    .pending
+                    .get(&input_id)
+                    .ok_or_else(|| invalid("noninvocation without input"))?;
+                if permit.indeterminate
+                    || permit.input_id != input_id
+                    || permit.journal_ordinal != permit_ordinal
+                    || match cause {
+                        OwnerNotExecutedCause::Preflight => false,
+                        OwnerNotExecutedCause::Terminal => !self.terminal,
+                        OwnerNotExecutedCause::Deadline => dto.observed_ns < p.deadline_ns,
+                        OwnerNotExecutedCause::SourceConnection => true,
+                    }
+                {
+                    return Err(invalid("noninvocation token or cause mismatch"));
+                }
+                if matches!(
+                    cause,
+                    OwnerNotExecutedCause::Preflight | OwnerNotExecutedCause::Deadline
+                ) {
+                    self.terminal = true;
+                }
+                self.permit = None;
+                let p = self.pending.remove(&input_id).expect("checked input");
+                self.pending_bytes -= p.bytes;
+                self.pending_owned_bytes -= p.owned_bytes;
+                self.native_pending_operations -= 1;
+            }
+            OwnerEventDto::ExecutionIndeterminate {
+                input_id,
+                permit_ordinal,
+                ..
+            } => {
+                let permit = self
+                    .permit
+                    .as_mut()
+                    .ok_or_else(|| invalid("uncertainty without permit"))?;
+                if permit.indeterminate
+                    || permit.input_id != input_id
+                    || permit.journal_ordinal != permit_ordinal
+                {
+                    return Err(invalid("uncertainty token mismatch"));
+                }
+                permit.indeterminate = true;
+                self.terminal = true;
             }
             OwnerEventDto::ReleaseIntent {
                 input_id,
@@ -777,7 +1036,11 @@ impl OwnerHistory {
                     .get(&input_id)
                     .ok_or_else(|| invalid("nonexecution without ingress"))?;
                 if self.active.is_some()
-                    || self.pending.first_key_value().map(|(id, _)| *id) != Some(input_id)
+                    || self.permit.as_ref().is_some_and(|p| p.input_id == input_id)
+                    || (!(self.envelope_version == 3
+                        && self.terminal
+                        && cause == OwnerNotExecutedCause::Terminal)
+                        && self.pending.first_key_value().map(|(id, _)| *id) != Some(input_id))
                 {
                     return Err(invalid("nonexecution skips active or earlier input"));
                 }
@@ -809,7 +1072,10 @@ impl OwnerHistory {
                 self.pending_owned_bytes -= pending.owned_bytes;
                 self.native_pending_operations -= 1;
             }
-            OwnerEventDto::Fence { through_input_id } => {
+            OwnerEventDto::Fence { through_input_id }
+            | OwnerEventDto::Revoked {
+                through_input_id, ..
+            } => {
                 if through_input_id < self.fence
                     || through_input_id > self.accepted.saturating_add(1)
                 {

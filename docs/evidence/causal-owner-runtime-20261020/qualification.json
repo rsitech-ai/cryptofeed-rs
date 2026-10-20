@@ -1,0 +1,456 @@
+{
+  "schema_version": 1,
+  "status": "all18 local frozen-source03 checks pass; own-source publication/hosted CI and hlscreen repin remain required",
+  "parent_commit": "7f383b2dba580740e5c60c3dcb572e236e89f588",
+  "declared_source_files": 527,
+  "declared_source_sha256": "598ef771fce1cfc39761a8179e5a9f9f157e201478e13650b18060fdddd061f0",
+  "freeze_manifest_sha256": "0b5bcfd50905de57311efc06659d8b471b3649ae0ae213c6b1d13cd496fe8896",
+  "exact_changed_source_and_lock": {
+    "Cargo.lock": {
+      "bytes": 72106,
+      "sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf"
+    },
+    "crates/daemon/src/causal_bootstrap.rs": {
+      "bytes": 18033,
+      "sha256": "bf91774d7e42d396a981eb3814350ac834d0238b027cf4b9f1e62016d9a12af5"
+    },
+    "crates/daemon/src/causal_bootstrap/owner.rs": {
+      "bytes": 36778,
+      "sha256": "401839da0318f8ee438e646ed170cd189b9f07d9e5eb42ea4b6ad83f27c3e10a"
+    },
+    "crates/daemon/src/causal_bootstrap/owner/history.rs": {
+      "bytes": 53080,
+      "sha256": "4a5f775149532055d13bddbc26c35f4c75c6f10334ba20e601aede67192b275b"
+    },
+    "crates/daemon/src/causal_bootstrap/owner/history/tests.rs": {
+      "bytes": 36637,
+      "sha256": "fe7373e380cd8cddfa0fbb86be95fc14a662ef795fb0e456c662275d4a7dbf1a"
+    },
+    "crates/daemon/tests/causal_owner.rs": {
+      "bytes": 30777,
+      "sha256": "2abe20356883f8c35ba220eee161869cdeb3171de7467e2f691612b6768f2578"
+    },
+    "crates/engine/src/causal_bootstrap.rs": {
+      "bytes": 23726,
+      "sha256": "545f61a49b9406c6dc4403bed491a8549b59fe697468b5571d9dc13dea3f3a01"
+    },
+    "crates/engine/src/causal_owner_history.rs": {
+      "bytes": 41904,
+      "sha256": "581536d000e3d91e831e3623fdcb51f600c3a73a5f9d8d8becc785daf15e3955"
+    },
+    "crates/engine/src/causal_owner_history_tests.rs": {
+      "bytes": 35447,
+      "sha256": "63352523bdd022e3cee096befe64275f0cfeb723ce2a1b925253ad460172cfc9"
+    },
+    "crates/recording/src/shared_batch.rs": {
+      "bytes": 24980,
+      "sha256": "e42a0f159b9fcbaee9ac327038f9a52b0f675eb7654a8fc3b0dca1db64efc643"
+    },
+    "crates/recording/src/shared_batch_tests.rs": {
+      "bytes": 30825,
+      "sha256": "cae7061ee529442ef07daea45e9cacf12c47f83234a9eec7ad8091723ff1bb54"
+    },
+    "crates/recording/src/shared_causal.rs": {
+      "bytes": 9334,
+      "sha256": "705814cde5b418a8bc92938589550636b6ed545ebeabdd1e2c891342123831ee"
+    },
+    "crates/recording/src/shared_causal_tests.rs": {
+      "bytes": 21871,
+      "sha256": "25b159abd6224e4ebe0c623f5cfdeba03a92c54fd8cb39f7ea6dff6a4db0d5c2"
+    }
+  },
+  "source_unchanged_through_all18_checks": true,
+  "checks": [
+    {
+      "check": "engine",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "--all-features",
+        "--lib",
+        "causal::owner_history"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.301,
+      "log_sha256": "3715e10e275c7030e58ac8916e82867d9a4d4b134d5c1af0d16ed0c3402ce5ed",
+      "test_totals": {
+        "passed": 22,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "recording",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-recording",
+        "--all-features",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.336,
+      "log_sha256": "2c02e58e5e9a721961b321cfbeed1181af9612efc15b8e92b52ee0720b646b6d",
+      "test_totals": {
+        "passed": 91,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "owner",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::owner::history::tests"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 22.961,
+      "log_sha256": "c35ae89313579684b9948ae94f70dc8b34cc25004095179b3e2621acad1d73a1",
+      "test_totals": {
+        "passed": 16,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "public-owner",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 12.344,
+      "log_sha256": "619b1f5fa38c6fc602380fa3b319f6ac14529c15badd1138fef8e93eebbeb10b",
+      "test_totals": {
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 9.562,
+      "log_sha256": "7f8376c0a159d88cea27ea2305d07df53c11dc52d7a103a96dcbbf0aa2306152"
+    },
+    {
+      "check": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 485.942,
+      "log_sha256": "1a3d2455f3da794936245b69c3ba8686b6e45b8d803e78718cde73d2aa4288b2",
+      "test_totals": {
+        "passed": 1486,
+        "failed": 0,
+        "ignored": 56,
+        "suites": 157
+      }
+    },
+    {
+      "check": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "--workspace",
+        "--exclude",
+        "marketfeed-datasets",
+        "--lib"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 157.145,
+      "log_sha256": "5d896d5e9d4811dbff7c429c64833012ba6cf3a1178cdf609de221f4dc3a62fb",
+      "test_totals": {
+        "passed": 552,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 30
+      }
+    },
+    {
+      "check": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--lib",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 28.523,
+      "log_sha256": "16bfb12e3b84d34130903e3578a9f17048ecf6bb22e8ea187f36c515edef4cd6",
+      "test_totals": {
+        "passed": 50,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-bootstrap-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 14.226,
+      "log_sha256": "a6e8d7e3fe92ccd1a10d30868a7ada6591d32c51e3a98ded5296128f1b1db07f",
+      "test_totals": {
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "msrv-owner-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "causal_owner"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 12.009,
+      "log_sha256": "26570737b1f96bca57423db3ddefc6684da56ad6355ed890c77b5208c1d13f7e",
+      "test_totals": {
+        "passed": 10,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "default-disabled",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 18.407,
+      "log_sha256": "7d8bcdd89513a96a4616d051c087b0cd10f6e2e3d31fad4eb4c9f0b45fe543ec",
+      "test_totals": {
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "suites": 1
+      }
+    },
+    {
+      "check": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "environment_overrides": {
+        "RUSTDOCFLAGS": "-D warnings"
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 24.515,
+      "log_sha256": "79d2b17e647327215eca283626ba034b6fdefc42082b09d93f933f9ccc1e4df8"
+    },
+    {
+      "check": "deny-version",
+      "command": [
+        "cargo-deny",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.059,
+      "log_sha256": "1758f5ea93d8ad3585079f05c19358b7bb969cce1bf6c7bdab6659a8cd1ef6b8"
+    },
+    {
+      "check": "deny",
+      "command": [
+        "cargo",
+        "deny",
+        "check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 4.967,
+      "log_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+    },
+    {
+      "check": "audit-version",
+      "command": [
+        "cargo-audit",
+        "--version"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.027,
+      "log_sha256": "8748580845bee726903e69bc4543958fb01e2594317e6c68bf80114bff13d541"
+    },
+    {
+      "check": "audit",
+      "command": [
+        "cargo",
+        "audit",
+        "--deny",
+        "warnings",
+        "--json"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 3.805,
+      "log_sha256": "2144dddf1bd3b4bc2e1fc5e29ced5762dafb321ed1696c314c8be73c13589a43"
+    },
+    {
+      "check": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.831,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "check": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "environment_overrides": {},
+      "exit_code": 0,
+      "elapsed_seconds": 0.024,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "independent_reviews": {
+    "history-runtime-engine-review-04.json": "afc0a34a3f43575bba5ebfd656ccfe5a6e77b33ddd4c03fb5436c1fb09681494",
+    "history-runtime-owner-review-03.json": "fad92ba1e38b7b2b120099fb5c71012012384e41360899630e5698db1313dad2",
+    "history-runtime-build-independent-02.json": "cd9a38d3b6e25b5e501406d719e26278c053f62422d068a2f6cbc60f12b72e2d"
+  },
+  "review_scope": "Eight engine/recording/public-policy files unchanged from freeze02; the private canonical-policy test body is byte-identical in its changed file; daemon finding closed on freeze03 with two retained old-production red tests and current exact-byte/one-execution/withheld-output regressions. Read-only reviewers inspected parent logs; no independent Cargo execution. Whole-goal qualification excluded.",
+  "build_binding": {
+    "root_receipt_sha256": "7ce87fd2dd7162a5c9f850af092fd051aff412c4cc2c47485f66fe3fcc8be4cc",
+    "independent_receipt_sha256": "cd9a38d3b6e25b5e501406d719e26278c053f62422d068a2f6cbc60f12b72e2d",
+    "preserved_artifact_sha256": "b385ef4e7df0ca99ad12c202da83637733106a64d735d98e41c5bc2b2da18f9c",
+    "bytes": 50834288,
+    "mode": "0555",
+    "recipe_sha256": "1ab555266da414dc40ead2658eed379ae6c67b7943e1f3ab4d21ffa6e518b503",
+    "scope": "File/source fingerprints and embedded recipe, with truthful parent7f metadata for candidate bytes; no loaded-image attestation, complete input closure or reproducible-build claim."
+  },
+  "frozen_dataset_preservation": {
+    "files": 22,
+    "bytes": 37276008,
+    "all_bytes_and_recorded_metadata_unchanged": true,
+    "root_mode": "0555"
+  },
+  "healthy_full_red_regressions": {
+    "01": "d0505d78c1b6b435b34c657ff1d0db2b4937e8783bdafa047b5c4d7fc7d8de5a",
+    "02": "ca95e12cd9cd8cb4eea7aa8d9d6463de65117f11138a29c6aecca8b4221b9eb2"
+  },
+  "development_evidence": {
+    "freeze01_aggregate": "failed denied-warning Clippy; not final qualification",
+    "freeze02_aggregate": "intentionally interrupted workspace after five passing focused checks to repair evidence-retention finding; not final qualification",
+    "superseded_runtime_review01_sha256": "36968dde569e1358ee0e9c4f90e1693213a829d39cd0d5066c1ebadbcecd8696",
+    "material_finding_review02_sha256": "403f6a0cd7576dc49547f51586375b53bfcc5c5d74db63f7f5ef34e03a99bdf9",
+    "closure_review03_sha256": "fad92ba1e38b7b2b120099fb5c71012012384e41360899630e5698db1313dad2"
+  },
+  "security": {
+    "cargo_audit": "0.22.2",
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "cargo_deny": "0.20.2",
+    "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+    "dependency_versions_or_edges_changed": false
+  },
+  "remaining": [
+    "Source-specific producer hosted CI and hlscreen repin/rebuild/replay/own CI",
+    "Complete Hyperliquid causal bootstrap factory and daemon/live/control/supervisor integration",
+    "Complete failure/admission retention, deliberate committed compatibility projection and bound external I/O intent/completion",
+    "Actual-engine physical-order replay/checkpoints and safe restart",
+    "Unchanged registered failed-ingress comparison; failure remains failed",
+    "Native semantics/continuity/strict dataset admission; rsibot context/features and calendar/hardware gates",
+    "Stalled healthy writer/filesystem/native callback can block shutdown; no autonomous callback watcher; outer-worker panic path static-only"
+  ]
+}

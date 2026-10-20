@@ -15,6 +15,8 @@ pub enum FeedProfile {
     /// Explicit owner-history negotiation. Journal ordinals include owner
     /// observations as well as native operations; payload semantics are engine-owned.
     EngineCausalV2,
+    /// Runtime owner history with explicit execution permits and late completion.
+    EngineCausalV3,
 }
 impl FeedProfile {
     pub(super) fn magic(self) -> &'static [u8; 8] {
@@ -22,6 +24,7 @@ impl FeedProfile {
             Self::Legacy => b"MFSF1\0\0\0",
             Self::EngineCausalV1 => b"MFCJ1\0\0\0",
             Self::EngineCausalV2 => b"MFCJ2\0\0\0",
+            Self::EngineCausalV3 => b"MFCJ3\0\0\0",
         }
     }
 }
@@ -77,6 +80,7 @@ impl CausalEnvelope {
         let schema_version = match profile {
             FeedProfile::EngineCausalV1 => 1,
             FeedProfile::EngineCausalV2 => 2,
+            FeedProfile::EngineCausalV3 => 3,
             FeedProfile::Legacy => return Err(err("causal envelope requires causal profile")),
         };
         if payload.is_empty() || payload.len() > MAX_CAUSAL_ENCODED_PAYLOAD / 4 * 3 {
@@ -113,11 +117,11 @@ impl CausalEnvelope {
     }
 
     fn validate_fields(&self) -> Result<(), RecordingError> {
-        if !matches!(self.schema_version, 1 | 2) {
+        if !matches!(self.schema_version, 1..=3) {
             return Err(RecordingError::UnsupportedVersion(self.schema_version));
         }
-        if self.phase == CausalPhase::Owner && self.schema_version != 2 {
-            return Err(err("owner history requires causal V2"));
+        if self.phase == CausalPhase::Owner && self.schema_version < 2 {
+            return Err(err("owner history requires causal V2 or V3"));
         }
         let id = self.route.bootstrap_id.as_bytes();
         if self.route.session == 0
@@ -177,7 +181,9 @@ impl CausalRoutes {
             }
             (FeedProfile::Legacy, _) | (_, FeedRecord::Seal { .. }) => Ok(()),
             (
-                FeedProfile::EngineCausalV1 | FeedProfile::EngineCausalV2,
+                FeedProfile::EngineCausalV1
+                | FeedProfile::EngineCausalV2
+                | FeedProfile::EngineCausalV3,
                 FeedRecord::Causal(envelope),
             ) => {
                 envelope.validate()?;
@@ -185,6 +191,7 @@ impl CausalRoutes {
                     != match profile {
                         FeedProfile::EngineCausalV1 => 1,
                         FeedProfile::EngineCausalV2 => 2,
+                        FeedProfile::EngineCausalV3 => 3,
                         FeedProfile::Legacy => unreachable!(),
                     }
                 {
@@ -222,9 +229,12 @@ impl CausalRoutes {
                 self.0.insert(route.session, route.clone());
                 Ok(())
             }
-            (FeedProfile::EngineCausalV1 | FeedProfile::EngineCausalV2, _) => {
-                Err(err("legacy record in causal feed"))
-            }
+            (
+                FeedProfile::EngineCausalV1
+                | FeedProfile::EngineCausalV2
+                | FeedProfile::EngineCausalV3,
+                _,
+            ) => Err(err("legacy record in causal feed")),
         }
     }
 }

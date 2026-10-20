@@ -382,6 +382,42 @@ impl JournalOwnerPolicyDto {
         Ok(())
     }
 }
+/// MFCJ3's explicit additional retention/finalization policy. Its canonical
+/// bytes are a named, hash-bound bootstrap reproduction input. Older profiles
+/// cannot silently ignore this reserved role or start the runtime owner.
+pub const HISTORY_RUNTIME_POLICY_ROLE: &str = "owner-history-runtime-v1";
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoryRuntimePolicyDto {
+    pub schema_version: u16,
+    pub max_pending_observations: u32,
+    pub max_pending_observation_bytes: u64,
+    pub max_record_bytes: u64,
+    pub max_finalization_age: DurationDto,
+}
+impl HistoryRuntimePolicyDto {
+    pub fn validate(&self, owner: &JournalOwnerPolicyDto) -> Result<(), CodecError> {
+        owner.validate()?;
+        let age = self.max_finalization_age.duration()?;
+        if self.schema_version != 1
+            || self.max_pending_observations < 6
+            || self.max_pending_observations > 65_536
+            || self.max_record_bytes < 4096
+            || self.max_record_bytes > owner.max_operation_bytes
+            || self.max_record_bytes < 6 * owner.max_input_bytes + 4096
+            || self.max_pending_observation_bytes < 3 * self.max_record_bytes + 4096
+            || self.max_pending_observation_bytes > 256 * 1024 * 1024
+            || age.is_zero()
+            || age > Duration::from_secs(3600)
+            || owner.receipt_poll_interval.duration()? > age
+        {
+            return Err(invalid(
+                "invalid history runtime retention/finalization policy",
+            ));
+        }
+        Ok(())
+    }
+}
 impl PublicReproductionInputDto {
     pub fn new(role: impl Into<String>, bytes: &[u8]) -> Self {
         Self {
@@ -413,6 +449,57 @@ pub struct BootstrapDto {
     pub public_inputs: Vec<PublicReproductionInputDto>,
 }
 impl BootstrapDto {
+    pub fn bind_history_policy(
+        &mut self,
+        policy: HistoryRuntimePolicyDto,
+    ) -> Result<(), CodecError> {
+        if self
+            .public_inputs
+            .iter()
+            .any(|p| p.role == HISTORY_RUNTIME_POLICY_ROLE)
+        {
+            return Err(invalid("duplicate history runtime policy"));
+        }
+        policy.validate(
+            self.owner_policy
+                .as_ref()
+                .ok_or_else(|| invalid("missing owner policy"))?,
+        )?;
+        self.public_inputs.push(PublicReproductionInputDto::new(
+            HISTORY_RUNTIME_POLICY_ROLE,
+            &serde_json::to_vec(&policy)?,
+        ));
+        Ok(())
+    }
+    pub fn history_policy(&self) -> Result<HistoryRuntimePolicyDto, CodecError> {
+        let mut rows = self
+            .public_inputs
+            .iter()
+            .filter(|p| p.role == HISTORY_RUNTIME_POLICY_ROLE);
+        let row = rows
+            .next()
+            .ok_or_else(|| invalid("missing history runtime policy"))?;
+        if rows.next().is_some() {
+            return Err(invalid("duplicate history runtime policy"));
+        }
+        let bytes = row.payload.bytes()?;
+        if row.bytes != bytes.len() as u64 || row.sha256 != bootstrap_sha256(&bytes) {
+            return Err(invalid("history policy reproduction digest mismatch"));
+        }
+        if bytes.len() > 4096 {
+            return Err(CodecError::TooLarge);
+        }
+        let policy: HistoryRuntimePolicyDto = serde_json::from_slice(&bytes)?;
+        if serde_json::to_vec(&policy)? != bytes {
+            return Err(invalid("noncanonical history runtime policy"));
+        }
+        policy.validate(
+            self.owner_policy
+                .as_ref()
+                .ok_or_else(|| invalid("missing owner policy"))?,
+        )?;
+        Ok(policy)
+    }
     pub fn validate(&self) -> Result<(), CodecError> {
         let c = self.capture.config()?;
         if !matches!(
@@ -506,13 +593,7 @@ pub fn encode_bootstrap_for_profile(
     max_bytes: usize,
     profile: FeedProfile,
 ) -> Result<CausalEnvelope, CodecError> {
-    if profile == FeedProfile::Legacy
-        || (profile == FeedProfile::EngineCausalV2 && dto.schema_version != 2)
-    {
-        return Err(invalid(
-            "owner journal requires an explicitly bound V2 bootstrap",
-        ));
-    }
+    validate_bootstrap_profile(dto, profile)?;
     dto.validate()?;
     if max_bytes == 0 || max_bytes > MAX_OPERATION_BYTES {
         return Err(CodecError::TooLarge);
@@ -542,6 +623,20 @@ pub fn encode_bootstrap_for_profile(
         &buffer.bytes,
     )?)
 }
+fn validate_bootstrap_profile(dto: &BootstrapDto, profile: FeedProfile) -> Result<(), CodecError> {
+    let has_runtime_policy = dto
+        .public_inputs
+        .iter()
+        .any(|p| p.role == HISTORY_RUNTIME_POLICY_ROLE);
+    match profile {
+        FeedProfile::EngineCausalV1 if !has_runtime_policy => Ok(()),
+        FeedProfile::EngineCausalV2 if dto.schema_version == 2 && !has_runtime_policy => Ok(()),
+        FeedProfile::EngineCausalV3 if dto.schema_version == 2 => dto.history_policy().map(|_| ()),
+        _ => Err(invalid(
+            "bootstrap/profile or explicit runtime policy mismatch",
+        )),
+    }
+}
 pub fn decode_bootstrap(envelope: &CausalEnvelope) -> Result<BootstrapDto, CodecError> {
     if envelope.phase != CausalPhase::Bootstrap {
         return Err(invalid("expected bootstrap phase"));
@@ -552,6 +647,15 @@ pub fn decode_bootstrap(envelope: &CausalEnvelope) -> Result<BootstrapDto, Codec
     }
     let dto: BootstrapDto = serde_json::from_slice(&payload)?;
     dto.validate()?;
+    validate_bootstrap_profile(
+        &dto,
+        match envelope.schema_version {
+            1 => FeedProfile::EngineCausalV1,
+            2 => FeedProfile::EngineCausalV2,
+            3 => FeedProfile::EngineCausalV3,
+            _ => return Err(invalid("unsupported bootstrap envelope")),
+        },
+    )?;
     if envelope.route.venue != dto.capture.venue || envelope.route.session != dto.capture.session {
         return Err(invalid("bootstrap inner/outer identity mismatch"));
     }

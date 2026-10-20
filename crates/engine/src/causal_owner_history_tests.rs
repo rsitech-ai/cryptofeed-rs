@@ -1,8 +1,348 @@
 use super::*;
 use crate::causal::tests::{Emit, config, stamp};
 
+fn history3() -> OwnerHistory {
+    let mut h = history();
+    h.envelope_version = 3;
+    h
+}
+fn permit(h: &mut OwnerHistory, id: u64, native: u64, generation: u64, now: u64) -> u64 {
+    apply(
+        h,
+        OwnerEventDto::ExecutionPermitted {
+            input_id: id,
+            native_ordinal: native,
+            generation,
+        },
+        now,
+    );
+    h.ordinal
+}
+fn completion(
+    h: &OwnerHistory,
+    id: u64,
+    token: u64,
+    operation: &CapturedOperation,
+) -> OwnerEventDto {
+    OwnerEventDto::ExecutionCompleted {
+        input_id: id,
+        permit_ordinal: token,
+        operation: Box::new(OperationDto::from_capture(operation, &h.identity).unwrap()),
+    }
+}
+#[test]
+fn permitted_completion_after_terminal_fence_is_retained_with_terminal_latched() {
+    let (first, _) = operations(false);
+    let mut h = history3();
+    start(&mut h);
+    let input = ingress(&h, 1, &first.original_input);
+    apply(&mut h, input, 1);
+    let token = permit(&mut h, 1, 1, 1, 2);
+    apply(
+        &mut h,
+        OwnerEventDto::Revoked {
+            through_input_id: 1,
+            cause: OwnerTerminalCause::Revoked,
+        },
+        3,
+    );
+    let event = completion(&h, 1, token, &first);
+    apply(&mut h, event, 4);
+    assert!(h.is_terminal());
+    assert_eq!(h.native_ordinal(), 1);
+    assert_eq!(
+        h.uncertainties(),
+        vec![OwnerPrefixUncertainty::CommittedWithoutRelease {
+            input_id: 1,
+            operation_ordinal: 5
+        }]
+    );
+    reject_unchanged(
+        &mut h,
+        OwnerEventDto::ReleaseIntent {
+            input_id: 1,
+            operation_ordinal: 5,
+            outputs_eligible: false,
+        },
+        5,
+        1,
+    );
+    apply(&mut h, OwnerEventDto::Withheld { input_id: 1 }, 5);
+    assert!(h.is_terminal());
+    assert!(h.uncertainties().is_empty());
+}
+#[test]
+fn permit_wrong_duplicate_and_completion_tokens_reject_without_prefix_changes() {
+    let (first, _) = operations(false);
+    let mut h = history3();
+    start(&mut h);
+    let input = ingress(&h, 1, &first.original_input);
+    apply(&mut h, input, 1);
+    reject_unchanged(
+        &mut h,
+        OwnerEventDto::ExecutionPermitted {
+            input_id: 1,
+            native_ordinal: 2,
+            generation: 1,
+        },
+        2,
+        0,
+    );
+    reject_unchanged(
+        &mut h,
+        OwnerEventDto::ExecutionPermitted {
+            input_id: 1,
+            native_ordinal: 1,
+            generation: 0,
+        },
+        2,
+        0,
+    );
+    reject_unchanged(
+        &mut h,
+        OwnerEventDto::ExecutionPermitted {
+            input_id: 1,
+            native_ordinal: 1,
+            generation: 1,
+        },
+        1000,
+        0,
+    );
+    let event = completion(&h, 1, 1, &first);
+    reject_unchanged(&mut h, event, 2, 1);
+    let token = permit(&mut h, 1, 1, 1, 2);
+    reject_unchanged(
+        &mut h,
+        OwnerEventDto::ExecutionPermitted {
+            input_id: 1,
+            native_ordinal: 1,
+            generation: 1,
+        },
+        3,
+        0,
+    );
+    let event = completion(&h, 1, token - 1, &first);
+    reject_unchanged(&mut h, event, 3, 1);
+    let mut event = completion(&h, 1, token, &first);
+    if let OwnerEventDto::ExecutionCompleted { operation, .. } = &mut event {
+        operation.route.ordinal = 2;
+    }
+    reject_unchanged(&mut h, event, 3, 1);
+    let event = completion(&h, 1, token, &first);
+    apply(&mut h, event, 3);
+    let event = completion(&h, 1, token, &first);
+    reject_unchanged(&mut h, event, 4, 1);
+}
+#[test]
+fn completion_codec_requires_a_prior_nonzero_permit_reference() {
+    let (first, _) = operations(false);
+    let h = history3();
+    for token in [0, 4, u64::MAX] {
+        let dto = OwnerHistoryDto {
+            schema_version: 2,
+            route: CausalRoute {
+                ordinal: 4,
+                generation: first.generation,
+                venue: h.identity.venue,
+                session: h.identity.session,
+                bootstrap_id: h.identity.bootstrap_id.clone(),
+            },
+            observed_ns: 3,
+            event: completion(&h, 1, token, &first),
+        };
+        assert!(encode_owner_history(&dto, &h.identity, MAX_OPERATION_BYTES).is_err());
+    }
+}
+#[test]
+fn permit_only_is_unknown_and_proved_preflight_can_settle_after_revoke() {
+    let (first, _) = operations(false);
+    let mut h = history3();
+    start(&mut h);
+    let input = ingress(&h, 1, &first.original_input);
+    apply(&mut h, input, 1);
+    let token = permit(&mut h, 1, 1, 1, 2);
+    assert_eq!(
+        h.uncertainties(),
+        vec![OwnerPrefixUncertainty::ExecutionUnknown { input_id: 1 }]
+    );
+    apply(
+        &mut h,
+        OwnerEventDto::Revoked {
+            through_input_id: 1,
+            cause: OwnerTerminalCause::Revoked,
+        },
+        3,
+    );
+    apply(
+        &mut h,
+        OwnerEventDto::ExecutionNotInvoked {
+            input_id: 1,
+            permit_ordinal: token,
+            cause: OwnerNotExecutedCause::Preflight,
+        },
+        4,
+    );
+    assert!(h.is_terminal());
+    assert_eq!(h.native_ordinal(), 0);
+    assert!(h.uncertainties().is_empty());
+}
+#[test]
+fn indeterminate_execution_remains_unknown_while_queued_inputs_settle_without_execution() {
+    let (first, _) = operations(false);
+    let mut h = history3();
+    start(&mut h);
+    let input = ingress(&h, 1, &first.original_input);
+    apply(&mut h, input, 1);
+    let token = permit(&mut h, 1, 1, 1, 2);
+    let input = ingress(&h, 2, &CaptureInput::Stop);
+    apply(&mut h, input, 3);
+    apply(
+        &mut h,
+        OwnerEventDto::ExecutionIndeterminate {
+            input_id: 1,
+            permit_ordinal: token,
+            cause: OwnerIndeterminateCause::Panic,
+        },
+        4,
+    );
+    let event = completion(&h, 1, token, &first);
+    reject_unchanged(&mut h, event, 5, 1);
+    apply(
+        &mut h,
+        OwnerEventDto::NotExecuted {
+            input_id: 2,
+            cause: OwnerNotExecutedCause::Terminal,
+        },
+        5,
+    );
+    reject_unchanged(
+        &mut h,
+        OwnerEventDto::NotExecuted {
+            input_id: 1,
+            cause: OwnerNotExecutedCause::Terminal,
+        },
+        6,
+        0,
+    );
+    assert_eq!(
+        h.uncertainties(),
+        vec![OwnerPrefixUncertainty::ExecutionUnknown { input_id: 1 }]
+    );
+    assert_eq!(h.native_pending_operations, 1);
+    assert_eq!(h.pending_inputs(), 1);
+}
+#[test]
+fn runtime_policy_rejects_malformed_owner_and_oversized_numbers_without_panicking() {
+    let mut owner = JournalOwnerPolicyDto {
+        max_input_bytes: 8192,
+        ..Default::default()
+    };
+    let policy = HistoryRuntimePolicyDto {
+        schema_version: 1,
+        max_pending_observations: 16,
+        max_pending_observation_bytes: 2 << 20,
+        max_record_bytes: 128 << 10,
+        max_finalization_age: std::time::Duration::from_secs(2).into(),
+    };
+    policy.validate(&owner).unwrap();
+    owner.max_input_bytes = u64::MAX;
+    assert!(policy.validate(&owner).is_err());
+    owner.max_input_bytes = 8192;
+    let mut bad = policy.clone();
+    bad.max_record_bytes = u64::MAX;
+    assert!(bad.validate(&owner).is_err());
+    let mut bad = policy.clone();
+    bad.max_pending_observation_bytes = u64::MAX;
+    assert!(bad.validate(&owner).is_err());
+    let mut bad = policy.clone();
+    bad.max_finalization_age = std::time::Duration::ZERO.into();
+    assert!(bad.validate(&owner).is_err());
+}
+#[test]
+fn old_and_new_owner_event_semantics_cannot_be_mixed() {
+    let (first, _) = operations(false);
+    let old = history();
+    let modern = history3();
+    let new_event = OwnerHistoryDto {
+        schema_version: 1,
+        route: CausalRoute {
+            venue: old.identity.venue,
+            session: old.identity.session,
+            bootstrap_id: old.identity.bootstrap_id.clone(),
+            ordinal: 1,
+            generation: 0,
+        },
+        observed_ns: 0,
+        event: OwnerEventDto::ExecutionPermitted {
+            input_id: 1,
+            native_ordinal: 1,
+            generation: 1,
+        },
+    };
+    assert!(encode_owner_history(&new_event, &old.identity, MAX_OPERATION_BYTES).is_err());
+    let mut bad = new_event;
+    bad.schema_version = 2;
+    bad.event = OwnerEventDto::executed(1, &first, &modern.identity).unwrap();
+    assert!(encode_owner_history(&bad, &modern.identity, MAX_OPERATION_BYTES).is_err());
+}
+#[test]
+fn permitted_native_extrema_and_actual_drains_roundtrip_without_numeric_projection() {
+    let (first, text) = operations(false);
+    let mut h = history3();
+    start(&mut h);
+    for (id, op) in [(1, &first), (2, &text)] {
+        let now = h.observed_ns + 1;
+        let input = ingress(&h, id, &op.original_input);
+        apply(&mut h, input, now);
+        let token = permit(&mut h, id, op.ordinal, op.generation, now + 1);
+        let event = completion(&h, id, token, op);
+        let wire = encoded(&h, event.clone(), now + 2, op.generation);
+        assert_eq!(
+            decode_owner_history(&wire, &h.identity).unwrap().event,
+            event
+        );
+        h.apply(&wire).unwrap();
+        let operation_ordinal = h.ordinal;
+        apply(
+            &mut h,
+            OwnerEventDto::ReleaseIntent {
+                input_id: id,
+                operation_ordinal,
+                outputs_eligible: true,
+            },
+            now + 3,
+        );
+        let intent_ordinal = h.ordinal;
+        let result = apply(
+            &mut h,
+            OwnerEventDto::HandoffObserved {
+                input_id: id,
+                intent_ordinal,
+            },
+            now + 4,
+        )
+        .unwrap();
+        assert_eq!(
+            *result.operation,
+            OperationDto::from_capture(op, &h.identity).unwrap()
+        );
+        if id == 2 {
+            assert!(
+                result
+                    .released_items()
+                    .any(|i| matches!(i, ItemDto::Market(_)))
+            );
+        }
+    }
+    assert!(h.uncertainties().is_empty());
+    assert_eq!(h.native_ordinal(), 2);
+}
+
 fn history() -> OwnerHistory {
     OwnerHistory {
+        envelope_version: 2,
+        record_bytes: MAX_OPERATION_BYTES,
+        permit: None,
         identity: OperationIdentity {
             venue: 21,
             session: 77,
@@ -62,7 +402,7 @@ fn operations(fail: bool) -> (CapturedOperation, CapturedOperation) {
 fn encoded(h: &OwnerHistory, event: OwnerEventDto, now: u64, generation: u64) -> CausalEnvelope {
     encode_owner_history(
         &OwnerHistoryDto {
-            schema_version: 1,
+            schema_version: h.envelope_version - 1,
             route: CausalRoute {
                 venue: h.identity.venue,
                 session: h.identity.session,
@@ -80,7 +420,8 @@ fn encoded(h: &OwnerHistory, event: OwnerEventDto, now: u64, generation: u64) ->
 }
 fn apply(h: &mut OwnerHistory, event: OwnerEventDto, now: u64) -> Option<RecordedOwnerHandoff> {
     let generation = match &event {
-        OwnerEventDto::Executed { operation, .. } => operation.route.generation,
+        OwnerEventDto::Executed { operation, .. }
+        | OwnerEventDto::ExecutionCompleted { operation, .. } => operation.route.generation,
         _ => h.generation,
     };
     let wire = encoded(h, event, now, generation);

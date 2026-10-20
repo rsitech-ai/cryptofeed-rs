@@ -111,55 +111,76 @@ fn format_negotiation_precedes_records_and_is_symmetric() {
 
 #[test]
 fn owner_profile_negotiates_before_watermark_and_keeps_one_journal_ordinal() {
-    let temp = tempfile::tempdir().unwrap();
-    let path = temp.path().join("owner");
-    let profile = FeedProfile::EngineCausalV2;
-    let mut writer = FeedWriter::create_profile(&path, 64 * 1024 * 1024, profile).unwrap();
-    assert_eq!(&files(&path).0[..8], b"MFCJ2\0\0\0");
-    for old in [FeedProfile::Legacy, CAUSAL] {
-        assert!(FeedReader::open_profile(&path, None, old).is_err());
+    for (profile, version) in [
+        (FeedProfile::EngineCausalV2, 2),
+        (FeedProfile::EngineCausalV3, 3),
+    ] {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("owner");
+
+        let mut writer = FeedWriter::create_profile(&path, 64 * 1024 * 1024, profile).unwrap();
+        assert_eq!(&files(&path).0[..8], profile.magic());
+        for old in [
+            FeedProfile::Legacy,
+            CAUSAL,
+            if version == 3 {
+                FeedProfile::EngineCausalV2
+            } else {
+                FeedProfile::EngineCausalV3
+            },
+        ] {
+            assert!(FeedReader::open_profile(&path, None, old).is_err());
+        }
+        fs::remove_file(path.join("committed.json")).unwrap();
+        for old in [
+            FeedProfile::Legacy,
+            CAUSAL,
+            if version == 3 {
+                FeedProfile::EngineCausalV2
+            } else {
+                FeedProfile::EngineCausalV3
+            },
+        ] {
+            assert!(
+                FeedReader::open_profile(&path, None, old)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("header")
+            );
+        }
+        let mut bootstrap = causal(1, 0, 0);
+        change(&mut bootstrap).schema_version = version;
+        writer.append(bootstrap).unwrap();
+        let mut first = causal(1, 1, 0);
+        change(&mut first).schema_version = version;
+        change(&mut first).phase = CausalPhase::Owner;
+        writer.append(first).unwrap();
+        let prefix = writer.cursor().clone();
+        let mut operation = causal(1, 2, 1);
+        change(&mut operation).schema_version = version;
+        writer.append(operation).unwrap();
+        let before = (files(&path), writer.cursor().clone());
+        let mut illegal = causal(1, 3, 2);
+        change(&mut illegal).schema_version = version;
+        change(&mut illegal).phase = CausalPhase::Owner;
+        assert!(writer.append(illegal.clone()).is_err());
+        assert_eq!((files(&path), writer.cursor().clone()), before);
+        change(&mut illegal).route.generation = 1;
+        writer.append_many(vec![illegal, seal()]).unwrap();
+        let bytes = files(&path).0;
+        assert!(SealedFeedReader::new_profile(&bytes, writer.cursor().clone(), CAUSAL).is_err());
+        let mut sealed =
+            SealedFeedReader::new_profile(&bytes, writer.cursor().clone(), profile).unwrap();
+        let mut count = 0;
+        while sealed.read_next().unwrap().is_some() {
+            count += 1;
+        }
+        assert_eq!(count, 5);
+        let mut resumed = FeedReader::open_profile(&path, Some(prefix), profile).unwrap();
+        while resumed.read_next().unwrap().is_some() {}
+        assert_eq!(resumed.cursor(), writer.cursor());
+        assert_eq!(resumed.routes, writer.routes);
     }
-    fs::remove_file(path.join("committed.json")).unwrap();
-    for old in [FeedProfile::Legacy, CAUSAL] {
-        assert!(
-            FeedReader::open_profile(&path, None, old)
-                .unwrap_err()
-                .to_string()
-                .contains("header")
-        );
-    }
-    let mut bootstrap = causal(1, 0, 0);
-    change(&mut bootstrap).schema_version = 2;
-    writer.append(bootstrap).unwrap();
-    let mut first = causal(1, 1, 0);
-    change(&mut first).schema_version = 2;
-    change(&mut first).phase = CausalPhase::Owner;
-    writer.append(first).unwrap();
-    let prefix = writer.cursor().clone();
-    let mut operation = causal(1, 2, 1);
-    change(&mut operation).schema_version = 2;
-    writer.append(operation).unwrap();
-    let before = (files(&path), writer.cursor().clone());
-    let mut illegal = causal(1, 3, 2);
-    change(&mut illegal).schema_version = 2;
-    change(&mut illegal).phase = CausalPhase::Owner;
-    assert!(writer.append(illegal.clone()).is_err());
-    assert_eq!((files(&path), writer.cursor().clone()), before);
-    change(&mut illegal).route.generation = 1;
-    writer.append_many(vec![illegal, seal()]).unwrap();
-    let bytes = files(&path).0;
-    assert!(SealedFeedReader::new_profile(&bytes, writer.cursor().clone(), CAUSAL).is_err());
-    let mut sealed =
-        SealedFeedReader::new_profile(&bytes, writer.cursor().clone(), profile).unwrap();
-    let mut count = 0;
-    while sealed.read_next().unwrap().is_some() {
-        count += 1;
-    }
-    assert_eq!(count, 5);
-    let mut resumed = FeedReader::open_profile(&path, Some(prefix), profile).unwrap();
-    while resumed.read_next().unwrap().is_some() {}
-    assert_eq!(resumed.cursor(), writer.cursor());
-    assert_eq!(resumed.routes, writer.routes);
 }
 
 #[test]
@@ -516,7 +537,7 @@ fn prepared_transactions_validate_intrinsics_and_actor_rejects_profile_before_ad
     assert_eq!(rejected.reason, AdmissionFailure::ProfileMismatch);
     assert_eq!(handle.status().admitted_operations, 0);
     let mut bad = causal(1, 0, 0);
-    change(&mut bad).schema_version = 3;
+    change(&mut bad).schema_version = 4;
     assert!(PreparedFeedTransaction::new(vec![bad]).is_err());
     let ticket = handle
         .try_submit(
