@@ -66,7 +66,9 @@ pub use nats::NatsSink;
 pub use protobuf_file::{ProtobufFileSink, event_envelope_json, read_length_prefixed_json};
 pub use protobuf_file_bin::ProtobufBinaryFileSink;
 pub use protobuf_wire::{encode_event_envelope, read_length_prefixed_records};
-pub use sink::{EventSink, ForwardReport, SinkError, forward_dispatcher};
+pub use sink::{
+    EventSink, ForwardReport, SinkError, forward_dispatcher, forward_market_dispatcher,
+};
 pub use spill::{SpillItem, SpillWalConfig, SpillWalSink, read_spill_items, read_spill_records};
 pub use udp::UdpSink;
 

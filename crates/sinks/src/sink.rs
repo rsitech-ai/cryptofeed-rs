@@ -1,6 +1,6 @@
 //! Sink trait and dispatcher forward helper.
 
-use marketfeed_adapter_api::EventBatch;
+use marketfeed_adapter_api::{EventBatch, MarketBatch, ObservedEventBatch};
 use marketfeed_dispatch::{DispatchError, EventDispatcher, PushOutcome};
 use marketfeed_model::SystemEvent;
 use thiserror::Error;
@@ -38,6 +38,14 @@ impl From<DispatchError> for SinkError {
 /// producer to grow unbounded memory.
 pub trait EventSink {
     fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, SinkError>;
+    /// Explicit opt-in: legacy sinks must never discard native observations by
+    /// forwarding only their canonical projection.
+    fn push_observed_batch(
+        &mut self,
+        _batch: ObservedEventBatch,
+    ) -> Result<PushOutcome, SinkError> {
+        Err(SinkError::Unsupported("native observation batches"))
+    }
     fn push_system(&mut self, event: SystemEvent) -> Result<PushOutcome, SinkError>;
 }
 
@@ -58,9 +66,29 @@ pub fn forward_dispatcher<S: EventSink + ?Sized>(
     src: &mut EventDispatcher,
     sink: &mut S,
 ) -> Result<ForwardReport, SinkError> {
+    forward(src, sink, |sink, batch| sink.push_batch(batch))
+}
+
+/// Forward whole native/canonical units. Rejected fronts and their unattempted
+/// suffix stay in the same queue, including on a legacy sink's refusal.
+pub fn forward_market_dispatcher<S: EventSink + ?Sized>(
+    src: &mut EventDispatcher<MarketBatch>,
+    sink: &mut S,
+) -> Result<ForwardReport, SinkError> {
+    forward(src, sink, |sink, batch| match batch {
+        MarketBatch::Canonical(batch) => sink.push_batch(batch),
+        MarketBatch::Observed(batch) => sink.push_observed_batch(batch),
+    })
+}
+
+fn forward<T: Clone, S: EventSink + ?Sized>(
+    src: &mut EventDispatcher<T>,
+    sink: &mut S,
+    mut push: impl FnMut(&mut S, T) -> Result<PushOutcome, SinkError>,
+) -> Result<ForwardReport, SinkError> {
     let mut report = ForwardReport::default();
     while let Some(batch) = src.batches().front().cloned() {
-        let outcome = sink.push_batch(batch)?;
+        let outcome = push(sink, batch)?;
         let _ = src.pop_batch();
         if outcome != PushOutcome::Accepted {
             report.dropped_batches += 1;

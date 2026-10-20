@@ -28,8 +28,8 @@ use std::time::Duration;
 use bytes::Bytes;
 use marketfeed_adapter_api::{
     ActionBuffer, DEFAULT_ACTION_BUFFER_CAPACITY, DisconnectReason, EventBatch, HttpRequestSpec,
-    HttpResponse, SessionAction, SessionCommand, SessionInput, SessionMachine,
-    SubscriptionWireAction,
+    HttpResponse, MarketBatch, ObservedEventBatch, SessionAction, SessionCommand, SessionInput,
+    SessionMachine, SubscriptionWireAction,
 };
 use marketfeed_dispatch::{DispatchError, EventDispatcher, PushOutcome};
 use marketfeed_model::{
@@ -40,7 +40,7 @@ use marketfeed_recording::{
     Direction, EnqueueOutcome, FrameOpcode as RecOpcode, RawSegmentWriter, RecordingHandle,
     encode_http_response, encode_subscription_command,
 };
-use marketfeed_sinks::{EventSink, SinkError, forward_dispatcher};
+use marketfeed_sinks::{EventSink, SinkError, forward_market_dispatcher};
 use marketfeed_transport::{FrameOpcode, OutboundFrame};
 
 use crate::metrics::EngineMetrics;
@@ -122,7 +122,7 @@ impl Default for SessionRunnerConfig {
 pub struct SessionRunner {
     cfg: SessionRunnerConfig,
     machine: Box<dyn SessionMachine>,
-    dispatch: EventDispatcher,
+    dispatch: EventDispatcher<MarketBatch>,
     actions: ActionBuffer,
     recorder: Option<RawSegmentWriter<Cursor<Vec<u8>>>>,
     recording_pipeline: Option<RecordingHandle>,
@@ -133,7 +133,7 @@ pub struct SessionRunner {
     pub lifecycle: SessionLifecycle,
     /// Wire-level inbound frame sequence (recording / transport order).
     inbound_frame_seq: u64,
-    pub market_batches: Vec<EventBatch>,
+    pub market_batches: Vec<MarketBatch>,
     pub system_events: Vec<SystemEvent>,
     pub other_actions: Vec<SessionAction>,
     pending_writes: Vec<OutboundFrame>,
@@ -165,7 +165,7 @@ impl SessionRunner {
         let market_capture = self.operation_capture.as_mut().and_then(|c| {
             c.drain_start(
                 CaptureQueueLane::Market,
-                self.dispatch.batches().iter().map(QueueItemRef::Market),
+                self.dispatch.batches().iter().map(QueueItemRef::market),
             )
         });
         let system_capture = self.operation_capture.as_mut().and_then(|c| {
@@ -193,7 +193,7 @@ impl SessionRunner {
     }
 
     /// Mutable access to the data-plane dispatcher (sinks / tests).
-    pub fn dispatch_mut(&mut self) -> &mut EventDispatcher {
+    pub fn dispatch_mut(&mut self) -> &mut EventDispatcher<MarketBatch> {
         &mut self.dispatch
     }
 
@@ -218,9 +218,12 @@ impl SessionRunner {
             Some(s) => {
                 let t0 = std::time::Instant::now();
                 let out = if let Some(capture) = &mut self.operation_capture {
-                    forward_dispatcher(&mut self.dispatch, &mut CapturingSink { sink: s, capture })
+                    forward_market_dispatcher(
+                        &mut self.dispatch,
+                        &mut CapturingSink { sink: s, capture },
+                    )
                 } else {
-                    forward_dispatcher(&mut self.dispatch, s)
+                    forward_market_dispatcher(&mut self.dispatch, s)
                 }
                 .map_err(sink_to_engine);
                 self.metrics
@@ -435,7 +438,7 @@ impl SessionRunner {
             self.metrics
                 .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
             self.note_action_buffer_drops()?;
-            let out = self.apply_frame_actions(frame_seq, received.receive_ts);
+            let out = self.apply_frame_actions(frame_seq, received);
             self.metrics
                 .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
             out
@@ -467,7 +470,7 @@ impl SessionRunner {
             self.metrics
                 .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
             self.note_action_buffer_drops()?;
-            let out = self.apply_frame_actions(frame_seq, received.receive_ts);
+            let out = self.apply_frame_actions(frame_seq, received);
             self.metrics
                 .observe_frame_to_event_ns(t0.elapsed().as_nanos() as u64);
             out
@@ -540,7 +543,7 @@ impl SessionRunner {
             self.actions.clear();
             self.deliver_machine_input(SessionInput::Pong { payload, received })?;
             self.note_action_buffer_drops()?;
-            self.apply_actions(received.receive_ts)
+            self.apply_actions_from_input(received.receive_ts, true, Some(received))
         })();
         self.settle_callback_result(result)
     }
@@ -584,9 +587,14 @@ impl SessionRunner {
         Ok(())
     }
 
-    fn apply_frame_actions(&mut self, frame_seq: u64, now: TimestampNs) -> Result<(), EngineError> {
+    fn apply_frame_actions(
+        &mut self,
+        frame_seq: u64,
+        received: FrameStamp,
+    ) -> Result<(), EngineError> {
+        let now = received.receive_ts;
         if self.operation_capture.is_some() {
-            self.apply_actions(now)?;
+            self.apply_actions_from_input(now, true, Some(received))?;
             return self.record_feed(
                 marketfeed_recording::shared_feed::FeedRecord::FrameAccepted {
                     session: self.cfg.session,
@@ -595,11 +603,11 @@ impl SessionRunner {
             );
         }
         if self.cfg.shared_feed.is_none() {
-            return self.apply_actions(now);
+            return self.apply_actions_from_input(now, true, Some(received));
         }
         self.feed_transaction = Some(Vec::new());
         self.feed_transaction_bytes = 0;
-        let result = self.apply_actions(now);
+        let result = self.apply_actions_from_input(now, true, Some(received));
         let mut records = self.feed_transaction.take().expect("input transaction");
         result?;
         records.push(
@@ -789,7 +797,7 @@ impl SessionRunner {
             self.metrics
                 .observe_parse_duration_ns(parse_t0.elapsed().as_nanos() as u64);
             self.note_action_buffer_drops()?;
-            self.apply_frame_actions(frame_seq, received.receive_ts)
+            self.apply_frame_actions(frame_seq, received)
         })();
         self.settle_callback_result(result)
     }
@@ -1120,18 +1128,22 @@ impl SessionRunner {
         );
     }
 
-    fn push_dispatch_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, DispatchError> {
+    fn push_dispatch_batch(
+        &mut self,
+        batch: impl Into<MarketBatch>,
+    ) -> Result<PushOutcome, DispatchError> {
+        let batch = batch.into();
         let index = self.operation_capture.as_mut().and_then(|capture| {
             let lane = self.dispatch.batches();
             let evicted =
                 if lane.policy() == OverflowPolicy::DropOldest && lane.len() == lane.capacity() {
-                    lane.front().map(QueueItemRef::Market)
+                    lane.front().map(QueueItemRef::market)
                 } else {
                     None
                 };
             capture.queue_start(
                 CaptureQueueLane::Market,
-                QueueItemRef::Market(&batch),
+                QueueItemRef::market(&batch),
                 evicted,
             )
         });
@@ -1276,6 +1288,54 @@ impl SessionRunner {
         }
     }
 
+    fn apply_market_batch(
+        &mut self,
+        mut batch: MarketBatch,
+        next_event_index: &mut u32,
+        source_stamp: Option<FrameStamp>,
+    ) -> Result<(), EngineError> {
+        // This in-memory carrier is not yet a negotiated durable feed profile.
+        // Never publish only its canonical fields through a legacy recorder.
+        if matches!(batch, MarketBatch::Observed(_)) && self.cfg.shared_feed.is_some() {
+            return Err(EngineError::Internal(
+                "native observation batches require an enriched durable profile".into(),
+            ));
+        }
+        *next_event_index = batch
+            .stamp_runtime(
+                self.cfg.venue,
+                self.cfg.session,
+                self.cfg.connection,
+                self.inbound_frame_seq,
+                source_stamp,
+                *next_event_index,
+            )
+            .map_err(|e| EngineError::Internal(e.to_string()))?;
+        if let MarketBatch::Canonical(canonical) = &batch {
+            self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
+                canonical.clone(),
+            ))?;
+        }
+        self.metrics
+            .events_normalized
+            .fetch_add(batch.events.len() as u64, Ordering::Relaxed);
+        let outcome = self.push_dispatch_batch(batch.clone())?;
+        match outcome {
+            PushOutcome::Accepted => {
+                self.metrics.record_batch_dispatched();
+                self.push_mirror_batch(batch)?;
+            }
+            PushOutcome::DroppedNewest => self.note_push_outcome("dispatch_batch", outcome)?,
+            PushOutcome::DroppedOldest { .. } => {
+                self.metrics.record_batch_dispatched();
+                self.note_push_outcome("dispatch_batch", outcome)?;
+                self.push_mirror_batch(batch)?;
+            }
+        }
+        self.refresh_queue_gauges();
+        Ok(())
+    }
+
     fn apply_actions(&mut self, now: TimestampNs) -> Result<(), EngineError> {
         self.apply_actions_with_system_policy(now, true)
     }
@@ -1285,7 +1345,16 @@ impl SessionRunner {
         now: TimestampNs,
         system_failures_fatal: bool,
     ) -> Result<(), EngineError> {
-        let result = self.apply_captured_actions(now, system_failures_fatal);
+        self.apply_actions_from_input(now, system_failures_fatal, None)
+    }
+
+    fn apply_actions_from_input(
+        &mut self,
+        now: TimestampNs,
+        system_failures_fatal: bool,
+        source_stamp: Option<FrameStamp>,
+    ) -> Result<(), EngineError> {
+        let result = self.apply_captured_actions(now, system_failures_fatal, source_stamp);
         if let Some(capture) = &mut self.operation_capture {
             capture.finish_invocation();
         }
@@ -1296,6 +1365,7 @@ impl SessionRunner {
         &mut self,
         now: TimestampNs,
         system_failures_fatal: bool,
+        source_stamp: Option<FrameStamp>,
     ) -> Result<(), EngineError> {
         let actions: Vec<_> = self.actions.drain().collect();
         let mut next_event_index: u32 = 0;
@@ -1305,44 +1375,19 @@ impl SessionRunner {
             }
             let result = (|| {
                 match action {
-                    SessionAction::EmitBatch(mut batch) => {
-                        // Adapters do not own runtime transport identity or the raw
-                        // input ordinal. Assign these once at the collector boundary.
-                        batch.session = self.cfg.session;
-                        batch.frame_seq = self.inbound_frame_seq;
-                        for event in &mut batch.events {
-                            event.venue = self.cfg.venue;
-                            event.session = self.cfg.session;
-                            event.connection = self.cfg.connection;
-                            event.frame_seq = self.inbound_frame_seq;
-                            event.event_index = u16::try_from(next_event_index).map_err(|_| {
-                                EngineError::Internal("too many events in one input".into())
-                            })?;
-                            next_event_index += 1;
-                        }
-                        self.record_feed(marketfeed_recording::shared_feed::FeedRecord::Batch(
-                            batch.clone(),
-                        ))?;
-                        let n = batch.events.len() as u64;
-                        self.metrics
-                            .events_normalized
-                            .fetch_add(n, Ordering::Relaxed);
-                        let outcome = self.push_dispatch_batch(batch.clone())?;
-                        match outcome {
-                            PushOutcome::Accepted => {
-                                self.metrics.record_batch_dispatched();
-                                self.push_mirror_batch(batch)?;
-                            }
-                            PushOutcome::DroppedNewest => {
-                                self.note_push_outcome("dispatch_batch", outcome)?;
-                            }
-                            PushOutcome::DroppedOldest { dropped: _ } => {
-                                self.metrics.record_batch_dispatched();
-                                self.note_push_outcome("dispatch_batch", outcome)?;
-                                self.push_mirror_batch(batch)?;
-                            }
-                        }
-                        self.refresh_queue_gauges();
+                    SessionAction::EmitBatch(batch) => {
+                        self.apply_market_batch(
+                            MarketBatch::Canonical(batch),
+                            &mut next_event_index,
+                            source_stamp,
+                        )?;
+                    }
+                    SessionAction::EmitObservedBatch(batch) => {
+                        self.apply_market_batch(
+                            MarketBatch::Observed(batch),
+                            &mut next_event_index,
+                            source_stamp,
+                        )?;
                     }
                     SessionAction::EmitSystem(mut ev) => {
                         self.stamp_system_event(&mut ev);
@@ -1508,7 +1553,8 @@ impl SessionRunner {
         }
     }
 
-    fn push_mirror_batch(&mut self, batch: EventBatch) -> Result<(), EngineError> {
+    fn push_mirror_batch(&mut self, batch: impl Into<MarketBatch>) -> Result<(), EngineError> {
+        let batch = batch.into();
         let cap = self.mirror_capacity();
         match Self::try_push_mirror(&mut self.market_batches, cap, self.cfg.overflow, batch)? {
             MirrorPush::Ok => Ok(()),

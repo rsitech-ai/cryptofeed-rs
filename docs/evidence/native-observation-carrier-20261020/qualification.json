@@ -1,0 +1,291 @@
+{
+  "schema_version": 1,
+  "status": "Passing local in-memory carrier checks; durable/profile/projection integration incomplete",
+  "parent": "e2ad84c413168aee37d130e574519c567fab978f",
+  "source_files": 536,
+  "source_sha256": "0121bd9464c562d9e787277c8a25a1ff19347f76278d914ba9311bdf8f0cd75c",
+  "source_manifest_sha256": "b163d48bbfc8928af3d9d1787a2776dfcad90e4fa3d378acfa103b4fd59380ee",
+  "changed_build_inputs": [
+    "crates/adapter-api/src/lib.rs",
+    "crates/adapter-api/src/native_observation.rs",
+    "crates/adapter-api/src/session.rs",
+    "crates/adapter-api/tests/fixtures/native_observations_v1.json",
+    "crates/adapter-api/tests/native_observation.rs",
+    "crates/adapters/hyperliquid/src/session.rs",
+    "crates/adapters/hyperliquid/tests/contracts.rs",
+    "crates/dispatch/src/queue.rs",
+    "crates/engine/src/causal_convert.rs",
+    "crates/engine/src/operation.rs",
+    "crates/engine/src/operation_native_tests.rs",
+    "crates/engine/src/runner.rs",
+    "crates/engine/tests/record_replay.rs",
+    "crates/event-pulse/tests/record_replay.rs",
+    "crates/private/src/live.rs",
+    "crates/replay/src/runner.rs",
+    "crates/replay/src/streaming.rs",
+    "crates/replay/tests/streaming.rs",
+    "crates/sinks/src/lib.rs",
+    "crates/sinks/src/sink.rs"
+  ],
+  "commands": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.867,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory": "isolated-stable"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.078,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory": "isolated-stable"
+    },
+    {
+      "name": "workspace-check",
+      "command": [
+        "cargo",
+        "check",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 4.547,
+      "log_sha256": "bf938f9c5295cc8c1a3dc3451ee83a8c6b70659725cfa3d79934eb308430f732",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory": "isolated-stable"
+    },
+    {
+      "name": "workspace-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 6.008,
+      "log_sha256": "54c89a267aa33f0efceaebc50cf20cdd6d4daa731be89c447080d41d65ad9479",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory": "isolated-stable"
+    },
+    {
+      "name": "packages-stable",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-adapter-api",
+        "-p",
+        "marketfeed-dispatch",
+        "-p",
+        "marketfeed-sinks",
+        "-p",
+        "marketfeed-replay",
+        "-p",
+        "marketfeed-adapter-hyperliquid",
+        "-p",
+        "marketfeed-private",
+        "-p",
+        "marketfeed-event-pulse",
+        "--lib",
+        "--tests"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 112.145,
+      "log_sha256": "ac606f9139584b4b3e45f0c0824ed8c68c54570e82749d1577004971b5514845",
+      "source_unchanged": true,
+      "test_totals": [
+        531,
+        0,
+        0
+      ],
+      "targets": 46,
+      "build_directory": "isolated-stable"
+    },
+    {
+      "name": "packages-msrv",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-adapter-api",
+        "-p",
+        "marketfeed-dispatch",
+        "-p",
+        "marketfeed-sinks",
+        "-p",
+        "marketfeed-replay",
+        "-p",
+        "marketfeed-adapter-hyperliquid",
+        "-p",
+        "marketfeed-private",
+        "-p",
+        "marketfeed-event-pulse",
+        "--lib",
+        "--tests"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 120.624,
+      "log_sha256": "7779429f4cbc4a54ee423ba7f7221b291ef887ccf18562ebb48c8d0ca6ca9e3f",
+      "source_unchanged": true,
+      "test_totals": [
+        531,
+        0,
+        0
+      ],
+      "targets": 46,
+      "build_directory": "isolated-msrv"
+    },
+    {
+      "name": "actual-native-owners",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_owner"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 127.458,
+      "log_sha256": "781094b569f16a7b62272ce0cc29d7e92e0f9c0630234c1ac8cc10b59467b465",
+      "source_unchanged": true,
+      "test_totals": [
+        40,
+        0,
+        0
+      ],
+      "targets": 2,
+      "build_directory": "isolated-stable"
+    }
+  ],
+  "new_regression_names": [
+    "native_golden_preserves_financial_extrema_presence_counts_and_original_end",
+    "native_layout_charges_exact_counters_and_refuses_unsupported_schema",
+    "native_layout_refuses_orphan_duplicate_missing_and_false_native_only_rows",
+    "native_only_units_keep_outer_scope_clocks_and_reject_missing_input_stamp",
+    "observed_unit_enforces_encoded_boundary_and_validates_deserialization",
+    "observed_one_sided_bbo_occupies_a_unit_and_keeps_ordered_invalidation",
+    "observed_oversize_malformed_and_unsubscribed_units_fail_whole",
+    "observed_spot_and_perps_preserve_five_native_families_from_one_decode",
+    "refused_native_book_and_trade_units_do_not_advance_retained_market_state",
+    "existing_causal_codec_refuses_native_actions_and_retained_native_state",
+    "legacy_durable_feed_refuses_native_unit_before_dispatch_or_frame_acceptance",
+    "legacy_raw_replay_refuses_new_native_action_instead_of_classifying_it_as_other",
+    "native_action_overflow_and_callback_error_never_resurrect_market_rows",
+    "native_capture_charges_attachment_bytes_and_poison_prevents_further_execution",
+    "native_only_queued_source_identity_and_original_clocks_survive_reconnect",
+    "native_only_units_share_exact_market_overflow_and_eviction_fate",
+    "native_partial_forward_retains_rejected_whole_front_and_unattempted_suffix",
+    "native_unit_cannot_borrow_a_prior_frame_receipt_from_timer_callback",
+    "native_unit_is_refused_by_legacy_sink_without_consuming_front"
+  ],
+  "runner_terminal_receipts_sha256": [
+    "bdffc543c4822a23aa49d61c199e9e3465da65db51cf99f1b023a493441958cf",
+    "6127c7d450755da0e821365420dbe3617da53d4215eb267b9f08e43c5084a5e8"
+  ],
+  "independent_finding_sha256": "c6c5b878953e20a92f9514bf1de636e30220d83a00133bfda9f2491a409bf07a",
+  "independent_closure_sha256": "9716f8f89513bcea11f2020a4de905aa58fec95e9f768759ea48eb1ae245713a",
+  "retained_artifact": {
+    "sha256": "4cecfdf102e86aa20ed0240cd47abe72dcd5022ce883ce66b4e7bfc5ba28f920",
+    "bytes": 18369696,
+    "mode": "0555",
+    "embedded_recipe": {
+      "recipe": {
+        "debug": "false",
+        "encoded_rustflags": "",
+        "git_commit": "e2ad84c413168aee37d130e574519c567fab978f",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 536,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "0121bd9464c562d9e787277c8a25a1ff19347f76278d914ba9311bdf8f0cd75c",
+        "target": "aarch64-apple-darwin"
+      },
+      "sha256": "5ed04eb8ef57d51e413bd87ec579012f9f7f14c0a6950f60d5a200405fdf201b",
+      "offset": 8830536
+    },
+    "scope": "Exact logged native-test file and declared-source recipe; not loaded-image/full transitive-input/reproducible-build/deployed-system proof"
+  },
+  "preservation": {
+    "frozen_files": 22,
+    "frozen_bytes": 37276008,
+    "pilot_files": 2,
+    "hls_evidence_files": 35,
+    "bytes_and_recorded_metadata_unchanged": true
+  },
+  "retained_failures": [
+    "01 helper API mismatch",
+    "04 private pump exhaustive-match compilation failure",
+    "05 event-pulse test-mapper exhaustive-match compilation failure",
+    "06 intentionally interrupted for independent native-only identity/clock loss finding; original finding preserved",
+    "07 reconnect fixture incorrectly selected canonical VenueStatus as native; fixture corrected",
+    "09 final invocation referenced nonexistent bybit_causal target; corrected invocation10 only, no rerun of six passing gates"
+  ],
+  "scope": "Five Hyperliquid families explicitly opt into bounded in-memory native/canonical units; native-only source and clocks retained; old factories/profiles/sinks/replay refuse enrichment",
+  "remaining": [
+    "AllMids actual scope/subscription/catalog admission and duplicate-key handling",
+    "Enriched causal profile/bootstrap/DTO/native comparison and ACKed HandoffObserved projection",
+    "Atomic bounded consumer groups; HLS and rsibot readers",
+    "Real daemon/CLI/live/control/supervisor/external I/O before original failed-ingress rerun",
+    "Continuity/strict real datasets/native restart/operational qualification"
+  ],
+  "authority": "No economics/trading activation/deployment/merge/release or operational promotion; goal active",
+  "previous_goal_turn_classification": "no progress: architecture restatement only; current turn implements actual carrier",
+  "private_qualification_sha256": "11659f96d49e2aafab4b1aa02040ba4fe16041a928d07942d589c2a8d0d187de"
+}

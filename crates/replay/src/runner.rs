@@ -187,6 +187,12 @@ impl ReplayRunner {
         let actions: Vec<_> = self.actions.drain().collect();
         for action in actions {
             match action {
+                SessionAction::EmitObservedBatch(_) => {
+                    return Err(marketfeed_adapter_api::AdapterError::UnsupportedCapability(
+                        "native observation batches require an enriched replay profile".into(),
+                    )
+                    .into());
+                }
                 SessionAction::EmitBatch(batch) => {
                     let push = self.dispatch.push_batch(batch)?;
                     self.note_push_outcome("market_batch", push)?;

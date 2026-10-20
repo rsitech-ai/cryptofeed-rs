@@ -29,6 +29,7 @@ enum Mode {
     HeaderOverflow,
     ByteOverflow,
     Sensitive,
+    NativeObservations,
     Panic,
 }
 
@@ -96,6 +97,42 @@ impl SessionMachine for Machine {
                         out.push(SessionAction::SendSensitiveText(SensitiveBytes::new(
                             b"test-only".as_slice().to_vec().into(),
                         )));
+                        return Ok(());
+                    }
+                    Mode::NativeObservations => {
+                        use marketfeed_adapter_api::*;
+                        out.push(SessionAction::EmitObservedBatch(
+                            ObservedEventBatch::try_new(
+                                EventBatch {
+                                    session: SessionId(1),
+                                    frame_seq: 1,
+                                    events: vec![],
+                                },
+                                NativeObservationAttachment {
+                                    schema_version: 1,
+                                    rows: vec![NativeObservationRow {
+                                        canonical_positions: vec![],
+                                        observation: NativeObservation::HyperliquidBbo(
+                                            HyperliquidBboObservation {
+                                                coin: "BTC".into(),
+                                                time_ms: 1,
+                                                sides: [None, None],
+                                            },
+                                        ),
+                                    }],
+                                },
+                                ObservedBatchSource {
+                                    venue: VenueId(0),
+                                    connection: ConnectionId(0),
+                                    received: marketfeed_model::FrameStamp {
+                                        receive_ts: TimestampNs(0),
+                                        mono_ns: 0,
+                                    },
+                                },
+                                ObservedBatchLimits::HARD_MAX,
+                            )
+                            .unwrap(),
+                        ));
                         return Ok(());
                     }
                     Mode::Panic => panic!("adapter panic after state mutation"),
@@ -554,6 +591,7 @@ fn action_event_byte_and_sensitive_limits_reject_whole_steps() {
         Mode::HeaderOverflow,
         Mode::ByteOverflow,
         Mode::Sensitive,
+        Mode::NativeObservations,
     ] {
         let mut config = limits();
         config.max_events_per_step = 1;
@@ -578,6 +616,9 @@ fn action_event_byte_and_sensitive_limits_reject_whole_steps() {
                 assert!(matches!(error.cause, LegacyReplayError::OutputByteBudget))
             }
             Mode::Sensitive => assert!(matches!(error.cause, LegacyReplayError::SensitiveAction)),
+            Mode::NativeObservations => {
+                assert!(matches!(error.cause, LegacyReplayError::NativeObservations))
+            }
             _ => unreachable!(),
         }
         assert_eq!(delivered, 1);

@@ -11,6 +11,9 @@ const MAX_CAPTURE_ENTRIES: usize = 65_536;
 const OUTCOME_RESERVE: usize = 4096;
 
 #[cfg(test)]
+#[path = "operation_native_tests.rs"]
+mod native_tests;
+#[cfg(test)]
 #[path = "operation_tests.rs"]
 mod tests;
 
@@ -222,6 +225,7 @@ pub enum CaptureQueueLane {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CaptureQueueItem {
     Market(EventBatch),
+    ObservedMarket(ObservedEventBatch),
     System(SystemEvent),
     Write(OutboundFrame),
     Http(HttpRequestSpec),
@@ -229,14 +233,22 @@ pub enum CaptureQueueItem {
 #[derive(Clone, Copy)]
 pub(super) enum QueueItemRef<'a> {
     Market(&'a EventBatch),
+    ObservedMarket(&'a ObservedEventBatch),
     System(&'a SystemEvent),
     Write(&'a OutboundFrame),
     Http(&'a HttpRequestSpec),
 }
-impl QueueItemRef<'_> {
+impl<'a> QueueItemRef<'a> {
+    pub(super) fn market(batch: &'a MarketBatch) -> Self {
+        match batch {
+            MarketBatch::Canonical(batch) => Self::Market(batch),
+            MarketBatch::Observed(batch) => Self::ObservedMarket(batch),
+        }
+    }
     fn cost(self) -> usize {
         match self {
             Self::Market(b) => batch_cost(b),
+            Self::ObservedMarket(b) => observed_batch_cost(b),
             Self::System(e) => system_cost(e),
             Self::Write(w) => w.payload.len().saturating_add(256),
             Self::Http(h) => http_cost(h),
@@ -245,6 +257,7 @@ impl QueueItemRef<'_> {
     fn owned(self) -> CaptureQueueItem {
         match self {
             Self::Market(b) => CaptureQueueItem::Market(b.clone()),
+            Self::ObservedMarket(b) => CaptureQueueItem::ObservedMarket(b.clone()),
             Self::System(e) => CaptureQueueItem::System(e.clone()),
             Self::Write(w) => CaptureQueueItem::Write(w.clone()),
             Self::Http(h) => CaptureQueueItem::Http(h.clone()),
@@ -934,6 +947,17 @@ fn batch_cost(batch: &EventBatch) -> usize {
         counter.bytes.saturating_add(256)
     }
 }
+fn observed_batch_cost(batch: &ObservedEventBatch) -> usize {
+    batch
+        .encoded_len(marketfeed_adapter_api::ObservedBatchLimits::HARD_MAX.encoded_bytes)
+        .map_or(usize::MAX, |size| size.saturating_add(256))
+}
+fn market_batch_cost(batch: &MarketBatch) -> usize {
+    match batch {
+        MarketBatch::Canonical(batch) => batch_cost(batch),
+        MarketBatch::Observed(batch) => observed_batch_cost(batch),
+    }
+}
 fn system_cost(event: &SystemEvent) -> usize {
     let mut counter = Counter { bytes: 0 };
     if serde_json::to_writer(&mut counter, event).is_err() {
@@ -961,6 +985,7 @@ fn action_cost(action: &SessionAction) -> usize {
         }
         SessionAction::SendSensitiveText(_) => usize::MAX,
         SessionAction::EmitBatch(b) => batch_cost(b),
+        SessionAction::EmitObservedBatch(b) => observed_batch_cost(b),
         SessionAction::EmitSystem(e) => system_cost(e),
         SessionAction::RequestHttp(h) => http_cost(h),
         _ => 256,
@@ -1034,6 +1059,9 @@ impl ScriptedSink<'_> {
     }
 }
 impl EventSink for ScriptedSink<'_> {
+    fn push_observed_batch(&mut self, _: ObservedEventBatch) -> Result<PushOutcome, SinkError> {
+        self.next()
+    }
     fn push_batch(&mut self, _: EventBatch) -> Result<PushOutcome, SinkError> {
         self.next()
     }
@@ -1047,6 +1075,15 @@ pub(super) struct CapturingSink<'a, S: EventSink + ?Sized> {
     pub(super) capture: &'a mut ActiveCapture,
 }
 impl<S: EventSink + ?Sized> EventSink for CapturingSink<'_, S> {
+    fn push_observed_batch(&mut self, batch: ObservedEventBatch) -> Result<PushOutcome, SinkError> {
+        let index = self.capture.sink_start(
+            CaptureQueueLane::Market,
+            QueueItemRef::ObservedMarket(&batch),
+        );
+        let result = self.sink.push_observed_batch(batch);
+        self.capture.sink_finished(index, &result);
+        result
+    }
     fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, SinkError> {
         let index = self
             .capture
@@ -1125,7 +1162,7 @@ fn snapshot(runner: &SessionRunner, capture: &mut ActiveCapture) -> CapturedStat
         .dispatch
         .batches()
         .iter()
-        .map(batch_cost)
+        .map(market_batch_cost)
         .chain(runner.dispatch.systems().iter().map(system_cost))
         .chain(
             runner
@@ -1145,8 +1182,7 @@ fn snapshot(runner: &SessionRunner, capture: &mut ActiveCapture) -> CapturedStat
                 .dispatch
                 .batches()
                 .iter()
-                .cloned()
-                .map(CaptureQueueItem::Market)
+                .map(|batch| QueueItemRef::market(batch).owned())
                 .collect(),
         ),
         (

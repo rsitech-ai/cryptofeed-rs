@@ -125,12 +125,12 @@ impl<T> BoundedQueue<T> {
 
 /// Dispatch lane for market event batches + system events.
 #[derive(Debug)]
-pub struct EventDispatcher {
-    batches: BoundedQueue<EventBatch>,
+pub struct EventDispatcher<T = EventBatch> {
+    batches: BoundedQueue<T>,
     systems: BoundedQueue<SystemEvent>,
 }
 
-impl EventDispatcher {
+impl<T> EventDispatcher<T> {
     pub fn new(batch_capacity: usize, system_capacity: usize, policy: OverflowPolicy) -> Self {
         Self {
             batches: BoundedQueue::new(batch_capacity, policy),
@@ -138,7 +138,7 @@ impl EventDispatcher {
         }
     }
 
-    pub fn push_batch(&mut self, batch: EventBatch) -> Result<PushOutcome, DispatchError> {
+    pub fn push_batch(&mut self, batch: T) -> Result<PushOutcome, DispatchError> {
         self.batches.try_push(batch)
     }
 
@@ -146,7 +146,7 @@ impl EventDispatcher {
         self.systems.try_push(event)
     }
 
-    pub fn pop_batch(&mut self) -> Option<EventBatch> {
+    pub fn pop_batch(&mut self) -> Option<T> {
         self.batches.pop_front()
     }
 
@@ -154,7 +154,7 @@ impl EventDispatcher {
         self.systems.pop_front()
     }
 
-    pub fn batches(&self) -> &BoundedQueue<EventBatch> {
+    pub fn batches(&self) -> &BoundedQueue<T> {
         &self.batches
     }
 
@@ -162,7 +162,7 @@ impl EventDispatcher {
         &self.systems
     }
 
-    pub fn drain_batches(&mut self) -> Vec<EventBatch> {
+    pub fn drain_batches(&mut self) -> Vec<T> {
         let mut out = Vec::with_capacity(self.batches.len());
         while let Some(b) = self.batches.pop_front() {
             out.push(b);

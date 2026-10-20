@@ -148,6 +148,8 @@ pub enum LegacyReplayError {
     OutputEncoding(String),
     #[error("sensitive actions are unsupported in public legacy reconstruction")]
     SensitiveAction,
+    #[error("native observation batches require an enriched replay profile")]
+    NativeObservations,
     #[error("recorded subscription wire action differs from the adapter")]
     SubscriptionWireMismatch,
     #[error("sink failed; the current step may be partially visible: {0}")]
@@ -506,6 +508,9 @@ where
         for action in self.actions.as_slice() {
             let added = match action {
                 SessionAction::EmitBatch(batch) => batch.events.len(),
+                SessionAction::EmitObservedBatch(_) => {
+                    return Err(LegacyReplayError::NativeObservations);
+                }
                 SessionAction::EmitSystem(_) => 1,
                 _ => 0,
             };

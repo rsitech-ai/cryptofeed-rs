@@ -164,6 +164,11 @@ impl ActionDto {
             },
             SessionAction::CancelTimer(v) => Self::CancelTimer(*v),
             SessionAction::EmitBatch(v) => Self::EmitBatch(batch(v)?),
+            SessionAction::EmitObservedBatch(_) => {
+                return Err(invalid(
+                    "native observation batches require an enriched causal profile",
+                ));
+            }
             SessionAction::EmitSystem(v) => Self::EmitSystem(system(v, session)?),
             SessionAction::MarkLive => Self::MarkLive,
             SessionAction::MarkDegraded => Self::MarkDegraded,
@@ -190,6 +195,11 @@ impl ItemDto {
     fn item(value: &CaptureQueueItem, session: u64) -> Result<Self, CodecError> {
         Ok(match value {
             CaptureQueueItem::Market(v) => Self::Market(batch(v)?),
+            CaptureQueueItem::ObservedMarket(_) => {
+                return Err(invalid(
+                    "native observation batches require an enriched causal profile",
+                ));
+            }
             CaptureQueueItem::System(v) => Self::System(system(v, session)?),
             CaptureQueueItem::Write(v) => Self::Write(v.into()),
             CaptureQueueItem::Http(v) => Self::Http(v.into()),

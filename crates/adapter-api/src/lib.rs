@@ -7,6 +7,7 @@
 mod error;
 mod exact_json;
 mod factory;
+mod native_observation;
 mod session;
 mod subscription;
 mod venue;
@@ -14,6 +15,7 @@ mod venue;
 pub use error::*;
 pub use exact_json::*;
 pub use factory::*;
+pub use native_observation::*;
 pub use session::*;
 pub use subscription::*;
 pub use venue::*;

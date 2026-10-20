@@ -2,8 +2,11 @@
 
 This is the next implementation contract after bounded multi-owner replay.
 It extends the [causal integration contract](causal_journal_integration_contract.md).
-The APIs and profiles described below are required work, not an implemented or
-qualified consumer path. The current HLS735 reader still uses legacy accepted
+The enriched durable APIs and profiles described below remain required work,
+not an implemented or qualified consumer path. The isolated
+[in-memory carrier](causal_native_observation_carrier.md) now retains typed
+native fields, outer source clocks and canonical queue fate; it does not grant
+durable projection authority. The current HLS735 reader still uses legacy accepted
 raw frames. The current multi-owner candidate only verifies native disk/null
 owner histories; it does not implement this projection.
 

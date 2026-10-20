@@ -222,6 +222,9 @@ pub enum SessionAction {
     ScheduleTimer(TimerSpec),
     CancelTimer(u64),
     EmitBatch(EventBatch),
+    /// Canonical and native observations share one queue/drop/release fate.
+    /// Requires an explicitly capable sink and enriched durable profile.
+    EmitObservedBatch(crate::ObservedEventBatch),
     EmitSystem(SystemEvent),
     MarkLive,
     MarkDegraded,
