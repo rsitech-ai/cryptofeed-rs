@@ -313,6 +313,9 @@ pub enum CaptureDrainPolicy {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedOperation {
+    /// Owning runner identity, independent of adapter-supplied batch fields.
+    pub venue: VenueId,
+    pub session: SessionId,
     pub ordinal: u64,
     pub generation: u64,
     pub original_input: CaptureInput,
@@ -477,6 +480,8 @@ impl CaptureSession {
             CaptureCompleteness::Incomplete,
         );
         Ok(CapturedOperation {
+            venue: self.config.venue,
+            session: self.config.session,
             ordinal,
             generation,
             original_input: input,

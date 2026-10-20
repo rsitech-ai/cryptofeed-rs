@@ -1185,6 +1185,7 @@ dependencies = [
 name = "marketfeed-engine"
 version = "0.1.0-alpha.1"
 dependencies = [
+ "base64",
  "bytes",
  "libc",
  "marketfeed-adapter-api",
@@ -1196,6 +1197,7 @@ dependencies = [
  "marketfeed-replay",
  "marketfeed-sinks",
  "marketfeed-transport",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror",

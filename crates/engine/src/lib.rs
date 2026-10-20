@@ -3,6 +3,7 @@
 // deny (not forbid): latency_runtime::affinity needs sched_setaffinity on Linux.
 #![deny(unsafe_code)]
 
+pub mod causal;
 mod control;
 mod error;
 mod latency_runtime;
