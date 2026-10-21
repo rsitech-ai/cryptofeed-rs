@@ -8,11 +8,12 @@ test loop is not an exchange-data soak or operational promotion.
 
 ## Before the handoff
 
-1. Published reader26021f0 passes its own17 hosted jobs, including required Mac/Linux
-   hosts. Preserve the earlier watchdog failures and cancelled coverage; their
-   full causes remain unproven. Requalify every later source revision on its own
-   hosts rather than inheriting this predecessor result.
-2. Qualify the implemented opt-in causal live transport and its durable outbound
+1. Published producer84aa635 passes its own required Mac, Linux x86_64 and
+   Linux aarch64 checks, including the original paused32 watchdog and closing
+   regressions. Its CI has16 successful jobs and one secondary Windows watchdog
+   failure. Preserve all earlier failures and cancelled coverage. Subsequent
+   diagnostics and pipeline candidates need their own source-specific proof.
+2. Preserve qualification of the implemented opt-in causal live transport and its durable outbound
    intent/result protocol as one combined source. Captured null-drain writes are not authorization to send over a
    socket. One privately owned native session must drive acquisition, control,
    timers, reconnects and shutdown; no second legacy runner may shadow it.
@@ -27,11 +28,20 @@ test loop is not an exchange-data soak or operational promotion.
    ACK spans, immutable Full retry and fault/Seal behavior. Register batch 8 as the
    sole request change for a new matching growing-feed comparison; do not claim
    it repairs native acquisition lag from target-only transaction counts.
-4. The direct Quants reader and diagnostic observer are locally qualified; new
-   MFCJ5 capture/consumer integration needs its own actual checks. Bind cursor pairs to the consumer's restored
+4. Published HLS1338b01 and Quants67a9e1d consume the same MFCJ5-derived MFOP
+   feed in actual growing-feed checks. Joint13 has matching sealed cursor pairs
+   and retained native verification, but perps acquisition freshness remains
+   unqualified despite its24ms final projection tail. Actual Quants joint11
+   application restarts preserve state and cursor pairs at5/11/7707/7708 groups
+   and sealed idle. Bind cursor pairs to the consumer's restored
    state/config/version; acknowledging a feed does not persist feature state.
    Structural MFOP validation is separate from native source comparison and
    research dataset admission. Unknown usable time stays unavailable.
+5. Finish the acquisition pipeline repair and its failure/replay/integrated
+   checks before offering the longer Razer run. Quants hosted tests currently
+   execute zero steps because GitHub rejects jobs for an account payment/spending
+   restriction; the account owner must resolve it and rerun the unchanged
+   workflow. Local tests do not substitute for required hosted platform proof.
 
 ## Reproducible host preflight
 

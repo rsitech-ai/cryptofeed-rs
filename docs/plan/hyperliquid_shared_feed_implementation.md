@@ -1,5 +1,18 @@
 # Hyperliquid shared feed implementation and verification ledger
 
+Current checkpoint, 2026-10-21: [active scope](active_goal_scope.json) tracks the
+current source and required gates; the dated entries below preserve earlier
+results. Published producer84aa635 passes required Mac and both Linux hosts.
+Published HLS1338b01 and Quants67a9e1d consume the authoritative projected feed;
+Quants hosted tests remain blocked before execution by an account restriction.
+The [application-read diagnostic](acquisition_read_diagnostics.md) has local
+source-specific tests and actual joint13 consumer/native reconciliation, but
+perps acquisition backlog remains open. The next bounded repair is
+[Completion/Intent admission](completion_intent_pipeline.md). Razer verification,
+strict historical dataset/context admission and the original480 workload remain
+separate gates. Earlier pending dispositions below are historical, not current
+completion claims.
+
 User-authorized implementation goal, 2026-10-19. Baseline cryptofeed
 `8b186c33fa6b5cc99060a0efe20f4ff8d4b5801f`, hlscreen
 `6deb7f506e90c238b63d9c057f9a477c8f65f662`. Work branches:

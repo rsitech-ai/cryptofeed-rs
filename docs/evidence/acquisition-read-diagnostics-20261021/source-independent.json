@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "status": "STATIC_SOURCE_REVIEW_PASS; AUTHOR_FOCUSED_EXECUTION_INSPECTED_ONLY",
+  "scope": "Independent bounded source/code/fixture/provenance review; no Rust or native/consumer/collector execution and no tracked changes",
+  "base_commit": "84aa63534f79ae65161117effd624d66f0294f48",
+  "source_manifest": {
+    "path": "private-evidence/producer/.local/acquisition-diagnostics-qualification/source-03.json",
+    "bytes": 91975,
+    "sha256": "829b4cb22b11c806fcf76c39fb02d6ea981f37de7c52f9b35cb4b50554e916a3"
+  },
+  "source_sha256": "347481b92b568c3bd57a1f971121ab216573c8f8092740be9dc62f2a4df7b4e4",
+  "source_membership_and_all_current_bytes_verified": 568,
+  "changed_paths": {
+    "crates/daemon/src/causal_bootstrap/capture_run.rs": {
+      "bytes": 21666,
+      "sha256": "4fcefde5df6eda3838261af9e8a25e9eca2ca609bf7a6a3f7261fc615de2565d"
+    },
+    "crates/daemon/src/causal_bootstrap/live.rs": {
+      "bytes": 40848,
+      "sha256": "1fc0cd42bd0bab008cd7cd29c8b64ff015182d78dfe46c77605e04ace6c122ab"
+    },
+    "crates/daemon/src/causal_bootstrap/live_diagnostic_tests.rs": {
+      "bytes": 7243,
+      "sha256": "9b008a1cffb2be1fb4ca878055ae0b942beece1f24c47c499a89e8a64cc31b30"
+    },
+    "crates/daemon/src/causal_bootstrap/live_diagnostics.rs": {
+      "bytes": 10396,
+      "sha256": "33658d91ca33ebce666174188ae863aae1e36757f80aec8bb189e0b6cc93f89c"
+    },
+    "crates/daemon/src/causal_bootstrap/live_tests.rs": {
+      "bytes": 52863,
+      "sha256": "334fda6b8c7a830c4366ea4fe1dbce78b50f9ad00daad8dc88d937cf1ed70384"
+    }
+  },
+  "all_other563_original_build_inputs_byte_identical": true,
+  "old_live_tests_exact_prefix": true,
+  "old_original_watchdogs_caps_cases_preserved": true,
+  "legacy_driver_report_expression_exact_except2_additive_fields": true,
+  "source02_to03_changes_are_tests_only": true,
+  "findings": [],
+  "invariants": [
+    {
+      "path": "crates/daemon/src/causal_bootstrap/live.rs",
+      "symbols": [
+        "Core::owner_quiescent",
+        "Core::read_gate_reason"
+      ],
+      "conclusion": "Same owner status snapshot/Idle requirement/pending-operation and observation counts/wire count+clean predicate and short-circuiting. Reasons sample wait entry, not phase residency."
+    },
+    {
+      "path": "crates/daemon/src/causal_bootstrap/live.rs",
+      "symbols": [
+        "Core::run"
+      ],
+      "conclusion": "Both original transport.read_frame method calls remain eager at select expression construction; wrapper async body starts first poll only. Stop/read/timer/poll branch order, due timer logic, caps, admission, wire token invocation and FrameStamp wall-time sites are unchanged. Added Instant calls are measurement overhead, not permission or wall-clock rewriting."
+    },
+    {
+      "path": "crates/daemon/src/causal_bootstrap/live_diagnostics.rs",
+      "symbols": [
+        "TimingSpan::observe",
+        "TimingCounters",
+        "ReadAttempt",
+        "observed_read"
+      ],
+      "conclusion": "Fixed12 TimingSpan counters, no variable retention. Duration/count/total overflow clamps to u64MAX and latches saturation. Exactly one frame/error/returnedTimeout or polledDrop partition; unpolled wrapper creates no attempt. RAII covers inner unwind while surrounding counter owner survives."
+    },
+    {
+      "path": "crates/daemon/src/causal_bootstrap/live_diagnostics.rs",
+      "symbols": [
+        "driver_report_value"
+      ],
+      "conclusion": "All legacy driver report expressions retained exactly; adds diagnostics and explicit local monotonic/non-additive/unknown-arrival scope. No Bootstrap, negotiated policy/profile, wire/codec or financial/native leaf changes."
+    },
+    {
+      "path": "crates/daemon/src/causal_bootstrap/live_diagnostic_tests.rs",
+      "symbols": [
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing"
+      ],
+      "conclusion": "Real existing TestTransport mpsc pending/read results and actual owner pause exercise no second acquisition, subsequent exact native payload/FrameStamp and clean Stop; existing production formatter supplies serialization assertions. Actual eager-biased-select/unwind counters separately challenged in source03."
+    }
+  ],
+  "author_focused_evidence": {
+    "receipt": {
+      "path": "private-evidence/producer/.local/acquisition-diagnostics-qualification/focused-03.json",
+      "bytes": 740,
+      "sha256": "fa25a3f9041b8c30786be59fd1455dc5bec7f062d56454364be41ba65240d659"
+    },
+    "log": {
+      "path": "private-evidence/producer/.local/acquisition-diagnostics-qualification/focused-03.log",
+      "bytes": 5399,
+      "sha256": "6fdf8ba62760d9b452ac6eb043a21a1abf8dd6b5bc26862965bc5d99e395dbfa"
+    },
+    "reported_actual_session": 70085,
+    "reported_terminal_chunk": "2e93d7",
+    "actual_process_exit": 0,
+    "parsed_counts": {
+      "passed": 30,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 238
+    },
+    "required_new6_cases": [
+      "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+      "exact_duration_accumulation_partition_and_saturation",
+      "observed_gate_run_closes_once_including_terminal_partial_run",
+      "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+      "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+      "buffered_frames_wait_for_actual_owner_and_report_application_read_timing"
+    ],
+    "executed_by_independent_reviewer": false
+  },
+  "preserved_compile_only_failure": {
+    "receipt": {
+      "path": "private-evidence/producer/.local/acquisition-diagnostics-qualification/focused-01.json",
+      "bytes": 735,
+      "sha256": "d1600668ea6bd972bf964def4f9a526549fdc6019e9d0c27095bf63b099696cc"
+    },
+    "log": {
+      "path": "private-evidence/producer/.local/acquisition-diagnostics-qualification/focused-01.log",
+      "bytes": 630,
+      "sha256": "9a78291ea596f840cd98c574983b9e877d58dcf32c462af01274a81d8d212733"
+    },
+    "scope": "Formatter testmodule path was inaccessible; no tests executed. Not a product behavior red."
+  },
+  "earlier_observability_red": {
+    "path": "private-evidence/producer/.local/acquisition-diagnostics-qualification/old-report-red-01.json",
+    "bytes": 1345,
+    "sha256": "0ade2309b2ffbcc51c79e1ca6564b003162b89c1aaf0a04b750762f84260f054"
+  },
+  "helper": {
+    "path": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/acquisition-diagnostics-source-independent-01.py",
+    "bytes": 10013,
+    "sha256": "4fd8d10c962a9d6f06763b73489ba136bc3b75e836cbaa5db00da9a23b7bc7e7"
+  },
+  "limitations": [
+    "Counters start at first poll, not at the synchronous trait method call; eager construction is preserved but not timed.",
+    "A cancelled/aborted/unwound whole driver may produce no terminal report; new unwind test keeps external counter owner alive.",
+    "Observed gate runs include loop/wire work between false/true gate observations; waits and runs overlap and are not phase residency or additive totals. Disconnected connect-gate and final owner/actor joins are not measured as connected application-read spans.",
+    "No kernel/socket/TLS arrival, native timestamp meaning, clock synchronization, native availability or historical usable-at time is observed.",
+    "Instrumentation overhead and real live scheduling/performance are unmeasured here. Source03 is not qualified by predecessor84aa hosted/local gates or HLS/joint12 evidence.",
+    "Focused author30 passing cases were inspected, not independently executed. Full workspace/MSRV/release/security and new source own hosted/pilot evidence remain parent-owned future gates."
+  ],
+  "portable_copy": {
+    "original_sha256": "e93d13cac0445090ab2ff68b09c522a740fae15ea35b6b4a82614b9e38d2f200",
+    "original_bytes": 8060,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

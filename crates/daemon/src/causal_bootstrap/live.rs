@@ -27,6 +27,12 @@ use std::{
 };
 use tokio::sync::Notify;
 
+#[path = "live_diagnostics.rs"]
+mod diagnostics;
+pub(super) use diagnostics::driver_report_value;
+use diagnostics::{GateReason, TimingCounters, observed_read};
+pub use diagnostics::{GateWaitTiming, ReadCallTiming, ReadDiagnostics, TimingSpan};
+
 pub const DRIVER_POLICY_ROLE: &str = "hyperliquid-owned-public-driver-v1";
 /// Canonical bounds committed BEFORE constructing the driver. Version 1 admits
 /// periodic native timer polls. Version 2 admits a poll only when the latest
@@ -319,6 +325,7 @@ pub struct DriverReport {
     pub duration: Duration,
     pub transport_error_count: u64,
     pub last_transport_error: Option<TransportDiagnostic>,
+    pub read_diagnostics: ReadDiagnostics,
 }
 pub struct CausalHyperliquidDriver {
     core: Core<BudgetedWebSocket>,
@@ -505,11 +512,22 @@ impl<T: WebSocketTransport> Core<T> {
         wall_time()
     }
     fn owner_quiescent(&self) -> bool {
+        self.read_gate_reason().is_none()
+    }
+    fn read_gate_reason(&self) -> Option<GateReason> {
         let status = self.owner.status();
-        status.owner.phase == OwnerPhase::Idle
-            && status.owner.pending_operations == 0
-            && status.ingress_observations == 0
-            && self.owner.wire_progress().is_some_and(|p| p.0 == 0 && p.2)
+        match status.owner.phase {
+            OwnerPhase::Executing => return Some(GateReason::Executing),
+            OwnerPhase::AwaitingAdmission => return Some(GateReason::AwaitingAdmission),
+            OwnerPhase::AwaitingCommit => return Some(GateReason::AwaitingCommit),
+            OwnerPhase::ReleasePending => return Some(GateReason::ReleasePending),
+            OwnerPhase::Stopped => return Some(GateReason::Stopped),
+            OwnerPhase::Idle => {}
+        }
+        if status.owner.pending_operations != 0 || status.ingress_observations != 0 {
+            return Some(GateReason::Pending);
+        }
+        (!self.owner.wire_progress().is_some_and(|p| p.0 == 0 && p.2)).then_some(GateReason::Wire)
     }
     fn submit(&self, input: CaptureInput) -> bool {
         self.admit(input).is_some()
@@ -587,6 +605,7 @@ impl<T: WebSocketTransport> Core<T> {
                 break;
             }
             if reconnect_requested && connected {
+                report.read_timing.close_gate_run(Instant::now());
                 let Some(now) = self.wall_time() else {
                     reason = ExitReason::ClockFailure;
                     break;
@@ -751,26 +770,34 @@ impl<T: WebSocketTransport> Core<T> {
             // Idle additionally requires those dispositions to have drained.
             // Do not acquire another physical frame while that owner work is
             // pending: an accepted input is not a native queue capacity permit.
-            let read = if !self.owner_quiescent() {
-                tokio::select! {
+            let read = if let Some(gate_reason) = self.read_gate_reason() {
+                let wait_started = Instant::now();
+                report.read_timing.begin_gate_run(wait_started);
+                let read = tokio::select! {
                     biased;
                     _ = self.control.shared.wake.notified() => Read::Stop,
                     _ = poll.tick() => Read::Poll,
-                }
+                };
+                report
+                    .read_timing
+                    .gate_wait(gate_reason, wait_started.elapsed());
+                read
             } else if prefer_read {
+                report.read_timing.close_gate_run(Instant::now());
                 tokio::select! {
                     biased;
                     _ = self.control.shared.wake.notified() => Read::Stop,
-                    result = self.transport.read_frame(&mut buffer) => Read::Frame(result),
+                    result = observed_read(self.transport.read_frame(&mut buffer), &mut report.read_timing) => Read::Frame(result),
                     _ = timer.tick() => Read::Timer,
                     _ = poll.tick() => Read::Poll,
                 }
             } else {
+                report.read_timing.close_gate_run(Instant::now());
                 tokio::select! {
                     biased;
                     _ = self.control.shared.wake.notified() => Read::Stop,
                     _ = timer.tick() => Read::Timer,
-                    result = self.transport.read_frame(&mut buffer) => Read::Frame(result),
+                    result = observed_read(self.transport.read_frame(&mut buffer), &mut report.read_timing) => Read::Frame(result),
                     _ = poll.tick() => Read::Poll,
                 }
             };
@@ -862,6 +889,7 @@ impl<T: WebSocketTransport> Core<T> {
                     prefer_read = false;
                 }
                 Read::Frame(Err(error)) => {
+                    report.read_timing.close_gate_run(Instant::now());
                     report.error(TransportStage::Read, error, started);
                     let Some(now) = self.wall_time() else {
                         reason = ExitReason::ClockFailure;
@@ -889,6 +917,7 @@ impl<T: WebSocketTransport> Core<T> {
                 }
             }
         }
+        report.read_timing.close_gate_run(Instant::now());
         let intentional = self.stopping();
         if intentional
             && reason == ExitReason::OwnerFailure
@@ -968,6 +997,7 @@ impl<T: WebSocketTransport> Core<T> {
             duration: started.elapsed(),
             transport_error_count: report.transport_error_count,
             last_transport_error: report.last_transport_error,
+            read_diagnostics: report.read_timing.data,
         }
     }
 }
@@ -981,6 +1011,7 @@ struct Counters {
     native_controls: u64,
     transport_error_count: u64,
     last_transport_error: Option<TransportDiagnostic>,
+    read_timing: TimingCounters,
 }
 impl Counters {
     fn error(&mut self, stage: TransportStage, error: TransportError, started: Instant) {

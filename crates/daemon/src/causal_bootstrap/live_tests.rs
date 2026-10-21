@@ -1440,3 +1440,6 @@ async fn due_only_actual_callback_reschedules_and_does_not_starve_ready_frames_o
     assert!(progress.owners[0].uncertainties.is_empty());
     assert!(!progress.sealed);
 }
+
+#[path = "live_diagnostic_tests.rs"]
+mod diagnostic_tests;
