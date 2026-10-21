@@ -188,6 +188,97 @@ fn nonblocking_receipt_is_empty_before_barrier_and_stable_after_success() {
 }
 
 #[test]
+fn bounded_receipt_wait_wakes_on_actual_ack_and_caches_across_observers() {
+    let temp = tempfile::tempdir().unwrap();
+    let (actor, calls, replies) = gated(&temp, config());
+    let mut ticket = actor.handle().try_submit(tx("bounded wait")).unwrap();
+    calls.recv_timeout(WAIT).unwrap();
+    assert!(ticket.wait_result(Duration::ZERO).is_none());
+    assert!(ticket.wait_result(Duration::from_millis(1)).is_none());
+    assert_eq!(actor.handle().status().pending_operations, 1);
+    let (entered, started) = mpsc::channel();
+    let (settled, result) = mpsc::channel();
+    thread::scope(|scope| {
+        scope.spawn(move || {
+            entered.send(()).unwrap();
+            // Longer than the unchanged test watchdog: an implementation that
+            // sleeps for this interval instead of waking on ACK must fail.
+            let receipt = ticket.wait_result(Duration::from_secs(30)).unwrap();
+            assert_eq!(ticket.try_result(), Some(receipt.clone()));
+            assert_eq!(ticket.wait_result(Duration::ZERO), Some(receipt.clone()));
+            assert_eq!(ticket.wait(), receipt);
+            settled.send(receipt).unwrap();
+        });
+        started.recv_timeout(WAIT).unwrap();
+        replies.send(Reply::Ok).unwrap();
+        let receipt = result.recv_timeout(WAIT).unwrap().unwrap();
+        assert_eq!((receipt.first_sequence, receipt.last_sequence), (1, 1));
+    });
+    let report = actor.shutdown().unwrap();
+    assert_eq!(report.committed_operations, 1);
+    let mut reader = FeedReader::open(temp.path().join("feed"), None).unwrap();
+    assert_eq!(
+        serde_json::to_value(reader.read_next().unwrap().unwrap()).unwrap(),
+        serde_json::to_value(record("bounded wait")).unwrap()
+    );
+    assert!(reader.read_next().unwrap().is_none());
+}
+
+#[test]
+fn bounded_receipt_wait_preserves_attempted_failure_and_queued_settlement() {
+    let temp = tempfile::tempdir().unwrap();
+    let (actor, calls, replies) = gated(&temp, config());
+    let mut active = actor.handle().try_submit(tx("active")).unwrap();
+    calls.recv_timeout(WAIT).unwrap();
+    let mut queued = actor.handle().try_submit(tx("queued")).unwrap();
+    assert!(queued.wait_result(Duration::ZERO).is_none());
+    replies
+        .send(Reply::Error(RecordingError::Io(
+            "bounded wait fault".into(),
+        )))
+        .unwrap();
+    let first = active.wait_result(WAIT).unwrap().unwrap_err();
+    let second = queued.wait_result(WAIT).unwrap().unwrap_err();
+    assert!(matches!(
+        first.disposition,
+        CommitDisposition::Attempted { .. }
+    ));
+    assert_eq!(second.disposition, CommitDisposition::NotAttempted);
+    assert_eq!(active.try_result(), Some(Err(first.clone())));
+    assert_eq!(
+        queued.wait_result(Duration::ZERO),
+        Some(Err(second.clone()))
+    );
+    assert_eq!(active.wait(), Err(first));
+    assert_eq!(queued.wait(), Err(second));
+    assert!(actor.shutdown().is_err());
+}
+
+#[test]
+fn bounded_receipt_wait_disconnection_is_cached_unknown_without_cancellation() {
+    let temp = tempfile::tempdir().unwrap();
+    let (actor, calls, replies) = gated(&temp, config());
+    let mut ticket = actor.handle().try_submit(tx("still accepted")).unwrap();
+    calls.recv_timeout(WAIT).unwrap();
+    let (sender, receiver) = mpsc::channel();
+    drop(sender);
+    ticket.receiver = receiver;
+    let failure = ticket.wait_result(WAIT).unwrap().unwrap_err();
+    assert_eq!(failure.disposition, CommitDisposition::Unknown);
+    assert_eq!(failure.failure.cause, BatchFailureCause::ReceiptUnavailable);
+    assert_eq!(ticket.try_result(), Some(Err(failure.clone())));
+    assert_eq!(
+        ticket.wait_result(Duration::ZERO),
+        Some(Err(failure.clone()))
+    );
+    assert_eq!(ticket.wait(), Err(failure));
+    replies.send(Reply::Ok).unwrap();
+    let report = actor.shutdown().unwrap();
+    assert_eq!(report.committed_operations, 1);
+    assert_eq!(report.published.sequence, 1);
+}
+
+#[test]
 fn nonblocking_receipts_preserve_attempted_panic_and_unattempted_suffix() {
     let temp = tempfile::tempdir().unwrap();
     let (actor, calls, replies) = gated(&temp, config());

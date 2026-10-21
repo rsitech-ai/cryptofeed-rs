@@ -1,9 +1,10 @@
-//! One prepared bounded transaction or accepted ticket, outside source owner execution. Fresh
+//! Bounded prepared and accepted transactions, outside source owner execution. Fresh
 //! target only: no append takeover, external delivery or consumer activation.
 use super::replay::*;
 use super::*;
 use marketfeed_engine::causal::projection::*;
 use std::{
+    collections::VecDeque,
     path::Path,
     time::{Duration, Instant},
 };
@@ -58,6 +59,7 @@ struct Prepared {
 }
 struct Accepted {
     groups: usize,
+    bytes: usize,
     after: FeedCursor,
     sealed: bool,
     ticket: CommitTicket,
@@ -69,7 +71,8 @@ pub struct ProjectionPump {
     checkpoint: ProjectionCheckpoint,
     last_publication: Option<ProjectionPublicationReceipt>,
     prepared: Option<Prepared>,
-    accepted: Option<Accepted>,
+    accepted: VecDeque<Accepted>,
+    last_acknowledged_admission: u64,
     prepared_groups: u64,
     max_groups_per_publication: usize,
     max_publication_bytes: usize,
@@ -189,8 +192,8 @@ impl ProjectionPump {
         Self::create_batched(source, policy, path, max_bytes, batch, 1)
     }
     /// Opt-in physical grouping of complete, independently resumable MFOP
-    /// records. No lookahead is held: another native replay step is read only
-    /// when the remaining actor byte budget can fit a policy-maximum record.
+    /// records. Prepared and accepted work share the same bounded record/byte
+    /// window; another native replay step requires room for a maximum record.
     /// Preparation checks the existing grouping age between bounded replay
     /// calls; scheduling, native execution and I/O are not interruptible here.
     pub fn create_batched(
@@ -248,7 +251,8 @@ impl ProjectionPump {
             },
             last_publication: None,
             prepared: None,
-            accepted: None,
+            accepted: VecDeque::new(),
+            last_acknowledged_admission: 0,
             prepared_groups: 0,
             max_groups_per_publication,
             max_publication_bytes: batch.max_group_bytes,
@@ -293,66 +297,188 @@ impl ProjectionPump {
         admit: impl FnOnce(PreparedFeedTransaction) -> Result<CommitTicket, RejectedTransaction>,
         preparation_age: impl FnMut() -> Duration,
     ) -> Result<ProjectionPoll, ProjectionError> {
+        self.poll_with_receipts(admit, preparation_age, CommitTicket::try_result)
+    }
+    fn poll_with_receipts(
+        &mut self,
+        admit: impl FnOnce(PreparedFeedTransaction) -> Result<CommitTicket, RejectedTransaction>,
+        preparation_age: impl FnMut() -> Duration,
+        receive: impl FnMut(&mut CommitTicket) -> Option<Result<CommitReceipt, CommitFailure>>,
+    ) -> Result<ProjectionPoll, ProjectionError> {
         if self.poisoned {
             return Err(ProjectionError::Poisoned);
         }
-        let result = self.poll_inner(admit, preparation_age);
+        let result = self.poll_inner(admit, preparation_age, receive);
         if result.is_err() {
             self.poisoned = true;
         }
         result
     }
+    fn accepted_budget(&self) -> Result<(usize, usize), ProjectionError> {
+        let mut groups = 0usize;
+        let mut bytes = 0usize;
+        let mut sealed = false;
+        for a in &self.accepted {
+            if sealed || a.groups == 0 || a.bytes == 0 {
+                return Err(ProjectionError::Invalid("accepted projection window"));
+            }
+            groups = groups
+                .checked_add(a.groups)
+                .filter(|n| *n <= self.max_groups_per_publication)
+                .ok_or(ProjectionError::Invalid("projection record window"))?;
+            bytes = bytes
+                .checked_add(a.bytes)
+                .filter(|n| *n <= self.max_publication_bytes)
+                .ok_or(ProjectionError::Invalid("projection encoded byte window"))?;
+            sealed = a.sealed;
+        }
+        Ok((groups, bytes))
+    }
+    fn validate_window(&self) -> Result<(), ProjectionError> {
+        let (groups, bytes) = self.accepted_budget()?;
+        if let Some(p) = &self.prepared {
+            if self.accepted.back().is_some_and(|a| a.sealed)
+                || p.transaction.record_count() == 0
+                || groups
+                    .checked_add(p.transaction.record_count())
+                    .is_none_or(|n| n > self.max_groups_per_publication)
+                || bytes
+                    .checked_add(p.transaction.encoded_bytes_bound())
+                    .is_none_or(|n| n > self.max_publication_bytes)
+            {
+                return Err(ProjectionError::Invalid("prepared projection window"));
+            }
+        }
+        Ok(())
+    }
+    /// A ticket names one transaction, but its published cursor covers the
+    /// entire physical actor group. Keep every reservation until all receipts
+    /// for that known group prove the same complete target/source interval.
+    fn observe_publication(
+        &mut self,
+        receive: &mut impl FnMut(&mut CommitTicket) -> Option<Result<CommitReceipt, CommitFailure>>,
+    ) -> Result<bool, ProjectionError> {
+        let Some(front) = self.accepted.front_mut() else {
+            return Ok(false);
+        };
+        let Some(result) = receive(&mut front.ticket) else {
+            return Ok(false);
+        };
+        let first_receipt = result?;
+        let published = &first_receipt.published;
+        if published.feed_id != self.checkpoint.target.feed_id
+            || published.sequence <= self.checkpoint.target.sequence
+            || published.offset <= self.checkpoint.target.offset
+        {
+            return Err(ProjectionError::Invalid("target publication cursor"));
+        }
+        let mut target_sequence = self.checkpoint.target.sequence;
+        let mut source_after = self.checkpoint.source.clone();
+        let mut admission = self.last_acknowledged_admission;
+        let mut groups = 0usize;
+        let mut sealed = false;
+        let mut covered = None;
+        for (index, a) in self.accepted.iter().enumerate() {
+            target_sequence = target_sequence
+                .checked_add(a.groups as u64)
+                .ok_or(ProjectionError::Invalid("target sequence overflow"))?;
+            if sealed
+                || admission.checked_add(1) != Some(a.ticket.admission())
+                || source_after.sequence.checked_add(a.groups as u64) != Some(a.after.sequence)
+                || source_after.feed_id != a.after.feed_id
+                || source_after.offset >= a.after.offset
+            {
+                return Err(ProjectionError::Invalid("accepted source/admission chain"));
+            }
+            source_after = a.after.clone();
+            admission = a.ticket.admission();
+            groups += a.groups; // validate_window already bounds the whole FIFO.
+            sealed = a.sealed;
+            if target_sequence >= published.sequence {
+                if target_sequence != published.sequence {
+                    return Err(ProjectionError::Invalid("publication splits transaction"));
+                }
+                covered = Some(index + 1);
+                break;
+            }
+        }
+        let covered = covered.ok_or(ProjectionError::Invalid("unknown publication boundary"))?;
+        let mut first_sequence = self
+            .checkpoint
+            .target
+            .sequence
+            .checked_add(1)
+            .ok_or(ProjectionError::Invalid("target sequence overflow"))?;
+        for index in 0..covered {
+            let a = &mut self.accepted[index];
+            let receipt = if index == 0 {
+                first_receipt.clone()
+            } else {
+                let Some(result) = receive(&mut a.ticket) else {
+                    // CommitTicket caches already observed receipts. Actor
+                    // status/refunded credits cannot release this reservation.
+                    return Ok(false);
+                };
+                result?
+            };
+            let last_sequence = first_sequence
+                .checked_add(a.groups as u64 - 1)
+                .ok_or(ProjectionError::Invalid("target sequence overflow"))?;
+            if receipt.admission != a.ticket.admission()
+                || receipt.first_sequence != first_sequence
+                || receipt.last_sequence != last_sequence
+                || receipt.published != first_receipt.published
+            {
+                return Err(ProjectionError::Invalid("physical publication receipts"));
+            }
+            if index + 1 != covered {
+                first_sequence = last_sequence
+                    .checked_add(1)
+                    .ok_or(ProjectionError::Invalid("target sequence overflow"))?;
+            }
+        }
+        self.last_publication = Some(ProjectionPublicationReceipt {
+            groups: groups as u64,
+            source_before: self.checkpoint.source.clone(),
+            source_after: source_after.clone(),
+            target_before: self.checkpoint.target.clone(),
+            target_after: first_receipt.published.clone(),
+        });
+        self.checkpoint = ProjectionCheckpoint {
+            source: source_after,
+            target: first_receipt.published,
+            sealed,
+        };
+        self.last_acknowledged_admission = admission;
+        for _ in 0..covered {
+            self.accepted.pop_front();
+        }
+        Ok(true)
+    }
     fn poll_inner(
         &mut self,
         admit: impl FnOnce(PreparedFeedTransaction) -> Result<CommitTicket, RejectedTransaction>,
         mut preparation_age: impl FnMut() -> Duration,
+        mut receive: impl FnMut(&mut CommitTicket) -> Option<Result<CommitReceipt, CommitFailure>>,
     ) -> Result<ProjectionPoll, ProjectionError> {
+        self.validate_window()?;
         if self.checkpoint.sealed {
+            if !self.accepted.is_empty() || self.prepared.is_some() {
+                return Err(ProjectionError::Invalid("work after acknowledged seal"));
+            }
             return Ok(ProjectionPoll::Sealed);
         }
-        if let Some(a) = self.accepted.as_mut() {
-            let Some(result) = a.ticket.try_result() else {
-                return Ok(ProjectionPoll::Writing);
-            };
-            let receipt = result?;
-            if Some(receipt.first_sequence) != self.checkpoint.target.sequence.checked_add(1)
-                || a.groups == 0
-                || a.groups > self.max_groups_per_publication
-                || Some(receipt.last_sequence)
-                    != self.checkpoint.target.sequence.checked_add(a.groups as u64)
-                || receipt.published.sequence != receipt.last_sequence
-                || receipt.published.feed_id != self.checkpoint.target.feed_id
-                || receipt.published.offset <= self.checkpoint.target.offset
-                || Some(a.after.sequence)
-                    != self.checkpoint.source.sequence.checked_add(a.groups as u64)
-                || a.after.offset <= self.checkpoint.source.offset
-                || a.after.feed_id != self.checkpoint.source.feed_id
-            {
-                return Err(ProjectionError::Invalid(
-                    "target publication receipt/source boundary",
-                ));
-            }
-            self.last_publication = Some(ProjectionPublicationReceipt {
-                groups: a.groups as u64,
-                source_before: self.checkpoint.source.clone(),
-                source_after: a.after.clone(),
-                target_before: self.checkpoint.target.clone(),
-                target_after: receipt.published.clone(),
-            });
-            self.checkpoint = ProjectionCheckpoint {
-                source: a.after.clone(),
-                target: receipt.published,
-                sealed: a.sealed,
-            };
-            self.accepted = None;
+        if self.observe_publication(&mut receive)? {
             return Ok(ProjectionPoll::Committed);
         }
         if let Some(p) = self.prepared.take() {
             let groups = p.transaction.record_count();
+            let bytes = p.transaction.encoded_bytes_bound();
             return match admit(p.transaction) {
                 Ok(ticket) => {
-                    self.accepted = Some(Accepted {
+                    self.accepted.push_back(Accepted {
                         groups,
+                        bytes,
                         after: p.after,
                         sealed: p.sealed,
                         ticket,
@@ -373,16 +499,25 @@ impl ProjectionPump {
                 Err(rejected) => Err(ProjectionError::Admission(rejected.reason)),
             };
         }
-        let mut after = self.checkpoint.source.clone();
-        let mut records = Vec::with_capacity(self.max_groups_per_publication);
+        let (pending_groups, pending_bytes) = self.accepted_budget()?;
+        if pending_groups == self.max_groups_per_publication
+            || self.accepted.back().is_some_and(|a| a.sealed)
+            || self.max_publication_bytes - pending_bytes < self.worst_record_bytes
+        {
+            return Ok(ProjectionPoll::Writing);
+        }
+        let mut after = self
+            .accepted
+            .back()
+            .map_or_else(|| self.checkpoint.source.clone(), |a| a.after.clone());
+        let mut records = Vec::with_capacity(self.max_groups_per_publication - pending_groups);
         let mut charged = 0usize;
         let mut sealed = false;
-        while records.len() < self.max_groups_per_publication {
-            // Never consume a step that would have to be held for a later
-            // transaction. A maximum record must fit before native replay.
-            if !records.is_empty()
-                && (self.max_publication_bytes.saturating_sub(charged) < self.worst_record_bytes
-                    || preparation_age() >= self.max_preparation_age)
+        while records.len() < self.max_groups_per_publication - pending_groups {
+            // Reserve a policy-maximum record before EVERY replay read, even
+            // the first in a new candidate beside an accepted transaction.
+            if self.max_publication_bytes - pending_bytes - charged < self.worst_record_bytes
+                || (!records.is_empty() && preparation_age() >= self.max_preparation_age)
             {
                 break;
             }
@@ -399,7 +534,7 @@ impl ProjectionPump {
             charged = charged
                 .checked_add(envelope.payload_base64.len())
                 .and_then(|n| n.checked_add(4096))
-                .filter(|n| *n <= self.max_publication_bytes)
+                .filter(|n| *n <= self.max_publication_bytes - pending_bytes)
                 .ok_or(ProjectionError::Invalid(
                     "projection transaction byte budget",
                 ))?;
@@ -410,10 +545,14 @@ impl ProjectionPump {
             }
         }
         if records.is_empty() {
-            return Ok(ProjectionPoll::CaughtUp);
+            return Ok(if self.accepted.is_empty() {
+                ProjectionPoll::CaughtUp
+            } else {
+                ProjectionPoll::Writing
+            });
         }
         let transaction = PreparedFeedTransaction::new(records)?;
-        if transaction.encoded_bytes_bound() > self.max_publication_bytes {
+        if transaction.encoded_bytes_bound() > self.max_publication_bytes - pending_bytes {
             return Err(ProjectionError::Invalid(
                 "projection transaction framing budget",
             ));

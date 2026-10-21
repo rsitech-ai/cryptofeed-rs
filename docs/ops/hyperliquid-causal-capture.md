@@ -19,7 +19,9 @@ Build and retain both tools from the same reviewed source and lockfile:
 
 Use the release profile for operational timing checks. The retained debug runs06
 and07 failed their unchanged two-second final-file-mtime diagnostic; release
-run08 passed it on the same source and request. This short development check is
+run08 passed it on the same source and request, but release run09 failed it at
+3.473495950 seconds with the locally updated consumer. Release optimization alone
+does not establish sustained delivery. This short development check is
 not a freshness SLA. See the [source-specific evidence](../evidence/owned-hyperliquid-capture-20261020/README.md)
 for exact artifact pins, preserved failures and remaining delivery measurements.
 
@@ -103,9 +105,11 @@ strategy feature state.
 
 The optional request field `projection_batch_groups` accepts 1–8; omitted or
 explicit 1 retains the original one-record transaction behavior and the same
-serialized request bytes. A value such as 8 groups complete MFOP records in one
-physical transaction; it changes no native subscriptions, source handoffs or
-consumer logical group. Values 0/9 fail before output creation or HTTP acquisition.
+serialized request bytes. A value such as 8 bounds both each physical publication
+and the total outstanding window to eight complete MFOP records. A candidate
+transaction may contain several records; the writer can combine queued
+transactions in one publication. This changes no native subscriptions, source
+handoffs or consumer logical group. Values 0/9 fail before output creation or HTTP acquisition.
 The report declares the configured maximum and last observed publication's N
 records and exclusive-before/inclusive-after source/target cursor interval.
 
@@ -124,7 +128,20 @@ interruptible or covered by a wall-time guarantee. Caller preparation memory and
 the writer encoding buffer are additional to the actor's pending-byte budget.
 
 A Full refusal retains the exact immutable transaction without replaying native
-callbacks. Pump progress advances only after its actual whole-transaction ACK.
+callbacks or reading past that candidate. Preparation may overlap accepted writes
+within the same N-record/16MiB encoded window. Prepared, accepted and
+receipt-cached records consume credit until their complete physical publication
+is acknowledged; actor status or refunded writer credits never grant progress.
+Every source read first reserves room for a policy-maximum record, including the
+first record of a new candidate beside accepted work. The source replay's
+private speculative state remains bounded by that same window.
+
+Each ticket covers one transaction, while its published cursor can cover later
+transactions in the same physical publication. The pump validates every covered
+ticket's admission, record range, source chain and identical complete published
+cursor before atomically advancing the paired checkpoint. Unknown or
+split-transaction publication ends poison the pump. Partial receipt observation
+retains all credits; Seal becomes visible only after its complete group ACK.
 Readers still acknowledge and resume individual complete MFOP records, including
 boundaries inside a physical transaction. An error while preparing later records
 discards the entire unadmitted candidate and poisons the pump; an earlier valid

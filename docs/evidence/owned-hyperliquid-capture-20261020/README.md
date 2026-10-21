@@ -6,6 +6,70 @@ reexecutes committed history into the shared MFOP feed. See the
 [capture runbook](../../ops/hyperliquid-causal-capture.md) and
 [wire contract](../../plan/causal_application_wire_owner.md).
 
+The receipt-wake plus bounded-overlap successor, source recipe
+`c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1`,
+passes two consecutive full macOS workspace runs: **1,668 passed, zero failed,
+56 ignored** in each. The entire existing paused32 test file, its ten-second
+watchdog and default test concurrency are unchanged. The owner now waits directly
+for a durable receipt up to its existing polling interval, so ACK delivery can
+wake it without waiting on an unrelated condition variable. This changes no
+native permission, event ordering or durability barrier.
+
+[Local validation](receipt-wake-validation.json) and the [566-input source
+inventory](receipt-wake-source.json) bind Rust1.85 default108/core314/native112/
+public80, the release build/core314/native112/public80, denied-warning checks,
+and fresh audit/deny/gitleaks passes. Earlier failures remain retained below.
+Live timing and the final coordinated consumer pins require their own evidence;
+these local tests do not establish native availability or a delivery SLA.
+
+The new [joint run10](joint10.json) passes the unchanged two-second final-file
+mtime gate at **0.024975966 seconds**. All four producer/consumer/verifier children
+exit0; 6,022 records, 1,173 projected items and 1,468 released native rows reconcile.
+The 131 earlier originals and all eight new archive files remain unchanged during
+verification and audits. This uses the qualified predecessor HLS5b9/dbad and
+published Quantsa1d; final new-pin HLS qualification remains separate.
+
+This closes this sample's source-to-projection tail, **not native acquisition
+freshness**. Perps timestamp/receipt differences reach 46.628 seconds for BBO,
+45.145 seconds for books and 46.053 seconds for subsequent trades. Owner ingress
+to handoff is about 154ms at the median. Source6006 and target5988 physical
+publications keep both writers occupied; no source cause or synchronized clock is
+established. Source journal throughput needs further investigation before the
+extended handoff. Source-finished/pre-target-finished intervals were not sampled
+in this run, so their backlog stays unknown.
+
+The earlier [joint run09](joint09.json) **fails** the unchanged two-second timing
+gate at 3.473495950 seconds. The exact published producer `23859663` and rebuilt
+hlscreen `5b9f89c8` reach matching 6,568 sealed records, 1,282 items and 1,551
+released native rows; all four children exit0. Two completed BBO rows are withheld
+at Stop. All 123 earlier originals and eight new files remain unchanged. Unlike
+run08's unsampled final-source interval, run09 observes the final committed source
+while the target is still 1,861 records behind. Perpetual BBO native/acquisition
+deltas reach 42.105 seconds, with native timestamps advancing about 40.339 seconds
+less than acquisition time during the sample. These unsynchronized diagnostics
+do not isolate client, server, transport, filesystem or native last-change causes.
+The earlier release run08 remains a short passing diagnostic, not sustained
+performance qualification.
+
+The earlier overlap-only candidate `0ff75eba` was implemented but **not fully
+qualified**. It retains the existing N<=8 logical-record window, byte limits,
+one-millisecond age checks and all durability barriers. A genuine held-ticket
+regression reproduces the current wait-before-prepare behavior. The proposed
+successor prepares within that same window while earlier writes are pending,
+then validates every transaction receipt covering a whole physical publication
+before advancing paired cursors. No source-owner or external-I/O barrier changes.
+The exact candidate passes all 23 focused projection tests, formatting and denied-warning
+Clippy. Its full stable run fails the existing paused32 10-second watchdog:
+805 tests pass, one fails and 46 are ignored before Cargo stops early. The unchanged
+retained executable passes that case alone in 5.54 seconds; the full-suite cause
+remains unresolved. Rust1.85 default108/core311/native112/public80 and the existing
+release build/core311/native112/public80 gates pass. Denied-warning docs and
+default CLI validation also pass separately. See the [partial validation](projection-overlap-validation.json);
+it explicitly retains the failed full stable gate. No timeout, thread count,
+capacity or workload was changed.
+One sampled closed09 native verification completes in 0.794 seconds with all 131
+originals unchanged; it identifies shared replay work, not the live bottleneck.
+
 The buffered-watermark successor has its own local
 [qualification](watermark-buffering-validation.json) and
 [source inventory](watermark-buffering-source.json), recipe
@@ -15,6 +79,11 @@ native/bootstrap 103 and public integration 80. Actual dependency audit/deny09
 passes apply to its byte-identical manifests, lockfile and dependency inputs;
 this change adds no dependency or exception. The retained debug-profile capture
 is `e6c69783…` and bridge `d96cfc49…`.
+Its own published [hosted qualification](hosted238.json) passes macOS 1,656 and
+both Linux architectures 1,657, with zero failures and 56 ignored per host;
+MSRV/dataset checks pass 795 executions. All 17 jobs are terminal: 16 successful,
+one secondary Windows paused-input watchdog failure, zero cancellations. These
+results qualify source `002a2f5b`, not the new overlap candidate.
 
 The real regular-file regression reproduces 111 backing reads for a 110-byte
 watermark before the fix, then passes with at most two. A fresh bounded buffer
@@ -185,7 +254,13 @@ smokes after the new producer qualifies. Quants RAM-only checkpoint restarts and
 an opt-in adapter invoking the actual native context owner are locally verified;
 the positive context profile is explicitly synthetic spot data. Real history,
 availability, perpetual context and strategy admission remain separate. Quants
-publication awaits approval and the root gitlink is unchanged.
+[draft PR98](https://github.com/s1korrrr/quants-lab/pull/98) now publishes the exact
+tested `a1d45ac5` after user approval; the root gitlink is unchanged. Its own
+[hosted run](https://github.com/s1korrrr/quants-lab/actions/runs/39561301014)
+failed all four jobs before any steps because GitHub reports account payment or
+spending-limit restrictions. See [publication evidence](quants-publication.json).
+The account owner must resolve Billing & plans before the unchanged workflow can
+run; no hosted Mac/Linux test result is claimed.
 Published producer5479's own macOS/Linux results are in `hosted5479.json`;
 they do not qualify this new source. Check longer acquisition
 and full consumer-delivery timing, then rerun the

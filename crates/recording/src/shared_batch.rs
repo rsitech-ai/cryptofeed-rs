@@ -283,6 +283,23 @@ impl CommitTicket {
         }
         self.settled.clone()
     }
+    /// Wait for an actual settlement, bounded by the owner's next safety poll.
+    /// A timeout is only an empty observation and never cancels accepted work.
+    /// Like `try_result`, terminal success/failure/disconnection is cached.
+    /// Use on a dedicated owner thread, without holding its state mutex.
+    pub fn wait_result(
+        &mut self,
+        timeout: Duration,
+    ) -> Option<Result<CommitReceipt, CommitFailure>> {
+        if self.settled.is_none() {
+            self.settled = match self.receiver.recv_timeout(timeout) {
+                Ok(result) => Some(result),
+                Err(mpsc::RecvTimeoutError::Timeout) => None,
+                Err(mpsc::RecvTimeoutError::Disconnected) => Some(self.disconnected()),
+            };
+        }
+        self.settled.clone()
+    }
     fn disconnected(&self) -> Result<CommitReceipt, CommitFailure> {
         let status = self.inner.state.lock().unwrap_or_else(|p| p.into_inner());
         Err(CommitFailure {

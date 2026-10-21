@@ -308,6 +308,14 @@ fn sleep_poll(shared: &HistoryShared) {
         .unwrap_or_else(|p| p.into_inner());
 }
 
+fn receipt_poll_interval(shared: &HistoryShared) -> std::time::Duration {
+    shared
+        .policy
+        .receipt_poll_interval
+        .duration()
+        .expect("validated receipt poll interval")
+}
+
 /// Additional counters describe reserved canonical observation/preparation
 /// bytes, not allocator memory or RSS. The original actor bounds wire buffers;
 /// the bootstrap capture/runner caps additionally bound one native operation.
@@ -842,7 +850,7 @@ fn settle_outstanding(shared: &HistoryShared) {
             let mut t = ticket(shared);
             match t.as_mut() {
                 None => return,
-                Some(t) => t.try_result(),
+                Some(t) => t.wait_result(receipt_poll_interval(shared)),
             }
         };
         if let Some(result) = result {
@@ -853,7 +861,6 @@ fn settle_outstanding(shared: &HistoryShared) {
             });
             return;
         }
-        sleep_poll(shared);
     }
 }
 fn commit(
@@ -906,11 +913,10 @@ fn commit(
         if let Some(result) = ticket(shared)
             .as_mut()
             .expect("owned accepted ticket")
-            .try_result()
+            .wait_result(receipt_poll_interval(shared))
         {
             break result;
         }
-        sleep_poll(shared);
     };
     ticket(shared).take();
     let receipt = match result {

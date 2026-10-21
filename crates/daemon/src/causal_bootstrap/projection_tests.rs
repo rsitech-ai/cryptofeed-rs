@@ -383,6 +383,119 @@ fn projection_multi_record_receipt_advances_exact_contiguous_checkpoint() {
 }
 
 #[test]
+fn projection_bounded_overlap_prepares_while_actual_ticket_waits_and_one_group_owns_all_acks() {
+    fn single_record_poll(pump: &mut ProjectionPump) -> ProjectionPoll {
+        let handle = pump.target.handle();
+        pump.poll_with_preparation_age(
+            |transaction| handle.try_submit(transaction),
+            || Duration::MAX,
+        )
+        .unwrap()
+    }
+
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let mut config = stop_source(&source, false);
+    // Test-only actor hold: count eight actual admissions flushes immediately;
+    // closing the default-one control flushes its partial group. Production
+    // grouping age, all source policies and the existing10s watchdog are intact.
+    config.max_age = Duration::from_secs(30);
+    assert_eq!(config.max_group_operations, 8);
+    assert_eq!(config.max_group_bytes, 16 << 20);
+
+    for maximum in [1, 8] {
+        let target = temp.path().join(format!("overlap-{maximum}"));
+        let mut pump = capture_pump(&source, &target, config, maximum);
+        let handle = pump.target.handle();
+        let before = pump.last_acknowledged().clone();
+        assert_eq!(single_record_poll(&mut pump), ProjectionPoll::Prepared);
+        assert_eq!(
+            pump.prepared.as_ref().unwrap().transaction.record_count(),
+            1
+        );
+        assert_eq!(single_record_poll(&mut pump), ProjectionPoll::Writing);
+        assert_eq!(handle.status().pending_operations, 1);
+        assert_eq!(handle.status().committed_operations, 0);
+        assert_eq!(pump.last_acknowledged(), &before);
+
+        if maximum == 1 {
+            for _ in 0..3 {
+                assert_eq!(single_record_poll(&mut pump), ProjectionPoll::Writing);
+                assert_eq!(pump.source.progress().unwrap().cursor.sequence, 1);
+                assert_eq!(pump.prepared_groups(), 1);
+                assert_eq!(pump.last_acknowledged(), &before);
+            }
+            handle.close();
+            wait(|| single_record_poll(&mut pump) == ProjectionPoll::Committed);
+            assert_eq!(pump.last_acknowledged().source.sequence, 1);
+            assert_eq!(pump.last_acknowledged().target.sequence, 1);
+            let report = pump.shutdown().unwrap();
+            assert_eq!(report.committed_operations, 1);
+            assert_eq!(report.groups, 1);
+            continue;
+        }
+
+        for sequence in 2..=8 {
+            assert_eq!(
+                single_record_poll(&mut pump),
+                ProjectionPoll::Prepared,
+                "opt-in must prepare another committed source step while the first actual ticket is pending; default-one control already verified"
+            );
+            let prepared = &pump.prepared.as_ref().unwrap().transaction;
+            assert_eq!(prepared.record_count(), 1);
+            let status = handle.status();
+            assert_eq!(
+                status.pending_operations + prepared.record_count(),
+                sequence
+            );
+            assert!(status.pending_operations + prepared.record_count() <= 8);
+            assert!(status.pending_bytes + prepared.encoded_bytes_bound() <= 16 << 20);
+            assert_eq!(
+                pump.source.progress().unwrap().cursor.sequence,
+                sequence as u64
+            );
+            assert_eq!(pump.prepared_groups(), sequence as u64);
+            assert_eq!(pump.last_acknowledged(), &before);
+            assert_eq!(single_record_poll(&mut pump), ProjectionPoll::Writing);
+            // Publication may now complete in the actor, but pump checkpoint
+            // authority must remain at the prior pair until its ACKs are read.
+            assert_eq!(pump.last_acknowledged(), &before);
+        }
+        let source_after = pump.source.progress().unwrap().cursor;
+        wait(|| match single_record_poll(&mut pump) {
+            ProjectionPoll::Writing => {
+                assert_eq!(pump.last_acknowledged(), &before);
+                assert_eq!(pump.source.progress().unwrap().cursor, source_after);
+                false
+            }
+            ProjectionPoll::Committed => {
+                assert_eq!(pump.last_acknowledged().source, source_after);
+                assert_eq!(pump.last_acknowledged().target.sequence, 8);
+                true
+            }
+            other => panic!(
+                "eight bounded pending records require one covered ACK prefix, got {other:?}"
+            ),
+        });
+        let after = pump.last_acknowledged().clone();
+        let report = pump.shutdown().unwrap();
+        assert_eq!(report.committed_operations, 8);
+        assert_eq!(report.groups, 1);
+        assert_eq!(report.timings.accepted_records, 8);
+        assert_eq!(report.timings.accepted_transactions, 1); // one physical writer transaction
+        assert_eq!(report.published, after.target);
+        let mut reader = ProjectionReader::open(&target, capture_policy().limits.clone()).unwrap();
+        for sequence in 1..=8 {
+            let group = reader.read_next().unwrap().unwrap();
+            assert_eq!(group.source_after.sequence, sequence);
+            assert_eq!(reader.progress().unwrap().target_cursor.sequence, sequence);
+        }
+        assert_eq!(reader.progress().unwrap().target_cursor, after.target);
+        assert!(reader.read_next().unwrap().is_none());
+    }
+}
+
+#[test]
 fn projection_batch_full_keeps_all_allocations_and_source_frontier_until_ack() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("source");
@@ -482,7 +595,9 @@ fn projection_count_byte_age_and_caught_up_flush_without_held_lookahead() {
                 assert!(n <= count);
                 assert_eq!(
                     pump.source.progress().unwrap().cursor.sequence,
-                    pump.last_acknowledged().source.sequence + n as u64
+                    pump.last_acknowledged().source.sequence
+                        + pump.accepted.iter().map(|a| a.groups as u64).sum::<u64>()
+                        + n as u64
                 );
             }
             poll == ProjectionPoll::CaughtUp
@@ -543,7 +658,11 @@ fn projection_multi_record_unobserved_ack_and_pre_watermark_failure_rebuild_exac
     assert_eq!(failed.poll().unwrap(), ProjectionPoll::Writing);
     wait(|| match failed.poll() {
         Err(ProjectionError::Commit(_)) => true,
-        Ok(ProjectionPoll::Writing) => false,
+        Ok(ProjectionPoll::Writing | ProjectionPoll::Prepared) => {
+            failed.validate_window().unwrap();
+            assert_eq!(failed.last_acknowledged(), &before);
+            false
+        }
         other => panic!("expected actual pre-watermark failure {other:?}"),
     });
     assert!(failed.is_poisoned());
@@ -820,7 +939,7 @@ async fn projection_default_one_and_eight_preserve_exact_native_records_seal_and
         assert!(checkpoint.sealed);
         assert_eq!(checkpoint.source.sequence, logical);
         assert_eq!(checkpoint.target.sequence, logical);
-        assert_eq!(report.committed_operations, report.groups);
+        assert!(report.groups <= report.committed_operations);
         assert!(report.groups <= logical);
         eprintln!(
             "physical batching correctness census: configured_max={maximum} logical_records={logical} target_transactions={} target_publications={}",
@@ -927,7 +1046,7 @@ fn projection_late_invalid_source_discards_unadmitted_batch_and_poisons_without_
             Err(ProjectionError::Replay(_))
         ));
         assert!(pump.is_poisoned());
-        assert!(pump.prepared.is_none() && pump.accepted.is_none());
+        assert!(pump.prepared.is_none() && pump.accepted.is_empty());
         if maximum == 8 {
             assert_eq!(pump.last_acknowledged(), &before);
             assert_eq!(pump.prepared_groups(), 0);
@@ -979,7 +1098,7 @@ fn projection_actual_multi_record_ack_cannot_authorize_wrong_count_or_source_bou
             8
         );
         assert_eq!(pump.poll().unwrap(), ProjectionPoll::Writing);
-        let accepted = pump.accepted.as_mut().unwrap();
+        let accepted = pump.accepted.front_mut().unwrap();
         match mutation {
             0 => accepted.groups = 0,
             1 => accepted.groups = 9,
@@ -987,7 +1106,7 @@ fn projection_actual_multi_record_ack_cannot_authorize_wrong_count_or_source_bou
             _ => accepted.after.offset = before.source.offset,
         }
         wait(|| match pump.poll() {
-            Err(ProjectionError::Invalid("target publication receipt/source boundary")) => true,
+            Err(ProjectionError::Invalid(_)) => true,
             Ok(ProjectionPoll::Writing) => false,
             other => panic!("unexpected malformed boundary result {other:?}"),
         });
@@ -1001,4 +1120,450 @@ fn projection_actual_multi_record_ack_cannot_authorize_wrong_count_or_source_bou
         }
         assert_eq!(visible, 8); // durable whole batch is separate from pump ACK
     }
+}
+
+// Never fabricates a successful receipt: admission, actor flush and ticket
+// caching are real. The receive hook only hides or mutates observed results.
+fn overlap_queue(pump: &mut ProjectionPump, groups: usize) {
+    let handle = pump.target.handle();
+    for _ in 0..groups {
+        assert_eq!(
+            pump.poll_with_receipts(|_| panic!("prepare only"), || Duration::MAX, |_| None)
+                .unwrap(),
+            ProjectionPoll::Prepared
+        );
+        assert_eq!(
+            pump.prepared.as_ref().unwrap().transaction.record_count(),
+            1
+        );
+        assert_eq!(
+            pump.poll_with_receipts(|tx| handle.try_submit(tx), || Duration::MAX, |_| None)
+                .unwrap(),
+            ProjectionPoll::Writing
+        );
+    }
+}
+fn cached_receipts(pump: &mut ProjectionPump) -> Vec<CommitReceipt> {
+    let mut receipts = Vec::new();
+    for a in &mut pump.accepted {
+        let mut found = None;
+        wait(|| {
+            found = a.ticket.try_result();
+            found.is_some()
+        });
+        receipts.push(found.unwrap().unwrap());
+    }
+    receipts
+}
+
+#[test]
+fn projection_overlap_delayed_covered_receipt_retains_window_despite_refunded_actor_credits() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let mut config = stop_source(&source, false);
+    config.max_age = Duration::from_secs(30);
+    let mut pump = capture_pump(&source, &temp.path().join("target"), config, 8);
+    let before = pump.last_acknowledged().clone();
+    overlap_queue(&mut pump, 8);
+    let handle = pump.target.handle();
+    handle.close();
+    let receipts = cached_receipts(&mut pump);
+    assert!(
+        receipts
+            .iter()
+            .all(|r| r.published == receipts[0].published)
+    );
+    assert_eq!(receipts[0].published.sequence, 8);
+    assert_eq!(handle.status().pending_operations, 0);
+    assert_eq!(handle.status().pending_bytes, 0);
+    let frontier = pump.source.progress().unwrap().cursor;
+    for _ in 0..3 {
+        assert_eq!(
+            pump.poll_with_receipts(
+                |_| panic!("full retained window cannot admit"),
+                || Duration::ZERO,
+                |ticket| {
+                    let actual = ticket.try_result(); // exercise cached result on every repeat
+                    if ticket.admission() == 2 {
+                        None
+                    } else {
+                        actual
+                    }
+                }
+            )
+            .unwrap(),
+            ProjectionPoll::Writing
+        );
+        assert_eq!(pump.last_acknowledged(), &before);
+        assert!(pump.last_publication().is_none());
+        assert_eq!(pump.accepted.len(), 8);
+        assert_eq!(pump.source.progress().unwrap().cursor, frontier);
+        assert!(pump.prepared.is_none());
+    }
+    assert_eq!(pump.poll().unwrap(), ProjectionPoll::Committed);
+    assert!(pump.accepted.is_empty());
+    assert_eq!(pump.last_acknowledged().source, frontier);
+    assert_eq!(pump.last_acknowledged().target, receipts[0].published);
+    assert_eq!(pump.last_publication().unwrap().groups, 8);
+    assert_eq!(pump.shutdown().unwrap().groups, 1);
+}
+
+#[test]
+fn projection_overlap_distinct_publications_use_admissions_not_record_sequences() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let config = stop_source(&source, false);
+    let mut pump = capture_pump(&source, &temp.path().join("target"), config, 8);
+    let before = pump.last_acknowledged().clone();
+    let handle = pump.target.handle();
+    let mut age_calls = 0;
+    assert_eq!(
+        pump.poll_with_receipts(
+            |_| panic!(),
+            || {
+                age_calls += 1;
+                if age_calls == 1 {
+                    Duration::ZERO
+                } else {
+                    Duration::MAX
+                }
+            },
+            |_| None
+        )
+        .unwrap(),
+        ProjectionPoll::Prepared
+    );
+    assert_eq!(
+        pump.prepared.as_ref().unwrap().transaction.record_count(),
+        2
+    );
+    assert_eq!(
+        pump.poll_with_receipts(|tx| handle.try_submit(tx), || Duration::MAX, |_| None)
+            .unwrap(),
+        ProjectionPoll::Writing
+    );
+    wait(|| handle.status().committed_operations == 1);
+    overlap_queue(&mut pump, 1);
+    wait(|| handle.status().committed_operations == 2);
+    let receipts = cached_receipts(&mut pump);
+    assert_eq!(
+        (
+            receipts[0].admission,
+            receipts[0].first_sequence,
+            receipts[0].last_sequence,
+            receipts[0].published.sequence
+        ),
+        (1, 1, 2, 2)
+    );
+    assert_eq!(
+        (
+            receipts[1].admission,
+            receipts[1].first_sequence,
+            receipts[1].last_sequence,
+            receipts[1].published.sequence
+        ),
+        (2, 3, 3, 3)
+    );
+    assert_eq!(pump.last_acknowledged(), &before);
+    assert_eq!(pump.poll().unwrap(), ProjectionPoll::Committed);
+    let first = pump.last_acknowledged().clone();
+    assert_eq!(first.source.sequence, 2);
+    assert_eq!(first.target, receipts[0].published);
+    assert_eq!(pump.accepted.len(), 1);
+    assert_eq!(pump.poll().unwrap(), ProjectionPoll::Committed);
+    assert_eq!(pump.last_acknowledged().source.sequence, 3);
+    assert_eq!(pump.last_publication().unwrap().target_before, first.target);
+    assert_eq!(pump.last_publication().unwrap().source_before, first.source);
+    assert_eq!(pump.last_publication().unwrap().groups, 1);
+    let report = pump.shutdown().unwrap();
+    assert_eq!((report.committed_operations, report.groups), (2, 2));
+}
+
+#[test]
+fn projection_overlap_actual_receipt_tampering_or_covered_failure_never_partially_acknowledges() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let mut config = stop_source(&source, false);
+    config.max_age = Duration::from_secs(30);
+    for mutation in 0..8 {
+        let mut pump = capture_pump(
+            &source,
+            &temp.path().join(format!("target-{mutation}")),
+            config,
+            8,
+        );
+        let before = pump.last_acknowledged().clone();
+        overlap_queue(&mut pump, 8);
+        pump.target.handle().close();
+        let receipts = cached_receipts(&mut pump);
+        let actual_published = receipts[0].published.clone();
+        let result = pump.poll_with_receipts(
+            |_| panic!("receipt validation must precede admission"),
+            || Duration::MAX,
+            |ticket| {
+                let mut result = ticket.try_result();
+                if let Some(Ok(r)) = &mut result {
+                    match mutation {
+                        0 if r.admission == 2 => r.admission += 1,
+                        1 if r.admission == 2 => r.first_sequence -= 1,
+                        2 if r.admission == 2 => r.last_sequence += 1,
+                        3 if r.admission == 2 => r.published.offset += 1,
+                        4 if r.admission == 1 => r.published.sequence = 9,
+                        5 if r.admission == 1 => r.published.sequence = 0,
+                        6 if r.admission == 1 => r.published.feed_id.push('0'),
+                        7 if r.admission == 2 => {
+                            return Some(Err(CommitFailure {
+                                admission: r.admission,
+                                failure: BatchFailure {
+                                    cause: BatchFailureCause::ReceiptUnavailable,
+                                    last_acknowledged: before.target.clone(),
+                                },
+                                disposition: CommitDisposition::Unknown,
+                            }));
+                        }
+                        _ => {}
+                    }
+                }
+                result
+            },
+        );
+        assert!(result.is_err(), "mutation {mutation} unexpectedly ACKed");
+        assert!(pump.is_poisoned());
+        assert_eq!(pump.last_acknowledged(), &before);
+        assert!(pump.last_publication().is_none());
+        assert_eq!(pump.accepted.len(), 8);
+        assert!(matches!(pump.poll(), Err(ProjectionError::Poisoned)));
+        let report = pump.shutdown().unwrap();
+        assert_eq!(report.published, actual_published); // disk publication is not pump acknowledgement
+    }
+}
+
+#[test]
+fn projection_overlap_full_and_aggregate_bytes_retain_exact_pending_window() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let mut config = stop_source(&source, false);
+    config.max_age = Duration::from_secs(30);
+    let mut pump = capture_pump(&source, &temp.path().join("target"), config, 8);
+    let before = pump.last_acknowledged().clone();
+    overlap_queue(&mut pump, 1);
+    assert_eq!(
+        pump.poll_with_receipts(|_| panic!(), || Duration::MAX, |_| None)
+            .unwrap(),
+        ProjectionPoll::Prepared
+    );
+    let pointers = |pump: &ProjectionPump| {
+        pump.prepared
+            .as_ref()
+            .unwrap()
+            .transaction
+            .records()
+            .iter()
+            .map(|r| {
+                let FeedRecord::Projection(e) = r else {
+                    panic!()
+                };
+                e.payload_base64.as_ptr() as usize
+            })
+            .collect::<Vec<_>>()
+    };
+    let allocation = pointers(&pump);
+    let frontier = pump.source.progress().unwrap().cursor;
+    for _ in 0..3 {
+        assert_eq!(
+            pump.poll_with_receipts(
+                |transaction| Err(RejectedTransaction {
+                    reason: AdmissionFailure::Full,
+                    transaction
+                }),
+                || Duration::MAX,
+                |_| None
+            )
+            .unwrap(),
+            ProjectionPoll::Full
+        );
+        assert_eq!(pointers(&pump), allocation);
+        assert_eq!(pump.accepted.len(), 1);
+        assert_eq!(pump.source.progress().unwrap().cursor, frontier);
+        assert_eq!(pump.last_acknowledged(), &before);
+        pump.validate_window().unwrap();
+    }
+    let handle = pump.target.handle();
+    assert_eq!(
+        pump.poll_with_receipts(|tx| handle.try_submit(tx), || Duration::MAX, |_| None)
+            .unwrap(),
+        ProjectionPoll::Writing
+    );
+    let maximum = pump.max_publication_bytes;
+    let bytes = pump.accepted.iter().map(|a| a.bytes).sum::<usize>();
+    // Exact aggregate boundary: existing accepted bytes fit, but the next
+    // policy-maximum record cannot be reserved. No replay lookahead is allowed.
+    pump.max_publication_bytes = bytes + pump.worst_record_bytes - 1;
+    for _ in 0..3 {
+        assert_eq!(
+            pump.poll_with_receipts(
+                |_| panic!("no remaining conservative byte reservation"),
+                || Duration::ZERO,
+                |_| None
+            )
+            .unwrap(),
+            ProjectionPoll::Writing
+        );
+        assert_eq!(pump.source.progress().unwrap().cursor, frontier);
+        assert_eq!(pump.accepted.len(), 2);
+        assert!(pump.prepared.is_none());
+        assert_eq!(pump.last_acknowledged(), &before);
+    }
+    pump.max_publication_bytes = maximum;
+    handle.close();
+    cached_receipts(&mut pump);
+    assert_eq!(pump.poll().unwrap(), ProjectionPoll::Committed);
+    assert_eq!(pump.last_acknowledged().source.sequence, 2);
+    assert_eq!(pump.shutdown().unwrap().groups, 1);
+}
+
+#[test]
+fn projection_overlap_real_failure_after_eight_admissions_keeps_old_checkpoint() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let mut config = stop_source(&source, false);
+    config.max_age = Duration::from_secs(30);
+    let target = temp.path().join("target");
+    let mut pump = capture_pump(&source, &target, config, 8);
+    let before = pump.last_acknowledged().clone();
+    overlap_queue(&mut pump, 7);
+    std::fs::write(target.join("committed.tmp"), b"occupied staging name").unwrap();
+    overlap_queue(&mut pump, 1); // the eighth actual admission flushes all eight
+    wait(|| match pump.poll() {
+        Err(ProjectionError::Commit(_)) => true,
+        Ok(ProjectionPoll::Writing) => false,
+        other => panic!("{other:?}"),
+    });
+    assert!(pump.is_poisoned());
+    assert_eq!(pump.last_acknowledged(), &before);
+    assert!(pump.last_publication().is_none());
+    assert!(matches!(pump.poll(), Err(ProjectionError::Poisoned)));
+    assert!(pump.shutdown().is_err());
+    let mut reader = ProjectionReader::open(&target, capture_policy().limits).unwrap();
+    assert!(reader.read_next().unwrap().is_none());
+    assert!(std::fs::metadata(target.join("events.mfsf")).unwrap().len() > 48);
+}
+
+#[test]
+fn projection_overlap_unacknowledged_seal_prevents_any_later_source_read() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let config = stop_source(&source, true);
+    let mut pump = capture_pump(&source, &temp.path().join("target"), config, 8);
+    wait(|| {
+        let state = pump.poll().unwrap();
+        state == ProjectionPoll::Prepared && pump.prepared.as_ref().unwrap().sealed
+    });
+    let before = pump.last_acknowledged().clone();
+    let frontier = pump.source.progress().unwrap().cursor;
+    let handle = pump.target.handle();
+    assert_eq!(
+        pump.poll_with_receipts(|tx| handle.try_submit(tx), || Duration::MAX, |_| None)
+            .unwrap(),
+        ProjectionPoll::Writing
+    );
+    assert!(pump.accepted.back().unwrap().sealed);
+    handle.close();
+    cached_receipts(&mut pump);
+    for _ in 0..3 {
+        assert_eq!(
+            pump.poll_with_receipts(
+                |_| panic!("seal must fence admission"),
+                || Duration::ZERO,
+                |_| None
+            )
+            .unwrap(),
+            ProjectionPoll::Writing
+        );
+        assert_eq!(pump.source.progress().unwrap().cursor, frontier);
+        assert_eq!(pump.last_acknowledged(), &before);
+        assert!(!pump.last_acknowledged().sealed);
+        assert!(pump.prepared.is_none());
+    }
+    wait(|| pump.poll().unwrap() == ProjectionPoll::Sealed);
+    assert!(pump.last_acknowledged().sealed);
+    assert_eq!(pump.last_acknowledged().source, frontier);
+    pump.shutdown().unwrap();
+}
+
+#[test]
+fn projection_overlap_later_corruption_poison_preserves_accepted_prefix_without_inventing_ack() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let config = stop_source(&source, false);
+    let corrupt = temp.path().join("corrupt");
+    std::fs::create_dir(&corrupt).unwrap();
+    std::fs::copy(
+        source.join("committed.json"),
+        corrupt.join("committed.json"),
+    )
+    .unwrap();
+    let mut bytes = std::fs::read(source.join("events.mfsf")).unwrap();
+    let second = 48 + 8 + u32::from_le_bytes(bytes[48..52].try_into().unwrap()) as usize;
+    bytes[second + 4] ^= 1;
+    std::fs::write(corrupt.join("events.mfsf"), bytes).unwrap();
+    let target = temp.path().join("target");
+    let mut pump = capture_pump(&corrupt, &target, config, 8);
+    let before = pump.last_acknowledged().clone();
+    overlap_queue(&mut pump, 1);
+    wait(|| pump.target.handle().status().committed_operations == 1);
+    assert!(matches!(
+        pump.poll_with_receipts(
+            |_| panic!("corruption must not admit"),
+            || Duration::MAX,
+            |_| None
+        ),
+        Err(ProjectionError::Replay(_))
+    ));
+    assert!(pump.is_poisoned());
+    assert_eq!(pump.last_acknowledged(), &before);
+    assert!(pump.last_publication().is_none());
+    assert!(pump.prepared.is_none());
+    assert_eq!(pump.accepted.len(), 1);
+    assert!(matches!(pump.poll(), Err(ProjectionError::Poisoned)));
+    let report = pump.shutdown().unwrap();
+    assert_eq!(report.published.sequence, 1);
+    let mut reader = ProjectionReader::open(&target, capture_policy().limits).unwrap();
+    assert!(reader.read_next().unwrap().is_some());
+    assert!(reader.read_next().unwrap().is_none());
+}
+
+#[test]
+fn projection_overlap_publication_cannot_cut_a_multi_record_transaction() {
+    let temp = tempfile::tempdir().unwrap();
+    let source = temp.path().join("source");
+    let config = stop_source(&source, false);
+    let mut pump = capture_pump(&source, &temp.path().join("target"), config, 8);
+    let before = pump.last_acknowledged().clone();
+    assert_eq!(
+        pump.poll_with_preparation_age(|_| panic!(), || Duration::ZERO)
+            .unwrap(),
+        ProjectionPoll::Prepared
+    );
+    assert_eq!(
+        pump.prepared.as_ref().unwrap().transaction.record_count(),
+        8
+    );
+    assert_eq!(pump.poll().unwrap(), ProjectionPoll::Writing);
+    cached_receipts(&mut pump);
+    assert!(matches!(
+        pump.poll_with_receipts(
+            |_| panic!(),
+            || Duration::MAX,
+            |ticket| ticket.try_result().map(|r| r.map(|mut receipt| {
+                receipt.published.sequence = 1;
+                receipt
+            }))
+        ),
+        Err(ProjectionError::Invalid("publication splits transaction"))
+    ));
+    assert!(pump.is_poisoned());
+    assert_eq!(pump.last_acknowledged(), &before);
+    assert!(pump.last_publication().is_none());
+    assert_eq!(pump.shutdown().unwrap().published.sequence, 8);
 }
