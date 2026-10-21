@@ -1,0 +1,475 @@
+{
+  "schema_version": 1,
+  "status": "UNQUALIFIED: full stable workspace watchdog failure remains unresolved",
+  "source_sha256": "0ff75ebac247c3071cd91948dd045155193efbd11fda293e1499b810d5e4c842",
+  "compiled_inputs": 566,
+  "published_parent": "23859663baac977613ca7a91bf326028150ca85d",
+  "compiled_delta": [
+    "crates/daemon/src/causal_bootstrap/projection.rs",
+    "crates/daemon/src/causal_bootstrap/projection_tests.rs"
+  ],
+  "unchanged_compiled_files": 564,
+  "scope": "Unpublished bounded ProjectionPump overlap; no source-owner, engine, writer, dependency, native external effect or strategy changes.",
+  "invariants": [
+    "Total prepared/admitted/cached-ACK logical records1..8 and16MiB bound; unchanged actor16pending/32MiB and8group/16MiB/1ms",
+    "Whole physical publication acknowledged by all covered FIFO transaction receipts before paired checkpoint advances",
+    "Default1, immutable Full retries, final Seal fence and failure poison/drain preserved",
+    "No watchdog, thread, workload, capacity, age, abort or original480frames/s change"
+  ],
+  "focused": {
+    "actual_session_id": 79627,
+    "actual_exit_code": 0,
+    "tests": {
+      "passed": 23,
+      "failed": 0,
+      "ignored": 0,
+      "prior": 14,
+      "new": 9
+    },
+    "red_actual_session_id": 7205,
+    "red_actual_exit_code": 101,
+    "red_source": "f0944d79c7d1b117759f0c3ce494a7d0a1bef0a3211350cd2f578bae55f7a71f",
+    "red_executable_sha256": "cea91a901ae6b4b7c63234ebeb02365ef19f72e1d2c3698f2d7581e900bacba6",
+    "green_executable_sha256": "752b91bdebbba387dbf212f8569c6925018e0ad216fca397c8165392d572af9c",
+    "receipt_sha256": "81a268a3f450d3543016fead02d9ab3d16d4eb09ff6993e5ba7e40a818010f7c",
+    "scope": "Includes genuine old-code held-ticket red, actual grouped receipts, bounded window/bytes/Full, failures, Seal, native outputs and every paired resume. Intermediate test helper/assertion failures remain retained."
+  },
+  "stable": {
+    "actual_session_id": 60555,
+    "actual_terminal_exit_code": 1,
+    "checks": [
+      {
+        "name": "fmt",
+        "argv": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 0.927962957881391,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "source_unchanged": true,
+        "test_totals": null
+      },
+      {
+        "name": "diff",
+        "argv": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 0.013884750194847584,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "source_unchanged": true,
+        "test_totals": null
+      },
+      {
+        "name": "clippy",
+        "argv": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 5.444956874940544,
+        "log_sha256": "3c1dbcacc33bd1c448e458f4c5c4be36fea53fde976b130c07dcd9680c394303",
+        "source_unchanged": true,
+        "test_totals": null
+      },
+      {
+        "name": "workspace",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--all-features"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 101,
+        "seconds": 34.29872408416122,
+        "log_sha256": "bee34ec04558c9fdc905e357cd703816b3300cd15c54a589a3d26d4cbd3cbf5e",
+        "source_unchanged": true,
+        "test_totals": [
+          805,
+          1,
+          46
+        ]
+      }
+    ],
+    "unexecuted_after_fail": [
+      "docs",
+      "default-cli"
+    ],
+    "failure": "causal_bootstrap::live::tests::paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+    "observed": {
+      "delivered": 31,
+      "owner_accepted": 64,
+      "executed": 63,
+      "durable": 63,
+      "handed_off": 63,
+      "pending_operations": 1,
+      "pending_bytes": 144,
+      "phase": "AwaitingCommit",
+      "failure": null,
+      "committed_records": 319
+    },
+    "receipt_sha256": "f09fa31640f0e2f052ae50c68b8209c200ccecca864b4314699f0af416a44bae"
+  },
+  "same_executable_isolated_diagnostic": {
+    "actual_session_id": 69816,
+    "actual_exit_code": 0,
+    "test_seconds": 5.54,
+    "whole_process_seconds": 6.382143625058234,
+    "log_sha256": "5e94fa879501c0aa7546faf65ecbb9a02795da84250f90945b8cf0fa41313659",
+    "scope": "One unchanged retained executable single-case diagnostic; does not repair or replace full stable failure."
+  },
+  "msrv": {
+    "actual_session_id": 12995,
+    "actual_exit_code": 0,
+    "checks": [
+      {
+        "name": "msrv-default",
+        "argv": [
+          "cargo",
+          "+1.85.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--lib"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 9.555562208406627,
+        "log_sha256": "e0644a3aee6b5150525cd0572939f6464bccc75021a7916b2deee641f7e6e3c9",
+        "source_unchanged": true,
+        "test_totals": [
+          108,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "msrv-core",
+        "argv": [
+          "cargo",
+          "+1.85.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-engine",
+          "-p",
+          "marketfeed-recording",
+          "-p",
+          "marketfeed-transport",
+          "--all-features"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 6.050094916950911,
+        "log_sha256": "4c79b8b49704eb59adcbaf36f5bc57f84f020fe02a3dc1cc1b0b464cd692a662",
+        "source_unchanged": true,
+        "test_totals": [
+          311,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "msrv-native",
+        "argv": [
+          "cargo",
+          "+1.85.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--lib",
+          "causal_bootstrap::"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 28.526874457951635,
+        "log_sha256": "1b7c2ba8c507842bb2260e1ce7da96bb331c3643542cac8fbb0ddd775a6df993",
+        "source_unchanged": true,
+        "test_totals": [
+          112,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "msrv-public",
+        "argv": [
+          "cargo",
+          "+1.85.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--test",
+          "hyperliquid_causal",
+          "--test",
+          "causal_bootstrap",
+          "--test",
+          "causal_owner",
+          "--test",
+          "capture_cli"
+        ],
+        "env": {
+          "RUSTFLAGS": "-Dwarnings",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0"
+        },
+        "exit_code": 0,
+        "seconds": 96.59323683287948,
+        "log_sha256": "3098b72d203497b024fe7319c2177767941e4e5b42d044cf4521e6c92c5c4ca0",
+        "source_unchanged": true,
+        "test_totals": [
+          80,
+          0,
+          0
+        ]
+      }
+    ],
+    "results_sha256": "5d441d1c0750de9a45447bc7267e27fce538a82224fbe2b2f4d12bcb52f363ef",
+    "scope": "Rust1.85 four exact focused default/core/native/public gates; counts108/311/112/80."
+  },
+  "release": {
+    "actual_session_id": 25180,
+    "actual_exit_code": 0,
+    "checks": [
+      {
+        "name": "build",
+        "argv": [
+          "cargo",
+          "build",
+          "--locked",
+          "--release",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--bin",
+          "marketfeed-capture",
+          "--bin",
+          "marketfeed-observations"
+        ],
+        "exit_code": 0,
+        "seconds": 33.35878258384764,
+        "log_sha256": "7b698edbd491af6868e0cfb861072d0f6ac5d12c2467fa3206469a79908ca493",
+        "test_totals": null
+      },
+      {
+        "name": "core",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--release",
+          "-p",
+          "marketfeed-engine",
+          "-p",
+          "marketfeed-recording",
+          "-p",
+          "marketfeed-transport",
+          "--all-features"
+        ],
+        "exit_code": 0,
+        "seconds": 4.812720708083361,
+        "log_sha256": "04eca197706dbcd2aa01b55df6f19c7f68434fb183e78da743fcf210c10b12b8",
+        "test_totals": [
+          311,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "native",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--release",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--lib",
+          "causal_bootstrap::"
+        ],
+        "exit_code": 0,
+        "seconds": 72.66494783293456,
+        "log_sha256": "9554c3d7e1b6b6b5857bde3511856e0e53e2f51e6ee65bd0fb79e634737856c1",
+        "test_totals": [
+          112,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "public",
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "--release",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--test",
+          "hyperliquid_causal",
+          "--test",
+          "causal_bootstrap",
+          "--test",
+          "causal_owner",
+          "--test",
+          "capture_cli"
+        ],
+        "exit_code": 0,
+        "seconds": 134.50980179198086,
+        "log_sha256": "87b3e68165778e0400d6b3da96da04d89e861e2251a64f98b7cce6f4aed3eb48",
+        "test_totals": [
+          80,
+          0,
+          0
+        ]
+      }
+    ],
+    "artifacts": {
+      "marketfeed-capture": {
+        "sha256": "c53119b59c8febed26217d1387b81918f814b3e42e4ab4d0e92fad46a22177cc",
+        "bytes": 10886256
+      },
+      "marketfeed-observations": {
+        "sha256": "f447e6b34a97ee5afc416148bb245e548108b7019fff5f63bb79c301f66443aa",
+        "bytes": 2310032
+      }
+    },
+    "artifact_build_bindings": {
+      "marketfeed-capture": {
+        "artifact_sha256": "c53119b59c8febed26217d1387b81918f814b3e42e4ab4d0e92fad46a22177cc",
+        "artifact_bytes": 10886256,
+        "source_sha256": "0ff75ebac247c3071cd91948dd045155193efbd11fda293e1499b810d5e4c842",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "7b698edbd491af6868e0cfb861072d0f6ac5d12c2467fa3206469a79908ca493",
+        "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+        "embedded_recipe": true
+      },
+      "marketfeed-observations": {
+        "artifact_sha256": "f447e6b34a97ee5afc416148bb245e548108b7019fff5f63bb79c301f66443aa",
+        "artifact_bytes": 2310032,
+        "source_sha256": "0ff75ebac247c3071cd91948dd045155193efbd11fda293e1499b810d5e4c842",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "7b698edbd491af6868e0cfb861072d0f6ac5d12c2467fa3206469a79908ca493",
+        "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+        "embedded_recipe": false
+      }
+    },
+    "validation_sha256": "f33e9e750cc681121c3bb71bbffa859119e16938b415fb2645b627262e241679",
+    "scope": "Four release build/core/native/public gates only. No full release workspace, release MSRV, hosted, performance or new live-run claim."
+  },
+  "independent_review": "Two reviewers statically inspected private runtime candidate70f61fce before final formatting/tests; final source0ff75eba evidence closure remains pending. No final independent audit pass claimed.",
+  "dependency_scope": "All564 other compiled inputs, including dependency inputs, equal published238; prior exact dependency audit applies to identical inputs, no new scan claimed.",
+  "next": [
+    "Resolve full stable paused32 watchdog at unchanged10s/default threads; retain all failed evidence.",
+    "Finish final independent review and remaining local/hosted source-specific checks before publication.",
+    "Only then advance all7/23HLS pins, qualify exact consumer artifact and rerun genuine growing-feed timing with unchanged gates.",
+    "QuantsPR98 published; hosted all4jobs blocked before steps by GitHub account billing/spending.",
+    "Original480frames/s remains failed and unrerun; real feature/availability/perps/economics and user-run extended soak remain open."
+  ],
+  "stable_remaining_checks": {
+    "actual_session_id": 63422,
+    "actual_exit_code": 0,
+    "checks": [
+      {
+        "name": "docs",
+        "argv": [
+          "cargo",
+          "doc",
+          "--locked",
+          "--workspace",
+          "--all-features",
+          "--no-deps"
+        ],
+        "exit_code": 0,
+        "seconds": 9.33144358266145,
+        "log_sha256": "7a9c12dfda10b07fd4450272d15c091619a82ec2001ca8e68bcce6056dc8db0d",
+        "source_unchanged": true
+      },
+      {
+        "name": "default-cli",
+        "argv": [
+          "cargo",
+          "run",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--",
+          "validate",
+          "--config",
+          "crates/daemon/config.offline.toml"
+        ],
+        "exit_code": 0,
+        "seconds": 4.233659332618117,
+        "log_sha256": "0f41135d13e65d9e03e3b0b1ca284914f776b35919227808a0b931c1f5e12979",
+        "source_unchanged": true
+      }
+    ],
+    "scope": "Separately ran unexecuted docs/CLI; original failed workspace result unchanged"
+  }
+}

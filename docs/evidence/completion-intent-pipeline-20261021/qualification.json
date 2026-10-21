@@ -1,0 +1,693 @@
+{
+  "schema_version": 1,
+  "scope": "LocalmacOSaarch64 exact570sourcee5cd bounded Completion/Intent co-admission and shared validated ownCompletion settlement. Stable/MSRV/release/security complete; future capture, hosted and finalconsumerpin qualification remain separate.",
+  "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "source_files": 570,
+  "source_inventory": {
+    "path": "private-evidence/producer/.local/completion-intent-qualification/parent-broad-01/source-16.json",
+    "bytes": 92344,
+    "sha256": "1b8f85769c379505fbbe96b89de8997cfa3b03e27ab34bcc62b20c473dcb8757"
+  },
+  "required_checks_all_passed": true,
+  "local_checks": [
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.8630590001121163,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "diff",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.014989290852099657,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 6.739072207827121,
+      "log_sha256": "bc86573982c44a20faa589ec67062b925fdbc992a9afece1ef91f83a6387dbd6",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "workspace",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 206.64684987487271,
+      "log_sha256": "e48afdd15971f8d1bd4942887788b1c8d6977593870a636f525a2c7b6c11bd62",
+      "source_unchanged": true,
+      "test_totals": [
+        1699,
+        0,
+        56
+      ]
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 6.476454624906182,
+      "log_sha256": "f7b46203e325ea7d509e1efc9f2510f95d10657993d49e0d48b0c00e1339d640",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "default-cli",
+      "argv": [
+        "cargo",
+        "run",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--",
+        "validate",
+        "--config",
+        "crates/daemon/config.offline.toml"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 3.2877986254170537,
+      "log_sha256": "41274d04631528fdc6d2396f39c344ede390ec4a1044e081234387f58df6b346",
+      "source_unchanged": true,
+      "test_totals": null
+    }
+  ],
+  "msrv_checks": [
+    {
+      "name": "msrv-default",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--lib"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 4.513887125067413,
+      "log_sha256": "363a86cd0b7af0f924f8ed507844ac1a28ae3a67bf6af6d66d207cdd3254d255",
+      "source_unchanged": true,
+      "test_totals": [
+        111,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-core",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 5.788814041297883,
+      "log_sha256": "b853432f0bf95f7ab3e1f8dd0beddea4f9d3028350f9d83d6c28e6138158c3c6",
+      "source_unchanged": true,
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-native",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 25.998427500016987,
+      "log_sha256": "2e6bb52a2524fe898dfce38374bda3b2e866cf02d4211a7a667d7a10f1629f4a",
+      "source_unchanged": true,
+      "test_totals": [
+        143,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-public",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 83.56958720833063,
+      "log_sha256": "33547171e9f1614c635455c89955c3cc7ec0b9145dcd7e759e13e906f086cd82",
+      "source_unchanged": true,
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "release_checks": [
+    {
+      "name": "build",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--bin",
+        "marketfeed-capture",
+        "--bin",
+        "marketfeed-observations"
+      ],
+      "exit_code": 0,
+      "seconds": 31.583262958098203,
+      "log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+      "test_totals": null
+    },
+    {
+      "name": "core",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "seconds": 4.694265624973923,
+      "log_sha256": "98800ecac7f5a1ebd4517902b843e4ddfb04b26ac1a2593f85a98e76c8698dc0",
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "native",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "exit_code": 0,
+      "seconds": 73.10232524992898,
+      "log_sha256": "11d2e515dc285cd4ab01f9761277b0cab8f737f8ec1d060727a1aca025691f82",
+      "test_totals": [
+        143,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "public",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "exit_code": 0,
+      "seconds": 120.24229850014672,
+      "log_sha256": "580bcb5742899d810d2646061289d3872a3a4a167f6f72174687698b76f26343",
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "security": [
+    {
+      "name": "audit",
+      "argv": [
+        "private-evidence/primary/.tools/bin/cargo-audit",
+        "audit",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 2.5555836660787463,
+      "stdout_sha256": "db302e490b6e02205bdf1017d813db98ea11debc8a4ec9315e24fc707ec0f9d8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "deny",
+      "argv": [
+        "private-evidence/hls/target/validation-tools/bin/cargo-deny",
+        "--all-features",
+        "check"
+      ],
+      "exit_code": 0,
+      "seconds": 1.1455300827510655,
+      "stdout_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "gitleaks",
+      "argv": [
+        "private-evidence/primary/.tools/bin/gitleaks",
+        "stdin",
+        "--redact"
+      ],
+      "exit_code": 0,
+      "seconds": 0.29340654192492366,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "a041ade1dbf09487e8a3de7ffcefa61bda2e7c3d4fa980f3a11d882200ec25a8",
+      "source_inputs_unchanged": true
+    }
+  ],
+  "audit_database": {
+    "advisory-count": 1348,
+    "last-commit": "4b587f00996ebe5c05a73eaef105ef241e876414",
+    "last-updated": "2026-10-21T08:20:38+02:00"
+  },
+  "retained_artifacts": {
+    "marketfeed-capture": {
+      "path": "private-evidence/producer/.local/completion-intent-qualification/parent-release-16/retained-artifacts/marketfeed-capture",
+      "bytes": 10906832,
+      "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+    },
+    "marketfeed-observations": {
+      "path": "private-evidence/producer/.local/completion-intent-qualification/parent-release-16/retained-artifacts/marketfeed-observations",
+      "bytes": 2310032,
+      "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+    }
+  },
+  "artifact_build_bindings": {
+    "marketfeed-capture": {
+      "artifact_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+      "artifact_bytes": 10906832,
+      "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+      "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+      "embedded_recipe": true,
+      "build_output": {
+        "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-capture",
+        "bytes": 10906832,
+        "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+      }
+    },
+    "marketfeed-observations": {
+      "artifact_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+      "artifact_bytes": 2310032,
+      "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+      "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+      "embedded_recipe": false,
+      "build_output": {
+        "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-observations",
+        "bytes": 2310032,
+        "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      }
+    }
+  },
+  "capture_identity": {
+    "compiled": {
+      "debug": "false",
+      "encoded_rustflags": "-Dwarnings",
+      "git_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+      "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+      "opt_level": "3",
+      "package_features": [
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-adapter-bybit"
+        },
+        {
+          "features": [],
+          "package": "marketfeed-adapter-hyperliquid"
+        },
+        {
+          "features": [
+            "causal-journal",
+            "default",
+            "kafka",
+            "nats",
+            "ui",
+            "ui-api"
+          ],
+          "package": "marketfeed-daemon"
+        },
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-engine"
+        },
+        {
+          "features": [
+            "default",
+            "kafka",
+            "nats"
+          ],
+          "package": "marketfeed-sinks"
+        }
+      ],
+      "package_version": "0.1.0-alpha.1",
+      "profile": "release",
+      "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+      "schema_version": 1,
+      "source_files": 570,
+      "source_scheme": "sha256-path-length-and-bytes-v1",
+      "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+      "target": "aarch64-apple-darwin"
+    },
+    "executable_bytes": 10906832,
+    "executable_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+  },
+  "actual_terminal_receipts": {
+    "stable": {
+      "receipt": {
+        "path": "private-evidence/producer/.local/completion-intent-qualification/parent-stable-terminal-01.json",
+        "bytes": 335,
+        "sha256": "e34567182401396aceafe8dc1eb9b45f9a0e489ceb414a91bba4eee673638a5d"
+      },
+      "actual": {
+        "actual_session": 34718,
+        "actual_exit": 0,
+        "actual_final_chunk": "fdd731",
+        "results_sha256": "6a08748a0160e1625cdbbc81bcb36b3f23b470ab65951766d32c57930336ab5c",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all6_commands_zero": true,
+        "workspace": [
+          1699,
+          0,
+          56
+        ]
+      }
+    },
+    "msrv": {
+      "receipt": {
+        "path": "private-evidence/producer/.local/completion-intent-qualification/parent-msrv-terminal-01.json",
+        "bytes": 347,
+        "sha256": "c647fae56f11fba53c988e0c0b3087f562dbf8899e866498c2e5c714147a8a8e"
+      },
+      "actual": {
+        "actual_session": 61811,
+        "actual_exit": 0,
+        "actual_final_chunk": "42a187",
+        "results_sha256": "cb8318d0ffc510e11cc0ceb0357b6a7066fb8e6a0e03601c3592531dadebd90b",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all4_commands_zero": true,
+        "test_counts": [
+          111,
+          314,
+          143,
+          80
+        ]
+      }
+    },
+    "release": {
+      "receipt": {
+        "path": "private-evidence/producer/.local/completion-intent-qualification/parent-release-terminal-01.json",
+        "bytes": 520,
+        "sha256": "ad51ce7d354b91aadfba416348b30d13225e010fa68dc6c116611eb29d9ac59d"
+      },
+      "actual": {
+        "actual_session": 57370,
+        "actual_exit": 0,
+        "actual_final_chunk": "3deedc",
+        "results_sha256": "35823a97249ec288117d189f916d04668bb15a5684878912caf9b7089ec1d3da",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all4_commands_zero": true,
+        "core_native_public": [
+          314,
+          143,
+          80
+        ],
+        "capture_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+        "bridge_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      }
+    },
+    "security": {
+      "receipt": {
+        "path": "private-evidence/producer/.local/completion-intent-qualification/parent-security-terminal-01.json",
+        "bytes": 331,
+        "sha256": "0ce9c5089b1a1f0917599180014b78c71b7035a6387a9ec02c8e8f7d908df131"
+      },
+      "actual": {
+        "actual_session": 27836,
+        "actual_exit": 0,
+        "actual_final_chunk": "ee9a9b",
+        "results_sha256": "50758b0e08c0d0d40871a54c4bd17be2ed6a9463e0de2b03c5ee848389f4f588",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all3_commands_zero": true,
+        "original_failed_scan_preserved": true
+      }
+    }
+  },
+  "focused": {
+    "path": "private-evidence/producer/.local/completion-intent-qualification/qualified-focused-02.json",
+    "bytes": 7984,
+    "sha256": "beef334ac22feaa8d3fa6d6dd46f9e5bca2a560d81bce236b87e3bc0f1a90d07"
+  },
+  "new12_test_names": [
+    "complete_and_intent_are_both_owned_before_first_receipt_observation",
+    "intent_full_retires_completion_once_and_retries_exact_reserved_record",
+    "failed_intent_suffix_never_rewrites_committed_completion_or_publishes_reserved_hole",
+    "revoke_after_completion_ack_keeps_settlement_and_withholds_preissued_intent",
+    "panic_after_pair_admission_drains_tickets_and_commits_native_once_without_release",
+    "actual_factory_connected_generation_and_every_record_resume_reexecute_identically",
+    "shared_publication_failure_keeps_both_pair_records_unknown_and_drains_tickets",
+    "panic_after_completion_ack_preserves_known_commit_and_joins_remaining_intent",
+    "invalid_prior_fifo_state_prevents_literal_successful_completion_ack_from_committing",
+    "actual_five_second_deadline_after_reservation_never_releases_expired_intent",
+    "unaccepted_intent_after_writer_closure_ends_at_known_completion_without_ordinal_hole",
+    "earlier_queued_ingress_and_reconnection_fence_force_serial_fallback_without_holes"
+  ],
+  "independent_review": {
+    "path": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/completion-intent-final03-independent-01.json",
+    "bytes": 8119,
+    "sha256": "73fb9a886dd709c14ea759f71df8e5325831b3084bf1c562036616c9584320c8"
+  },
+  "independent_review_scope": "Independent bounded source/static/focused evidence review, no reviewerRust/nativeexecution; originalsource01 fullreview plus exactfinal03delta and actualfocusedlogs. Finalwholequalificationevidenceaudit remains separate.",
+  "original_test_preservation": {
+    "live_and_diagnostic_sources_all_unchanged_from66": true,
+    "history_test_scope": "Exactlyone originaldelayedACK function adapted to deterministic ownACK pauses; allotheroriginalbytes exact, plus3linechildmoduleappend. Originalfunction/fullfile/failure retained.",
+    "new_cases": 12,
+    "original_cases_in_history_suite": 29,
+    "original_test_sha256": "721ea313c7d3551ee36633fdda9f95d8767a4dfc1e250c1a83ffe74beeffbc0d",
+    "adapted_test_sha256": "9c45a714cc5e3202d01957a9324e88643e39695008d4ad645e01178d3424201a",
+    "adaptation_decision": {
+      "path": "private-evidence/producer/.local/completion-intent-qualification/delayed-ack-test-adaptation-decision-01.json",
+      "bytes": 1724,
+      "sha256": "7fb30319985c5e49f94f157cc373e0b6683115697b9b774de5848ae3caebae2e"
+    }
+  },
+  "mechanism": "Atmost3distinctownedjournalordinals acrosspending/prepared/cached; oneCompletioncell andIntentmarker duplicateboundedrecordmetadata. ExactTXadmittedbeforeownACKwaits; FIFOvalidation retirescredits/sendsCommittedonce; laterIntentfailure/panic cannoteraseknownCompletion. Ready/handoff/wire stillwaitownbarriers andfreshsafetychecks. No schema/cap/age/deadline/watchdog/nativecallbackbatch/FrameStamp/readorderchange.",
+  "prior_failures": [
+    {
+      "scope": "Originalruntime overlapRED",
+      "actual_session": 75893,
+      "exit": 101,
+      "receipt": {
+        "path": "private-evidence/producer/.local/completion-intent-qualification/red-01/terminal.json",
+        "bytes": 320,
+        "sha256": "a4e760629f11889b62410fe25c225bd0f218ed80d7d819e63f868d7120c17ab7"
+      }
+    },
+    {
+      "scope": "40pass1failure originalseparatephysicalpublication assumption; adaptationreviewed",
+      "actual_session": 96958,
+      "exit": 101,
+      "receipt": {
+        "path": "private-evidence/producer/.local/completion-intent-qualification/history-04/terminal-and-retention.json",
+        "bytes": 2002,
+        "sha256": "f3ba01c358a5d1f13ec1f34c662c4759bb582ff933769836aa59019023cedd99"
+      }
+    }
+  ],
+  "qualification_limits": [
+    "Localstable andfocusedMSRV, notfullreleaseworkspace/MSRV ornewhosted/Razerproof. Artifactscompiledwith66Gitparentbeforepublication; bridgehasnoembeddedrecipe andno loaded-imageattestation.",
+    "NativeBybitConnected+Tradepergeneration/everyprefix fixture qualifies replayequivalence, notuniversalvenue/history/context. Ordinal-exhaustion/pureIntentencodingrefusal branches staticallyreviewed, notclaimedexecuted. Boundsarecanonicalrecord/encodedbytes, notmeasuredRSS.",
+    "Actualjoint13acquisitionend21.916s remainsUNQUALIFIED despite23.9mstail; no freshnessrepair/causality/remoteclock/SLA/availability fromlocalgates. Needmatchingunchanged120snewcapture withbothconsumers andnativeaudit.",
+    "Published66hostedrequiredMac/Linux/MSRVpass withsecondaryWindowswirewatchdogfailure; original480failed/unrerun, QCIexternalblock, strictdatasets/context/longerverification remainopen."
+  ],
+  "security_prose_correction": {
+    "path": "private-evidence/producer/.local/completion-intent-qualification/security-prose-correction-01.json",
+    "bytes": 735,
+    "sha256": "eef03e7adea94e8705ac47faefcf83af23dddc0ca10aab53db1bdcc272e29f4b"
+  },
+  "assembly_helper": {
+    "path": "private-evidence/producer/.local/completion-intent-qualification/parent-assemble-16-02.py",
+    "bytes": 9574,
+    "sha256": "ceb9a0936a8ff434798621358fc711c7ad6c71895d4545440df5723f746a6811"
+  },
+  "portable_copy": {
+    "original_sha256": "b1d74a47a26cce33c568aa7c44cbe821f62696ec63c9e2e5c519b3f34e9be9ab",
+    "original_bytes": 24689,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

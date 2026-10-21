@@ -1,0 +1,251 @@
+{
+  "schema_version": 1,
+  "status": "Diagnostic-only local checks pass; original Windows failure remains unresolved",
+  "base_head": "e812e44b9893f200a4e357e6e8ae77ae41db1c3b",
+  "source_sha256": "0db44c52cfa2499addb74491485bae055c541f620c826efb89c389306743f33f",
+  "source_files": 548,
+  "inventory_scope": "Post-execution actual source inventory matched embedded declared recipes; not a predeclared full frozen qualification run",
+  "private_receipt_sha256": "bfbde2426079d69e0d48894c67c2f18361155cfbaa8d13fec1756d2383f17be0",
+  "changed_build_inputs": {
+    "crates/daemon/tests/hyperliquid_causal.rs": {
+      "bytes": 27161,
+      "sha256": "ad63639e367952e6026ddb2d7ba2260ff49082ab5619ad67aee3192695744367"
+    },
+    "crates/daemon/tests/support/native_history.rs": {
+      "bytes": 24895,
+      "sha256": "dff17e31c0040d62f4db32a3b7d41790f967a0f9848fe49fc57e77f1a468fc7d"
+    },
+    "crates/daemon/tests/support/projection.rs": {
+      "bytes": 30695,
+      "sha256": "22cc59e156863f22846907e25412d46b5b6922df8733565cced1d981793735a4"
+    }
+  },
+  "checks": [
+    {
+      "check": "stable",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--features",
+        "causal-journal",
+        "--test",
+        "hyperliquid_causal"
+      ],
+      "actual_terminal_exit": 0,
+      "log_sha256": "c700c97d6de7a4fd9fe04fe5aac59a42456c02308a74991b2e16bbce193cdbd5",
+      "named_tests": [
+        "multi_owner_tests::multi_replay_invalid_limits_reject_before_filesystem_access",
+        "multi_owner_tests::multi_replay_rejects_all_other_profiles_before_watermark_access",
+        "coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market",
+        "mismatched_market_policy_topics_delivery_and_catalog_fail_before_admission",
+        "maximum_malformed_cadence_vector_is_rejected_before_native_construction",
+        "native_history_tests::native_bootstrap_rejects_missing_duplicate_wrong_or_legacy_policy_before_admission",
+        "multi_owner_tests::multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory",
+        "builder_perp_context_subset_keeps_collateral_and_emits_only_requested_channels",
+        "multi_owner_tests::multi_replay_bootstraps_physically_and_retains_independent_idle_owners",
+        "multi_owner_tests::multi_replay_budget_failure_precedes_actual_native_comparison",
+        "multi_owner_tests::multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases",
+        "malformed_late_trade_is_durable_failure_without_partial_trade_release",
+        "native_history_tests::native_multi_owner_negotiates_spot_perps_and_canonical_bybit_without_crossing_scope",
+        "perps_actual_factory_persistent_owner_and_durable_history_agree",
+        "multi_owner_tests::multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs",
+        "multi_owner_tests::multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison",
+        "multi_owner_tests::multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal",
+        "multi_owner_tests::multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners",
+        "native_history_tests::native_only_field_mutations_pass_structure_but_poison_actual_replay",
+        "projection_tests::projection_actual_mixed_spot_perps_bybit_preserves_separate_metadata_and_native_only_items",
+        "multi_owner_tests::multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations",
+        "multi_owner_tests::multi_replay_exact_pending_source_and_active_canonical_aggregate_caps",
+        "projection_tests::projection_actual_preconnected_timer_and_control_keep_runner_and_physical_scope_separate",
+        "projection_tests::projection_sealed_unknown_owner_stays_unknown_without_market_resurrection",
+        "replay_tests::actual_replay_reads_corrupt_future_only_when_reaching_that_physical_record",
+        "replay_tests::actual_replay_reexecutes_available_late_completion_after_revocation_without_handoff",
+        "projection_tests::projection_large_unsupported_control_vectors_fail_before_pending_retention",
+        "projection_tests::projection_mirrors_source_pending_count_and_declared_byte_reservations",
+        "replay_tests::actual_replay_rejects_financial_effect_mutation_accepted_by_structural_validator",
+        "projection_tests::projection_comparison_pins_open_durable_bound_while_target_grows",
+        "replay_tests::actual_replay_rejects_missing_actual_wire_drain_accepted_by_structural_validator",
+        "replay_tests::actual_replay_rejects_second_owner_and_wrong_profile_or_bootstrap_budget",
+        "replay_tests::actual_replay_rejects_wrong_artifact_and_fabricated_resume_boundary",
+        "projection_tests::projection_native_value_authenticity_requires_original_source_comparison",
+        "source_view_tests::verified_source_clock_extrema_and_interleaved_regressions_resume_exactly",
+        "replay_tests::actual_replay_storage_rewind_or_growth_after_seal_poison_verified_progress",
+        "replay_tests::actual_replay_unknown_permit_is_not_executed_or_resolved_by_sealing",
+        "source_view_tests::verified_source_native_mismatch_exposes_no_mutated_completion_and_poisons",
+        "spot_actual_factory_persistent_owner_and_durable_history_agree",
+        "source_view_tests::verified_source_seal_keeps_unknown_execution_and_never_advances_owner_time",
+        "source_view_tests::verified_source_native_metadata_clocks_control_and_handoffs_match_original_records",
+        "projection_tests::projection_native_coin_must_match_its_associated_canonical_instrument",
+        "projection_tests::projection_clock_lineage_policy_and_owner_mutations_poison_structural_reader",
+        "projection_tests::projection_actual_spot_perps_atomic_groups_match_all_releases_and_every_resume",
+        "projection_tests::projection_completed_safety_connection_frame_and_receipt_cannot_be_rewritten",
+        "native_history_tests::native_actual_spot_perps_persist_all_fields_and_every_physical_resume",
+        "replay_tests::actual_replay_spot_and_perps_preserve_every_physical_prefix_and_resume",
+        "multi_owner_tests::multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume"
+      ],
+      "artifact": {
+        "bytes": 21587440,
+        "sha256": "abbf07b692a07065855e15a9155c30219b72b05d9c6e88534840efe4b06e2359",
+        "mode": "0555",
+        "scope": "Actual logged test executable file and embedded declared recipe, not loaded-image/full-transitive-input/reproducibility/operational attestation"
+      },
+      "compiled_recipe": {
+        "debug": "false",
+        "encoded_rustflags": "",
+        "git_commit": "e812e44b9893f200a4e357e6e8ae77ae41db1c3b",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 548,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "0db44c52cfa2499addb74491485bae055c541f620c826efb89c389306743f33f",
+        "target": "aarch64-apple-darwin"
+      }
+    },
+    {
+      "check": "msrv",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal"
+      ],
+      "actual_terminal_exit": 0,
+      "log_sha256": "9fcc310f75de4ee321a95e0db71b8e3637cfd5bec73dacc1f7433916f2a5301f",
+      "named_tests": [
+        "multi_owner_tests::multi_replay_invalid_limits_reject_before_filesystem_access",
+        "multi_owner_tests::multi_replay_rejects_all_other_profiles_before_watermark_access",
+        "coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market",
+        "mismatched_market_policy_topics_delivery_and_catalog_fail_before_admission",
+        "maximum_malformed_cadence_vector_is_rejected_before_native_construction",
+        "multi_owner_tests::multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory",
+        "native_history_tests::native_bootstrap_rejects_missing_duplicate_wrong_or_legacy_policy_before_admission",
+        "builder_perp_context_subset_keeps_collateral_and_emits_only_requested_channels",
+        "multi_owner_tests::multi_replay_bootstraps_physically_and_retains_independent_idle_owners",
+        "multi_owner_tests::multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases",
+        "multi_owner_tests::multi_replay_budget_failure_precedes_actual_native_comparison",
+        "malformed_late_trade_is_durable_failure_without_partial_trade_release",
+        "native_history_tests::native_multi_owner_negotiates_spot_perps_and_canonical_bybit_without_crossing_scope",
+        "multi_owner_tests::multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs",
+        "perps_actual_factory_persistent_owner_and_durable_history_agree",
+        "multi_owner_tests::multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison",
+        "multi_owner_tests::multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners",
+        "multi_owner_tests::multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal",
+        "native_history_tests::native_only_field_mutations_pass_structure_but_poison_actual_replay",
+        "projection_tests::projection_actual_mixed_spot_perps_bybit_preserves_separate_metadata_and_native_only_items",
+        "multi_owner_tests::multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations",
+        "multi_owner_tests::multi_replay_exact_pending_source_and_active_canonical_aggregate_caps",
+        "projection_tests::projection_actual_preconnected_timer_and_control_keep_runner_and_physical_scope_separate",
+        "projection_tests::projection_sealed_unknown_owner_stays_unknown_without_market_resurrection",
+        "replay_tests::actual_replay_reads_corrupt_future_only_when_reaching_that_physical_record",
+        "replay_tests::actual_replay_reexecutes_available_late_completion_after_revocation_without_handoff",
+        "projection_tests::projection_large_unsupported_control_vectors_fail_before_pending_retention",
+        "replay_tests::actual_replay_rejects_financial_effect_mutation_accepted_by_structural_validator",
+        "projection_tests::projection_mirrors_source_pending_count_and_declared_byte_reservations",
+        "projection_tests::projection_comparison_pins_open_durable_bound_while_target_grows",
+        "replay_tests::actual_replay_rejects_missing_actual_wire_drain_accepted_by_structural_validator",
+        "replay_tests::actual_replay_rejects_second_owner_and_wrong_profile_or_bootstrap_budget",
+        "projection_tests::projection_native_value_authenticity_requires_original_source_comparison",
+        "replay_tests::actual_replay_rejects_wrong_artifact_and_fabricated_resume_boundary",
+        "replay_tests::actual_replay_storage_rewind_or_growth_after_seal_poison_verified_progress",
+        "source_view_tests::verified_source_clock_extrema_and_interleaved_regressions_resume_exactly",
+        "replay_tests::actual_replay_unknown_permit_is_not_executed_or_resolved_by_sealing",
+        "source_view_tests::verified_source_native_mismatch_exposes_no_mutated_completion_and_poisons",
+        "source_view_tests::verified_source_seal_keeps_unknown_execution_and_never_advances_owner_time",
+        "spot_actual_factory_persistent_owner_and_durable_history_agree",
+        "source_view_tests::verified_source_native_metadata_clocks_control_and_handoffs_match_original_records",
+        "projection_tests::projection_native_coin_must_match_its_associated_canonical_instrument",
+        "projection_tests::projection_clock_lineage_policy_and_owner_mutations_poison_structural_reader",
+        "projection_tests::projection_actual_spot_perps_atomic_groups_match_all_releases_and_every_resume",
+        "projection_tests::projection_completed_safety_connection_frame_and_receipt_cannot_be_rewritten",
+        "native_history_tests::native_actual_spot_perps_persist_all_fields_and_every_physical_resume",
+        "replay_tests::actual_replay_spot_and_perps_preserve_every_physical_prefix_and_resume",
+        "multi_owner_tests::multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume"
+      ],
+      "artifact": {
+        "bytes": 21841360,
+        "sha256": "110036b8dae9f3a7c64b93f8d8e8199fef9ab2209c786abb9f6950406d01bbe2",
+        "mode": "0555",
+        "scope": "Actual logged test executable file and embedded declared recipe, not loaded-image/full-transitive-input/reproducibility/operational attestation"
+      },
+      "compiled_recipe": {
+        "debug": "false",
+        "encoded_rustflags": "",
+        "git_commit": "e812e44b9893f200a4e357e6e8ae77ae41db1c3b",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.85.0 (4d91de4e4 2025-02-17)\nbinary: rustc\ncommit-hash: 4d91de4e48198da2e33413efdcd9cd2cc0c46688\ncommit-date: 2025-02-17\nhost: aarch64-apple-darwin\nrelease: 1.85.0\nLLVM version: 19.1.7\n",
+        "schema_version": 1,
+        "source_files": 548,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "0db44c52cfa2499addb74491485bae055c541f620c826efb89c389306743f33f",
+        "target": "aarch64-apple-darwin"
+      }
+    },
+    {
+      "check": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "actual_terminal_exit": 0,
+      "log_sha256": "45db3b0c816fa5a60000c58d2eaf0e71adeeadb8f9eea058f03a1c47a30a9fd4"
+    }
+  ],
+  "unchanged_policy": "15s watchdog,10s owner ingress,2s history finalization, original native workload/caps/order/barriers/cadence/abort unchanged. Diagnostic setup/logging overhead is explicit; status failure strings may contain dynamic public adapter error details.",
+  "original_failure": {
+    "run": 39462645500,
+    "head": "e812e44b9893f200a4e357e6e8ae77ae41db1c3b",
+    "Windows_Hyperliquid": "47passed/1watchdog failure; no failure phase/backtrace available; cause not proven"
+  },
+  "original_failure_log_sha256": "5df3c4440f4b1c10b88bffe4563930cba28fa0e7990bd1b3666392d0b97613b5",
+  "limits": [
+    "This is instrumentation, not a Windows repair or source-current hosted qualification.",
+    "No source payload is directly formatted, but dynamic owner failure messages are not universally payload-free.",
+    "Snapshot/log setup precedes the fixed15s wait; instrumentation adds explicit timing overhead without resetting deadlines.",
+    "Full native/live/control/external-I/O/strict-dataset/operational and rsibot context gates remain open. No economics, deployment, merge or release."
+  ]
+}

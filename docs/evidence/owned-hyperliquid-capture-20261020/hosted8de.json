@@ -1,0 +1,401 @@
+{
+  "schema_version": 1,
+  "result": "TERMINAL FAILURE:15successfuljobs,2failed; Mac/Linux hosted tests pass for exactpublished8de source only",
+  "run": {
+    "id": 39499150521,
+    "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39499150521",
+    "head_sha": "8debd5cb59b2145baa1fe540a981422733ee71cc",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "failure",
+    "all_jobs_terminal": true,
+    "success_jobs": 15,
+    "failed_jobs": 2,
+    "cancelled_jobs": 0
+  },
+  "checkout_identity": {
+    "actual_logged_merge": "f5f17d2be90c7c55e855314e10dc3605134fbb1f",
+    "merge_parents": [
+      "e2ad84c413168aee37d130e574519c567fab978f",
+      "8debd5cb59b2145baa1fe540a981422733ee71cc"
+    ],
+    "tested_merge_tree": "fea9b209fa0d7e41baf0ae171190f679529e4c11",
+    "author_tree": "fea9b209fa0d7e41baf0ae171190f679529e4c11",
+    "whole_tree_identity": true,
+    "all17rawlogs_show_actualmerge": true
+  },
+  "source_recipe": {
+    "scheme": "sha256-path-length-and-bytes-v1 with marketfeed-source-snapshot-v1 NUL prefix",
+    "files": 566,
+    "sha256": "7fe5ea7c6c496997b4053acb5e3bb3711497cb95afe522aac2826f70b3ce3fd5",
+    "source05manifest": {
+      "file": "source-05.json",
+      "bytes": 91618,
+      "sha256": "e80c584dda00867492ca2ec956f86a48c78e31fe78a868065326fd62d7810e4f"
+    },
+    "all566GitblobMembershipAndBytesExact": true,
+    "scope": "Reconstructed immutable committed build-input recipe. Not hosted loaded-image/artifact attestation; current dirty successor not read or equated."
+  },
+  "platform_test_counts": {
+    "macos": [
+      1637,
+      0,
+      56,
+      162
+    ],
+    "linux_x64": [
+      1638,
+      0,
+      56,
+      162
+    ],
+    "linux_arm": [
+      1638,
+      0,
+      56,
+      162
+    ],
+    "windows_partial": [
+      780,
+      1,
+      46,
+      84
+    ],
+    "msrv_completed_suites": 0,
+    "order": "passed,failed,ignored,suites"
+  },
+  "mac_linux_count_difference": "OneLinux-only passingtest:latency_runtime::tests::linux_rejects_core_beyond_setsize; exacttestname setsotherwiseequal.",
+  "full_independent_receipt": {
+    "file": "hosted8de-ci-independent-01.json",
+    "bytes": 43838,
+    "sha256": "72861d1c32d470f01d04c1ae0d70940683c6b372148621b3dabe55207168aee7"
+  },
+  "jobs": [
+    {
+      "id": 118891891358,
+      "name": "Windows directory durability",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891358-01.log",
+        "bytes": 66434,
+        "sha256": "dee2e12678bde5db748c184f84007635afebaef7d2ce833b2cd27d83e5e6032e"
+      },
+      "counts": [
+        131,
+        0,
+        0
+      ],
+      "suites": 12,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891645,
+      "name": "clippy",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891645-01.log",
+        "bytes": 50599,
+        "sha256": "c998c7ec1cc8f1f256c2d8ae219749366cdbf444a379665b2e6bcd89c606efb0"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891652,
+      "name": "sbom",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891652-01.log",
+        "bytes": 51822,
+        "sha256": "34e2a491c7829b92d490bb2c4e7894185fb91574ef7f95f25aa2c1c4bf9e40f1"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891664,
+      "name": "test (ubuntu-24.04-arm)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-linux-arm-job-01.log",
+        "bytes": 297784,
+        "sha256": "1be3749b09d0973b7c651161e6be998070dc2f4548f6a42af1ed0869b0dda2e2"
+      },
+      "counts": [
+        1638,
+        0,
+        56
+      ],
+      "suites": 162,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891674,
+      "name": "cargo-deny",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891674-01.log",
+        "bytes": 35154,
+        "sha256": "1a4e50e12f3501cda6c91d06daddff5b14baad2017d32c1c142d61f662d87229"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891693,
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891693-01.log",
+        "bytes": 45870,
+        "sha256": "e7963920d8c0f2f5b37fd1df7405eaea53744f9ca70b9ba5da08421ea97e0be4"
+      },
+      "counts": [
+        59,
+        0,
+        6
+      ],
+      "suites": 7,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118891891716,
+      "name": "rustfmt",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891716-01.log",
+        "bytes": 13778,
+        "sha256": "f0376093806aca295ff5fe2756dc567203eb12ae3518c5249f2eb1fb4f108381"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891743,
+      "name": "docs",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891743-01.log",
+        "bytes": 53936,
+        "sha256": "c4e2563c3fe95b31e812fb834275e057d0188631352cc280128e3785e5c1cf64"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891749,
+      "name": "C header and ABI exports",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891749-01.log",
+        "bytes": 15625,
+        "sha256": "aa145537757fbcbdb6298f7bbae7bb3a0a09a874ff32b022298ca0f106e073c4"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891759,
+      "name": "test (ubuntu-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-linux-x64-job-01.log",
+        "bytes": 297864,
+        "sha256": "175d610137def39ed41b07cf79eb4ebd69f3a1feb3a4b055941f3db07159bccf"
+      },
+      "counts": [
+        1638,
+        0,
+        56
+      ],
+      "suites": 162,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891766,
+      "name": "test (macos-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-macos-job-01.log",
+        "bytes": 296760,
+        "sha256": "72a806b59edb37bb8df0b8c28d45590e4223d7c615958345f709eb4dcc618f50"
+      },
+      "counts": [
+        1637,
+        0,
+        56
+      ],
+      "suites": 162,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891767,
+      "name": "test (windows-latest)",
+      "conclusion": "failure",
+      "raw_log": {
+        "file": "hosted8de-independent-windows-job-01.log",
+        "bytes": 175004,
+        "sha256": "22fbcff906ddb48c570f8f72eb0a0a199c56b3e4a33fe674c2d8fdfcbaee7276"
+      },
+      "counts": [
+        780,
+        1,
+        46
+      ],
+      "suites": 84,
+      "failed_test_names": [
+        "causal_bootstrap::live::tests::paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "id": 118891891785,
+      "name": "msrv (1.85)",
+      "conclusion": "failure",
+      "raw_log": {
+        "file": "hosted8de-independent-msrv-job-01.log",
+        "bytes": 45567,
+        "sha256": "feac1445721e5b63e37487be729349c4458090d8a3791ae48fde92a0c7fe2d4b"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "Opt-in causal owner on Rust 1.85",
+        "Offline dataset tool MSRV (Parquet 60)",
+        "Independent exact Parquet cross-reader"
+      ]
+    },
+    {
+      "id": 118891891827,
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891827-01.log",
+        "bytes": 44947,
+        "sha256": "7caacb1b809c9f46931b2ce605fad82d3d067bcf69fb61460d5b00c31b0c6ef3"
+      },
+      "counts": [
+        59,
+        0,
+        6
+      ],
+      "suites": 9,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118891891833,
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891833-01.log",
+        "bytes": 41218,
+        "sha256": "67cad6396e212e73ee86d2746db6a4431b2f9e2e914d0cdc38c708188b1faf28"
+      },
+      "counts": [
+        29,
+        0,
+        3
+      ],
+      "suites": 8,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118891891862,
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891891862-01.log",
+        "bytes": 51458,
+        "sha256": "0a4c947cae0f8f43c27c96624814a5486ddbde74b56747b865d14fd325dea16e"
+      },
+      "counts": [
+        89,
+        0,
+        4
+      ],
+      "suites": 12,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118891892103,
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "hosted8de-independent-job-118891892103-01.log",
+        "bytes": 65731,
+        "sha256": "87c38695f21e5498ce40835b759685fc46869c6107cf826de2be61d779525a94"
+      },
+      "counts": [
+        90,
+        0,
+        7
+      ],
+      "suites": 14,
+      "failed_test_names": [],
+      "skipped_steps": []
+    }
+  ],
+  "limitations": [
+    "Overallrunfailed; no allplatform/MSRV qualification. Windows secondary failure retained, no ignore/retry/rerun/cancellation/deadline/cap change.",
+    "Source06 test-only9cfg repair independently passed localRust1.85 default108+causal87, but belongs to successorbytes and doesnotrepairthisrunretroactively. Scheduler successor needs itsown checks/hostedrun.",
+    "NoCargo/build/test/workload/exchange network/source mutation or activation by reviewer. GitHubread-only API requests only.",
+    "Mac/Linux hosted pass is source-scoped tests, not live source freshness/nativefinancial corpus/availability/economics/rsibotfeature/operational qualification. Pilot10\u201311s freshnessblock remains."
+  ]
+}

@@ -1,0 +1,600 @@
+{
+  "schema_version": 1,
+  "scope": "Local macOS aarch64 source-qualified atomic logical closing boundary plus inert Stopped revocation, bounded Started/Ingress ACK-wait deferral and deterministic finalization test repair: full stable, focused MSRV, release build/core/native/public and fresh audit/deny/gitleaks. No new hosted or live timing result implied.",
+  "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+  "source_files": 566,
+  "source_inventory": {
+    "path": "private-evidence/producer/.local/closing-boundary-qualification/broad-02/source-14.json",
+    "bytes": 91619,
+    "sha256": "fe414006a0ea72dc0f78129a9b0b5747a1c8789a16faae301208dc464ac0ab7d",
+    "document": "closing-boundary-source.json"
+  },
+  "required_checks_all_passed": true,
+  "local_checks": [
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.8675371669232845,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "diff",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.019403916783630848,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 4.129018708132207,
+      "log_sha256": "8098138f3e3240895f3b35fc8c2e56871be02a6908c39281822ada2b4f45f631",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "workspace",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 211.5827391659841,
+      "log_sha256": "4b05e4d9fd4868acb8fbce5975c820100f51574e708dd4289fc8ac82f7521892",
+      "source_unchanged": true,
+      "test_totals": [
+        1681,
+        0,
+        56
+      ]
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 7.154173083137721,
+      "log_sha256": "42daa20e1637e88901e645450622271ae6b19018359322d427a04d824d62b606",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "default-cli",
+      "argv": [
+        "cargo",
+        "run",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--",
+        "validate",
+        "--config",
+        "crates/daemon/config.offline.toml"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 3.1500100838020444,
+      "log_sha256": "807174ba75ba41b00f7480ed074f6d4a9643fd17ab1d96b5655733653f7d63c9",
+      "source_unchanged": true,
+      "test_totals": null
+    }
+  ],
+  "msrv_checks": [
+    {
+      "name": "msrv-default",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--lib"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 4.8674379996955395,
+      "log_sha256": "f8b507753943cf16c2dbf3d1a85b77feb1fbded384c0ae6de989aa7123aca38a",
+      "source_unchanged": true,
+      "test_totals": [
+        108,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-core",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 5.849691499955952,
+      "log_sha256": "3b00fb6924ae64ad87cdf54a76130e6f1002792d534e2fcbeafaf89353ea9376",
+      "source_unchanged": true,
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-native",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 27.320058125071228,
+      "log_sha256": "ce53ca0511491ef8834d16dcd70b29d136b6774b62208e87cb5a08240e0b4e5b",
+      "source_unchanged": true,
+      "test_totals": [
+        125,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-public",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 86.90600079111755,
+      "log_sha256": "fec44d697f330da90f72532374e6846b2f1ad758765bdb15667787905ebdf510",
+      "source_unchanged": true,
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "release_checks": [
+    {
+      "name": "build",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--bin",
+        "marketfeed-capture",
+        "--bin",
+        "marketfeed-observations"
+      ],
+      "exit_code": 0,
+      "seconds": 31.11475474992767,
+      "log_sha256": "4eb2ca084de1050d6eedfc9536b03a79d81f5ec7fe969bdc997eb7db3862353d",
+      "test_totals": null
+    },
+    {
+      "name": "core",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "seconds": 4.345236666034907,
+      "log_sha256": "5098dfda8ca659c467bd7b020808d8963d31350f33fde5569e71c3b8729ac86d",
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "native",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "exit_code": 0,
+      "seconds": 71.79475045762956,
+      "log_sha256": "97d0f8fd5d88fa1ece3c0ea38efb606748ad6a7c784d7dd70065ae78adf84cbd",
+      "test_totals": [
+        125,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "public",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "exit_code": 0,
+      "seconds": 125.57954462524503,
+      "log_sha256": "2f33082bc458167f773eb5efdea6d8868678b14bb381c5b97daed4a06576ddcf",
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "security": [
+    {
+      "name": "audit",
+      "argv": [
+        "private-evidence/primary/.tools/bin/cargo-audit",
+        "audit",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 3.4885911247693002,
+      "stdout_sha256": "db302e490b6e02205bdf1017d813db98ea11debc8a4ec9315e24fc707ec0f9d8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "deny",
+      "argv": [
+        "private-evidence/hls/target/validation-tools/bin/cargo-deny",
+        "--all-features",
+        "check"
+      ],
+      "exit_code": 0,
+      "seconds": 1.4316539587453008,
+      "stdout_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "gitleaks",
+      "argv": [
+        "private-evidence/primary/.tools/bin/gitleaks",
+        "stdin",
+        "--redact"
+      ],
+      "exit_code": 0,
+      "seconds": 0.3142101252451539,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "c33dac71041345cf8cf2fa795c1b5932549bf52ac3433ffea9b994709f92dd98",
+      "source_inputs_unchanged": true
+    }
+  ],
+  "audit_database": {
+    "advisory-count": 1348,
+    "last-commit": "4b587f00996ebe5c05a73eaef105ef241e876414",
+    "last-updated": "2026-10-21T08:20:38+02:00"
+  },
+  "retained_artifacts": {
+    "marketfeed-capture": {
+      "path": "private-evidence/producer/.local/closing-boundary-qualification/release-14/retained-artifacts/marketfeed-capture",
+      "bytes": 10887360,
+      "sha256": "8a491f3d7197eaf87b06b4af34ab02433717ec776444dc4c912d4951e3a23518"
+    },
+    "marketfeed-observations": {
+      "path": "private-evidence/producer/.local/closing-boundary-qualification/release-14/retained-artifacts/marketfeed-observations",
+      "bytes": 2310032,
+      "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+    }
+  },
+  "artifact_build_bindings": {
+    "marketfeed-capture": {
+      "artifact_sha256": "8a491f3d7197eaf87b06b4af34ab02433717ec776444dc4c912d4951e3a23518",
+      "artifact_bytes": 10887360,
+      "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "4eb2ca084de1050d6eedfc9536b03a79d81f5ec7fe969bdc997eb7db3862353d",
+      "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+      "embedded_recipe": true,
+      "build_output": {
+        "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-capture",
+        "bytes": 10887360,
+        "sha256": "8a491f3d7197eaf87b06b4af34ab02433717ec776444dc4c912d4951e3a23518"
+      }
+    },
+    "marketfeed-observations": {
+      "artifact_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+      "artifact_bytes": 2310032,
+      "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "4eb2ca084de1050d6eedfc9536b03a79d81f5ec7fe969bdc997eb7db3862353d",
+      "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+      "embedded_recipe": false,
+      "build_output": {
+        "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-observations",
+        "bytes": 2310032,
+        "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      }
+    }
+  },
+  "capture_identity": {
+    "compiled": {
+      "debug": "false",
+      "encoded_rustflags": "-Dwarnings",
+      "git_commit": "aa1536c0e24aa3390c87ae7698be5ac122d050f1",
+      "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+      "opt_level": "3",
+      "package_features": [
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-adapter-bybit"
+        },
+        {
+          "features": [],
+          "package": "marketfeed-adapter-hyperliquid"
+        },
+        {
+          "features": [
+            "causal-journal",
+            "default",
+            "kafka",
+            "nats",
+            "ui",
+            "ui-api"
+          ],
+          "package": "marketfeed-daemon"
+        },
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-engine"
+        },
+        {
+          "features": [
+            "default",
+            "kafka",
+            "nats"
+          ],
+          "package": "marketfeed-sinks"
+        }
+      ],
+      "package_version": "0.1.0-alpha.1",
+      "profile": "release",
+      "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+      "schema_version": 1,
+      "source_files": 566,
+      "source_scheme": "sha256-path-length-and-bytes-v1",
+      "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+      "target": "aarch64-apple-darwin"
+    },
+    "executable_bytes": 10887360,
+    "executable_sha256": "8a491f3d7197eaf87b06b4af34ab02433717ec776444dc4c912d4951e3a23518"
+  },
+  "actual_terminal_receipts": {
+    "stable": {
+      "actual_session": 48611,
+      "actual_exit": 0,
+      "terminal_chunk": "a4d871",
+      "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+      "scope": "Actual parent tool completion; sixgates0; workspace1681/0/56 on exactformattedfinalsource. Prior19349fmtfailure retained."
+    },
+    "msrv": {
+      "actual_session": 19776,
+      "actual_exit": 0,
+      "terminal_chunk": "470145",
+      "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+      "scope": "Actual parent tool completion Rust1.85 default108/core314/native125/public80 all0, final formatted source unchanged"
+    },
+    "release": {
+      "actual_session": 88020,
+      "actual_exit": 0,
+      "terminal_chunk": "3d4e2b",
+      "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+      "scope": "Actual parent tool completion; release build/core314/native125/public80 all0; retained8a491capture/05c2bridge with positive exact-source build bindings"
+    },
+    "security": {
+      "actual_session": 46318,
+      "actual_exit": 0,
+      "terminal_chunk": "57448f",
+      "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+      "scope": "Actual parent tool completion freshaudit/deny/gitleaks0, zero warnings/findings, source unchanged"
+    }
+  },
+  "unchanged_paused32_entire_test_file": true,
+  "focused_qualification": {
+    "path": "private-evidence/producer/.local/closing-boundary-qualification/test-green-01/qualified-focused-01.json",
+    "bytes": 15293,
+    "sha256": "6850ffbd1a0c50ee8f0eff68f72fbfccdcc96bf9dd626733cb81370694f99129"
+  },
+  "focused_qualification_scope": "Focused29pass belongs to preformat672b only. Final fullworkspace executes every13newtest on0f332; finaltests exactly match oldHTTPred8ee bytes. No priorbinary/recipe inheritance.",
+  "format_correction": {
+    "path": "private-evidence/producer/.local/closing-boundary-qualification/workspace-format-correction-01.json",
+    "bytes": 670,
+    "sha256": "09da72136b19e83ad224d0e5b5026013caa7ef43233c7471d322464073e55ae7"
+  },
+  "independent_review": {
+    "path": "private-evidence/producer/.local/closing-boundary-qualification/independent-static-review-02.json",
+    "bytes": 4415,
+    "sha256": "8417731fb78e559aba0b4633ccbe7ff8dc6d1115f0c95d14af66b9194485c6f9"
+  },
+  "independent_review_scope": "Read-only exact source/evidence comparison; only this ignored supplement written. No reviewer build, test, native, network or delegation execution.; no new material production finding after closed closing-drain issue. Full with owned predecessors remains untested deterministically.",
+  "unchanged_policy": "Original32frames/10s/defaultthreads, owner1ms, actor8/16MiB/1ms+pending16/32MiB, request/source/target bounds,0..2s tail and original480workload all preserved. Test receipt pauses hold ACK observation only; physical publication may already be complete.",
+  "mechanism": "At most2Started/Ingress one-record tickets defer observation; following authority may be admitted in slot3. Shared FIFO validates/account-retires every own ACK before native/release/wire effects. Full retains identicalTX; Idle/closing/panic cleanup drain accepted receipts. Empty normal-closing decision atomically clears views and marksStopped before physical capture destruction; centralStopped guard prevents all later revocation/rejection paths from adding unrecordable state.",
+  "prior_failures": [
+    "Original4773/101 focused grouping behavioral red with retained executable",
+    "Closing old5247/101 Drop-window and90619/101 wireHTTP status/journal discrepancy, both actualjoined semanticreds",
+    "19349/1 stopped at fmt only on preformat672b; workspaceformatter restores oldHTTPred8ee tests byteexact; raw failedgate retained",
+    "59567/101 test-seam repeated-pause error, fixed wholly cfgtest",
+    "aa1536 hosted39568644466 Mac/Linux/MSRV pending-ticket timing assertion; Windows also paused32, ARMfullpasses1669/0/56",
+    "Prior source0ff fullMacwatchdogfailure and joint05/06/07/09 timing failures unchanged"
+  ],
+  "qualification_limits": [
+    "Release checks are not full release workspace/MSRV. No loaded-image/signed/reproducible-build claim. Bridge has no embedded recipe.",
+    "No new live capture, native availability, synchronized clock, per-event SLA, original480workload, real market context or extended Razer qualification from this receipt.",
+    "LogicalStopped is distinct from physical destructor/worker completion; shutdown still joins. Full-with-owned-predecessors branch remains not deterministically tested; actual Full/failure and prior completionFull tests remain separate.",
+    "Artifacts were compiled with aa1536 as Gitparent and exact new566input recipe, before any publication of candidate; finalGithead identity is separate."
+  ],
+  "portable_copy": {
+    "original_sha256": "d07e28eb15970eadc880ce036c77d5b1a7ee938715675991a8f09a29d26a360c",
+    "original_bytes": 21078,
+    "scope": "Absolute private workspace paths replaced with stable opaque roots; raw receipts and failures retained privately. No raw capture archive published."
+  }
+}

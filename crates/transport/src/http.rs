@@ -109,6 +109,18 @@ pub struct ReqwestHttpTransport {
 }
 
 impl ReqwestHttpTransport {
+    /// Opt-in public metadata client: redirects remain observable responses,
+    /// rather than silently replacing the requested source endpoint.
+    pub fn new_without_redirects() -> Result<Self, TransportError> {
+        let client = reqwest::Client::builder()
+            .use_rustls_tls()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|e| TransportError::Tls(e.to_string()))?;
+        Ok(Self { client })
+    }
+
     pub fn new() -> Result<Self, TransportError> {
         let client = reqwest::Client::builder()
             .use_rustls_tls()
@@ -219,6 +231,70 @@ mod tests {
 
         assert_eq!(error, TransportError::FrameTooLarge(8));
         server.await.unwrap();
+    }
+
+    async fn redirected_request(transport: &ReqwestHttpTransport) -> (HttpResponse, usize) {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+        let source = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let source_address = source.local_addr().unwrap();
+        let target_address = target.local_addr().unwrap();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let source_task = tokio::spawn(async move {
+            let (mut socket, _) = source.accept().await.unwrap();
+            let mut request = [0u8; 1024];
+            assert!(socket.read(&mut request).await.unwrap() > 0);
+            socket.write_all(format!("HTTP/1.1 302 Found\r\nlocation: http://{target_address}/final\r\ncontent-length: 5\r\nconnection: close\r\n\r\nmoved").as_bytes()).await.unwrap();
+        });
+        let target_task = tokio::spawn(async move {
+            tokio::select! {
+                accepted = target.accept() => {
+                    let (mut socket, _) = accepted.unwrap();
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    let mut request = [0u8; 1024];
+                    assert!(socket.read(&mut request).await.unwrap() > 0);
+                    socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 5\r\nconnection: close\r\n\r\nfinal").await.unwrap();
+                }
+                _ = stopped => {}
+            }
+        });
+        let response = transport
+            .request(HttpRequest {
+                method: HttpMethod::Get,
+                url: format!("http://{source_address}/start"),
+                headers: Vec::new(),
+                body: None,
+                timeout_ms: 1000,
+                max_body_bytes: 16,
+            })
+            .await
+            .unwrap();
+        let _ = stop.send(());
+        source_task.await.unwrap();
+        target_task.await.unwrap();
+        (response, calls.load(Ordering::SeqCst))
+    }
+
+    #[tokio::test]
+    async fn opt_in_metadata_http_does_not_follow_redirects() {
+        let (response, followed) =
+            redirected_request(&ReqwestHttpTransport::new_without_redirects().unwrap()).await;
+        assert_eq!(response.status, 302);
+        assert_eq!(response.body.as_ref(), b"moved");
+        assert_eq!(followed, 0);
+    }
+
+    #[tokio::test]
+    async fn legacy_http_redirect_behavior_is_preserved() {
+        let (response, followed) = redirected_request(&ReqwestHttpTransport::new().unwrap()).await;
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body.as_ref(), b"final");
+        assert_eq!(followed, 1);
     }
 
     #[tokio::test]

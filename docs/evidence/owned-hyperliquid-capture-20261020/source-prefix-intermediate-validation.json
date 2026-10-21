@@ -1,0 +1,588 @@
+{
+  "schema_version": 1,
+  "scope": "Local macOS aarch64 source-qualified bounded Started/Ingress prefix ACK-wait deferral plus deterministic finalization test repair: full stable, focused MSRV, release build/core/native/public and fresh audit/deny/gitleaks. No new hosted or live timing result implied.",
+  "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+  "source_files": 566,
+  "source_inventory": {
+    "path": "private-evidence/da5e7f454c74ee40/source-13.json",
+    "bytes": 91619,
+    "sha256": "7382937f2c450bedaa2f24f2866be0a910dc10b0096a5912cce18bd3f454259b"
+  },
+  "required_checks_all_passed": true,
+  "local_checks": [
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/f449fde5339db921/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.8688822081312537,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "diff",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/f449fde5339db921/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.014781833160668612,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/f449fde5339db921/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 5.217643207870424,
+      "log_sha256": "ce8cdcc653517b09fcd18639275bdb0cf8ce7400c45311f02e97c509525f8e44",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "workspace",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/f449fde5339db921/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 214.7442493326962,
+      "log_sha256": "b6d121c32d2e299708fea99d3afe4a5c56163adf435619f6f08dfe32ac7da779",
+      "source_unchanged": true,
+      "test_totals": [
+        1679,
+        0,
+        56
+      ]
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/f449fde5339db921/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 9.742613332811743,
+      "log_sha256": "89663c2ed86be0eb7c05ac8fd76a3a32461d8a0c239a3a086b7a5a359b7587ea",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "default-cli",
+      "argv": [
+        "cargo",
+        "run",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--",
+        "validate",
+        "--config",
+        "crates/daemon/config.offline.toml"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/f449fde5339db921/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 4.387560042086989,
+      "log_sha256": "6503d45de02f379682f283a11fb55eda458edfcc49681edc225e9ebd835d2862",
+      "source_unchanged": true,
+      "test_totals": null
+    }
+  ],
+  "msrv_checks": [
+    {
+      "name": "msrv-default",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--lib"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/d117cf17362c984e/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 6.345348000060767,
+      "log_sha256": "d1d59b75abfc6898d8b660485d8fdfe5db6d2d7b297928f86b27acfcb502f8a4",
+      "source_unchanged": true,
+      "test_totals": [
+        108,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-core",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/d117cf17362c984e/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 6.394760500174016,
+      "log_sha256": "9b2198ceacadc59293971a8a47e1368fc8fa19cd2b90e04b251f861442b7fcf2",
+      "source_unchanged": true,
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-native",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/d117cf17362c984e/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 28.00069204205647,
+      "log_sha256": "d0ac56ac4b0af481d8f93d8df4d003af21ed61d051b7216fafd18f6048159d16",
+      "source_unchanged": true,
+      "test_totals": [
+        123,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-public",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": "private-evidence/d117cf17362c984e/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 93.34501866670325,
+      "log_sha256": "2b675e4508bbfb533707acf50fe69ab76d65f60ad03ad55d2541d70fbe4ab4a2",
+      "source_unchanged": true,
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "release_checks": [
+    {
+      "name": "build",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--bin",
+        "marketfeed-capture",
+        "--bin",
+        "marketfeed-observations"
+      ],
+      "exit_code": 0,
+      "seconds": 32.707655790727586,
+      "log_sha256": "1b007f7ebaf0f00586c9e6ab34686dff874c960ee4ed1a8fd477cb460b923e0b",
+      "test_totals": null
+    },
+    {
+      "name": "core",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "seconds": 4.92464662482962,
+      "log_sha256": "d82105fe0bd788a94f2983831287ac78139f120855af9e66bb024c376eae9971",
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "native",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "exit_code": 0,
+      "seconds": 72.75173570821062,
+      "log_sha256": "a4d4e2570ed5a40e3eff73990b4621ef1597d4ba36a96969b5607cc9fc69857a",
+      "test_totals": [
+        123,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "public",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "exit_code": 0,
+      "seconds": 126.77004516683519,
+      "log_sha256": "50581e827dce65675d867733e17a78f7877f66bab4099eb5ea027ef03158c7be",
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "security": [
+    {
+      "name": "audit",
+      "argv": [
+        "private-evidence/a5f3680dd0676c00/cargo-audit",
+        "audit",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 4.811154583003372,
+      "stdout_sha256": "db302e490b6e02205bdf1017d813db98ea11debc8a4ec9315e24fc707ec0f9d8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "deny",
+      "argv": [
+        "private-evidence/9e9494e43c34a569/cargo-deny",
+        "--all-features",
+        "check"
+      ],
+      "exit_code": 0,
+      "seconds": 3.031075042206794,
+      "stdout_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "gitleaks",
+      "argv": [
+        "private-evidence/a296b38af74929d6/gitleaks",
+        "stdin",
+        "--redact"
+      ],
+      "exit_code": 0,
+      "seconds": 0.3151122499257326,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "91e788a899810bf8d79149ab15c21892956724db8d2b66a30586e22ddda56f74",
+      "source_inputs_unchanged": true
+    }
+  ],
+  "audit_database": {
+    "advisory-count": 1348,
+    "last-commit": "4b587f00996ebe5c05a73eaef105ef241e876414",
+    "last-updated": "2026-10-21T08:20:38+02:00"
+  },
+  "retained_artifacts": {
+    "marketfeed-capture": {
+      "path": "private-evidence/711579ffdd22e7cb/marketfeed-capture",
+      "bytes": 10887360,
+      "sha256": "1aca8900f188092bbc392003f55b472e3e49f81e4b1aec26542c613aa80092a9"
+    },
+    "marketfeed-observations": {
+      "path": "private-evidence/41f92e9cc19e6acf/marketfeed-observations",
+      "bytes": 2310032,
+      "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+    }
+  },
+  "artifact_build_bindings": {
+    "marketfeed-capture": {
+      "artifact_sha256": "1aca8900f188092bbc392003f55b472e3e49f81e4b1aec26542c613aa80092a9",
+      "artifact_bytes": 10887360,
+      "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "1b007f7ebaf0f00586c9e6ab34686dff874c960ee4ed1a8fd477cb460b923e0b",
+      "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+      "embedded_recipe": true,
+      "build_output": {
+        "path": "private-evidence/3071935c5235137b/marketfeed-capture",
+        "bytes": 10887360,
+        "sha256": "1aca8900f188092bbc392003f55b472e3e49f81e4b1aec26542c613aa80092a9"
+      }
+    },
+    "marketfeed-observations": {
+      "artifact_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+      "artifact_bytes": 2310032,
+      "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "1b007f7ebaf0f00586c9e6ab34686dff874c960ee4ed1a8fd477cb460b923e0b",
+      "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+      "embedded_recipe": false,
+      "build_output": {
+        "path": "private-evidence/bfa6cd1eb94ac5d5/marketfeed-observations",
+        "bytes": 2310032,
+        "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      }
+    }
+  },
+  "capture_identity": {
+    "compiled": {
+      "debug": "false",
+      "encoded_rustflags": "-Dwarnings",
+      "git_commit": "aa1536c0e24aa3390c87ae7698be5ac122d050f1",
+      "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+      "opt_level": "3",
+      "package_features": [
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-adapter-bybit"
+        },
+        {
+          "features": [],
+          "package": "marketfeed-adapter-hyperliquid"
+        },
+        {
+          "features": [
+            "causal-journal",
+            "default",
+            "kafka",
+            "nats",
+            "ui",
+            "ui-api"
+          ],
+          "package": "marketfeed-daemon"
+        },
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-engine"
+        },
+        {
+          "features": [
+            "default",
+            "kafka",
+            "nats"
+          ],
+          "package": "marketfeed-sinks"
+        }
+      ],
+      "package_version": "0.1.0-alpha.1",
+      "profile": "release",
+      "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+      "schema_version": 1,
+      "source_files": 566,
+      "source_scheme": "sha256-path-length-and-bytes-v1",
+      "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+      "target": "aarch64-apple-darwin"
+    },
+    "executable_bytes": 10887360,
+    "executable_sha256": "1aca8900f188092bbc392003f55b472e3e49f81e4b1aec26542c613aa80092a9"
+  },
+  "actual_terminal_receipts": {
+    "stable": {
+      "actual_session": 86175,
+      "actual_exit": 0,
+      "terminal_chunk": "e04788",
+      "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+      "scope": "Actual parent tool completion; six gates0; workspace1679/0/56"
+    },
+    "msrv": {
+      "actual_session": 65991,
+      "actual_exit": 0,
+      "terminal_chunk": "607a56",
+      "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+      "scope": "Actual parent tool completion; Rust1.85 default108/core314/native123/public80, all0"
+    },
+    "release": {
+      "actual_session": 92098,
+      "actual_exit": 0,
+      "terminal_chunk": "b9510d",
+      "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+      "scope": "Actual parent tool completion; release build/core314/native123/public80 all0"
+    },
+    "security": {
+      "actual_session": 33746,
+      "actual_exit": 0,
+      "terminal_chunk": "6ea076",
+      "source_sha256": "d1a34e173937c0a226754d10b368149f03424190564fd4bdeee5f123b78b8888",
+      "scope": "Actual parent tool completion; fresh audit/deny/gitleaks0, no warnings/findings"
+    }
+  },
+  "unchanged_paused32_entire_test_file": true,
+  "focused_qualification": {
+    "path": "private-evidence/45fed168dd0b8008/qualified-focused-01.json",
+    "bytes": 12432,
+    "sha256": "51d9fd3e576542bd5669f483e4aed618eb487f665eecdb2bafb8741e4e976105"
+  },
+  "independent_review": {
+    "path": "private-evidence/8e83b2ded4ea3622/independent-static-review-01.json",
+    "bytes": 2846,
+    "sha256": "b2d04c7111d86907bce9abb1a6810135adede06702b6debbf4545aa283b53443"
+  },
+  "independent_review_scope": "Independent agent static review of bounded source-prefix ACK-wait deferral and test deltas; no reviewer builds/native execution; no new material production finding after closed closing-drain issue. Full with owned predecessors remains untested deterministically.",
+  "unchanged_policy": "Original32frames/10s/defaultthreads, owner1ms, actor8/16MiB/1ms+pending16/32MiB, request/source/target bounds,0..2s tail and original480workload all preserved. Test receipt pauses hold ACK observation only; physical publication may already be complete.",
+  "mechanism": "At most2Started/Ingress one-record tickets defer observation; following authority may be admitted in slot3. Shared FIFO validates/account-retires every own ACK before native/release/wire effects. Full retains identicalTX; Idle/closing/panic cleanup drain accepted receipts.",
+  "prior_failures": [
+    "Original4773/101 focused grouping behavioral red with retained executable",
+    "59567/101 test-seam repeated-pause error, fixed wholly cfgtest",
+    "aa1536 hosted39568644466 Mac/Linux/MSRV pending-ticket timing assertion; Windows also paused32, ARMfullpasses1669/0/56",
+    "Prior source0ff fullMacwatchdogfailure and joint05/06/07/09 timing failures unchanged"
+  ],
+  "qualification_limits": [
+    "Release checks are not full release workspace/MSRV. No loaded-image/signed/reproducible-build claim. Bridge has no embedded recipe.",
+    "No new live capture, native availability, synchronized clock, per-event SLA, original480workload, real market context or extended Razer qualification from this receipt.",
+    "Static follow-up identified an observable pre-existing final-stop/revoke status-journal discrepancy after empty closing decision and before CaptureSession destruction/outercleanup. Source13 must not be the final handoff: successor regression/fix/qualification required. Full-with-owned-predecessors branch not deterministically tested.",
+    "Artifacts were compiled with aa1536 as Gitparent and exact new566input recipe, before any publication of candidate; finalGithead identity is separate."
+  ],
+  "qualification_status": "INTERMEDIATE_LOCAL_CHECKS_PASS_WITH_KNOWN_CLOSING_DISCREPANCY; successor correction required before handoff",
+  "original_private_qualification_sha256": "9e49f74e534828dae942db5dd8c24aef5785bc9de1a1cd9f4d4bcd9c17d322c4"
+}

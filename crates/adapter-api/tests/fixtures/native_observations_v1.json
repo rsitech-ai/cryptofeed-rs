@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "rows": [
+    {
+      "canonical_positions": [0],
+      "observation": {"HyperliquidTrade": {
+        "coin": "@1", "side": "B",
+        "price": {"coefficient": 170141183460469231731687303715884105727, "scale": 20},
+        "size": {"coefficient": 1, "scale": 255},
+        "hash": "native-public-hash", "time_ms": 1000,
+        "tid": 18446744073709551615, "users": ["public-A", "public-B"]
+      }}
+    },
+    {
+      "canonical_positions": [],
+      "observation": {"HyperliquidBbo": {
+        "coin": "@1", "time_ms": 1001,
+        "sides": [null, {"price": {"coefficient": 2, "scale": 0}, "size": {"coefficient": 3, "scale": 1}, "orders": 0}]
+      }}
+    },
+    {
+      "canonical_positions": [1],
+      "observation": {"HyperliquidBook": {
+        "coin": "@1", "time_ms": 1002,
+        "sides": [
+          [{"price": {"coefficient": 1, "scale": 0}, "size": {"coefficient": 3, "scale": 1}, "orders": 18446744073709551615}],
+          [{"price": {"coefficient": 2, "scale": 0}, "size": {"coefficient": 4, "scale": 1}, "orders": 0}]
+        ]
+      }}
+    },
+    {
+      "canonical_positions": [2],
+      "observation": {"HyperliquidCandle": {
+        "coin": "@1", "interval": "1m", "open_ms": 1000, "end_ms": 1001,
+        "open": {"coefficient": 2, "scale": 1}, "high": {"coefficient": 3, "scale": 1},
+        "low": {"coefficient": 1, "scale": 1}, "close": {"coefficient": 2, "scale": 1},
+        "volume": {"coefficient": 5, "scale": 2}, "trades": 18446744073709551615
+      }}
+    },
+    {
+      "canonical_positions": [3, 4],
+      "observation": {"HyperliquidContext": {
+        "coin": "@1", "day_notional_volume": {"coefficient": 3, "scale": 1},
+        "previous_day_price": {"coefficient": 2, "scale": 1}, "mark_price": {"coefficient": 3, "scale": 1},
+        "mid_price": null, "circulating_supply": {"coefficient": 0, "scale": 7},
+        "funding": {"coefficient": -170141183460469231731687303715884105728, "scale": 255},
+        "open_interest": {"coefficient": 0, "scale": 255}, "oracle_price": null,
+        "day_base_volume": {"coefficient": 7, "scale": 2}, "premium": {"coefficient": -1, "scale": 20},
+        "impact_prices": [{"coefficient": 1, "scale": 255}, {"coefficient": 170141183460469231731687303715884105727, "scale": 255}]
+      }}
+    },
+    {
+      "canonical_positions": [],
+      "observation": {"HyperliquidAllMids": {"entries": [
+        {"coin": "@1", "mid": {"coefficient": 3, "scale": 1}},
+        {"coin": "BTC", "mid": {"coefficient": 4, "scale": 2}}
+      ]}}
+    }
+  ]
+}

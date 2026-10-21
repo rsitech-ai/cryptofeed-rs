@@ -1,0 +1,1157 @@
+{
+  "schema_version": 1,
+  "status": "REQUIRED_MAC_LINUX_ARM_MSRV_AND_OTHER_REQUIRED_JOBS_PASS",
+  "integration_gate": {
+    "status": "PASS",
+    "producer_commit": "b3da14730be3dc88287fd81429829779efb1a488",
+    "source_files": 570,
+    "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+    "run_id": 39602004558,
+    "required_checks_verified": true,
+    "findings": []
+  },
+  "head": "b3da14730be3dc88287fd81429829779efb1a488",
+  "run": 39602004558,
+  "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39602004558",
+  "run_conclusion": "failure",
+  "jobs_by_conclusion": {
+    "success": 16,
+    "failure": 1
+  },
+  "cancelled_jobs": 0,
+  "tested_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+  "whole_merge_tree": "0e9361df8a1b8252ccc35faac56701af8de0c6d1",
+  "whole_merge_tree_equals_author": true,
+  "compiled_source_files": 570,
+  "compiled_source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "all570_committed_inputs_match_retained_qualified_recipe": true,
+  "reviewed_completion_intent_pipeline_included": true,
+  "docs_only_head": true,
+  "runtime_qualified_commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+  "HLS_remains_pinned_runtime20f5": true,
+  "jobs": [
+    {
+      "id": 119228575848,
+      "name": "rustfmt",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228575848-01.log",
+        "bytes": 13785,
+        "sha256": "4a9b7da7a529382b10494bde10b4b08965ca09d84401debe1cb7f3df9a2ade38"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": null,
+      "test_summaries": 0,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal --component rustfmt",
+        "cargo fmt --all -- --check"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo fmt --all -- --check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576157,
+      "name": "Windows directory durability",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576157-01.log",
+        "bytes": 67249,
+        "sha256": "c8d112be069528f38dcc2d4fbd0c7785341d381a057a329d0feeefbca1d54fc9"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        137,
+        0,
+        0
+      ],
+      "test_summaries": 12,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "./scripts/probe_windows_directory_flush.ps1 -ParentDirectory $env:RUNNER_TEMP > windows-directory-flush.json",
+        "rustup toolchain install 1.85.0 --profile minimal",
+        "rustup toolchain install 1.88.0 --profile minimal",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Probe directory handles and exact write-access flush",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Recording and directory backend on Rust 1.85",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Dataset publication and recovery on Rust 1.88",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Preserve native results, including failures",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576295,
+      "name": "msrv (1.85)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576295-01.log",
+        "bytes": 175287,
+        "sha256": "a16fb2cec6bea2cb19ef7e6973c3a4055b7f7c5bdf687c75f00c08f9d2d62c0e"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        841,
+        0,
+        0
+      ],
+      "test_summaries": 40,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.85 --profile minimal",
+        "cargo +1.85 test --locked --workspace --exclude marketfeed-datasets --lib",
+        "cargo +1.85 test --locked -p marketfeed-daemon --features causal-journal --lib causal_bootstrap",
+        "rustup toolchain install 1.88 --profile minimal",
+        "cargo +1.88 build --locked -p marketfeed-datasets --example cross_reader_fixture"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install MSRV toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo +1.85 test --locked --workspace --exclude marketfeed-datasets --lib",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Opt-in causal owner on Rust 1.85",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Offline dataset tool MSRV (Parquet 60)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Independent exact Parquet cross-reader",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "critical_pipeline12_and_prior10_regressions_passed": [
+        "complete_and_intent_are_both_owned_before_first_receipt_observation",
+        "intent_full_retires_completion_once_and_retries_exact_reserved_record",
+        "failed_intent_suffix_never_rewrites_committed_completion_or_publishes_reserved_hole",
+        "revoke_after_completion_ack_keeps_settlement_and_withholds_preissued_intent",
+        "panic_after_pair_admission_drains_tickets_and_commits_native_once_without_release",
+        "actual_factory_connected_generation_and_every_record_resume_reexecute_identically",
+        "shared_publication_failure_keeps_both_pair_records_unknown_and_drains_tickets",
+        "panic_after_completion_ack_preserves_known_commit_and_joins_remaining_intent",
+        "invalid_prior_fifo_state_prevents_literal_successful_completion_ack_from_committing",
+        "actual_five_second_deadline_after_reservation_never_releases_expired_intent",
+        "unaccepted_intent_after_writer_closure_ends_at_known_completion_without_ordinal_hole",
+        "earlier_queued_ingress_and_reconnection_fence_force_serial_fallback_without_holes",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation",
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing"
+      ]
+    },
+    {
+      "id": 119228576325,
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576325-01.log",
+        "bytes": 45865,
+        "sha256": "3e019d55991dac8e90340b16a14a8064bd86b940fec90b154454f919181e1a6b"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        59,
+        0,
+        6
+      ],
+      "test_summaries": 7,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked -p marketfeed-adapter-okx --features simd-json"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked -p marketfeed-adapter-okx --features simd-json",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "parse_fixtures bench (compile + one run)",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576328,
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576328-01.log",
+        "bytes": 65728,
+        "sha256": "4b367e5443f67bde8cfd1cd598d301e8840895b246b19c566c80eff0a9a20a5c"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        90,
+        0,
+        7
+      ],
+      "test_summaries": 14,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked -p marketfeed-adapter-binance --features simd-json",
+        "cargo bench --locked -p marketfeed-adapter-binance --bench parse_fixtures"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked -p marketfeed-adapter-binance --features simd-json",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "parse_fixtures bench (compile + one run)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576379,
+      "name": "sbom",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576379-01.log",
+        "bytes": 51827,
+        "sha256": "3af2601cdf4a1dd367d163f516a520868ec288d5f884fbfb6e07deff3fddeccc"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": null,
+      "test_summaries": 0,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo install cargo-cyclonedx --locked --version 0.5.9",
+        "bash scripts/tests/generate-sbom_test.sh",
+        "./scripts/generate-sbom.sh",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install cargo-cyclonedx",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Test CycloneDX SBOM generation",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Generate CycloneDX SBOM",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Upload SBOM artifact",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576381,
+      "name": "test (macos-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576381-01.log",
+        "bytes": 306506,
+        "sha256": "94f5c458db38170096f223258bfc6493799779f9f5aeaa39e47587d7cface3f7"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        1699,
+        0,
+        56
+      ],
+      "test_summaries": 162,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked --workspace --all-targets --all-features"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked --workspace --all-targets --all-features",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "critical_pipeline12_and_prior10_regressions_passed": [
+        "complete_and_intent_are_both_owned_before_first_receipt_observation",
+        "intent_full_retires_completion_once_and_retries_exact_reserved_record",
+        "failed_intent_suffix_never_rewrites_committed_completion_or_publishes_reserved_hole",
+        "revoke_after_completion_ack_keeps_settlement_and_withholds_preissued_intent",
+        "panic_after_pair_admission_drains_tickets_and_commits_native_once_without_release",
+        "actual_factory_connected_generation_and_every_record_resume_reexecute_identically",
+        "shared_publication_failure_keeps_both_pair_records_unknown_and_drains_tickets",
+        "panic_after_completion_ack_preserves_known_commit_and_joins_remaining_intent",
+        "invalid_prior_fifo_state_prevents_literal_successful_completion_ack_from_committing",
+        "actual_five_second_deadline_after_reservation_never_releases_expired_intent",
+        "unaccepted_intent_after_writer_closure_ends_at_known_completion_without_ordinal_hole",
+        "earlier_queued_ingress_and_reconnection_fence_force_serial_fallback_without_holes",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation",
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing"
+      ]
+    },
+    {
+      "id": 119228576383,
+      "name": "clippy",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576383-01.log",
+        "bytes": 50599,
+        "sha256": "64b2751b6ee7372d2f944043327ffc5a9fd8f10a34e36a91080eb9b378dbbd93"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": null,
+      "test_summaries": 0,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal --component clippy",
+        "cargo clippy --locked --workspace --all-targets --all-features -- -D warnings"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo clippy --locked --workspace --all-targets --all-features -- -D warnings",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576418,
+      "name": "test (windows-latest)",
+      "conclusion": "failure",
+      "raw_log": {
+        "file": "job-119228576418-01.log",
+        "bytes": 183890,
+        "sha256": "b2a38aaebc4a6c6e96a187aeae57a6f544c70b7c68cc39bb0aecba13e0f5275d"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        836,
+        1,
+        46
+      ],
+      "test_summaries": 84,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked --workspace --all-targets --all-features"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked --workspace --all-targets --all-features",
+          "status": "completed",
+          "conclusion": "failure"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "secondary_failure_lines": [
+        "2026-10-21T12:51:17.9991605Z test silence_watchdog_timer_reconnects ... ok",
+        "2026-10-21T12:51:20.4067197Z test heartbeat_metadata_reschedules_watchdog_and_timeout_reconnects ... ok",
+        "2026-10-21T12:51:40.0448364Z test causal_bootstrap::live::tests::paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly ... FAILED",
+        "2026-10-21T12:52:34.7721518Z thread 'causal_bootstrap::live::tests::paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly' (5116) panicked at crates\\daemon\\src\\causal_bootstrap\\live_tests.rs:337:29:",
+        "2026-10-21T12:52:34.7722430Z driver fixture watchdog at crates\\daemon\\src\\causal_bootstrap\\live_tests.rs:926:53",
+        "2026-10-21T12:52:34.7723351Z thread 'causal_bootstrap::live::tests::paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly' (5116) panicked at crates\\daemon\\src\\causal_bootstrap\\live_tests.rs:933:32:",
+        "2026-10-21T12:52:34.7726762Z resume watchdog: delivered=23 status=HistoryStatus { owner: OwnerStatus { phase: AwaitingCommit, closing: false, failure: None, accepted: 48, executed: 48, durable: 47, handed_off: 47, withheld: 0, abandoned: 0, rejected_stale: 0, stale_accepted: 0, pending_operations: 1, pending_bytes: 144, admission_retries: 0, last_settlement: Some(Committed(CommitReceipt { admission: 242, first_sequence: 242, last_sequence: 242, published: FeedCursor { feed_id: \"73b022e3cd7bf556cd08be6db154eaff06ebde2f\", sequence: 242, offset: 399902 } })) }, committed_records: 241, finalization_expired: false, ingress_observations: 0, ingress_observation_bytes: 0 }",
+        "2026-10-21T12:52:34.7730341Z test result: FAILED. 279 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 73.70s"
+      ],
+      "failure_scope": "Secondary Windows actual raw failure retained; no proven runtime/filesystem/contention root cause or required-platform inheritance."
+    },
+    {
+      "id": 119228576422,
+      "name": "test (ubuntu-24.04-arm)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576422-01.log",
+        "bytes": 307536,
+        "sha256": "719d349b702faa7ac2baa9838a47e0ad3d71236be9e1f24aba0756e26608abfd"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        1700,
+        0,
+        56
+      ],
+      "test_summaries": 162,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked --workspace --all-targets --all-features"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked --workspace --all-targets --all-features",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "critical_pipeline12_and_prior10_regressions_passed": [
+        "complete_and_intent_are_both_owned_before_first_receipt_observation",
+        "intent_full_retires_completion_once_and_retries_exact_reserved_record",
+        "failed_intent_suffix_never_rewrites_committed_completion_or_publishes_reserved_hole",
+        "revoke_after_completion_ack_keeps_settlement_and_withholds_preissued_intent",
+        "panic_after_pair_admission_drains_tickets_and_commits_native_once_without_release",
+        "actual_factory_connected_generation_and_every_record_resume_reexecute_identically",
+        "shared_publication_failure_keeps_both_pair_records_unknown_and_drains_tickets",
+        "panic_after_completion_ack_preserves_known_commit_and_joins_remaining_intent",
+        "invalid_prior_fifo_state_prevents_literal_successful_completion_ack_from_committing",
+        "actual_five_second_deadline_after_reservation_never_releases_expired_intent",
+        "unaccepted_intent_after_writer_closure_ends_at_known_completion_without_ordinal_hole",
+        "earlier_queued_ingress_and_reconnection_fence_force_serial_fallback_without_holes",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation",
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing"
+      ]
+    },
+    {
+      "id": 119228576480,
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576480-01.log",
+        "bytes": 44949,
+        "sha256": "56504470ff17d853c62abae56a1bfbe6a8c87fd3cbe0349971532403ff9f0259"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        59,
+        0,
+        6
+      ],
+      "test_summaries": 9,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked -p marketfeed-adapter-kraken --features simd-json"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked -p marketfeed-adapter-kraken --features simd-json",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "parse_fixtures bench (compile + one run)",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576528,
+      "name": "docs",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576528-01.log",
+        "bytes": 53934,
+        "sha256": "51c5398f150988da0b7c35f6fe2d227d2c314c0ff60778f9c68634ddea97be1f"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": null,
+      "test_summaries": 0,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo doc --locked --workspace --all-features --no-deps"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo doc --locked --workspace --all-features --no-deps",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576568,
+      "name": "test (ubuntu-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576568-01.log",
+        "bytes": 306915,
+        "sha256": "557ae3e51bcbfb014a5fdce82fa36b14c9a340bfd41c623c1e55375d3620dc55"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        1700,
+        0,
+        56
+      ],
+      "test_summaries": 162,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked --workspace --all-targets --all-features"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked --workspace --all-targets --all-features",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ],
+      "critical_pipeline12_and_prior10_regressions_passed": [
+        "complete_and_intent_are_both_owned_before_first_receipt_observation",
+        "intent_full_retires_completion_once_and_retries_exact_reserved_record",
+        "failed_intent_suffix_never_rewrites_committed_completion_or_publishes_reserved_hole",
+        "revoke_after_completion_ack_keeps_settlement_and_withholds_preissued_intent",
+        "panic_after_pair_admission_drains_tickets_and_commits_native_once_without_release",
+        "actual_factory_connected_generation_and_every_record_resume_reexecute_identically",
+        "shared_publication_failure_keeps_both_pair_records_unknown_and_drains_tickets",
+        "panic_after_completion_ack_preserves_known_commit_and_joins_remaining_intent",
+        "invalid_prior_fifo_state_prevents_literal_successful_completion_ack_from_committing",
+        "actual_five_second_deadline_after_reservation_never_releases_expired_intent",
+        "unaccepted_intent_after_writer_closure_ends_at_known_completion_without_ordinal_hole",
+        "earlier_queued_ingress_and_reconnection_fence_force_serial_fallback_without_holes",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation",
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing"
+      ]
+    },
+    {
+      "id": 119228576604,
+      "name": "C header and ABI exports",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576604-01.log",
+        "bytes": 15625,
+        "sha256": "26a3b218b9e2c37b4f9c7cc00d70b07dfd54718687b17a5184b31b62e51136ab"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": null,
+      "test_summaries": 0,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "bash scripts/tests/ffi-header_test.sh"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run bash scripts/tests/ffi-header_test.sh",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576622,
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576622-01.log",
+        "bytes": 41219,
+        "sha256": "36aa9b6638688145ad8ee4b4b861414d8a47d1cd294d3b1641a9b6e49e9a6fc3"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        29,
+        0,
+        3
+      ],
+      "test_summaries": 8,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked -p marketfeed-adapter-deribit --features simd-json"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked -p marketfeed-adapter-deribit --features simd-json",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "parse_fixtures bench (compile + one run)",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576634,
+      "name": "cargo-deny",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576634-01.log",
+        "bytes": 35152,
+        "sha256": "f4422e57fb06914ee8e23775bd0eab717edbf81b0aeca52e22d04e7e08e1a8ad"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": null,
+      "test_summaries": 0,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "cargo install cargo-deny --locked --version 0.20.2",
+        "cargo deny check"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned cargo-deny",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo deny check",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 119228576636,
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119228576636-01.log",
+        "bytes": 51460,
+        "sha256": "dad5b2ca1b39f82936f362d685a6a0343b2fef0606fb3187a665189b7bf373d4"
+      },
+      "checkout_merge": "7295c55f401a2ab3ffc0178451d823f399584885",
+      "test_totals": [
+        89,
+        0,
+        4
+      ],
+      "test_summaries": 12,
+      "actual_run_commands": [
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "rustup toolchain install 1.91.0 --profile minimal",
+        "cargo test --locked -p marketfeed-adapter-bybit --features simd-json"
+      ],
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install pinned Rust toolchain",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cargo test --locked -p marketfeed-adapter-bybit --features simd-json",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "parse_fixtures bench (compile + one run)",
+          "status": "completed",
+          "conclusion": "skipped"
+        },
+        {
+          "name": "Post Run actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "own_run_json": {
+    "file": "run-12.json",
+    "bytes": 13208,
+    "sha256": "82b544eac425a0cc2d63d8d70f98580b3ce637a599c90140fb8474f1b10088ce"
+  },
+  "own_jobs_json": {
+    "file": "jobs-12.json",
+    "bytes": 36575,
+    "sha256": "7e469119fac3ceda01723eb83255649f16ab6afb72248b31141fae409c81c6d5"
+  },
+  "immutable_source_proof": {
+    "file": "source-proof-01.json",
+    "bytes": 825,
+    "sha256": "4a0fc9687153a1840f001c36bf7752bdec552bba1acf757495c5f8334950b492"
+  },
+  "raw_merge_api": {
+    "file": "tested-merge-01.json",
+    "bytes": 2663,
+    "sha256": "5daeacdcad7e1b4b0b5efef6e89d810d319a998bd6b710757eaabaac7aa79393"
+  },
+  "watch_terminal": {
+    "file": "watch-terminal-01.json",
+    "bytes": 823,
+    "sha256": "2f04e22a553bdac8dd317e4d2f60332482b95c83efb39f617ecfc2861dfdf10c"
+  },
+  "snapshot_evidence": {
+    "file": "snapshot-12.json",
+    "bytes": 3261,
+    "sha256": "dbf173ce7bd629b3414da0baa82ce7c287f261501f234527bdb99948b1d662c1"
+  },
+  "reviewer_execution": "Read-only Git/GitHub/Python audit only; official hosted tests inspected, no local Rust/native/collector/consumer invocation",
+  "limits": [
+    "Docs-only head b3da has unchanged570/e5cd runtime from qualified20f5; this is own b3da hosted proof. HLS0c07 remains pinned20f5 without repin. Runtime localrelease/captures have separate receipts.",
+    "Overall CI and secondary Windows outcomes remain explicit outside the required-platform integration gate. No cancellation, rerun, ignored failure, or unsupported cause inference.",
+    "Workspace platform counts include platform-specific tests; MSRV totals include overlapping command suites, not unique-case counts. Hosted commands are recorded per job; no unexecuted standalone CLI/security audit command is invented.",
+    "This CI result does not establish provenance of exchange values or synchronized usable time. It grants no live freshness threshold, Razer verification, strategy admission, external exactly once effects, extended operation or full goal completion.",
+    "HLS0c07 own-hosted proof, finaljoint15/checkpoint/export are separatelyclosed evidence; this run does not rerun or extend their operational scope."
+  ],
+  "helper": {
+    "file": "close-ci-01.py",
+    "bytes": 6283,
+    "sha256": "d5f0b1d7195d0aab072ffc6ffb589733998df2bab7c10b4ab7596374b8c8e69b"
+  },
+  "private_receipt": {
+    "file": "hosted-independent-final-01.json",
+    "bytes": 43348,
+    "sha256": "7659d533e9de654f35f88bf3ccd2031cd05c235ab9beccee2db17d74d2658ada"
+  }
+}

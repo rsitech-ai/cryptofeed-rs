@@ -1,35 +1,13 @@
 use super::*;
 use marketfeed_daemon::causal_bootstrap::replay::{
-    HistoryReplay, MultiHistoryReplay, MultiReplayLimits, ReplayError, ReplayResources,
+    HistoryReplay, MultiHistoryReplay, ReplayError, ReplayResources,
 };
 use std::{
     collections::{BTreeMap, VecDeque},
     path::Path,
 };
 
-fn limits() -> MultiReplayLimits {
-    MultiReplayLimits {
-        per_owner: OwnerHistoryLimits {
-            max_retained_input_bytes: 4 << 20,
-            max_input_bytes: 256 << 10,
-            max_record_bytes: 256 << 10,
-        },
-        maximum: ReplayResources {
-            owners: 8,
-            bootstrap_payload_bytes: 8 << 20,
-            pending_inputs: 128,
-            pending_input_bytes: 8 << 20,
-            active_operation_and_state_bytes: 8 << 20,
-            source_owned_pending_inputs: 128,
-            source_owned_pending_bytes: 8 << 20,
-            capture_trace_reservation_bytes: 16 << 20,
-            catalog_entries: 64,
-            selected_instruments: 64,
-            maintained_book_levels: 4096,
-            cached_book_levels: 32768,
-        },
-    }
-}
+pub(super) use super::hyperliquid_fixture::replay_limits as limits;
 
 #[test]
 fn multi_replay_bootstraps_physically_and_retains_independent_idle_owners() {
@@ -128,7 +106,7 @@ fn multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_fac
     assert!(replay.read_next().is_err());
 }
 
-fn bybit_fixture() -> BootstrapDto {
+pub(super) fn bybit_fixture() -> BootstrapDto {
     let mut dto = fixture(true);
     let catalog = CatalogView::with_instruments(
         VenueId(6),
@@ -352,14 +330,16 @@ fn multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_
     let mut previous_state_bytes = BTreeMap::new();
     for record in &records {
         writer.append(record.clone()).unwrap();
-        let step = replay.read_next().unwrap().unwrap();
+        let before = replay.progress().unwrap().cursor;
+        let step = replay.read_next_verified().unwrap().unwrap();
+        assert_eq!(step.before_cursor(), &before);
         if let Some(r) = resumed.as_mut() {
-            assert_eq!(r.read_next().unwrap().unwrap(), step);
+            assert_eq!(r.read_next_verified().unwrap().unwrap(), step);
             assert!(r.read_next().unwrap().is_none());
         }
         match record {
             FeedRecord::Causal(e) if e.phase == CausalPhase::Bootstrap => {
-                assert_eq!(step.owner.as_ref().unwrap().session, e.route.session);
+                assert_eq!(step.owner().unwrap().session, e.route.session);
                 assert!(
                     expected
                         .insert(
@@ -385,10 +365,11 @@ fn multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_
             }
             _ => {}
         }
-        if let Some(h) = step.handoff {
-            actual.push((step.owner.unwrap(), h));
+        if let Some(h) = step.handoff() {
+            actual.push((step.owner().unwrap().clone(), h.clone()));
         }
         let progress = replay.progress().unwrap();
+        assert_eq!(step.after_cursor(), &progress.cursor);
         assert_eq!(progress.owners.len(), expected.len());
         for owner in &progress.owners {
             let ledger = &expected[&owner.identity.session];

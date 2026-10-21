@@ -100,7 +100,11 @@ tokio = { version = "1", default-features = false, features = [
     "io-util",
 ] }
 # Spec baseline: rustls + hostname/cert verification; no insecure fallback.
-tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.26", features = ["__rustls-tls"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+webpki-roots = "1.0.10"
+# Security floor for downstream workspaces whose lockfile is independent.
+rustls-webpki = { version = "0.103.16", default-features = false }
 marketfeed-model = { path = "crates/model" }
 marketfeed-analytics = { path = "crates/analytics" }
 marketfeed-event-pulse = { path = "crates/event-pulse" }
@@ -126,6 +130,16 @@ base64 = { version = "0.22", default-features = false, features = ["alloc"] }
 lto = "thin"
 codegen-units = 1
 panic = "unwind"
+
+# Causal replay deliberately rehashes the actual executable at each bootstrap.
+# Keep that verification affordable in debug builds, where linked artifacts can
+# be large. Retain debug information, assertions and the original I/O deadlines;
+# this optimizes the existing SHA-256 implementation, without caching identities.
+[profile.dev.package.sha2]
+opt-level = 3
+
+[profile.test.package.sha2]
+opt-level = 3
 
 # Operator host-specific release (spec §30.3). Fat LTO + single CGU.
 # `target-cpu=native` is *not* a Cargo profile key — pass via RUSTFLAGS

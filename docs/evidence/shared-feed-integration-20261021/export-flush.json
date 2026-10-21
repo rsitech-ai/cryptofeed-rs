@@ -1,0 +1,30 @@
+{
+  "status": "PASS",
+  "files": [
+    {
+      "file": "saved-captures-01.tar.gz",
+      "sha256": "c0c575d331dccfd52e803a93864cfe3be881bb2bde932d3b5ecbf1a1829f343c",
+      "bytes": 176229337
+    },
+    {
+      "file": "manifest-01.json",
+      "sha256": "81481c46e6006c3a15285548085ff7015615692aca980b02ab8783733f5ca42e",
+      "bytes": 79767
+    },
+    {
+      "file": "receipt-01.json",
+      "sha256": "36c8edba6365201456a192a975814e9d8ab31c570145566e4921ed78c5d9a794",
+      "bytes": 1139
+    }
+  ],
+  "file_and_directory_fsync_returned": true,
+  "helper_sha256": "04d15c974beadaa37859d825783a279998c1f45e8bcfadab27722cdecba9cb6a",
+  "limits": [
+    "fsync completion and byte readback only; no power-loss experiment, off-device backup or digital signature."
+  ],
+  "portable_copy": {
+    "original_sha256": "3ee51f76ab8b52229e084999a9ab7f099a611e4343eb7754530aa09ba02cba45",
+    "original_bytes": 770,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

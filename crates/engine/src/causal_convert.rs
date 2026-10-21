@@ -164,6 +164,9 @@ impl ActionDto {
             },
             SessionAction::CancelTimer(v) => Self::CancelTimer(*v),
             SessionAction::EmitBatch(v) => Self::EmitBatch(batch(v)?),
+            SessionAction::EmitObservedBatch(v) => {
+                Self::EmitObservedBatch(ObservedBatchJson::new(v)?)
+            }
             SessionAction::EmitSystem(v) => Self::EmitSystem(system(v, session)?),
             SessionAction::MarkLive => Self::MarkLive,
             SessionAction::MarkDegraded => Self::MarkDegraded,
@@ -190,6 +193,7 @@ impl ItemDto {
     fn item(value: &CaptureQueueItem, session: u64) -> Result<Self, CodecError> {
         Ok(match value {
             CaptureQueueItem::Market(v) => Self::Market(batch(v)?),
+            CaptureQueueItem::ObservedMarket(v) => Self::ObservedMarket(ObservedBatchJson::new(v)?),
             CaptureQueueItem::System(v) => Self::System(system(v, session)?),
             CaptureQueueItem::Write(v) => Self::Write(v.into()),
             CaptureQueueItem::Http(v) => Self::Http(v.into()),
@@ -197,7 +201,7 @@ impl ItemDto {
     }
     fn lane(&self) -> LaneDto {
         match self {
-            Self::Market(_) => LaneDto::Market,
+            Self::Market(_) | Self::ObservedMarket(_) => LaneDto::Market,
             Self::System(_) => LaneDto::System,
             Self::Write(_) => LaneDto::Write,
             Self::Http(_) => LaneDto::Http,
@@ -367,6 +371,20 @@ impl OperationDto {
         value: &CapturedOperation,
         identity: &OperationIdentity,
     ) -> Result<Self, CodecError> {
+        Self::from_capture_schema(value, identity, 1)
+    }
+    /// Only MFCJ4 owner completions may persist this operation schema.
+    pub fn from_observed_capture(
+        value: &CapturedOperation,
+        identity: &OperationIdentity,
+    ) -> Result<Self, CodecError> {
+        Self::from_capture_schema(value, identity, 2)
+    }
+    fn from_capture_schema(
+        value: &CapturedOperation,
+        identity: &OperationIdentity,
+        schema_version: u16,
+    ) -> Result<Self, CodecError> {
         if value.venue.0 != identity.venue || value.session.0 != identity.session {
             return Err(invalid("capture owner identity mismatch"));
         }
@@ -383,7 +401,7 @@ impl OperationDto {
             return Err(invalid("missing complete native outcome"));
         };
         let dto = Self {
-            schema_version: 1,
+            schema_version,
             route: CausalRoute {
                 venue: identity.venue,
                 session: identity.session,
@@ -413,7 +431,7 @@ impl OperationDto {
         Ok(dto)
     }
     pub(super) fn validate(&self) -> Result<(), CodecError> {
-        if self.schema_version != 1
+        if !matches!(self.schema_version, 1 | 2)
             || self.route.ordinal == 0
             || self.route.session == 0
             || self.route.bootstrap_id.len() != 64
@@ -427,6 +445,11 @@ impl OperationDto {
             || self.retained_bytes_bound > 64 * 1024 * 1024
         {
             return Err(invalid("operation structure/limits"));
+        }
+        if self.schema_version == 1 && self.has_native_observations() {
+            return Err(invalid(
+                "native observation batches require an enriched causal profile",
+            ));
         }
         self.before.validate()?;
         self.after.validate()?;

@@ -1,0 +1,550 @@
+{
+  "schema_version": 1,
+  "status": "Passing local MFOP1 atomic observation projection, structural reader and actual source comparison; consumers/live incomplete",
+  "parent": "a63d2ae79208726552859b40ef401e962575f26e",
+  "source_files": 548,
+  "source_sha256": "141e4c967daa4f3a15f98b41ef01dfc9e2a5d7de10d9b43c59893a5674d74f1c",
+  "source_manifest_sha256": "e50f5bb90f21bb44f7ebe7efa7b93051e5d755100239da8b5f0aeb807ee34206",
+  "changed_build_inputs": [
+    "crates/daemon/src/causal_bootstrap.rs",
+    "crates/daemon/src/causal_bootstrap/projection.rs",
+    "crates/daemon/src/causal_bootstrap/projection_tests.rs",
+    "crates/daemon/src/causal_bootstrap/replay/multi.rs",
+    "crates/daemon/tests/hyperliquid_causal.rs",
+    "crates/daemon/tests/support/native_history.rs",
+    "crates/daemon/tests/support/projection.rs",
+    "crates/engine/src/causal.rs",
+    "crates/engine/src/causal_observation_tests.rs",
+    "crates/engine/src/causal_owner_history.rs",
+    "crates/engine/src/causal_projection.rs",
+    "crates/engine/src/causal_projection_reader.rs",
+    "crates/recording/src/shared_batch.rs",
+    "crates/recording/src/shared_causal.rs",
+    "crates/recording/src/shared_feed.rs",
+    "crates/recording/src/shared_projection.rs",
+    "crates/recording/src/shared_projection_tests.rs"
+  ],
+  "commands": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.82,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "target_dir": ".local/target-native-stable"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.014,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "target_dir": ".local/target-native-stable"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 2.717,
+      "log_sha256": "8390fbb6813e81f3a0d1fc05d813e17cb24f59fdd16cf60f67e445bc31677efe",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "target_dir": ".local/target-native-stable"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 333.42,
+      "log_sha256": "6cdb1757e17cd5417de71a59e8ed728c5b457e7058fd4bd96e45fde90dc9653f",
+      "source_unchanged": true,
+      "test_totals": [
+        1570,
+        0,
+        56
+      ],
+      "targets": 185,
+      "target_dir": ".local/target-native-stable"
+    },
+    {
+      "name": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 29.629,
+      "log_sha256": "9ae35ca9e6337f1ccc73b10bf6c7a5eb7c036f38c05c67c2eed5e47b9a98c66e",
+      "source_unchanged": true,
+      "test_totals": [
+        288,
+        0,
+        0
+      ],
+      "targets": 21,
+      "target_dir": ".local/target-native-msrv"
+    },
+    {
+      "name": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 24.542,
+      "log_sha256": "8f0fe9b9ca77b7251b7747f388fc770cc8c380ebf5fca2051527068bd63dca6d",
+      "source_unchanged": true,
+      "test_totals": [
+        57,
+        0,
+        0
+      ],
+      "targets": 1,
+      "target_dir": ".local/target-native-msrv"
+    },
+    {
+      "name": "msrv-native",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_owner",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 148.717,
+      "log_sha256": "2520b7081012f59ec1428e81ce4301e611a1d582a8748bfd918472a3279fdfb5",
+      "source_unchanged": true,
+      "test_totals": [
+        63,
+        0,
+        0
+      ],
+      "targets": 3,
+      "target_dir": ".local/target-native-msrv"
+    },
+    {
+      "name": "disabled-lib",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--lib",
+        "disabled_"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 5.502,
+      "log_sha256": "014107f5757f9dbb6e86d25ef71905b09ce3ac197b8054fda6556fe65c82be30",
+      "source_unchanged": true,
+      "test_totals": [
+        2,
+        0,
+        0
+      ],
+      "targets": 1,
+      "target_dir": ".local/target-native-stable"
+    },
+    {
+      "name": "disabled-public",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--test",
+        "causal_bootstrap",
+        "default_build_"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 2.566,
+      "log_sha256": "7218fee0e505b82f87b919660873455350473a5ad762c17152c4cc6ca7f9f3a3",
+      "source_unchanged": true,
+      "test_totals": [
+        1,
+        0,
+        0
+      ],
+      "targets": 1,
+      "target_dir": ".local/target-native-stable"
+    },
+    {
+      "name": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 10.683,
+      "log_sha256": "b560474633eb9b443af3cd002a1055415c634e9ff4234030bf4ffafe8ec11642",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "target_dir": ".local/target-native-stable"
+    }
+  ],
+  "new_regression_names": [
+    "projection_accepted_cancellation_and_commit_before_bookkeeping_leave_whole_cursor_group",
+    "projection_actual_writer_failure_and_whole_group_overflow_cannot_advance_ack",
+    "projection_full_retains_exact_prepared_allocation_and_ack_owns_source_progress",
+    "projection_invalid_actor_policy_is_rejected_before_target_creation",
+    "projection_pre_advanced_source_is_rejected_before_target_creation",
+    "projection_actual_mixed_spot_perps_bybit_preserves_separate_metadata_and_native_only_items",
+    "projection_actual_preconnected_timer_and_control_keep_runner_and_physical_scope_separate",
+    "projection_actual_spot_perps_atomic_groups_match_all_releases_and_every_resume",
+    "projection_clock_lineage_policy_and_owner_mutations_poison_structural_reader",
+    "projection_comparison_pins_open_durable_bound_while_target_grows",
+    "projection_completed_safety_connection_frame_and_receipt_cannot_be_rewritten",
+    "projection_large_unsupported_control_vectors_fail_before_pending_retention",
+    "projection_mirrors_source_pending_count_and_declared_byte_reservations",
+    "projection_native_coin_must_match_its_associated_canonical_instrument",
+    "projection_native_value_authenticity_requires_original_source_comparison",
+    "projection_sealed_unknown_owner_stays_unknown_without_market_resurrection",
+    "projection_codec_preserves_independent_financial_extrema_and_exact_byte_caps",
+    "projection_control_codec_only_admits_fixed_size_owner_commands",
+    "projection_actual_publication_failpoints_never_expose_half_group_or_ack",
+    "projection_atomic_cursor_chain_rejects_bad_groups_without_partial_publication",
+    "projection_profile_negotiates_before_watermark_and_refuses_independent_seal_admission"
+  ],
+  "runner_terminal_receipt_sha256": "9f5fcc815a0119cdfc6f1fe057ceeb69a1623f8490dcfa8dbb20bb9e6a7c8333",
+  "independent_source_review_sha256": "6b6c3997fb721f244cb54341d85d8e665bc0bef917a8a4b39dc0890caac67551",
+  "retained_artifact": {
+    "sha256": "e096a944a253ef29886867f5a36831ae33be769aa018a8633663128229337586",
+    "bytes": 21570640,
+    "mode": "0555",
+    "embedded_recipe": {
+      "recipe": {
+        "debug": "false",
+        "encoded_rustflags": "",
+        "git_commit": "a63d2ae79208726552859b40ef401e962575f26e",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 548,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "141e4c967daa4f3a15f98b41ef01dfc9e2a5d7de10d9b43c59893a5674d74f1c",
+        "target": "aarch64-apple-darwin"
+      },
+      "sha256": "87749f7159e9c61d239270206a1288a07fc807faf6556d728123a19c1bc24de7",
+      "offset": 10495688
+    },
+    "scope": "Exact logged native-test file and declared-source recipe; not loaded-image/full transitive-input/reproducible-build/deployed-system proof"
+  },
+  "preservation": {
+    "frozen_files": 22,
+    "frozen_bytes": 37276008,
+    "pilot_files": 2,
+    "hls_evidence_files": 35,
+    "bytes_and_recorded_metadata_unchanged": true
+  },
+  "retained_preflights": [
+    {
+      "name": "projection-preflight-01.log",
+      "sha256": "ca24c458aac8ddb401f23b71475daa6fa7192cfc08dc610a34fe9cc872d65c4c",
+      "bytes": 3408,
+      "test_totals": null,
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-02.log",
+      "sha256": "02ff0d7e1952133ce12f64a79037a56651318b2dfdefdcfa270a5bc32547339e",
+      "bytes": 2556,
+      "test_totals": null,
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-03.log",
+      "sha256": "3b7983ea8bddd9a0efcce541249e43af9c7cad776c94a8db6da6d151edf5ee89",
+      "bytes": 3898,
+      "test_totals": [
+        0,
+        4,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-04.log",
+      "sha256": "8f2c382c3706103ee4176e6cc2b2f2c6a8e9c07b24ba546612a1532d9140e10e",
+      "bytes": 3461,
+      "test_totals": [
+        0,
+        4,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-05.log",
+      "sha256": "fd6a26646e6691fdac5388282b072f76a1781b8535ffe82b0204d41fc70014a2",
+      "bytes": 973,
+      "test_totals": [
+        4,
+        0,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-06.log",
+      "sha256": "29882c0982b580ef3412217320da1cab92dc0fae1923b013773f7d5e36496ec8",
+      "bytes": 2784,
+      "test_totals": [
+        12,
+        0,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-07.log",
+      "sha256": "81664138480080826c4d164cb4dd55475b1585209b89b6f087eabcbbc474a4f3",
+      "bytes": 704,
+      "test_totals": null,
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-08.log",
+      "sha256": "18b59310f7c5c8f63c513610a273a9bc5145e9cd579a50cb441ca87d792707ff",
+      "bytes": 1913,
+      "test_totals": null,
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-09.log",
+      "sha256": "9c9b53b5b295f6c05ea54092f700f8fce68ad81746a03f11bd6d344413a6c785",
+      "bytes": 3392,
+      "test_totals": [
+        19,
+        0,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-10.log",
+      "sha256": "4d339327ed7d5886039069e04cd461a1963448c34a6c532b4239a5c625a8a28e",
+      "bytes": 3562,
+      "test_totals": [
+        14,
+        1,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-11.log",
+      "sha256": "8a16112230717d65f391304756a1e10b456673633ae73e76fb166909fa534e9d",
+      "bytes": 1223,
+      "test_totals": [
+        0,
+        1,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-12.log",
+      "sha256": "5fbc173c09d0dee762ebd1f06344e5ebbd145f34a10accb0f8ee52f72049a2e4",
+      "bytes": 4099,
+      "test_totals": [
+        22,
+        0,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-13.log",
+      "sha256": "9806e63e99ad7154f57170b9314aee19a1d4aa230340e4a9f687ebd13926ba74",
+      "bytes": 656,
+      "test_totals": [
+        1,
+        0,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-14.log",
+      "sha256": "2ddeba7a2a009cbab9cded977034df2b5cb8ddab1a9051cd9270323b96e48fe2",
+      "bytes": 667,
+      "test_totals": [
+        1,
+        0,
+        0
+      ],
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    },
+    {
+      "name": "projection-preflight-15.log",
+      "sha256": "2fe667ea8f6f6c31497a5bc1818451eadaa1b61d4f28683b2f4e8cc33427e177",
+      "bytes": 1888,
+      "test_totals": null,
+      "source_scope": "unfrozen preflight, not current exact-source qualification"
+    }
+  ],
+  "retained_frozen01": {
+    "source_manifest_sha256": "7e0f045de8eba1d8fb533c4bcccc1c9e9d2159fef267a04dd9f3a68eb6184afe",
+    "commands": [
+      {
+        "name": "fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "elapsed_s": 0.875,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "source_unchanged": true,
+        "test_totals": null,
+        "targets": 0,
+        "target_dir": ".local/target-native-stable"
+      },
+      {
+        "name": "diff",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0,
+        "elapsed_s": 0.015,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "source_unchanged": true,
+        "test_totals": null,
+        "targets": 0,
+        "target_dir": ".local/target-native-stable"
+      },
+      {
+        "name": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 101,
+        "elapsed_s": 4.504,
+        "log_sha256": "705e67011b58f9eb65944b4243cabfc6198a5370a81d84190ea2b7dca47a5e0e",
+        "source_unchanged": true,
+        "test_totals": null,
+        "targets": 0,
+        "target_dir": ".local/target-native-stable"
+      }
+    ],
+    "terminal_sha256": "275715ae021bf20de923cb49503d1af8314bdee13acaf33454b0c44455374324",
+    "source_findings": [
+      {
+        "name": "projection-source-findings-01.json",
+        "sha256": "2015c92af40c56debc83514b21ae5dd354ca6781785c3d14c76ce3e8672fe88e"
+      },
+      {
+        "name": "projection-source-findings-02.json",
+        "sha256": "8994e27427dff1c53f169225e45d944fb06ea8bb7e8001a31887fe779b4e0492"
+      }
+    ],
+    "later_gates_not_run": true
+  },
+  "scope": "MFOP1 fresh-target atomic values and source-after groups, one prepared/ticket, ACK-owned checkpoint, original metadata and lineage, structural consumer reader, exact source comparison pinned to initial target bound",
+  "clock_scope": "Original source clocks and per-owner approximate archive clocks, not actual durable ACK or consumer usable time",
+  "resource_scope": "Explicit encoded/layout/count/cache logical bounds; fixed-size pending input references and mirrored owner reservation policy. Decoder/comparison temporaries and caller-owned output are additional; no RSS/latency proof",
+  "authenticity_scope": "Target checksum/policy ID/reader does not authenticate rewritten financial values; comparison replays original executable-bound native source through exact initial target cursor",
+  "compatibility": "Separate MFOP1 header; old profiles reject it. Old source profiles/defaults unchanged. HLS735/pin95 remains unmigrated and does not qualify current candidate",
+  "dependency_scope": "Engine/recording/daemon source changes; manifests, Cargo.lock and toolchain unchanged vs parenta63. No new advisory database scan claimed",
+  "remaining": [
+    "HLS and direct rsibot readers/whole-group feature checkpoints/shared dependency coordination",
+    "AllMids actual admission; real daemon/CLI/live/control/supervisor/external I/O integration before original failed-ingress rerun",
+    "Strict real datasets/continuity/native restart/operational qualification"
+  ],
+  "authority": "No economics/trading activation/deployment/merge/release or operational promotion; full goal active",
+  "portable_mapping": "Only the 13 command target_dir fields (10 current, 3 failed-attempt) map their local absolute worktree paths to .local; all remaining fields retain the private qualification values.",
+  "private_qualification_sha256": "10959bac86363f0d8d2a454c87d387cec7df1287d59d2d0f32276974a657fdca"
+}

@@ -1,0 +1,372 @@
+{
+  "schema_version": 1,
+  "status": "Passing local MFCJ4 durable native owner/history and actual replay checks; projection/consumer/live integration incomplete",
+  "parent": "662664b18cead14e8a7bb3b27ca8724fea9c6a1f",
+  "source_files": 539,
+  "source_sha256": "98550794947ee039854684e97f3b6e5825ff39673cecce28cd9101c583e13d95",
+  "source_manifest_sha256": "827d31d76a9f93a1ad11cb50805eb2c8e9cf5748ea0e62f349e77c5e6232a635",
+  "changed_build_inputs": [
+    "crates/adapter-api/src/native_observation.rs",
+    "crates/daemon/src/causal_bootstrap.rs",
+    "crates/daemon/src/causal_bootstrap/owner/history.rs",
+    "crates/daemon/src/causal_bootstrap/replay.rs",
+    "crates/daemon/src/causal_bootstrap/replay/multi.rs",
+    "crates/daemon/tests/hyperliquid_causal.rs",
+    "crates/daemon/tests/support/multi_owner_replay.rs",
+    "crates/daemon/tests/support/native_history.rs",
+    "crates/engine/src/causal.rs",
+    "crates/engine/src/causal_bootstrap.rs",
+    "crates/engine/src/causal_convert.rs",
+    "crates/engine/src/causal_observation_tests.rs",
+    "crates/engine/src/causal_observations.rs",
+    "crates/engine/src/causal_owner_history.rs",
+    "crates/engine/src/causal_owner_history_tests.rs",
+    "crates/recording/src/shared_batch.rs",
+    "crates/recording/src/shared_batch_tests.rs",
+    "crates/recording/src/shared_causal.rs",
+    "crates/recording/src/shared_causal_tests.rs"
+  ],
+  "commands": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.937,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.081,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 7.245,
+      "log_sha256": "c1ddb6857be6c7c7f085511086557f73a8fa585cb21e0c065acd9b3141918050",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 328.596,
+      "log_sha256": "b84d4bd30863e4d05224530a0a7d82b4785fbf556a1a8fcda8183b1f3be1d364",
+      "source_unchanged": true,
+      "test_totals": [
+        1544,
+        0,
+        56
+      ],
+      "targets": 185,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-model",
+        "-p",
+        "marketfeed-adapter-api",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-dispatch",
+        "-p",
+        "marketfeed-sinks",
+        "-p",
+        "marketfeed-replay",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-adapter-hyperliquid",
+        "-p",
+        "marketfeed-private",
+        "-p",
+        "marketfeed-event-pulse",
+        "--lib",
+        "--tests"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 128.483,
+      "log_sha256": "d44f1275da0baeadd95260861b66b2e90c246b19e48b97bed9a2a4e9c5747cad",
+      "source_unchanged": true,
+      "test_totals": [
+        649,
+        0,
+        0
+      ],
+      "targets": 50,
+      "build_directory_class": "isolated-msrv-worktree"
+    },
+    {
+      "name": "msrv-native",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_owner",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 145.919,
+      "log_sha256": "408c34d6c2a1e84beafcab32d5b75edbf75fc299432dcee5cc6bb851a7b9b8c0",
+      "source_unchanged": true,
+      "test_totals": [
+        48,
+        0,
+        0
+      ],
+      "targets": 3,
+      "build_directory_class": "isolated-msrv-worktree"
+    },
+    {
+      "name": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 24.41,
+      "log_sha256": "cb6f50d429aef14945a2d5515dd2a308e35b79d813b5a111d646ef5087940265",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 20.146,
+      "log_sha256": "f6a23a9877f23aa903e2786f49442cd58ca2eb7f825973af5eded42788135649",
+      "source_unchanged": true,
+      "test_totals": [
+        51,
+        0,
+        0
+      ],
+      "targets": 1,
+      "build_directory_class": "isolated-msrv-worktree"
+    },
+    {
+      "name": "disabled-lib",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--lib",
+        "disabled_"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.343,
+      "log_sha256": "193cdcd8dbc37b35ec6c05ecda3257d19ff379817880357a6a6620f2042399bd",
+      "source_unchanged": true,
+      "test_totals": [
+        2,
+        0,
+        0
+      ],
+      "targets": 1,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "disabled-public",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--test",
+        "causal_bootstrap",
+        "default_build_"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 3.335,
+      "log_sha256": "843916de91d8ad647bbfebcd1f28fccf84a3b2e46d06c2eeabde3cf8a0f4a17e",
+      "source_unchanged": true,
+      "test_totals": [
+        1,
+        0,
+        0
+      ],
+      "targets": 1,
+      "build_directory_class": "isolated-stable-worktree"
+    }
+  ],
+  "new_regression_names": [
+    "native_actual_spot_perps_persist_all_fields_and_every_physical_resume",
+    "native_bootstrap_rejects_missing_duplicate_wrong_or_legacy_policy_before_admission",
+    "native_multi_owner_negotiates_spot_perps_and_canonical_bybit_without_crossing_scope",
+    "native_only_field_mutations_pass_structure_but_poison_actual_replay",
+    "native_leaves_refuse_noncanonical_content_and_unknown_fields_without_float_buffering",
+    "native_operation_schema_roundtrips_all_financial_leaves_and_actual_queue_fates",
+    "native_record_byte_cap_and_bootstrap_family_limits_are_exact",
+    "native_schema_downgrades_and_cross_profile_owner_wrapping_fail_closed",
+    "native_profile_keeps_execution_permits_and_late_revocation_settlement",
+    "native_profile_is_explicit_before_watermark_and_cannot_mix_old_envelopes"
+  ],
+  "runner_terminal_receipts_sha256": [
+    "44fc1c497fb8d9939c46fd98adca0486e66598c01772bb439edd74c816311fd8",
+    "21b9d9fab220cd8dfefdd48fe6aef1953e624e6af708d6c1cfb6ec6c026e4151"
+  ],
+  "excluded_zero_test_command": {
+    "name": "disabled",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "marketfeed-daemon",
+      "--no-default-features",
+      "--lib",
+      "default_build_"
+    ],
+    "exit_code": 0,
+    "elapsed_s": 7.514,
+    "log_sha256": "127455a824b468799c00058d30c035d5fb565213d9210f9ac3c0b729a9d81988",
+    "source_unchanged": true,
+    "test_totals": [
+      0,
+      0,
+      0
+    ],
+    "targets": 1,
+    "build_directory_class": "isolated-stable-worktree"
+  },
+  "independent_source_review_sha256": "84ef179286866a1ff4aacb564e12f57d5a66c538ce0a4900395b9ce2bd685fcc",
+  "retained_artifact": {
+    "sha256": "fb31576f7dd28993a9c70230c70f9b22b8240a0705ea349bb81249d290cbabb3",
+    "bytes": 19135936,
+    "mode": "0555",
+    "embedded_recipe": {
+      "recipe": {
+        "debug": "false",
+        "encoded_rustflags": "",
+        "git_commit": "662664b18cead14e8a7bb3b27ca8724fea9c6a1f",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 539,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "98550794947ee039854684e97f3b6e5825ff39673cecce28cd9101c583e13d95",
+        "target": "aarch64-apple-darwin"
+      },
+      "sha256": "0ed5b18df103f5f1d32c6375418843a2a05aff980b4bf8ac62bd3f58440fc1f8",
+      "offset": 9218440
+    },
+    "scope": "Exact logged native-test file and declared-source recipe; not loaded-image/full transitive-input/reproducible-build/deployed-system proof"
+  },
+  "preservation": {
+    "frozen_files": 22,
+    "frozen_bytes": 37276008,
+    "pilot_files": 2,
+    "hls_evidence_files": 35,
+    "bytes_and_recorded_metadata_unchanged": true
+  },
+  "retained_failures": [
+    "Preflight03 missing CommittedRelease import in new test helper; compile failed before tests; fixed import and preflight04 passed all4 new actual-native regressions",
+    "Validation01 disabled filter selected zero tests; excluded as verification and replaced only by actual disabled-lib2/disabled-public1 commands in validation02; supplemental MSRV bootstrap51 checked separately"
+  ],
+  "scope": "Explicit MFCJ4/ownerDTO3/operationDTO2; receipt-gated factory policy; five native families persist exactly through actions/queues/evictions/drains/state and full native replay comparison; old default readers fail closed",
+  "resource_scope": "Encoded/capture/record/writer/replay bounds are distinct; temporary copies are not process RSS or latency evidence",
+  "compatibility": "Old absent-native profiles and defaults retained; HLS735/pin95 remains unchanged and does not qualify this candidate",
+  "dependency_scope": "Cargo.toml/Cargo.lock/rust-toolchain.toml unchanged; this slice does not assert a new advisory-database scan",
+  "remaining": [
+    "AllMids actual scope/subscription/catalog admission and duplicate-key handling",
+    "Verified original source/control/clock/cursor view and ACKed HandoffObserved projection",
+    "Atomic bounded target groups; HLS and direct rsibot readers/dependency coordination",
+    "Real daemon/CLI/live/control/supervisor/external I/O before original failed-ingress rerun",
+    "Continuity/strict real datasets/native restart/operational qualification"
+  ],
+  "authority": "No economics/trading activation/deployment/merge/release or operational promotion; goal active",
+  "private_qualification_sha256": "dac5facac7a88071f52e5c21c67a00e71ce3bd75f25de114ad6679eb3e739b02",
+  "portability": "Only absolute target_dir values become build_directory_class; all other private qualification fields preserved. Includes original zero-test command as excluded evidence."
+}

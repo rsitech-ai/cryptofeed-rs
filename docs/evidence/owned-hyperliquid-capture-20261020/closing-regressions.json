@@ -1,0 +1,353 @@
+{
+  "schema_version": 1,
+  "scope": "Genuine old-runtime failures, joined workers and preformat successor static review. Final runtime unchanged; formatted tests/finalsource qualified separately in closing-boundary-validation.json. Absolute workspace roots replaced; raw private originals retained.",
+  "evidence": {
+    "test-red-01/red-receipt-01.json": {
+      "original_sha256": "658fdb718a6b31666f422cb0688aa4608ef32e50db38f655129d5756766c7a10",
+      "receipt": {
+        "scope": "Executing test engineer actual closed-owner Drop-window TDD failure; controlled SessionMachine, not native-factory semantics or full producer qualification",
+        "actual_session_id": 5247,
+        "actual_terminal_exit_code": 101,
+        "command": [
+          "cargo",
+          "+1.91.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--lib",
+          "causal_bootstrap::owner::history::tests::closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+          "--",
+          "--exact",
+          "--nocapture"
+        ],
+        "environment": {
+          "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "RUSTFLAGS": "-Dwarnings"
+        },
+        "source_sha256": "1b77de2e032894231edfdede074f6395a07c8ee64fba2ecddcbc734cb2769752",
+        "source_files": 566,
+        "runtime_sha256": "8c7652998a0c71782f679d4b77203c488432bdd53df2c99ba0c72699a1d29a28",
+        "test_sha256": "16c6dc4993b2f90668308c1bd410e2a7a6913c9778de9c555be734b7365a71b6",
+        "source_unchanged_before_after": true,
+        "actual_observation": {
+          "before_late_revoke": {
+            "phase": "Idle",
+            "closing": true,
+            "failure": null,
+            "snapshot_native_ordinal": 1
+          },
+          "after_late_revoke": {
+            "phase": "Idle",
+            "failure": "Revoked",
+            "snapshot": null
+          },
+          "after_explicit_release_and_join": {
+            "phase": "Stopped",
+            "failure": "Revoked"
+          },
+          "actual_source": {
+            "owner_records": 6,
+            "all_records_including_bootstrap": 7,
+            "revoked_records": 0,
+            "valid_completed_native_turns": 1,
+            "valid_handoffs": 1,
+            "uncertainties": []
+          },
+          "first_failed_assertion": "Idle != Stopped at drive-return boundary"
+        },
+        "counts": {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0,
+          "filtered": 260,
+          "seconds": 0.38
+        },
+        "cleanup": "Gate explicitly released and owner/actor joined and actual source history inspected before failing assertion; RAII unbounded release on unwinding; gate armed only after successful spawn. Original WAIT10s unchanged.",
+        "artifact": {
+          "path": "private-evidence/producer/.local/closing-boundary-qualification/test-red-01/red-unit-executable-01",
+          "bytes": 49498848,
+          "sha256": "06ea1f6779c5c99360e009ade022507f81efaa69f3ae5e1e7577893ac2640e6d",
+          "mode": "0555",
+          "exact_recipe_bytes_present": true,
+          "recipe_sha256": "b46e2f32b4ae71c83e72cda8947f16a515d0e71a726055c5d0745f2be4931e85",
+          "recipe_paths": [
+            "private-evidence/producer/.local/target-native-stable/debug/build/marketfeed-daemon-193890893f4be123/out/causal-build.json"
+          ]
+        },
+        "evidence": {
+          "source-before-01.json": {
+            "bytes": 91619,
+            "sha256": "28d2e39f1d2a456616fe6efdc425def4b2105329b91367a5f4803ee6b27993b2"
+          },
+          "before-inputs.json": {
+            "bytes": 339,
+            "sha256": "7826a8d647590456f655d53077b8392e99a4637ef233c945c3d81a50f4df5cee"
+          },
+          "history-tests-before.rs": {
+            "bytes": 64890,
+            "sha256": "ece6b501647a7a17f077a5de19f36804f8b572c181d2170eb7976b35ac6abd48"
+          },
+          "history-tests-red-01.rs": {
+            "bytes": 69765,
+            "sha256": "16c6dc4993b2f90668308c1bd410e2a7a6913c9778de9c555be734b7365a71b6"
+          },
+          "red-01.log": {
+            "bytes": 3078,
+            "sha256": "496a00a9097734e50e3d10f689441027a973f2f119b6259f28243aae7ec41c8a"
+          },
+          "red-terminal-01.json": {
+            "bytes": 195,
+            "sha256": "c37e46fc19cdd227dba0683087b61bd32436f97a06d51b998abaf1ce89e43101"
+          }
+        },
+        "no_runtime_hooks_added": true,
+        "no_production_edits": true,
+        "no_new_green_or_fix_claim": true
+      }
+    },
+    "test-red-http-01/red-receipt-02.json": {
+      "original_sha256": "8069588c99595048b21256fb2b069c8268c48c86e8c6a54c4074fb3b82f37a7b",
+      "receipt": {
+        "scope": "Executing test engineer actual public MFCJ5 stopped-wire-HTTP rejection behavioral RED; real native-HL bootstrap but no native callbacks/transport/effects",
+        "actual_session_id": 90619,
+        "actual_terminal_exit_code": 101,
+        "command": [
+          "cargo",
+          "+1.91.0",
+          "test",
+          "--locked",
+          "-p",
+          "marketfeed-daemon",
+          "--all-features",
+          "--lib",
+          "causal_bootstrap::owner::history::tests::stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation",
+          "--",
+          "--exact",
+          "--nocapture"
+        ],
+        "environment": {
+          "CARGO_TARGET_DIR": "private-evidence/producer/.local/target-native-stable",
+          "CARGO_INCREMENTAL": "0",
+          "CARGO_PROFILE_DEV_DEBUG": "0",
+          "CARGO_PROFILE_TEST_DEBUG": "0",
+          "RUSTFLAGS": "-Dwarnings"
+        },
+        "source_sha256": "e759455bde8f2b0ce92db978f409ba8da0b8d0f67fd144a81b7d23e2f0ed447a",
+        "source_files": 566,
+        "runtime_sha256": "8c7652998a0c71782f679d4b77203c488432bdd53df2c99ba0c72699a1d29a28",
+        "test_sha256": "8ee93ab6c174846981b1923eb998b8e638cb6e421d4d02e60625613a044da495",
+        "source_unchanged_before_after": true,
+        "actual_observation": {
+          "before": {
+            "phase": "Stopped",
+            "failure": null,
+            "accepted": 0
+          },
+          "rejection": "UnsupportedInput, owned input returned unchanged",
+          "after": {
+            "phase": "Stopped",
+            "failure": "UnsupportedInput",
+            "queued_observations": 1,
+            "accepted": 0
+          },
+          "joined_worker_status": {
+            "phase": "Stopped",
+            "failure": null
+          },
+          "actual_journal": {
+            "owner_events": [
+              "Started"
+            ],
+            "all_records": 2,
+            "native_turns": 0,
+            "uncertainties": []
+          },
+          "first_failed_assertion": "after.owner.failure.is_none()"
+        },
+        "counts": {
+          "passed": 0,
+          "failed": 1,
+          "ignored": 0,
+          "filtered": 261,
+          "seconds": 0.31
+        },
+        "cleanup": "Owner/actor fully joined and actual MFCJ5 OwnerHistory validated before final status assertion; no hooks or changed WAIT10s/capture caps.",
+        "prior_compile_diagnostic": {
+          "session": 86651,
+          "exit": 101,
+          "reason": "Test fixture used transport::HttpResponse rather than adapter_api::HttpResponse; original log/source kept, no behavioral claim."
+        },
+        "artifact": {
+          "path": "private-evidence/producer/.local/closing-boundary-qualification/test-red-http-01/red-unit-executable-02",
+          "bytes": 49521232,
+          "sha256": "5376e781406219aac841289305667d021a888f35c353b251526d4bb8d6cbada9",
+          "mode": "0555",
+          "exact_recipe_bytes_present": true,
+          "recipe_sha256": "8f46485a03a1cd846702fefdbae2b924d1d1865479f37c1b13eb554a4bad323b",
+          "recipe_paths": [
+            "private-evidence/producer/.local/target-native-stable/debug/build/marketfeed-daemon-193890893f4be123/out/causal-build.json"
+          ]
+        },
+        "evidence": {
+          "source-before-01.json": {
+            "bytes": 91619,
+            "sha256": "101347812a6f6f4f152da3b3c138dba796a070b7bd2d82cadf1839af2b188473"
+          },
+          "source-before-02.json": {
+            "bytes": 91619,
+            "sha256": "33218deb13945a15df3a504796ec89bfa89bfe911763610500211e893db70c85"
+          },
+          "before-inputs.json": {
+            "bytes": 339,
+            "sha256": "42fd713dc07259ed857ee375225e732b900d00d1b48b49f8a76bee89a1618a31"
+          },
+          "history-tests-before.rs": {
+            "bytes": 69765,
+            "sha256": "16c6dc4993b2f90668308c1bd410e2a7a6913c9778de9c555be734b7365a71b6"
+          },
+          "history-tests-red-01.rs": {
+            "bytes": 73975,
+            "sha256": "043efe7994856508fdf98f80ee1212fc7855fdf8ace9bae7e243d3215f3c54b6"
+          },
+          "history-tests-red-02.rs": {
+            "bytes": 73977,
+            "sha256": "8ee93ab6c174846981b1923eb998b8e638cb6e421d4d02e60625613a044da495"
+          },
+          "red-01.log": {
+            "bytes": 1438,
+            "sha256": "aeee9c7a563eaf5c2fd8b3aba19d3d8ec94bc0dc7d3e3efe36ca79e4151158b7"
+          },
+          "compile-terminal-01.json": {
+            "bytes": 263,
+            "sha256": "13ec9e91afead2b0de5d0082c0aacc2447c3514332ea6c71d14f9c1c14c9b05e"
+          },
+          "red-02.log": {
+            "bytes": 2990,
+            "sha256": "093fd51d3be8b3cd77e86e4b11db5eec1c9b73aa49bc9e8cfedac758f43d2436"
+          },
+          "red-terminal-02.json": {
+            "bytes": 197,
+            "sha256": "909360a7b4a2628e80e4cc2b071af226ef97db78a6b16c34856ebf6c4325ec42"
+          }
+        },
+        "no_production_edits": true,
+        "no_new_green_or_fix_claim": true
+      }
+    },
+    "independent-static-review-01.json": {
+      "original_sha256": "4c42ab98232215bde622d8aa8deccdfb0d2971c1cfc77462462992735f052e3f",
+      "receipt": {
+        "schema_version": 1,
+        "created_utc": "2026-10-21T09:08:19.246419+00:00",
+        "reviewer": "trade_review",
+        "status": "STATIC_SAFETY_CLOSURE_FOR_TWO_LOGICAL_STOP_FINDINGS; FOCUSED_PARENT_EVIDENCE_INSPECTED",
+        "scope": "Independent read-only code/test review and existing source-bound focused evidence inspection; no reviewer Cargo/test/native/consumer execution, network, delegation or compiled edits. Only this ignored review receipt written.",
+        "source_binding": {
+          "source_files": 566,
+          "source_sha256": "672b46973b247b9725abdcf859d44b21b2f87eb32438cc245581aaed221f8d2c",
+          "in_scope_current_runtime": {
+            "path": "private-evidence/producer/crates/daemon/src/causal_bootstrap/owner/history.rs",
+            "bytes": 68176,
+            "sha256": "6618b289844f87219bb2c0978c19acd310e415b7716bad168fda8185b762422d"
+          },
+          "in_scope_current_tests": {
+            "path": "private-evidence/producer/crates/daemon/src/causal_bootstrap/owner/history/tests.rs",
+            "bytes": 73789,
+            "sha256": "cc6405ac54c16f2141d47b3c573658a9c4b89700833b4c644bee7d952c328276"
+          },
+          "wire_public_paths_unchanged": {
+            "path": "private-evidence/producer/crates/daemon/src/causal_bootstrap/owner/history/wire.rs",
+            "bytes": 14441,
+            "sha256": "3ad34e5240d25f50826a8e35646e72f9e26f4fca6cb8ccfc814f0066c259fe65"
+          },
+          "binding_limit": "Current exact in-scope source files verified; complete566-input digest is bound to existing parent focused source proof, not independently rehashed by this review."
+        },
+        "finding_receipt_preserved": {
+          "path": "private-evidence/producer/.local/source-prefix-qualification/closing-linearization-review-01.json",
+          "bytes": 8641,
+          "sha256": "89439768b4240f32e792cb93fbf5772ab533d02062b71e735cdc522ff03df1e7"
+        },
+        "closed_findings": [
+          {
+            "id": "CLOSE-01",
+            "mechanism": "Normal final empty closing decision now clears snapshot/ready and marksStopped atomically under Data after accepted receipt drain. Late public revoke cannot be accepted in the destructor/outer-cleanup gap.",
+            "test": "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+            "assertion_scope": "Controlled actual CaptureSession machine destructor blocks the real drive-return boundary. Prior live snapshot exists; status and snapshot captured before/after public late revoke; guard releases and all workers join before final failure assertions; real durable history inspected. Calls1, handoff1, nativeordinal1; no spuriousRevoked; Stopped/failureNone/viewsNone at boundary and afterjoin."
+          },
+          {
+            "id": "CLOSE-02",
+            "mechanism": "Central revoke_history now returns for phaseStopped OR existing failure, covering unsupported wireHTTP initial-branch bypass as well as direct revoke.",
+            "test": "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation",
+            "assertion_scope": "Actual MFCJ5 bootstrap/owner, no native callback/transport. After normalStopped, public HTTP input rejected with original owned input; failureNone/queued0; same durable cursor and Started-only validhistory; counters/nativeordinal0. Assertions follow full joins/inspection."
+          }
+        ],
+        "static_safety_invariants": [
+          "Final normal close is entered after current/active absence and wire::tick quiescence; receipt FIFO is drained and inputs/observations rechecked underData.",
+          "LogicalStopped cannot satisfy Core.owner_quiescent (requiresIdle). Physical destructor and threadjoin may still run; shutdown retains its join.",
+          "Concurrent unaccepted preparations can retire reservations and reject while closing; they cannot add accepted input or journal control.",
+          "CentralStopped guard does not suppress ordinary mid-operation failure because logicalStopped is only set after accepted work is settled.",
+          "Snapshot/ready are cleared under the same terminal decision lock; late try_next has nothing to publish. Normal closed wire ledger has no matching authorization/binding.",
+          "No actor caps/age, native execution/release/wire authority/durability barrier or identity/profile changes in the two-line-of-behavior successor."
+        ],
+        "test_harness_review": [
+          "DropGateMachine implements a controlled fixture destructor, not a new runtime hook or financial semantic oracle.",
+          "ReleaseOnDrop guard is declared after owner and explicitly released before joins/assertions; old semantic red cannot be disguised by destructor assertion deadlock.",
+          "Actual old-runtime Drop red5247/101 and stoppedHTTP red90619/101 retained, with separate initialHTTP fixture compile failure86651/101.",
+          "WAIT10s, previous27cases, original source-prefix bounds/paused32 behavior remain unchanged by the two closing tests."
+        ],
+        "inspected_focused_execution": {
+          "independent_execution_by_this_reviewer": false,
+          "qualified_receipt": {
+            "path": "private-evidence/producer/.local/closing-boundary-qualification/test-green-01/qualified-focused-01.json",
+            "bytes": 15293,
+            "sha256": "6850ffbd1a0c50ee8f0eff68f72fbfccdcc96bf9dd626733cb81370694f99129"
+          },
+          "actual_terminal": {
+            "path": "private-evidence/producer/.local/closing-boundary-qualification/test-green-01/focused-terminal-01.json",
+            "bytes": 194,
+            "sha256": "b648742b69abf916f96d600ad5ec6ba233f922efc36558f109b099be18e142d0"
+          },
+          "raw_log": {
+            "path": "private-evidence/producer/.local/closing-boundary-qualification/test-green-01/focused-01.log",
+            "bytes": 8391,
+            "sha256": "fe1d1a7ddcd78eba188ad3bf97ea3f51cce801e1a32eb98878745610b3a4268e"
+          },
+          "session": 41273,
+          "actual_exit_code": 0,
+          "passed": 29,
+          "failed": 0,
+          "ignored": 0,
+          "seconds": 8.49,
+          "new_test_names": [
+            "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+            "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation"
+          ],
+          "old_semantic_red_receipts": {
+            "drop": {
+              "path": "private-evidence/producer/.local/closing-boundary-qualification/test-red-01/red-receipt-01.json",
+              "bytes": 3779,
+              "sha256": "658fdb718a6b31666f422cb0688aa4608ef32e50db38f655129d5756766c7a10"
+            },
+            "wire_http": {
+              "path": "private-evidence/producer/.local/closing-boundary-qualification/test-red-http-01/red-receipt-02.json",
+              "bytes": 4405,
+              "sha256": "8069588c99595048b21256fb2b069c8268c48c86e8c6a54c4074fb3b82f37a7b"
+            }
+          }
+        },
+        "remaining_limits": [
+          "Full with owned prefix predecessors is not deterministically isolated by the retained focused suite; this known gap remains explicit.",
+          "Actual-factory prior replay coverage is one Connected turn/every-record resume; new closing fixtures are not native financial trade proof.",
+          "Stopped denotes logical authority closure, not physical destructor completion, instantaneous join or loaded-image attestation.",
+          "No full workspace/MSRV/release/Clippy/security/hosted/consumer/live/freshness/availability/economic qualification is claimed here. Parent fullstable19349 was still running at assignment and was not polled by this review.",
+          "Source13 broad qualification remains historical; these two closures apply only to successor source14 binding above."
+        ]
+      }
+    }
+  }
+}

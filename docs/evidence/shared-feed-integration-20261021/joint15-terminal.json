@@ -1,0 +1,22 @@
+{
+  "actual_session": 55464,
+  "actual_exit": 0,
+  "actual_final_chunk": "9618ad",
+  "launch_initial_chunk": "5548cc",
+  "parent_launch_helper": {
+    "path": "private-evidence/producer/.local/causal-capture-joint-pilot-15/release-and-launch-02.py",
+    "bytes": 7118,
+    "sha256": "4c5e7cab4a0a36639998779cbfcd368dadab988a083b2003f48f08b0473c19fa"
+  },
+  "parent_runner_log": {
+    "path": "private-evidence/producer/.local/causal-capture-joint-pilot-15/parent-runner-01.log",
+    "bytes": 230,
+    "sha256": "5ce682c31a2fdf4b8ba9e592c02f6e280bbe7ba0126a53f71c3500656a61909a"
+  },
+  "scope": "Actual parent terminal; native/consumer/timing reconciliation pending.",
+  "portable_copy": {
+    "original_sha256": "e3191af0f42a556c012a912839caaecef1e8e56f59c12c149b81cffa646d9b89",
+    "original_bytes": 749,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

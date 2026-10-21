@@ -1,0 +1,435 @@
+{
+  "schema_version": 1,
+  "result": "TERMINAL FAILURE:16successfuljobs; Windows paused32testfailure retained. Mac/Linux and ownMSRV checks pass only for exact5479source.",
+  "run": {
+    "id": 39504100341,
+    "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39504100341",
+    "event": "pull_request",
+    "head_sha": "5479d733f02f1a2777579460154e144babe67b87",
+    "status": "completed",
+    "conclusion": "failure",
+    "all17terminal": true,
+    "success": 16,
+    "failure": 1,
+    "cancelled": 0
+  },
+  "tested_identity": {
+    "logged_merge_all17jobs": "60eada6e127271e82a670d6b64ff63ed40ddc3ca",
+    "merge_parents": [
+      "e2ad84c413168aee37d130e574519c567fab978f",
+      "5479d733f02f1a2777579460154e144babe67b87"
+    ],
+    "merge_tree": "ab9217b16480dfa1b2e210a447facd610fb1d986",
+    "author_tree": "ab9217b16480dfa1b2e210a447facd610fb1d986",
+    "whole_tree_equal": true
+  },
+  "source_recipe": {
+    "files": 566,
+    "sha256": "16a538c033fb37fa10112f66a6371ab7408512a7f991e95add1640af5a8afa95",
+    "exact_Git_build_input_membership_and_bytes": true,
+    "frozen_manifest": {
+      "file": "source-07.json",
+      "bytes": 91618,
+      "sha256": "243affb5ad1a92ffc72539e52f7b495ce1711e170bd5f6dee0d6b84f42da315e"
+    },
+    "scheme": "marketfeed-source-snapshot-v1 NUL prefix then sortedpath/u64LEpathlength/path/u64LEbytelength/bytes",
+    "limits": "Immutablecommitted buildinputs, not loadedimage/artifact attestation; current successorworkingtree notassumed."
+  },
+  "platform_counts": {
+    "order": "passed,failed,ignored,suites",
+    "macos": [
+      1642,
+      0,
+      56,
+      162
+    ],
+    "linux_x64": [
+      1643,
+      0,
+      56,
+      162
+    ],
+    "linux_arm": [
+      1643,
+      0,
+      56,
+      162
+    ],
+    "windows_partial": [
+      785,
+      1,
+      46,
+      84
+    ],
+    "msrv": [
+      781,
+      0,
+      0,
+      40
+    ]
+  },
+  "mac_linux_difference": "OneLinux-only passedtest:latency_runtime::tests::linux_rejects_core_beyond_setsize. Otherwise exactpassedtestname sets equal.",
+  "new_passed_mac_linux_testnames_vs8de": [
+    "causal_bootstrap::live::tests::committed_timer_schedule_replaces_cancels_and_keeps_signed_due_deadlines",
+    "causal_bootstrap::live::tests::due_only_actual_callback_reschedules_and_does_not_starve_ready_frames_or_stop",
+    "causal_bootstrap::live::tests::due_only_idle_driver_does_not_journal_no_due_timer_polls",
+    "causal_bootstrap::live::tests::due_only_policy_is_explicitly_committed_and_legacy_bytes_stay_distinct",
+    "causal_bootstrap::live::tests::legacy_policy_keeps_actual_periodic_empty_timer_turns"
+  ],
+  "evidence": {
+    "final_snapshot": {
+      "file": "producer5479-hosted-independent-snapshot-04.json",
+      "bytes": 25526,
+      "sha256": "8306a2b3c60fb64a4b50d9b435ece3dfee35ad6dd4fbb67c0632a0305d2e0df1"
+    },
+    "merge_API": {
+      "file": "producer5479-hosted-independent-merge-api-01.json",
+      "bytes": 2663,
+      "sha256": "6694ce63480a2da46bf89156fd7646560bbd42e0affd836a2a3b5b45a8742b18"
+    },
+    "watch_terminal": {
+      "file": "producer5479-hosted-independent-watch-terminal-01.json",
+      "bytes": 303,
+      "sha256": "ab514a4f63556ff436d915f7619c9d47588737498abc85158be2c66baa25a796"
+    },
+    "watch_log": {
+      "file": "producer5479-hosted-independent-watch-01.log",
+      "bytes": 134849,
+      "sha256": "a62ba60f7bd31ae4aa8ca2cf9be5bd46f9a1f255a3ca7a185e159b300a2d8bd2"
+    },
+    "helper": {
+      "file": "producer5479-hosted-independent-audit-01.py",
+      "bytes": 9163,
+      "sha256": "e3f81a9cb941a23d712fa8af08d69dc8840e89078549c61d6e1edd24f389521c"
+    }
+  },
+  "scope_limits": [
+    "OverallrunFAILED, no allplatformqualification; secondaryWindows failure retained as observed.",
+    "8deMSRVcompilefailure remains in originalreceipt; own5479MSRVpass doesnotrewrite it. No reruns/cancels/timeout/capchanges byreviewer.",
+    "NoCargo/build/test/exchange/networkactivation/source edits; read-onlyGitHub APIs and immutableGitobjectinspection only.",
+    "No full operational/live/freshness/SLA/availability/nativefinancial/feature/economic/fullgoal qualification. Pilot04 lowerdiagnostics are separate uncontrolledshortsample, not pairedcausalproof."
+  ],
+  "full_independent_receipt": {
+    "file": "producer5479-hosted-independent-01.json",
+    "bytes": 45289,
+    "sha256": "10d5fd914ae73bc26faffe461f91893d32bf0eab3506f464e80e0a2c41e1b9d1"
+  },
+  "jobs": [
+    {
+      "id": 118908563303,
+      "name": "rustfmt",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563303-01.log",
+        "bytes": 13779,
+        "sha256": "5078bd69f9f7a644bcef7347dc3279207fff397b902f70caa0b6761ad7dfa7f2"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563372,
+      "name": "docs",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563372-01.log",
+        "bytes": 53936,
+        "sha256": "43838949c58bbb64905a30feccbac40e07a0ae90498daa0a8ade21e941487096"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563450,
+      "name": "clippy",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563450-01.log",
+        "bytes": 50599,
+        "sha256": "e9e33a357c5240a034151302f4f6521a08009305c5d29707db4c704a28aab176"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563464,
+      "name": "test (ubuntu-24.04-arm)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563464-01.log",
+        "bytes": 298482,
+        "sha256": "310be47732a6a29ecafda180a487e81a6b373b61defe27a8647e7a0f1efca231"
+      },
+      "counts": [
+        1643,
+        0,
+        56
+      ],
+      "suites": 162,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563466,
+      "name": "test (windows-latest)",
+      "conclusion": "failure",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563466-01.log",
+        "bytes": 175589,
+        "sha256": "53ccd078729abd92ad2e112b9c4d2317431a19da35f2f8c020bf60b62f0db580"
+      },
+      "counts": [
+        785,
+        1,
+        46
+      ],
+      "suites": 84,
+      "failed_test_names": [
+        "causal_bootstrap::live::tests::paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly"
+      ],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563499,
+      "name": "cargo-deny",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563499-01.log",
+        "bytes": 35152,
+        "sha256": "8487da5c6c206b086e6e57185515a7af3dadf47280c44c9c6879751fc64b38e7"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563528,
+      "name": "Windows directory durability",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563528-01.log",
+        "bytes": 66437,
+        "sha256": "152138bf19d793afd24ad82946615d125a74cb928a1d912cf25fbda95a25c142"
+      },
+      "counts": [
+        131,
+        0,
+        0
+      ],
+      "suites": 12,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563533,
+      "name": "C header and ABI exports",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563533-01.log",
+        "bytes": 15625,
+        "sha256": "397c1d2f7edfd69b9b27825a92610e75a9b253cf76e36d92ad50f88ed255722b"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563538,
+      "name": "msrv (1.85)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563538-01.log",
+        "bytes": 165800,
+        "sha256": "d23f799923e67055fab19b876c5061b5b2dde8035ca86df41b504f9a92c66c5e"
+      },
+      "counts": [
+        781,
+        0,
+        0
+      ],
+      "suites": 40,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563571,
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563571-01.log",
+        "bytes": 45867,
+        "sha256": "eac541c6729720f3d2fe69257e32830cf8950672f7fd5a4733b9ce4ce4db81b5"
+      },
+      "counts": [
+        59,
+        0,
+        6
+      ],
+      "suites": 7,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118908563616,
+      "name": "test (macos-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563616-01.log",
+        "bytes": 297453,
+        "sha256": "df812efe9e2d76659695742e9b97b97104d1a7d37e73e855c675c1e1cbd04c86"
+      },
+      "counts": [
+        1642,
+        0,
+        56
+      ],
+      "suites": 162,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563631,
+      "name": "test (ubuntu-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563631-01.log",
+        "bytes": 298557,
+        "sha256": "7cf50ba76e750453cd258c711db32959c0701670477278749c33d78f1c0f4527"
+      },
+      "counts": [
+        1643,
+        0,
+        56
+      ],
+      "suites": 162,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563675,
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563675-01.log",
+        "bytes": 44953,
+        "sha256": "35c22a91fa310526a46cff03447c1591680a99b8385fb3d99653a5ec3259c6e0"
+      },
+      "counts": [
+        59,
+        0,
+        6
+      ],
+      "suites": 9,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118908563743,
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563743-01.log",
+        "bytes": 65733,
+        "sha256": "b1572f801dfa8aa778dac6a1b9f87e25654e4937919532811f297dc165cde5ce"
+      },
+      "counts": [
+        90,
+        0,
+        7
+      ],
+      "suites": 14,
+      "failed_test_names": [],
+      "skipped_steps": []
+    },
+    {
+      "id": 118908563766,
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563766-01.log",
+        "bytes": 41221,
+        "sha256": "dfe9721b98ac22625b52434e6083b5e4a57305a421963cdb54b052a4bca9ea63"
+      },
+      "counts": [
+        29,
+        0,
+        3
+      ],
+      "suites": 8,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118908563797,
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908563797-01.log",
+        "bytes": 51460,
+        "sha256": "1fe44a09d69bfc3f2eb744be902efa94a8a38a824630974d896c6ea82f70428a"
+      },
+      "counts": [
+        89,
+        0,
+        4
+      ],
+      "suites": 12,
+      "failed_test_names": [],
+      "skipped_steps": [
+        "parse_fixtures bench (compile + one run)"
+      ]
+    },
+    {
+      "id": 118908564429,
+      "name": "sbom",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "producer5479-hosted-independent-job-118908564429-01.log",
+        "bytes": 51820,
+        "sha256": "09da2e890e699b6c3b7ab3816a5f8c30dac5e94b2a04b114cb19fff332fed9ff"
+      },
+      "counts": [
+        0,
+        0,
+        0
+      ],
+      "suites": 0,
+      "failed_test_names": [],
+      "skipped_steps": []
+    }
+  ]
+}

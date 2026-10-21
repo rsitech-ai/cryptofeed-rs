@@ -1,0 +1,611 @@
+{
+  "schema_version": 1,
+  "scope": "Local macOS aarch64 source-qualified receipt-wake+projection-overlap validation; stable twice, focused MSRV, release build/core/native/public and fresh audit/deny/gitleaks. No hosted or live timing result implied.",
+  "source_sha256": "c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1",
+  "source_files": 566,
+  "source_inventory": {
+    "bytes": 91619,
+    "sha256": "375d8749fb61ffb41dcce80490f81fda87527c2f13e207adcc7cf3958ef86b88",
+    "document": "receipt-wake-source.json"
+  },
+  "required_checks_all_passed": true,
+  "local_checks": [
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 0.8775396668352187,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "diff",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 0.014613042119890451,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 9.570770292077214,
+      "log_sha256": "09bde2511194fb50c52a5784ea4bf4781a099068c37e536298132f0f846f1b65",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "workspace",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 282.766067083925,
+      "log_sha256": "76b857b382ea461f7bfdabb16f72fb3eba99169bed33fcc80b91a70c5db46a0f",
+      "source_unchanged": true,
+      "test_totals": [
+        1668,
+        0,
+        56
+      ]
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 18.267955334391445,
+      "log_sha256": "101b56692795ccc6479860ef6582283a9958909c4d76d7aee440714f7250627e",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "default-cli",
+      "argv": [
+        "cargo",
+        "run",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--",
+        "validate",
+        "--config",
+        "crates/daemon/config.offline.toml"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 6.12763729179278,
+      "log_sha256": "267b6fb998db4163e3fd6ecbb533c631dc2e33f0ab2b5995cce5506accce4446",
+      "source_unchanged": true,
+      "test_totals": null
+    }
+  ],
+  "second_workspace": [
+    {
+      "name": "workspace-repeat",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 213.90413875039667,
+      "log_sha256": "93236ccd69e7b069940a6226195ee91687bbd04ed28d940c5904ea6323091718",
+      "source_unchanged": true,
+      "test_totals": [
+        1668,
+        0,
+        56
+      ]
+    }
+  ],
+  "msrv_checks": [
+    {
+      "name": "msrv-default",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--lib"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 9.315242792014033,
+      "log_sha256": "3d2dd9640a5df57dcaca27efadceafb1fc4cb561790a736d4c876c13a22b6ca1",
+      "source_unchanged": true,
+      "test_totals": [
+        108,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-core",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 15.563585290685296,
+      "log_sha256": "84bb71f1c816993fb4073d7b10182bc4611376e843f9ba29f44148c2dc8cf538",
+      "source_unchanged": true,
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-native",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 30.53283774992451,
+      "log_sha256": "bdd52082cfab118e7bc70f7a4c9cd656dbcb93ea9d350b21564fca11a438aba8",
+      "source_unchanged": true,
+      "test_totals": [
+        112,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-public",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "seconds": 93.65796870924532,
+      "log_sha256": "57e604bfe92c55e56853fd61cbd7b8ec01ca5d59069968201e2158ecd686f5e1",
+      "source_unchanged": true,
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "release_checks": [
+    {
+      "name": "build",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--bin",
+        "marketfeed-capture",
+        "--bin",
+        "marketfeed-observations"
+      ],
+      "exit_code": 0,
+      "seconds": 39.40351145807654,
+      "log_sha256": "a9662fef3af05a4ceb366c1d915a4af5695a119f6216fc57283ae5306d25fcf6",
+      "test_totals": null
+    },
+    {
+      "name": "core",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "seconds": 64.5596297075972,
+      "log_sha256": "b4f8051cc8146fb237bea7c4726e3d9dfc4bd390342921e7531813cf94734908",
+      "test_totals": [
+        314,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "native",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "exit_code": 0,
+      "seconds": 73.96693874988705,
+      "log_sha256": "3db62645d1fc33583908c4888c068f877f00cd8a239ee61ff1bc1d14ebd914aa",
+      "test_totals": [
+        112,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "public",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "exit_code": 0,
+      "seconds": 135.8131602499634,
+      "log_sha256": "60ba4e6d73b31837d4f43e5ad8aa6963351a67a3f6895a6a95b3d7d0e6a25709",
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "security": [
+    {
+      "name": "audit",
+      "argv": [
+        "cargo-audit",
+        "audit",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 6.422382458113134,
+      "stdout_sha256": "db302e490b6e02205bdf1017d813db98ea11debc8a4ec9315e24fc707ec0f9d8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "deny",
+      "argv": [
+        "cargo-deny",
+        "--all-features",
+        "check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.9400793751701713,
+      "stdout_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_inputs_unchanged": true
+    },
+    {
+      "name": "gitleaks",
+      "argv": [
+        "gitleaks",
+        "stdin",
+        "--redact"
+      ],
+      "exit_code": 0,
+      "seconds": 0.3367337076924741,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "0ecf9bbbfe93438a9650ba0416398487ed20878f10de8ab1d88c1a1538839b1e",
+      "source_inputs_unchanged": true
+    }
+  ],
+  "audit_database": {
+    "advisory-count": 1348,
+    "last-commit": "4b587f00996ebe5c05a73eaef105ef241e876414",
+    "last-updated": "2026-10-21T08:20:38+02:00"
+  },
+  "retained_artifacts": {
+    "marketfeed-capture": {
+      "bytes": 10886768,
+      "sha256": "8b019be303bf293e1f5eccda521dd3953695b49cc5779dec3df1948d3389e548"
+    },
+    "marketfeed-observations": {
+      "bytes": 2310032,
+      "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+    }
+  },
+  "artifact_build_bindings": {
+    "marketfeed-capture": {
+      "artifact_sha256": "8b019be303bf293e1f5eccda521dd3953695b49cc5779dec3df1948d3389e548",
+      "artifact_bytes": 10886768,
+      "source_sha256": "c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "a9662fef3af05a4ceb366c1d915a4af5695a119f6216fc57283ae5306d25fcf6",
+      "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+      "embedded_recipe": true,
+      "build_output": {
+        "bytes": 10886768,
+        "sha256": "8b019be303bf293e1f5eccda521dd3953695b49cc5779dec3df1948d3389e548"
+      }
+    },
+    "marketfeed-observations": {
+      "artifact_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+      "artifact_bytes": 2310032,
+      "source_sha256": "c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1",
+      "profile": "release",
+      "encoded_rustflags": "-Dwarnings",
+      "target": "aarch64-apple-darwin",
+      "build_result_log_sha256": "a9662fef3af05a4ceb366c1d915a4af5695a119f6216fc57283ae5306d25fcf6",
+      "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+      "embedded_recipe": false,
+      "build_output": {
+        "bytes": 2310032,
+        "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      }
+    }
+  },
+  "capture_identity": {
+    "compiled": {
+      "debug": "false",
+      "encoded_rustflags": "-Dwarnings",
+      "git_commit": "23859663baac977613ca7a91bf326028150ca85d",
+      "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+      "opt_level": "3",
+      "package_features": [
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-adapter-bybit"
+        },
+        {
+          "features": [],
+          "package": "marketfeed-adapter-hyperliquid"
+        },
+        {
+          "features": [
+            "causal-journal",
+            "default",
+            "kafka",
+            "nats",
+            "ui",
+            "ui-api"
+          ],
+          "package": "marketfeed-daemon"
+        },
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-engine"
+        },
+        {
+          "features": [
+            "default",
+            "kafka",
+            "nats"
+          ],
+          "package": "marketfeed-sinks"
+        }
+      ],
+      "package_version": "0.1.0-alpha.1",
+      "profile": "release",
+      "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+      "schema_version": 1,
+      "source_files": 566,
+      "source_scheme": "sha256-path-length-and-bytes-v1",
+      "source_sha256": "c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1",
+      "target": "aarch64-apple-darwin"
+    },
+    "executable_bytes": 10886768,
+    "executable_sha256": "8b019be303bf293e1f5eccda521dd3953695b49cc5779dec3df1948d3389e548"
+  },
+  "actual_terminal_receipts": {
+    "stable": {
+      "session": 10146,
+      "actual_exit": 0,
+      "tool_chunk": "ad7a68",
+      "source": "c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1",
+      "results_sha256": "89ca22aadf9ca14c1e0b11a79cbd86dbc2acd45e2859ed656c018d7adce3ccbf",
+      "workspace": [
+        1668,
+        0,
+        56
+      ],
+      "scope": "First full stable pass after receipt-wake fix; second unchanged-source full workspace scheduled because prior failure was intermittent."
+    },
+    "repeat": {
+      "session": 31481,
+      "actual_exit": 0,
+      "tool_chunk": "b120cf",
+      "results_sha256": "de405eea7930406a68e194fe0458b3f81f3bf70799823004eb6a3808ecdc81ee",
+      "scope": "Second consecutive full stable workspace at same frozen sourcec576, same flags/defaulttestthreads and full unchanged case/watchdog; no substitute focused run."
+    },
+    "msrv": {
+      "session": 74809,
+      "actual_exit": 0,
+      "tool_chunk": "545992",
+      "results_sha256": "3b8bd21f2c7c4ab967f54dbfbd890de56c7f8c4275138b2d864fbc54527b6af4",
+      "counts": [
+        108,
+        314,
+        112,
+        80
+      ]
+    },
+    "release": {
+      "session": 15105,
+      "actual_exit": 0,
+      "tool_chunk": "15d0de",
+      "results_sha256": "a7afd9779a0fbe92be4d39750d6ba73d29df87283ccf89d4da5b1c944df5fe91",
+      "scope": "Actual release build/core314/native112/public80, source held; no live or hosted result."
+    },
+    "security": {
+      "session": 29942,
+      "actual_exit": 0,
+      "tool_chunk": "e48e4a",
+      "results_sha256": "3ee23711132e6686bd4df2e67fe090a83e4e53e50311bd5445625fbcc84d2c91",
+      "scope": "Actual fresh audit,deny,gitleaks; no advisory exceptions or permission changes."
+    }
+  },
+  "unchanged_paused32_entire_test_file": true,
+  "unchanged_policy": "Original32frames/10s/defaultthreads, owner1ms/max100ms poll validation, actor8/16MiB/1ms+pending16/32MiB, request/source/target bounds,0..2s tail and480 workload all preserved.",
+  "mechanism": "History owner waits directly for accepted ticket settlement up to unchanged policy interval; ACK can wake it rather than wait on unrelated condvar. Safety state mutex is released during waiting; timeout does not cancel, cached failures/disconnection remain typed. Source/native/wire barriers and event ordering unchanged.",
+  "prior_failure": {
+    "source": "0ff75ebac247c3071cd91948dd045155193efbd11fda293e1499b810d5e4c842",
+    "full_stable_session": 60555,
+    "exit": 1,
+    "isolated_session": 69816,
+    "isolated_exit": 0,
+    "scope": "Retained historical failure; new two full passes do not establish sole latency cause or eliminate all future scheduling variance."
+  },
+  "independent_review_scope": "Earlier projection runtime candidate had two separate static reviews; final formatting/runtime bytes unchanged. New receipt-wait change received implementer source/lock/safety review and full tests, no final separate-agent audit closure claimed.",
+  "qualification_limits": [
+    "Release checks are not full release workspace/MSRV. No loaded-image/signed/reproducible-build claim. Bridge has no embedded recipe.",
+    "No new live capture, native availability, synchronized clock, per-event SLA, original480 workload or extended Razer verification claim from this receipt.",
+    "All earlier timing failures remain failures."
+  ],
+  "private_qualification_sha256": "c692dcfb3e3d35ecdd8c7063040fff82183fabfffad88fea8b781a45e1fedcb7",
+  "status": "PASS local qualification only; no hosted/current live timing result included."
+}

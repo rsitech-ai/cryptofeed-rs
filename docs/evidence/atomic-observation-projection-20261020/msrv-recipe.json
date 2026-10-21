@@ -1,0 +1,35 @@
+{
+  "log_sha256": "2520b7081012f59ec1428e81ce4301e611a1d582a8748bfd918472a3279fdfb5",
+  "binary": ".local/target-native-msrv/debug/deps/hyperliquid_causal-6e61313e662fad5f",
+  "binary_sha256": "df1ea978ff86dc230453f26493d5fc6056d7f25233b8ae62e01174b2c6d3172d",
+  "bytes": 21815472,
+  "embedded_recipe": {
+    "debug": "false",
+    "encoded_rustflags": "",
+    "git_commit": "a63d2ae79208726552859b40ef401e962575f26e",
+    "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+    "opt_level": "0",
+    "package_features": [
+      {
+        "features": [
+          "causal-journal",
+          "default",
+          "kafka",
+          "nats",
+          "ui",
+          "ui-api"
+        ],
+        "package": "marketfeed-daemon"
+      }
+    ],
+    "package_version": "0.1.0-alpha.1",
+    "profile": "debug",
+    "rustc_verbose": "rustc 1.85.0 (4d91de4e4 2025-02-17)\nbinary: rustc\ncommit-hash: 4d91de4e48198da2e33413efdcd9cd2cc0c46688\ncommit-date: 2025-02-17\nhost: aarch64-apple-darwin\nrelease: 1.85.0\nLLVM version: 19.1.7\n",
+    "schema_version": 1,
+    "source_files": 548,
+    "source_scheme": "sha256-path-length-and-bytes-v1",
+    "source_sha256": "141e4c967daa4f3a15f98b41ef01dfc9e2a5d7de10d9b43c59893a5674d74f1c",
+    "target": "aarch64-apple-darwin"
+  },
+  "scope": "Logged test file contains the declared Rust1.85 recipe for exact548source; not loaded image/fulltransitive/reproducibility proof"
+}

@@ -560,8 +560,7 @@ async fn discover_catalog_for_venue<H: HttpTransport>(
             .await
         }
         VenueKind::Synthetic => Err(format!(
-            "venue {:?} has stub instrument discovery only (use config symbols=; no --live)",
-            kind
+            "venue {kind:?} has stub instrument discovery only (use config symbols=; no --live)"
         )),
     }
 }

@@ -1,0 +1,285 @@
+{
+  "schema_version": 1,
+  "status": "Passing local immutable verified physical source view and actual replay checks; target projection/readers/live incomplete",
+  "parent": "cf58e1f2c8e5d80b33f54ef9035acd4d948bd501",
+  "source_files": 541,
+  "source_sha256": "0c933e08f61f98b4549da980fffc1d542f2f7fe8e57e3c562af191d3cc16e876",
+  "source_manifest_sha256": "7cfe0773ea62622ff4b46d12b39bfcfbc598c1c024f7b22a9dd6597f2648efef",
+  "changed_build_inputs": [
+    "crates/daemon/src/causal_bootstrap/replay.rs",
+    "crates/daemon/src/causal_bootstrap/replay/multi.rs",
+    "crates/daemon/src/causal_bootstrap/replay/source.rs",
+    "crates/daemon/tests/hyperliquid_causal.rs",
+    "crates/daemon/tests/support/multi_owner_replay.rs",
+    "crates/daemon/tests/support/native_history.rs",
+    "crates/daemon/tests/support/source_view.rs"
+  ],
+  "commands": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.785,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 0.013,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 3.74,
+      "log_sha256": "62bf8369e82830d6eabe67d3bf1bec803c2eb538a0be0378ea551637d2acd77f",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-features"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 265.884,
+      "log_sha256": "af5354833b0919033751800e6365e0662d8420752053b2264a38c0f142f45f9a",
+      "source_unchanged": true,
+      "test_totals": [
+        1549,
+        0,
+        56
+      ],
+      "targets": 185,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "msrv-bootstrap",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 19.14,
+      "log_sha256": "3604282e6d975040c6821f50d7b7a3a08e7e5619df9a3a6cdea96e24373cc2bc",
+      "source_unchanged": true,
+      "test_totals": [
+        52,
+        0,
+        0
+      ],
+      "targets": 1,
+      "build_directory_class": "isolated-msrv-worktree"
+    },
+    {
+      "name": "msrv-native",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_owner",
+        "--test",
+        "causal_bootstrap"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 133.984,
+      "log_sha256": "1613364f6763dfd29c67e1a393ee8d51d8683cd3dafcdc0ec5c80ac3a29bc29c",
+      "source_unchanged": true,
+      "test_totals": [
+        52,
+        0,
+        0
+      ],
+      "targets": 3,
+      "build_directory_class": "isolated-msrv-worktree"
+    },
+    {
+      "name": "disabled-lib",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--lib",
+        "disabled_"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 2.827,
+      "log_sha256": "1b391a553fe00488a6491a4c691f382693819f002aea795d45e21dde57c4b831",
+      "source_unchanged": true,
+      "test_totals": [
+        2,
+        0,
+        0
+      ],
+      "targets": 1,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "disabled-public",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--no-default-features",
+        "--test",
+        "causal_bootstrap",
+        "default_build_"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 2.448,
+      "log_sha256": "ff8470ec0213e873f6d8f0ab16ae05a8b769010070e9afea10c31a77344b0aac",
+      "source_unchanged": true,
+      "test_totals": [
+        1,
+        0,
+        0
+      ],
+      "targets": 1,
+      "build_directory_class": "isolated-stable-worktree"
+    },
+    {
+      "name": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "exit_code": 0,
+      "elapsed_s": 2.843,
+      "log_sha256": "df51ad0043113e535ec76ff3b6631753b8f836da05f657b994b98b3fcd8ceb20",
+      "source_unchanged": true,
+      "test_totals": null,
+      "targets": 0,
+      "build_directory_class": "isolated-stable-worktree"
+    }
+  ],
+  "new_regression_names": [
+    "archive_clock_is_checked_approximation_with_unsigned_observation_extrema",
+    "verified_source_clock_extrema_and_interleaved_regressions_resume_exactly",
+    "verified_source_native_metadata_clocks_control_and_handoffs_match_original_records",
+    "verified_source_native_mismatch_exposes_no_mutated_completion_and_poisons",
+    "verified_source_seal_keeps_unknown_execution_and_never_advances_owner_time"
+  ],
+  "extended_actual_prefix_regression": "multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume",
+  "runner_terminal_receipt_sha256": "ab167f9d325dd0d8ac008f3df8f3d94934dffb27c440fd450e28e7139d2c74d1",
+  "independent_source_review_sha256": "9eb94f29af407acf1f3750025e89d92f8bf97835b35d078f5b261c75f1095e44",
+  "retained_artifact": {
+    "sha256": "37212fbe9845e998e6209e4a9123a10bdbc403bf771e0fc779cc8cbf4fdb068f",
+    "bytes": 19251744,
+    "mode": "0555",
+    "embedded_recipe": {
+      "recipe": {
+        "debug": "false",
+        "encoded_rustflags": "",
+        "git_commit": "cf58e1f2c8e5d80b33f54ef9035acd4d948bd501",
+        "lock_sha256": "ee36067353a53f0ca88fed71a0ed61f04a670a2a756c1c120168a6ce2af1a7cf",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 541,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "0c933e08f61f98b4549da980fffc1d542f2f7fe8e57e3c562af191d3cc16e876",
+        "target": "aarch64-apple-darwin"
+      },
+      "sha256": "9df630e09d2b544f5929d793bc1d4d4077b725493bc51efb5f7f716fb4342ba7",
+      "offset": 9266209
+    },
+    "scope": "Exact logged native-test file and declared-source recipe; not loaded-image/full transitive-input/reproducible-build/deployed-system proof"
+  },
+  "preservation": {
+    "frozen_files": 22,
+    "frozen_bytes": 37276008,
+    "pilot_files": 2,
+    "hls_evidence_files": 35,
+    "bytes_and_recorded_metadata_unchanged": true
+  },
+  "retained_failures": [],
+  "scope": "Immutable original bootstrap/owner/control/clock/seal view with exact before/after cursors; only committed native-matched observed handoffs; no writable target or external delivery",
+  "clock_scope": "Per-owner Started+observation checked in i128 then optional i64, labeled approximate; globally regressing owners retain physical order, Seal cannot advance feature time; observation approximation is not durable ACK or consumer availability time",
+  "resource_scope": "One origin per bounded owner; caller-owned DTO/handoff/progress output and temporary copies are outside reader retention, not RSS/latency evidence",
+  "compatibility": "Old read_next maps the same verified pass; profiles/defaults unchanged. HLS735/pin95 remains unchanged and does not qualify current candidate",
+  "dependency_scope": "All shared-package source inputs, Cargo.toml/Cargo.lock/rust-toolchain.toml unchanged vs parentcf58; no new advisory scan claimed",
+  "remaining": [
+    "Separately negotiated target projection and bounded atomic values/source-after-cursor groups",
+    "Healthy Full retries same prepared group; unknown target settlement stops publication",
+    "HLS and direct rsibot readers/shared dependency coordination",
+    "AllMids actual admission; real daemon/live/control/external I/O before original failed-ingress rerun",
+    "Continuity/strict real datasets/native restart/operational qualification"
+  ],
+  "authority": "No economics/trading activation/deployment/merge/release or operational promotion; full goal active",
+  "private_qualification_sha256": "0ac80c41f0ea03ed15a11f9ed325404f32ed3b78735722ff07f781fa1fa0907f",
+  "portability": "Only nine absolute command target_dir fields become descriptive build_directory_class values; all other private fields preserved."
+}

@@ -24,10 +24,18 @@ pub use catalog::*;
 mod bootstrap;
 #[path = "causal_convert.rs"]
 mod convert;
+#[path = "causal_observations.rs"]
+mod observations;
+pub use observations::ObservedBatchJson;
 #[path = "causal_owner_history.rs"]
 mod owner_history;
 pub use bootstrap::*;
 pub use owner_history::*;
+#[path = "causal_projection.rs"]
+pub mod projection;
+#[path = "causal_wire.rs"]
+mod wire;
+pub use wire::*;
 #[cfg(test)]
 #[path = "causal_tests.rs"]
 mod tests;
@@ -96,7 +104,7 @@ impl RecordJson {
     }
     fn validate(&self) -> Result<(), CodecError> {
         let record = self.record()?;
-        if matches!(record, FeedRecord::Causal(_)) {
+        if matches!(record, FeedRecord::Causal(_) | FeedRecord::Projection(_)) {
             return Err(invalid("recursive causal record"));
         }
         let mut check = Canonical {
@@ -395,6 +403,7 @@ pub enum ActionDto {
     ScheduleTimer { timer_id: u64, fire_at: i64 },
     CancelTimer(u64),
     EmitBatch(BatchJson),
+    EmitObservedBatch(ObservedBatchJson),
     EmitSystem(SystemJson),
     MarkLive,
     MarkDegraded,
@@ -431,6 +440,7 @@ pub struct BufferedDto {
 )]
 pub enum ItemDto {
     Market(BatchJson),
+    ObservedMarket(ObservedBatchJson),
     System(SystemJson),
     Write(WriteDto),
     Http(HttpRequestDto),
@@ -702,7 +712,12 @@ impl OperationDto {
         capture: &CapturedOperation,
         identity: &OperationIdentity,
     ) -> Result<bool, CodecError> {
-        Ok(self == &Self::from_capture(capture, identity)?)
+        Ok(self
+            == &match self.schema_version {
+                1 => Self::from_capture(capture, identity)?,
+                2 => Self::from_observed_capture(capture, identity)?,
+                _ => return Err(invalid("unsupported operation schema")),
+            })
     }
 }
 struct CappedBuffer {

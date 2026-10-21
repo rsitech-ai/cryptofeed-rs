@@ -1,0 +1,422 @@
+{
+  "schema_version": 1,
+  "created_utc": "2026-10-21T09:07:00.265488+00:00",
+  "status": "LOCATED_AND_SOURCE_AUDITED_ONLY; NO_RERUN_OR_NEW_WIRING",
+  "scope": "Read-only exact original480frames/s workload contract from named public registration and linked primary evidence. Only this ignored plan written. No workload/build/test/native/collector/audit execution, source edit, threshold/cap change, substitution, network or delegation.",
+  "authoritative_inputs": {
+    "README.md": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/README.md",
+      "bytes": 5951,
+      "sha256": "d5acf66ae976fd41d317c3e475b387d2faaf35d3d1b1d11dcaaab9820bfcc2f8"
+    },
+    "validation.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/validation.json",
+      "bytes": 3055,
+      "sha256": "362ece328fa0f7d13af72fe16b46e5704d89a32ce78bbac70244f515d17d899a"
+    },
+    "plan.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/plan.json",
+      "bytes": 3688,
+      "sha256": "14d0c2298b0d4c5a2a66a6517e2fdd805841bb175ca12f35a00b94d616586449"
+    },
+    "execution.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/execution.json",
+      "bytes": 1134,
+      "sha256": "faf6d7e80b3743549d1f2cdfc6716fc70b0e9620c85b426528ee8a28fd657743"
+    },
+    "receipts.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/receipts.json",
+      "bytes": 563,
+      "sha256": "64b6b08490bed09b6d09ec93647a1837107fe7451175bd8f52b1b4e3140ef5d5"
+    },
+    "fixture.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/fixture.json",
+      "bytes": 15696,
+      "sha256": "9724ceebe10ea9f73ac6ef7012a920d6da4dbf33f85a10490404add602fd3b39"
+    },
+    "supervise.py": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/supervise.py",
+      "bytes": 3515,
+      "sha256": "47f00559364dc93455cd7a47d5797284ec7cd21c63410fbf87b6a48cef4e54fb"
+    },
+    "audit.py": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/audit.py",
+      "bytes": 17411,
+      "sha256": "22497db2bda98cccd9d28b7b395d09a589e25717cfe98b4ef09c606e59b2b186"
+    },
+    "audit.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/audit.json",
+      "bytes": 2021,
+      "sha256": "ea64efb274f9f6f3ceebb8c1b3c0df4a2f872501137e625035a77d090729bbed"
+    },
+    "baseline.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/baseline.json",
+      "bytes": 2847,
+      "sha256": "89583a74828f077af07f37deb8e6f4034f9bcbe657383ec486e32be59ce83b83"
+    },
+    "durable.json": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/durable.json",
+      "bytes": 4896,
+      "sha256": "e405366b0bfddb710e2113f301d55c77004f7b5f85a09471a2087bce4dcee344"
+    }
+  },
+  "current_diagnostic_source": {
+    "path": "private-evidence/producer/crates/daemon/examples/paced_shared_feed.rs",
+    "bytes": 30386,
+    "sha256": "0f67aeeed75ad6c56088f939130e0ddd83929e8c06361cce42faa3e119a1d890"
+  },
+  "original_execution": {
+    "schema": "marketfeed.paced_ingress_execution.v1",
+    "plan_sha256": "14d0c2298b0d4c5a2a66a6517e2fdd805841bb175ca12f35a00b94d616586449",
+    "fixture_sha256": "9724ceebe10ea9f73ac6ef7012a920d6da4dbf33f85a10490404add602fd3b39",
+    "binary_sha256": "02a90880728aabec946f8c2893e6055f4e076a50e0ab62720200678f1a1fa873",
+    "build_profile": "debug",
+    "rustc": "rustc 1.91.0 (f8297e351 2025-10-28)",
+    "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "logical_cpus": 15,
+    "arm_order": [
+      "baseline",
+      "durable",
+      "slow-failure"
+    ],
+    "free_bytes_before": 16928374784,
+    "source_sha256": {
+      "crates/daemon/examples/paced_shared_feed.rs": "0f67aeeed75ad6c56088f939130e0ddd83929e8c06361cce42faa3e119a1d890",
+      "crates/recording/src/shared_feed.rs": "cffa79aab1a59fd8cc35f37a3b6cd55a15b36de047f92ffbb138efa041491adb",
+      "crates/recording/tests/shared_feed.rs": "5908ddc3f4640d7b212771a165c268308ede5151491dcf72d8a39a9c11916696"
+    },
+    "supervisor_sha256": "47f00559364dc93455cd7a47d5797284ec7cd21c63410fbf87b6a48cef4e54fb",
+    "qualified_dataset": false,
+    "independent_storage_audit_required": true
+  },
+  "original_actual_arm_receipts": [
+    {
+      "arm": "baseline",
+      "exit": 0,
+      "watchdog_fired": false,
+      "wall_ns": 10155986041,
+      "stdout_sha256": "89583a74828f077af07f37deb8e6f4034f9bcbe657383ec486e32be59ce83b83",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "arm": "durable",
+      "exit": 1,
+      "watchdog_fired": false,
+      "wall_ns": 4167654583,
+      "stdout_sha256": "e405366b0bfddb710e2113f301d55c77004f7b5f85a09471a2087bce4dcee344",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "original_outcomes": {
+    "baseline": {
+      "workload_passed": true,
+      "load_callbacks": 4864,
+      "canonical_load_rows": 5664
+    },
+    "durable": {
+      "workload_passed": false,
+      "reason": "count/byte ingress budget exhausted",
+      "load_callbacks": 147,
+      "canonical_load_rows": 171,
+      "planned": 4864,
+      "queued_abandoned": 1536,
+      "enqueue_rejected": 1,
+      "not_attempted": 3180
+    },
+    "slow-failure": "Not run after unexpected durable failure; must not relabel skipped as pass.",
+    "first_attempt": "Separate malformed-fixture setup rejection retained; revision2 removes metadata enum discriminator only."
+  },
+  "exact_workload": {
+    "registration_revision": 2,
+    "base_source": "384917297093e508e25696772820c53806523634",
+    "fixture": {
+      "path": "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/fixture.json",
+      "bytes": 15696,
+      "sha256": "9724ceebe10ea9f73ac6ef7012a920d6da4dbf33f85a10490404add602fd3b39"
+    },
+    "fixture_schema": 1,
+    "fixture_max_bytes": 1048576,
+    "native_template_count": 9,
+    "template_registration": [
+      {
+        "session": 3,
+        "venue": 5,
+        "payload_sha256": [
+          "f2fd5cce4f58762861c2c02899831806169de02ae60477198f4f95c3f17f5fea",
+          "155c711a29b88b50df5fb2ca89a4da08521ca1088427abbbe346ee7749a5c35f",
+          "eac8ca50c05b8c6d0263641c26ea8d08fbcb53b0f8638464a49c7062174b793b"
+        ],
+        "payload_bytes": [
+          192,
+          2256,
+          781
+        ]
+      },
+      {
+        "session": 2,
+        "venue": 6,
+        "payload_sha256": [
+          "a2f5bb3b72335a4e30d3f369b7288bfecaf3fdf854cd9a73c58257bbce9313d4",
+          "800f99be4887167ed6278873b2379488ce8da7aba24ccd27a46df79447acde95",
+          "7aa8fe03c3475f9698e92e10085a013f2f42e72946551621cec2800a48f12b34"
+        ],
+        "payload_bytes": [
+          202,
+          2400,
+          322
+        ]
+      },
+      {
+        "session": 1,
+        "venue": 11,
+        "payload_sha256": [
+          "6da3bd680a32f490bd9546d7d2b1b7cc906e64ef35e8bb225278951c2cea01fa",
+          "13b0f8eddcb999e0089853fdddc172055405f3f4c2ee9e9eb98aebe2e122ad59",
+          "a941bf4e19ddcfe8ab7de38b0473451b574998f4e9ae7fb782a426ac5988551d"
+        ],
+        "payload_bytes": [
+          191,
+          2118,
+          761
+        ]
+      }
+    ],
+    "sessions": [
+      {
+        "session": 3,
+        "venue": 5,
+        "category": "BybitLinear",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "session": 2,
+        "venue": 6,
+        "category": "BybitSpot",
+        "symbol": "BTCUSDT"
+      },
+      {
+        "session": 1,
+        "venue": 11,
+        "category": "BybitInverse",
+        "symbol": "BTCUSD"
+      }
+    ],
+    "one_producer_and_one_actual_receiver_OS_thread_per_session": true,
+    "schedule_seconds": 10,
+    "regular_frames_per_session": 1600,
+    "regular_rate_per_session": 160,
+    "regular_aggregate_rate": 480,
+    "regular_total": 4800,
+    "burst_total": 64,
+    "burst_at_regular_index": 800,
+    "burst_extra_by_fixture_slot": [
+      22,
+      21,
+      21
+    ],
+    "total_load_frames": 4864,
+    "start_after_warmup_ms": 100,
+    "schedule": "Absolute start + floor(index*1e9/160) ns; catch-up uses planned times, not a resettable pace. Burst duplicates that index payload.",
+    "payload_cycle_by_index_mod16": [
+      "L1 snapshot for0..9",
+      "L2depth50 snapshot for10..14",
+      "ticker for15"
+    ],
+    "template_bytes": "Exact registered immutable native payloads; historical native timestamps unchanged. No invented trade rows for inverse.",
+    "startup": "Actual BybitFactory sessions; exact native catalog/scales from fixture; synthetic ACKs generated from actual subscribe req_ids; warm L1+L2 snapshots; require localLive before schedule.",
+    "subscriptions": [
+      "Trades",
+      "Quote",
+      "L2Book(depth50,cadenceNone)",
+      "Statistics24h"
+    ],
+    "endpoint": "memory://paced-offline",
+    "delivery": "DeliveryOptions::default()",
+    "dispatch_capacity": 64,
+    "mirror_capacity": 0,
+    "record": true,
+    "input_frame_max_bytes": 65536
+  },
+  "fixed_bounds_and_acceptance": {
+    "ingress_per_session_frames": 512,
+    "ingress_per_session_bytes": 2097152,
+    "transport_sync_channel_frames": 512,
+    "global_raw_queue_frames": 512,
+    "global_raw_queue_bytes": 2097152,
+    "raw_overflow": "FailEngine",
+    "raw_rotation_max_bytes": 67108864,
+    "raw_rotation_max_duration_ns": 0,
+    "raw_min_free_bytes": 1073741824,
+    "raw_payload_conservative_preflight_budget_bytes": 50331648,
+    "legacy_shared_feed_max_bytes": 134217728,
+    "raw_flush_worker_interval_ms": 10,
+    "raw_flush_batch_limit": 4096,
+    "work_and_drain_deadline_seconds_from_scheduled_start": 15,
+    "final_shared_seal_inside_same15s_total_deadline": true,
+    "external_watchdog_seconds_per_arm": 25,
+    "external_kill_wait_seconds": 5,
+    "maximum_schedule_to_read_return_ns": 1000000000,
+    "minimum_planned_source_span_ns": 9500000000,
+    "normal_arm_required_accounting": "planned==attempted==enqueued==dequeued==validatedcallbacks; zero enqueue rejection, raw drops/remaining queue; exact per-session order/native payloads, readiness and independent output reconciliation.",
+    "load_callbacks": "Original receiver processes one packet synchronously through runner.on_text_frame then drains/validates before reading another; do not redefine completed as admission alone.",
+    "permitted_system_events": [
+      "ConnectionStateChanged",
+      "SubscriptionStateChanged",
+      "BookResynchronized"
+    ],
+    "failure_conditions": [
+      "First producer/consumer panic or callback/dispatch/readiness error signals shared stop immediately.",
+      "Ingress count/byte reservation refusal or sync-channel refusal fails visibly.",
+      "Reconnect/Stop/invalid lifecycle, unexpected system event, HTTP or load outbound intent fails.",
+      "15s work/drain/seal expiry, max read age>1s, planned span<9.5s, incomplete accounting or raw drop/backlog fails."
+    ],
+    "packet_cleanup": "All producer and consumer threads joined; raw worker joined/drained; released queue leases do not erase abandoned counts."
+  },
+  "arm_and_supervisor_contract": {
+    "arms": [
+      {
+        "name": "baseline",
+        "durable": false,
+        "delay_us": 0
+      },
+      {
+        "name": "durable",
+        "durable": true,
+        "delay_us": 0
+      },
+      {
+        "name": "slow-failure",
+        "durable": true,
+        "delay_us": 50000
+      }
+    ],
+    "order": [
+      "baseline",
+      "durable",
+      "slow-failure"
+    ],
+    "expected_child_exit": {
+      "baseline": 0,
+      "durable": 0,
+      "slow-failure": 1
+    },
+    "abort": "External25s watchdog SIGKILLs owned process group then waits<=5s. Stop entire arm sequence on timeout or unexpected child exit; never choose only passing arms. Deliberate slow arm50,000us delay is reached only after preceding normal arms succeed.",
+    "supervisor_own_exit": "Supervisor can exit0 after recording a failed child; its exit is not workload acceptance. Each receipt/actual exit + independent audit governs.",
+    "output": "Fresh path only: supervisor.mkdir and each arm create_dir refuse reuse. Preserve all prior source/plan/fixture/log/feed/failed results.",
+    "no_retry_to_green": true
+  },
+  "known_original_primary_paths": {
+    "attempt02": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-attempt-02",
+    "execution": {
+      "path": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-attempt-02/execution.json",
+      "bytes": 1134,
+      "sha256": "faf6d7e80b3743549d1f2cdfc6716fc70b0e9620c85b426528ee8a28fd657743"
+    },
+    "receipts": {
+      "path": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-attempt-02/receipts.json",
+      "bytes": 563,
+      "sha256": "64b6b08490bed09b6d09ec93647a1837107fe7451175bd8f52b1b4e3140ef5d5"
+    },
+    "supervisor_log": {
+      "path": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-supervisor-02.log",
+      "bytes": 498,
+      "sha256": "9818046db773b13f0bc4a570a9913d24017064846dc3f7c7cd066e989bf82a28"
+    },
+    "independent_audit": {
+      "path": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-independent-audit-03.json",
+      "bytes": 2021,
+      "sha256": "ea64efb274f9f6f3ceebb8c1b3c0df4a2f872501137e625035a77d090729bbed"
+    },
+    "baseline_raw_segment": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-attempt-02/baseline/raw/seg-1792461619970346000-000000.mfr1",
+    "failed_durable_raw_segment": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-attempt-02/durable/raw/seg-1792461630183771000-000000.mfr1",
+    "failed_durable_shared_directory": "private-evidence/primary/.local/evidence/hyperliquid-integration-review/paced-ingress-attempt-02/durable/feed",
+    "original_binary_sha256": "02a90880728aabec946f8c2893e6055f4e076a50e0ab62720200678f1a1fa873",
+    "immutable_original_binary_path": "Not established by these named receipts; do not infer target/debug artifact still has original bytes."
+  },
+  "current_path_wiring": {
+    "wired_to_new_causal_owner": false,
+    "example_byte_identical_to_original": true,
+    "actual_path": [
+      "paced_shared_feed.rs setup(): BybitFactory.create_session -> SessionRunner::new",
+      "SessionRunnerConfig recording_pipeline:Some(raw), shared_feed:Option<legacy FeedHandle>",
+      "durable run(): FeedWriter::create -> FeedHandle::new, legacy feed profile",
+      "receiver: synchronous SessionRunner.on_text_frame -> direct dispatch drain",
+      "runner.rs record_feed/apply_frame_actions -> synchronous FeedHandle.append/append_many"
+    ],
+    "not_used": [
+      "HistoryJournalOwner and its Shared prefix receipt registry",
+      "CaptureSession/private causal owner and MFCJ5 operation/wire journal",
+      "FeedBatchActor causal source ACK deferral",
+      "MultiHistoryReplay/ProjectionPump/MFOP1 target path"
+    ],
+    "even_all_features_build": "Does not change this explicit example path; no runtime opt-in selects the new owner.",
+    "current_live_driver": "DriverPolicy.validate currently restricts actual transport-owned driver to Hyperliquid production endpoint, record=false and external_handles=false; it cannot replace the three offline Bybit/raw sessions without an explicit supported harness.",
+    "current_causal_factory_note": "Pure causal bootstrap supports BybitLinear/Spot/Inverse, but requires its bound supported endpoint/config/full-native-bundle policy; old memory://directRunner spec is not automatically a causal bootstrap.",
+    "source_evidence": {
+      "runner": {
+        "path": "private-evidence/producer/crates/engine/src/runner.rs",
+        "bytes": 76648,
+        "sha256": "2e78638aabf8dd7c73ef11eac16f737d36a735b6324907402bf59268528ea425"
+      },
+      "history_owner": {
+        "path": "private-evidence/producer/crates/daemon/src/causal_bootstrap/owner/history.rs",
+        "bytes": 68176,
+        "sha256": "6618b289844f87219bb2c0978c19acd310e415b7716bad168fda8185b762422d"
+      },
+      "live_driver": {
+        "path": "private-evidence/producer/crates/daemon/src/causal_bootstrap/live.rs",
+        "bytes": 39164,
+        "sha256": "cace39c9e519e8cf60d5e63b92b787dc0b3bd74377490590001249c95c4f125f"
+      }
+    }
+  },
+  "rerun_contract_and_prerequisites": {
+    "legacy_reproduction_commands_as_documented_not_executed": [
+      [
+        "cargo",
+        "build",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--example",
+        "paced_shared_feed"
+      ],
+      [
+        "python3",
+        "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/supervise.py",
+        "private-evidence/producer",
+        "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/fixture.json",
+        "target/debug/examples/paced_shared_feed",
+        "FRESH_OUTPUT_DIRECTORY"
+      ],
+      [
+        "python3",
+        "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/audit.py",
+        "FRESH_OUTPUT_DIRECTORY",
+        "private-evidence/producer/docs/evidence/paced-ingress-diagnostic-20261020/fixture.json"
+      ]
+    ],
+    "legacy_result_scope": "Running those unchanged commands tests the current legacy synchronous path only, not the causal owner repair. Bind a new build/source/artifact receipt; never reuse the historical source/binary identity.",
+    "to_test_current_repair": "A separately reviewed opt-in offline owner adapter/harness is required while keeping the exact fixture/schedule/arms/queues/bytes/deadlines/thresholds/abort rules. This is new wiring work, not permission to silently substitute a Hyperliquid120s run.",
+    "required_mapping_before_execution": [
+      "Bind actual current supported Bybit causal bootstrap/factory policy per original product, native catalogs and exact effective topics; preserve synthetic request-ID ACK semantics and warmup evidence.",
+      "Keep raw recording enabled in every arm through a bounded sidecar/fan-out with explicit ownership/accounting; pure CaptureSession does not accept external legacy raw/shared handles.",
+      "Map original one-frame receiver service to actual committed callback/effect/handoff settlement. Do not turn480 scheduledcallbacks into cheap queue admissions or hide lag in a new internal queue; retain original schedule-to-read diagnostic and add clearly separate actual-native service lag if needed.",
+      "Keep every planned/attempted/enqueued/dequeued/executed/committed/released/abandoned count distinguishable; preserve observation/FIFO/permit/wire/barrier failure semantics.",
+      "Independent auditor must understand the new causal source/profile and raw parity; current audit.py expects legacy frame/frame_accepted/batch records and cannot certify MFCJ5 by omission.",
+      "Register exact new source/profile/artifacts/oracle and unchanged workload contract before a fresh attempt; preserve both old and new failures. No cap/age/deadline relaxation, lower rate, altered payload mix, warm-only or arm selection."
+    ],
+    "no_repair_claim_until_genuine_workload": "Current public joint timing samples, source13/14 unit suites and standalone verify timings cannot stand in for this original480fps registered workload."
+  },
+  "limitations": [
+    "This plan is static source/registration inspection only. No workload, audit helper, collector, build, native replay or economic process was executed.",
+    "No exchange latency/coverage/capacity, dataset admission, research economics, full soak or Razer readiness follows from this fixture.",
+    "Raw archive payload files were located from named receipts; this inspection did not rescan or mutate their contents."
+  ],
+  "portable_copy": {
+    "original_sha256": "2dcfe9e98362ba03736e0358bc855eb6900d80e7c54642a43122d3e2952c73aa",
+    "original_bytes": 21067,
+    "scope": "Absolute private workspace paths replaced with stable opaque roots; raw receipts and failures retained privately. No raw capture archive published."
+  }
+}

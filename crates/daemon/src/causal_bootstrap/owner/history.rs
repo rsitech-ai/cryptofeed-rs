@@ -1,4 +1,5 @@
-//! MFCJ3's private disk/null owner. No transport or external sink is opened.
+//! Private disk/null native owner (MFCJ3/4), with opt-in MFCJ5 application-write
+//! authorization. The owner never opens a transport or external market sink.
 //! Ordered observations and native execution have separate counters and bounds.
 //! Internal handoff precedes its observation's durable ACK: that crash interval
 //! remains explicitly uncertain, never an external-delivery acknowledgement.
@@ -10,8 +11,17 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+mod pipeline;
+mod wire;
+use pipeline::*;
+use wire::WireRuntime;
+pub use wire::{WireAuthorization, WireSendCompletion, WireSendError};
+
 const SMALL: usize = 1024;
 const RESERVED_SLOTS: usize = 5;
+fn shared_wire_http(s: &Data, input: &CaptureInput) -> bool {
+    s.wire.is_some() && matches!(input, CaptureInput::Http { .. })
+}
 
 enum Event {
     Control(OwnerEventDto),
@@ -39,6 +49,8 @@ struct Active {
     operation: Arc<OperationDto>,
     receipt: CommitReceipt,
     deadline: Instant,
+    completion_ordinal: u64,
+    outputs_eligible: bool,
 }
 struct Ready {
     intent: u64,
@@ -68,26 +80,125 @@ struct Data {
     preparing_bytes: usize,
     preparing_observation_bytes: usize,
     journal_records: u64,
+    wire: Option<WireRuntime>,
 }
 struct HistoryShared {
     writer: BatchFeedHandle,
     identity: OperationIdentity,
+    schema_version: u16,
     policy: JournalOwnerPolicyDto,
     history: HistoryRuntimePolicyDto,
     origin: Instant,
     #[cfg(test)]
     clock_offset_ns: std::sync::atomic::AtomicU64,
+    #[cfg(all(test, feature = "causal-journal"))]
+    text_pause: Mutex<Option<Arc<TextPauseState>>>,
+    #[cfg(all(test, feature = "causal-journal"))]
+    panic_after_prefix_admission: std::sync::atomic::AtomicBool,
+    #[cfg(all(test, feature = "causal-journal"))]
+    receipt_pause: Mutex<Option<Arc<TextPauseState>>>,
+    #[cfg(all(test, feature = "causal-journal"))]
+    closing_pause: Mutex<Option<Arc<TextPauseState>>>,
+    #[cfg(all(test, feature = "causal-journal"))]
+    pipeline_hooks: PipelineHooks,
     state: Mutex<Data>,
     // Acceptance cannot be cancelled by a panic or a disappearing waiter. Keep
     // the ticket outside the worker stack until its actual result is known.
-    ticket: Mutex<Option<CommitTicket>>,
+    tickets: Mutex<ReceiptRegistry>,
     wake: Condvar,
+}
+// Started/Ingress form the non-authorizing deferred prefix. The separate
+// Completion/Intent pair may also submit before waiting, retaining Completion's
+// own-ACK continuation. At most three distinct owned record ordinals include
+// pending tickets, prepared Intent and cached continuations.
+const MAX_DEFERRED_PREFIX: usize = 2;
+struct PendingReceipt {
+    ticket: CommitTicket,
+    ordinal: u64,
+    ingress_bytes: usize,
+}
+struct ReceiptRegistry {
+    bootstrap: CommitReceipt,
+    pending: VecDeque<PendingReceipt>,
+    previous_sequence: u64,
+    previous_admission: u64,
+    previous_ordinal: u64,
+    prefix_valid: bool,
+    completion: Option<CompletionSettlement>,
+    intent: Option<PreissuedIntent>,
+}
+// Per-owner, one-shot fixture barrier. No lock protecting owner admission or
+// source/fence state is held while the actual worker is paused.
+#[cfg(all(test, feature = "causal-journal"))]
+#[derive(Default)]
+struct TextPauseState {
+    state: Mutex<(bool, bool)>,
+    wake: Condvar,
+}
+#[cfg(all(test, feature = "causal-journal"))]
+pub(crate) struct HistoryTextPause(Arc<TextPauseState>);
+#[cfg(all(test, feature = "causal-journal"))]
+impl HistoryTextPause {
+    pub(crate) fn entered(&self) -> bool {
+        self.0.state.lock().unwrap().0
+    }
+    pub(crate) fn release(&self) {
+        self.0.state.lock().unwrap().1 = true;
+        self.0.wake.notify_all();
+    }
+}
+#[cfg(all(test, feature = "causal-journal"))]
+impl Drop for HistoryTextPause {
+    fn drop(&mut self) {
+        self.release();
+    }
+}
+#[cfg(all(test, feature = "causal-journal"))]
+fn pause_text_worker(shared: &HistoryShared, observation: &Observation) {
+    let mut slot = shared.text_pause.lock().unwrap();
+    if slot.is_none() {
+        return;
+    }
+    let Event::Ingress { input_json, .. } = &observation.event else {
+        return;
+    };
+    if !matches!(
+        serde_json::from_str::<InputDto>(input_json),
+        Ok(InputDto::Text { .. })
+    ) {
+        return;
+    }
+    let pause = slot.take().unwrap();
+    drop(slot);
+    let mut state = pause.state.lock().unwrap();
+    state.0 = true;
+    pause.wake.notify_all();
+    while !state.1 {
+        state = pause.wake.wait(state).unwrap();
+    }
+}
+#[cfg(all(test, feature = "causal-journal"))]
+fn pause_receipt_worker(shared: &HistoryShared) {
+    pause_owner_worker(&shared.receipt_pause);
+}
+#[cfg(all(test, feature = "causal-journal"))]
+fn pause_owner_worker(slot: &Mutex<Option<Arc<TextPauseState>>>) {
+    let pause = slot.lock().unwrap().take();
+    let Some(pause) = pause else {
+        return;
+    };
+    let mut state = pause.state.lock().unwrap();
+    state.0 = true;
+    pause.wake.notify_all();
+    while !state.1 {
+        state = pause.wake.wait(state).unwrap();
+    }
 }
 fn state(shared: &HistoryShared) -> MutexGuard<'_, Data> {
     shared.state.lock().unwrap_or_else(|p| p.into_inner())
 }
-fn ticket(shared: &HistoryShared) -> MutexGuard<'_, Option<CommitTicket>> {
-    shared.ticket.lock().unwrap_or_else(|p| p.into_inner())
+fn tickets(shared: &HistoryShared) -> MutexGuard<'_, ReceiptRegistry> {
+    shared.tickets.lock().unwrap_or_else(|p| p.into_inner())
 }
 fn elapsed_ns(shared: &HistoryShared, duration: std::time::Duration) -> Option<u64> {
     #[cfg(not(test))]
@@ -162,7 +273,7 @@ fn cause(reason: &OwnerFailure) -> OwnerTerminalCause {
     }
 }
 fn revoke_history(shared: &HistoryShared, s: &mut Data, reason: OwnerFailure) {
-    if s.status.failure.is_some() {
+    if s.status.phase == OwnerPhase::Stopped || s.status.failure.is_some() {
         return;
     }
     let event = OwnerEventDto::Revoked {
@@ -244,6 +355,14 @@ fn sleep_poll(shared: &HistoryShared) {
         .unwrap_or_else(|p| p.into_inner());
 }
 
+fn receipt_poll_interval(shared: &HistoryShared) -> std::time::Duration {
+    shared
+        .policy
+        .receipt_poll_interval
+        .duration()
+        .expect("validated receipt poll interval")
+}
+
 /// Additional counters describe reserved canonical observation/preparation
 /// bytes, not allocator memory or RSS. The original actor bounds wire buffers;
 /// the bootstrap capture/runner caps additionally bound one native operation.
@@ -308,6 +427,41 @@ fn bounded_json(value: &impl Serialize, cap: usize) -> Result<String, String> {
     String::from_utf8(out.bytes).map_err(|e| e.to_string())
 }
 impl HistoryIngress {
+    #[cfg(all(test, feature = "causal-journal"))]
+    fn pause_next_receipt_for_test(&self) -> HistoryTextPause {
+        let pause = Arc::new(TextPauseState::default());
+        let mut slot = self.shared.receipt_pause.lock().unwrap();
+        if slot.is_some() {
+            drop(slot);
+            panic!("one receipt pause may be installed per owner at a time");
+        }
+        *slot = Some(pause.clone());
+        HistoryTextPause(pause)
+    }
+    #[cfg(all(test, feature = "causal-journal"))]
+    fn pause_next_closing_for_test(&self) -> HistoryTextPause {
+        let pause = Arc::new(TextPauseState::default());
+        let mut slot = self.shared.closing_pause.lock().unwrap();
+        if slot.is_some() {
+            drop(slot);
+            panic!("one closing pause may be installed per owner at a time");
+        }
+        *slot = Some(pause.clone());
+        HistoryTextPause(pause)
+    }
+    #[cfg(all(test, feature = "causal-journal"))]
+    pub(crate) fn pause_next_text_for_test(&self) -> HistoryTextPause {
+        let pause = Arc::new(TextPauseState::default());
+        let mut slot = self.shared.text_pause.lock().unwrap();
+        if slot.is_some() {
+            // A bad fixture must not install an orphaned, unreleasable gate or
+            // poison the owner's barrier mutex during assertion unwinding.
+            drop(slot);
+            panic!("one test pause may be installed per owner at a time");
+        }
+        *slot = Some(pause.clone());
+        HistoryTextPause(pause)
+    }
     pub fn try_submit(
         &self,
         connection: ConnectionId,
@@ -332,7 +486,9 @@ impl HistoryIngress {
                 _ if frame_input(&input) => s.source_active && connection == s.source,
                 _ => connection == s.source,
             };
-            let reason = if let Some(reason) = &s.status.failure {
+            let reason = if shared_wire_http(&s, &input) {
+                Some(OwnerFailure::UnsupportedInput)
+            } else if let Some(reason) = &s.status.failure {
                 Some(reason.clone())
             } else if s.status.closing || s.status.phase == OwnerPhase::Stopped {
                 Some(OwnerFailure::Revoked)
@@ -547,6 +703,23 @@ pub struct HistoryJournalOwner {
 }
 impl BootstrappedSession {
     pub fn spawn_history_owner(self) -> Result<HistoryJournalOwner, OwnerStartError> {
+        self.spawn_history_owner_inner(
+            #[cfg(all(test, feature = "causal-journal"))]
+            None,
+        )
+    }
+    #[cfg(all(test, feature = "causal-journal"))]
+    fn spawn_history_owner_with_receipt_pause_for_test(
+        self,
+    ) -> Result<(HistoryJournalOwner, HistoryTextPause), OwnerStartError> {
+        let pause = Arc::new(TextPauseState::default());
+        let owner = self.spawn_history_owner_inner(Some(pause.clone()))?;
+        Ok((owner, HistoryTextPause(pause)))
+    }
+    fn spawn_history_owner_inner(
+        self,
+        #[cfg(all(test, feature = "causal-journal"))] receipt_pause: Option<Arc<TextPauseState>>,
+    ) -> Result<HistoryJournalOwner, OwnerStartError> {
         let history = self.history_policy.ok_or(OwnerStartError::Profile)?;
         let policy = self.owner_policy.ok_or(OwnerStartError::MissingPolicy)?;
         history
@@ -575,13 +748,39 @@ impl BootstrappedSession {
         let shared = Arc::new(HistoryShared {
             writer: self.handle,
             identity: self.identity,
+            schema_version: if self.wire_policy.is_some() {
+                4
+            } else if self.native_profile {
+                3
+            } else {
+                2
+            },
             policy,
             history,
             origin: Instant::now(),
             #[cfg(test)]
             clock_offset_ns: std::sync::atomic::AtomicU64::new(0),
+            #[cfg(all(test, feature = "causal-journal"))]
+            text_pause: Mutex::new(None),
             wake: Condvar::new(),
-            ticket: Mutex::new(None),
+            #[cfg(all(test, feature = "causal-journal"))]
+            panic_after_prefix_admission: std::sync::atomic::AtomicBool::new(false),
+            #[cfg(all(test, feature = "causal-journal"))]
+            receipt_pause: Mutex::new(receipt_pause),
+            #[cfg(all(test, feature = "causal-journal"))]
+            closing_pause: Mutex::new(None),
+            #[cfg(all(test, feature = "causal-journal"))]
+            pipeline_hooks: PipelineHooks::default(),
+            tickets: Mutex::new(ReceiptRegistry {
+                bootstrap: self.receipt.clone(),
+                pending: VecDeque::with_capacity(MAX_DEFERRED_PREFIX + 1),
+                previous_sequence: self.receipt.last_sequence,
+                previous_admission: self.receipt.admission,
+                previous_ordinal: 0,
+                prefix_valid: true,
+                completion: None,
+                intent: None,
+            }),
             state: Mutex::new(Data {
                 inputs: VecDeque::new(),
                 observations: VecDeque::from([Observation {
@@ -626,6 +825,7 @@ impl BootstrappedSession {
                 preparing_bytes: 0,
                 preparing_observation_bytes: 0,
                 journal_records: 0,
+                wire: self.wire_policy.map(WireRuntime::new),
             }),
         });
         let worker_shared = shared.clone();
@@ -642,6 +842,7 @@ impl BootstrappedSession {
                 }
                 // The panic path retains its accepted ticket in Shared too.
                 settle_outstanding(&worker_shared);
+                finish_completion(&worker_shared);
                 let mut s = state(&worker_shared);
                 for input in s.inputs.drain(..) {
                     let _ = input
@@ -747,106 +948,222 @@ impl Drop for HistoryJournalOwner {
     }
 }
 
-fn settle_outstanding(shared: &HistoryShared) {
+// Registry -> Data is the only nested lock order. Never hold Data during
+// a receipt wait. Accepted tickets remain shared-owned through validation and
+// once-only accounting, including worker unwinding and queued writer failure.
+fn settle_front(shared: &HistoryShared) -> Option<CommitReceipt> {
+    #[cfg(all(test, feature = "causal-journal"))]
+    let mut first_wait = true;
     loop {
-        let result = {
-            let mut t = ticket(shared);
-            match t.as_mut() {
-                None => return,
-                Some(t) => t.try_result(),
+        {
+            let mut s = state(shared);
+            refresh(shared, &mut s);
+            s.status.phase = OwnerPhase::AwaitingCommit;
+        }
+        #[cfg(all(test, feature = "causal-journal"))]
+        if first_wait {
+            first_wait = false;
+            pause_receipt_worker(shared);
+        }
+        let mut registry = tickets(shared);
+        let pending = registry.pending.front_mut()?;
+        let admission = pending.ticket.admission();
+        let ordinal = pending.ordinal;
+        let ingress_bytes = pending.ingress_bytes;
+        let Some(result) = pending.ticket.wait_result(receipt_poll_interval(shared)) else {
+            continue;
+        };
+        let mut s = state(shared);
+        let result = match result {
+            Ok(receipt) => {
+                // Other owners may interleave admissions and source sequences;
+                // a physical publication can cover several individual ACKs.
+                if !registry.prefix_valid
+                    || receipt.admission != admission
+                    || receipt.admission <= registry.previous_admission
+                    || receipt.first_sequence != receipt.last_sequence
+                    || receipt.first_sequence <= registry.previous_sequence
+                    || receipt.published.sequence < receipt.last_sequence
+                    || receipt.published.feed_id != registry.bootstrap.published.feed_id
+                    || registry.previous_ordinal.checked_add(1) != Some(ordinal)
+                {
+                    revoke_history(shared, &mut s, OwnerFailure::InvalidReceipt);
+                    None
+                } else {
+                    // Compute all checked accounting before changing any value.
+                    let credit = if ingress_bytes == 0 {
+                        Some((s.ingress_observations, s.ingress_observation_bytes))
+                    } else {
+                        s.ingress_observations
+                            .checked_sub(1)
+                            .zip(s.ingress_observation_bytes.checked_sub(ingress_bytes))
+                    };
+                    let native_credit = completion_credit(&registry, &s, ordinal);
+                    match (credit, s.journal_records.checked_add(1), native_credit) {
+                        (
+                            Some((count, bytes)),
+                            Some(records),
+                            Some((native_count, native_bytes, durable)),
+                        ) => {
+                            s.ingress_observations = count;
+                            s.ingress_observation_bytes = bytes;
+                            s.journal_records = records;
+                            s.status.pending_operations = native_count;
+                            s.status.pending_bytes = native_bytes;
+                            s.status.durable = durable;
+                            registry.previous_sequence = receipt.last_sequence;
+                            registry.previous_admission = receipt.admission;
+                            registry.previous_ordinal = ordinal;
+                            s.status.last_settlement =
+                                Some(CommitSettlement::Committed(receipt.clone()));
+                            completion_acked(&mut registry, ordinal, &receipt);
+                            Some(receipt)
+                        }
+                        _ => {
+                            revoke_history(shared, &mut s, OwnerFailure::InvalidReceipt);
+                            None
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                s.status.last_settlement = Some(CommitSettlement::Failed(error.clone()));
+                revoke_history(shared, &mut s, OwnerFailure::Commit(error));
+                None
             }
         };
-        if let Some(result) = result {
-            ticket(shared).take();
-            state(shared).status.last_settlement = Some(match result {
-                Ok(r) => CommitSettlement::Committed(r),
-                Err(e) => CommitSettlement::Failed(e),
-            });
-            return;
+        if result.is_none() {
+            registry.prefix_valid = false;
         }
-        sleep_poll(shared);
+        if let Some(intent) = registry.intent.as_mut().filter(|i| i.ordinal == ordinal) {
+            intent.result = Some(result.clone());
+        }
+        let completed = registry
+            .completion
+            .as_ref()
+            .is_some_and(|c| c.ordinal == ordinal && c.receipt.is_some());
+        registry.pending.pop_front();
+        drop(s);
+        drop(registry);
+        #[cfg(all(test, feature = "causal-journal"))]
+        if completed {
+            pause_owner_worker(&shared.pipeline_hooks.after_completion);
+            if shared
+                .pipeline_hooks
+                .panic_after_completion
+                .swap(false, std::sync::atomic::Ordering::Relaxed)
+            {
+                panic!("test-only panic after Completion own ACK accounting");
+            }
+        }
+        #[cfg(not(all(test, feature = "causal-journal")))]
+        let _ = completed;
+        return result;
     }
 }
-fn commit(
+fn settle_outstanding(shared: &HistoryShared) -> bool {
+    let mut valid = true;
+    while !tickets(shared).pending.is_empty() {
+        valid &= settle_front(shared).is_some();
+    }
+    valid
+}
+fn submit_record(
     shared: &HistoryShared,
     mut tx: PreparedFeedTransaction,
-    bootstrap: &CommitReceipt,
-    previous: &mut u64,
+    ordinal: u64,
+    ingress_bytes: usize,
     native_completion: bool,
-) -> Option<CommitReceipt> {
+) -> bool {
+    // Two deferred records are the strict prefix bound. Settle before admitting
+    // another prefix; a following authority may occupy the one extra slot.
     loop {
+        {
+            let registry = tickets(shared);
+            let count = descriptor_count(&registry);
+            if count > MAX_DEFERRED_PREFIX + 1
+                || (count == MAX_DEFERRED_PREFIX + 1 && !has_descriptor(&registry, ordinal))
+            {
+                revoke_history(shared, &mut state(shared), OwnerFailure::InvalidReceipt);
+                return false;
+            }
+        }
         {
             let mut s = state(shared);
             refresh(shared, &mut s);
             // Finalization expiry never cancels complete available evidence.
-            // Keep this exact ordered transaction while a healthy
-            // writer is merely Full; a predecessor can block a completion too.
             s.status.phase = OwnerPhase::AwaitingAdmission;
         }
         match shared.writer.try_submit(tx) {
-            Ok(t) => {
-                *ticket(shared) = Some(t);
+            Ok(ticket) => {
+                tickets(shared).pending.push_back(PendingReceipt {
+                    ticket,
+                    ordinal,
+                    ingress_bytes,
+                });
                 if native_completion {
                     state(shared).deadline_stage = DeadlineStage::Admitted;
                 }
-                break;
+                return true;
             }
             Err(rejected) => {
+                // Full keeps the identical owned transaction. Draining prior
+                // admissions can free capacity without cancelling accepted work.
                 tx = rejected.transaction;
-                let mut s = state(shared);
-                if rejected.reason != AdmissionFailure::Full {
-                    revoke_history(shared, &mut s, OwnerFailure::Admission(rejected.reason));
-                    return None;
+                {
+                    let mut s = state(shared);
+                    if rejected.reason != AdmissionFailure::Full {
+                        revoke_history(shared, &mut s, OwnerFailure::Admission(rejected.reason));
+                        return false;
+                    }
+                    s.status.admission_retries += 1;
                 }
-                s.status.admission_retries += 1;
-                drop(s);
-                sleep_poll(shared);
+                if !tickets(shared).pending.is_empty() {
+                    if !settle_outstanding(shared) {
+                        return false;
+                    }
+                } else {
+                    sleep_poll(shared);
+                }
             }
         }
     }
-    let admission = ticket(shared)
-        .as_ref()
-        .expect("accepted ticket")
-        .admission();
-    state(shared).status.phase = OwnerPhase::AwaitingCommit;
-    let result = loop {
-        {
-            let mut s = state(shared);
-            refresh(shared, &mut s);
-        }
-        if let Some(result) = ticket(shared)
-            .as_mut()
-            .expect("owned accepted ticket")
-            .try_result()
-        {
-            break result;
-        }
-        sleep_poll(shared);
-    };
-    ticket(shared).take();
-    let receipt = match result {
-        Ok(receipt) => receipt,
-        Err(error) => {
-            let mut s = state(shared);
-            s.status.last_settlement = Some(CommitSettlement::Failed(error.clone()));
-            revoke_history(shared, &mut s, OwnerFailure::Commit(error));
-            return None;
-        }
-    };
-    if receipt.admission != admission
-        || receipt.first_sequence != receipt.last_sequence
-        || receipt.first_sequence <= *previous
-        || receipt.published.sequence < receipt.last_sequence
-        || receipt.published.feed_id != bootstrap.published.feed_id
+}
+fn commit(
+    shared: &HistoryShared,
+    tx: PreparedFeedTransaction,
+    ordinal: u64,
+    ingress_bytes: usize,
+    native_completion: bool,
+    defer: bool,
+) -> Option<Option<CommitReceipt>> {
+    if defer && tickets(shared).pending.len() >= MAX_DEFERRED_PREFIX && !settle_outstanding(shared)
     {
-        revoke_history(shared, &mut state(shared), OwnerFailure::InvalidReceipt);
         return None;
     }
-    *previous = receipt.last_sequence;
-    let mut s = state(shared);
-    s.journal_records += 1;
-    s.status.last_settlement = Some(CommitSettlement::Committed(receipt.clone()));
-    Some(receipt)
+    if !submit_record(shared, tx, ordinal, ingress_bytes, native_completion) {
+        return None;
+    }
+    if defer {
+        return Some(None);
+    }
+    #[cfg(all(test, feature = "causal-journal"))]
+    if tickets(shared).pending.len() >= 2
+        && shared
+            .panic_after_prefix_admission
+            .swap(false, std::sync::atomic::Ordering::Relaxed)
+    {
+        panic!("test-only outer owner panic with retained prefix tickets");
+    }
+    let mut receipt = None;
+    let mut valid = true;
+    while !tickets(shared).pending.is_empty() {
+        match settle_front(shared) {
+            Some(ack) => receipt = Some(ack),
+            None => valid = false,
+        }
+    }
+    valid.then_some(receipt)
 }
 fn retire_native(
     shared: &HistoryShared,
@@ -860,8 +1177,7 @@ fn retire_native(
     s.status.pending_bytes -= input.bytes;
 }
 
-fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: &HistoryShared) {
-    let mut previous = bootstrap.last_sequence;
+fn drive_history(mut capture: CaptureSession, _bootstrap: CommitReceipt, shared: &HistoryShared) {
     let mut generation = 0;
     let mut native_ordinal = 0;
     let mut physical_source = ConnectionId(0);
@@ -877,6 +1193,8 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
             s.observations.pop_front()
         };
         if let Some(observation) = observation {
+            #[cfg(all(test, feature = "causal-journal"))]
+            pause_text_worker(shared, &observation);
             let Observation {
                 ordinal,
                 observed_ns,
@@ -908,11 +1226,14 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         permit,
                         operation,
                     } => {
-                        let original = OwnerEventDto::executed(id, &operation, &shared.identity)
-                            .map_err(|e| e.to_string())?;
-                        let OwnerEventDto::Executed { operation, .. } = original else {
-                            unreachable!()
-                        };
+                        let operation = Box::new(
+                            if shared.schema_version >= 3 {
+                                OperationDto::from_observed_capture(&operation, &shared.identity)
+                            } else {
+                                OperationDto::from_capture(&operation, &shared.identity)
+                            }
+                            .map_err(|e| e.to_string())?,
+                        );
                         OwnerEventDto::ExecutionCompleted {
                             input_id: id,
                             permit_ordinal: permit,
@@ -927,7 +1248,7 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                     _ => generation,
                 };
                 let dto = OwnerHistoryDto {
-                    schema_version: 2,
+                    schema_version: shared.schema_version,
                     route: CausalRoute {
                         venue: shared.identity.venue,
                         session: shared.identity.session,
@@ -938,14 +1259,20 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                     observed_ns,
                     event,
                 };
-                let envelope = encode_owner_history(
-                    &dto,
-                    &shared.identity,
-                    shared.history.max_record_bytes as usize,
-                )
-                .map_err(|e| e.to_string())?;
-                let tx = PreparedFeedTransaction::new(vec![FeedRecord::Causal(envelope)])
+                let tx = if is_preissued(shared, ordinal) {
+                    None
+                } else {
+                    let envelope = encode_owner_history(
+                        &dto,
+                        &shared.identity,
+                        shared.history.max_record_bytes as usize,
+                    )
                     .map_err(|e| e.to_string())?;
+                    Some(
+                        PreparedFeedTransaction::new(vec![FeedRecord::Causal(envelope)])
+                            .map_err(|e| e.to_string())?,
+                    )
+                };
                 Ok((dto, tx))
             })();
             let (dto, tx) = match encoded {
@@ -958,7 +1285,7 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         return;
                     };
                     let dto = OwnerHistoryDto {
-                        schema_version: 2,
+                        schema_version: shared.schema_version,
                         route: CausalRoute {
                             venue: shared.identity.venue,
                             session: shared.identity.session,
@@ -985,24 +1312,33 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         return;
                     };
                     revoke_history(shared, &mut state(shared), OwnerFailure::Encoding(error));
-                    (dto, tx)
+                    (dto, Some(tx))
                 }
             };
-            let Some(receipt) = commit(
-                shared,
-                tx,
-                &bootstrap,
-                &mut previous,
-                matches!(dto.event, OwnerEventDto::ExecutionCompleted { .. }),
-            ) else {
+            let defer = matches!(
+                dto.event,
+                OwnerEventDto::Started { .. } | OwnerEventDto::Ingress { .. }
+            );
+            let receipt = if matches!(dto.event, OwnerEventDto::ExecutionCompleted { .. }) {
+                register_completion(shared, ordinal, current.as_ref().expect("completed input"));
+                reserve_intent(shared, &dto, physical_active);
+                commit_completion(shared, tx.expect("encoded Completion"), ordinal)
+            } else if let Some(tx) = tx {
+                commit(shared, tx, ordinal, ingress_bytes, false, defer)
+            } else {
+                consume_intent(shared, ordinal)
+            };
+            let Some(receipt) = receipt else {
                 return;
             };
-            if ingress_bytes != 0 {
-                let mut s = state(shared);
-                s.ingress_observations -= 1;
-                s.ingress_observation_bytes -= ingress_bytes;
+            if defer {
+                continue;
             }
+            let receipt = receipt.expect("authority receipt after complete prefix settlement");
             match dto.event {
+                OwnerEventDto::Wire(event) => {
+                    wire::committed(shared, &mut state(shared), &event, receipt);
+                }
                 OwnerEventDto::ExecutionPermitted {
                     input_id,
                     generation: intended_generation,
@@ -1157,16 +1493,11 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                     native_ordinal = operation.route.ordinal;
                     generation = operation.route.generation;
                     let deadline = current.as_ref().expect("completed input").deadline;
-                    retire_native(
-                        shared,
-                        &mut current,
-                        InputSettlement::Committed {
-                            id: input_id,
-                            receipt: receipt.clone(),
-                        },
-                    );
+                    let preissued = consume_completion(shared, input_id, ordinal);
+                    // The Shared own-ACK settlement already retired credits and
+                    // notified the caller. Keep deadline/active processing here.
+                    current.take().expect("completed input");
                     let mut s = state(shared);
-                    s.status.durable += 1;
                     if let Err(error) = &operation.outcome {
                         revoke_history(shared, &mut s, OwnerFailure::Native(error.clone()));
                     }
@@ -1186,11 +1517,27 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         operation: Arc::from(operation),
                         receipt,
                         deadline,
+                        completion_ordinal: ordinal,
+                        outputs_eligible: eligible,
                     });
                     refresh(shared, &mut s);
+                    if let Some(wire) = s.wire.as_ref() {
+                        let active = s.active.as_ref().expect("just installed");
+                        if wire_candidates(
+                            &active.operation,
+                            input_id,
+                            ordinal,
+                            ordinal,
+                            wire.ledger.policy(),
+                        )
+                        .is_err()
+                        {
+                            revoke_history(shared, &mut s, OwnerFailure::UnsupportedInput);
+                        }
+                    }
                     if s.status.failure.is_some() || input_id < s.visibility_fence {
                         withhold_active(shared, &mut s);
-                    } else {
+                    } else if !preissued {
                         push(
                             shared,
                             &mut s,
@@ -1241,7 +1588,44 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
                         s.deadline_stage = DeadlineStage::Release;
                     }
                 }
-                OwnerEventDto::Withheld { .. } | OwnerEventDto::HandoffObserved { .. } => {
+                OwnerEventDto::HandoffObserved { input_id, .. } => {
+                    let mut s = state(shared);
+                    if let Some(active) = s.active.take() {
+                        if let Some(wire) = s.wire.as_mut() {
+                            let candidates = if active.outputs_eligible {
+                                wire_candidates(
+                                    &active.operation,
+                                    input_id,
+                                    active.completion_ordinal,
+                                    ordinal,
+                                    wire.ledger.policy(),
+                                )
+                            } else {
+                                Ok(Vec::new())
+                            };
+                            let deadline = elapsed_ns(
+                                shared,
+                                active.deadline.saturating_duration_since(shared.origin),
+                            );
+                            match (candidates, deadline) {
+                                (Ok(candidates), Some(deadline)) => {
+                                    wire.deadline = active.deadline;
+                                    if wire.ledger.install(candidates, deadline).is_err() {
+                                        revoke_history(
+                                            shared,
+                                            &mut s,
+                                            OwnerFailure::InvalidReceipt,
+                                        );
+                                    }
+                                }
+                                _ => revoke_history(shared, &mut s, OwnerFailure::InvalidReceipt),
+                            }
+                        }
+                    }
+                    s.current_deadline = None;
+                    s.disposition_queued = false;
+                }
+                OwnerEventDto::Withheld { .. } => {
                     let mut s = state(shared);
                     s.active = None;
                     s.current_deadline = None;
@@ -1299,6 +1683,11 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
             sleep_poll(shared);
             continue;
         }
+        if wire::tick(shared, &mut s) {
+            drop(s);
+            sleep_poll(shared);
+            continue;
+        }
         if let Some(input) = s.inputs.pop_front() {
             let id = input.id;
             let source_matches = match &input.input {
@@ -1346,8 +1735,41 @@ fn drive_history(mut capture: CaptureSession, bootstrap: CommitReceipt, shared: 
             current = Some(input);
             push(shared, &mut s, Event::Control(event), 0);
         } else if s.status.closing {
-            return;
+            drop(s);
+            if !settle_outstanding(shared) {
+                return;
+            }
+            #[cfg(all(test, feature = "causal-journal"))]
+            pause_owner_worker(&shared.closing_pause);
+            let mut s = state(shared);
+            // Revocation can enqueue a final control while the prefix ACK is
+            // outstanding. Preserve it before normal closing cleanup.
+            if s.observations.is_empty() && s.inputs.is_empty() {
+                // Linearize logical closure under the same admission lock.
+                // Physical capture destruction and the outer join follow;
+                // later callers must not add unrecordable controls or state.
+                s.snapshot = None;
+                s.ready = None;
+                s.status.phase = OwnerPhase::Stopped;
+                shared.wake.notify_all();
+                return;
+            }
+            continue;
         } else {
+            drop(s);
+            if !settle_outstanding(shared) {
+                return;
+            }
+            let mut s = state(shared);
+            // New observations/inputs can arrive while waiting. Do not advertise
+            // quiescence until the next loop has processed those admissions.
+            if s.status.closing
+                || s.cannot_record
+                || !s.observations.is_empty()
+                || !s.inputs.is_empty()
+            {
+                continue;
+            }
             s.status.phase = OwnerPhase::Idle;
             drop(s);
             sleep_poll(shared);

@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "status": "PASS_ACTUAL_PRIVATE_EXPORT15_ARCHIVE_BYTES_AND_PRESERVATION",
+  "export_index_gate": {
+    "status": "PASS",
+    "archive_sha256": "c0c575d331dccfd52e803a93864cfe3be881bb2bde932d3b5ecbf1a1829f343c",
+    "manifest_sha256": "81481c46e6006c3a15285548085ff7015615692aca980b02ab8783733f5ca42e",
+    "export_receipt_sha256": "36c8edba6365201456a192a975814e9d8ab31c570145566e4921ed78c5d9a794",
+    "flush_receipt_sha256": "3ee51f76ab8b52229e084999a9ab7f099a611e4343eb7754530aa09ba02cba45",
+    "protected_files": 179,
+    "payload_members": 241,
+    "required_checks_verified": true,
+    "findings": []
+  },
+  "actual_parent_export": {
+    "session_id": 87975,
+    "exit_code": 0,
+    "final_chunk": "1a2ac7",
+    "terminal": {
+      "file": "export-terminal-01.json",
+      "bytes": 365,
+      "sha256": "541064f1e78127a7ab16995f319aabf4230f7bb44481e38227f11c4fb3bd6e4e"
+    },
+    "helper": {
+      "file": "export-03.py",
+      "bytes": 9170,
+      "sha256": "faed4e568d35be8f97f11046286bcc1a921ebe4baba7c6cde4f744504f0af0d0"
+    }
+  },
+  "actual_finalize": {
+    "parent_reported_tool_chunk": "19a815",
+    "parent_reported_exit": 0,
+    "helper": {
+      "file": "finalize-01.py",
+      "bytes": 1579,
+      "sha256": "04d15c974beadaa37859d825783a279998c1f45e8bcfadab27722cdecba9cb6a"
+    },
+    "receipt": {
+      "file": "flush-01.json",
+      "bytes": 770,
+      "sha256": "3ee51f76ab8b52229e084999a9ab7f099a611e4343eb7754530aa09ba02cba45"
+    },
+    "file_and_directory_fsync_returned": true,
+    "reviewer_did_not_fsync_or_mutate": true
+  },
+  "archive": {
+    "file": "saved-captures-01.tar.gz",
+    "bytes": 176229337,
+    "sha256": "c0c575d331dccfd52e803a93864cfe3be881bb2bde932d3b5ecbf1a1829f343c"
+  },
+  "archive_mode": "0600",
+  "manifest": {
+    "file": "manifest-01.json",
+    "bytes": 79767,
+    "sha256": "81481c46e6006c3a15285548085ff7015615692aca980b02ab8783733f5ca42e"
+  },
+  "payload_members": 241,
+  "manifest_member_count": 1,
+  "total_regular_tar_members": 242,
+  "input_bytes": 912237349,
+  "protected_input_bytes": 882051851,
+  "all_member_sizes_modes_SHA256_and_safe_regular_paths_verified": true,
+  "all_gzip_payload_CRC_and_EOF_trailer_readback": true,
+  "gzip_final_zero_padding_bytes_read": 0,
+  "capture_layouts": 15,
+  "capture_files": 120,
+  "each_capture_original8files_with_source_and_feed_layout": true,
+  "other_protected_indexed_files": 59,
+  "all179_originals_exact_executed_recovery_plan": true,
+  "all179_original_SHA_and6stat_fields_unchanged_before_after": true,
+  "all241_input_sources_fullstats_SHA_unchanged_during_audit": true,
+  "atime_claimed": false,
+  "MacARM_hls_and_bridge_explicit_names": true,
+  "exact_capture_recovery_producer_hosted_HLS_hosted_qualification_proofs_included": true,
+  "source_recipe": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "prior_review": {
+    "file": "export15-prelaunch-independent-01.json",
+    "bytes": 2159,
+    "sha256": "f086cc9e08b7605ca755cfb037d3cf8741d7c141b7d6836420c293be90d7f1d5"
+  },
+  "checkpoint_review": {
+    "file": "checkpoint15-actual-portable-01.json",
+    "bytes": 10003,
+    "sha256": "0d7dc7e3228e67ff71c0352d4ecaf44fa222d6111b6f74db07b6dbd6aa12b37b"
+  },
+  "mode_counts": {
+    "0o600": 48,
+    "0o555": 17,
+    "0o644": 154,
+    "0o444": 22
+  },
+  "material_findings": [],
+  "reviewer_execution": "Read-only Python/Git-free gzip/tar/hash/stat audit; archive streamed in memory, never extracted to preserved paths, no product/native/consumer execution or source mutation",
+  "limits": [
+    "Private local integrity export only; not a complete workspace/log backup, digital signature/authenticity or off-device backup.",
+    "Returned fsyncs are author-executed file/directory completion evidence inspected with exact unchangedbytes; no power-loss recovery experiment or hardware persistence guarantee.",
+    "Saved Mac native executables require their original platform for executable-bound verification; no Linux/Razer native equivalence inferred.",
+    "No historical exchange dataset, synchronized-clock availability, freshness/SLA/continuity/economics/extendedsoak/Razer/full-goal qualification."
+  ],
+  "helper": {
+    "file": "export15-actual-independent-01.py",
+    "bytes": 11037,
+    "sha256": "93e3d343134e19bed3987780b658f59acc6d02a1065a0d5a0fe3b44386ba7d1a"
+  },
+  "independent_private_receipt": {
+    "file": "export15-actual-independent-01.json",
+    "bytes": 4346,
+    "sha256": "b3d2195812065098411a47cf6c5af82ded9a964d87c663d52838d9eaa05d1a5f"
+  }
+}

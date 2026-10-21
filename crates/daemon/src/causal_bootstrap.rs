@@ -1,6 +1,7 @@
 //! Supported causal factories: public Bybit and Hyperliquid, disk/null dispatch.
 //! Bootstrap must pass actual-artifact/config verification and a post-barrier
-//! actor receipt before any factory/machine is created. No live loop is wired.
+//! actor receipt before any factory/machine is created. The opt-in `live`
+//! module jointly owns the public Hyperliquid transport and history owner.
 use marketfeed_adapter_api::{Capability, VenueFactory};
 use marketfeed_adapter_bybit::{
     BYBIT_INVERSE_SPEC, BYBIT_LINEAR_SPEC, BYBIT_SPOT_SPEC, BybitCategory, BybitFactory,
@@ -17,8 +18,24 @@ use std::{
     io::{self, Read},
 };
 
+pub mod capture;
+pub mod live;
 pub mod owner;
+pub mod projection;
 pub mod replay;
+
+// These two independent correctness fixtures share one test-only disk-lifetime
+// resource. The asynchronous semaphore is FIFO and works across their separate
+// Tokio runtimes; no native callback or actor concurrency inside a fixture is
+// changed. Acquire before fixture construction and its existing watchdogs.
+#[cfg(all(test, feature = "causal-journal"))]
+async fn native_publication_fixture_permit() -> tokio::sync::SemaphorePermit<'static> {
+    static RESOURCE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+    RESOURCE
+        .acquire()
+        .await
+        .expect("test publication resource is never closed")
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum BootstrapError {
@@ -114,6 +131,20 @@ fn category(category: BybitCategoryDto) -> BybitCategory {
 }
 fn validate_supported(dto: &BootstrapDto) -> Result<(), BootstrapError> {
     dto.validate()?;
+    if dto
+        .public_inputs
+        .iter()
+        .any(|p| p.role == live::DRIVER_POLICY_ROLE)
+    {
+        live::policy(dto)?;
+    }
+    if dto
+        .public_inputs
+        .iter()
+        .any(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE)
+    {
+        dto.observation_policy()?;
+    }
     if dto.environment != BootstrapEnvironmentDto::Production
         || dto.session.subscriptions.is_empty()
     {
@@ -431,14 +462,30 @@ pub struct PreparedBootstrap {
 impl PreparedBootstrap {
     /// Explicit MFCJ3 runtime-owner negotiation; policy bytes are bound into the
     /// canonical bootstrap before the original writer receipt or factory.
+    pub fn new_wire_history(dto: BootstrapDto, max_bytes: usize) -> Result<Self, BootstrapError> {
+        Self::new_history_profile(dto, max_bytes, FeedProfile::EngineCausalV5)
+    }
+    pub fn new_observed_history(
+        dto: BootstrapDto,
+        max_bytes: usize,
+    ) -> Result<Self, BootstrapError> {
+        Self::new_history_profile(dto, max_bytes, FeedProfile::EngineCausalV4)
+    }
     pub fn new_history(dto: BootstrapDto, max_bytes: usize) -> Result<Self, BootstrapError> {
+        Self::new_history_profile(dto, max_bytes, FeedProfile::EngineCausalV3)
+    }
+    fn new_history_profile(
+        dto: BootstrapDto,
+        max_bytes: usize,
+        profile: FeedProfile,
+    ) -> Result<Self, BootstrapError> {
         validate_supported(&dto)?;
         if dto.build != current_build()? {
             return Err(BootstrapError::Unsupported(
                 "build or actual executable mismatch",
             ));
         }
-        let envelope = encode_bootstrap_for_profile(&dto, max_bytes, FeedProfile::EngineCausalV3)?;
+        let envelope = encode_bootstrap_for_profile(&dto, max_bytes, profile)?;
         Self::from_verified(dto, envelope)
     }
     pub fn new(dto: BootstrapDto, max_bytes: usize) -> Result<Self, BootstrapError> {
@@ -454,7 +501,7 @@ impl PreparedBootstrap {
     /// Physical-order replayers can verify bytes before any construction. A
     /// subsequent writer admission is still required by this live-start API.
     pub fn from_envelope(envelope: CausalEnvelope) -> Result<Self, BootstrapError> {
-        if !matches!(envelope.schema_version, 1 | 3) {
+        if !matches!(envelope.schema_version, 1 | 3 | 4 | 5) {
             return Err(BootstrapError::Unsupported(
                 "owner-history journal is not yet wired to the daemon owner",
             ));
@@ -571,6 +618,21 @@ impl CommittedBootstrap {
             ));
         }
         let capture = capture_from_supported(&self.dto)?;
+        let native_profile = self
+            .dto
+            .public_inputs
+            .iter()
+            .any(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE);
+        let wire_policy = if self
+            .dto
+            .public_inputs
+            .iter()
+            .any(|p| p.role == WIRE_POLICY_ROLE)
+        {
+            Some(self.dto.wire_policy()?)
+        } else {
+            None
+        };
         let history_policy = if self
             .dto
             .public_inputs
@@ -588,6 +650,8 @@ impl CommittedBootstrap {
             handle: self.handle,
             owner_policy: self.dto.owner_policy,
             history_policy,
+            native_profile,
+            wire_policy,
         })
     }
 }
@@ -607,9 +671,36 @@ fn capture_from_supported(dto: &BootstrapDto) -> Result<CaptureSession, Bootstra
             spot: market == HyperliquidMarketDto::Spot,
         }),
     };
-    let machine = factory
-        .create_session(dto.session.session_spec()?, dto.catalog.catalog()?)
-        .map_err(|e| BootstrapError::Factory(e.to_string()))?;
+    let observation_policy = if dto
+        .public_inputs
+        .iter()
+        .any(|p| p.role == NATIVE_OBSERVATION_POLICY_ROLE)
+    {
+        Some(dto.observation_policy()?)
+    } else {
+        None
+    };
+    let machine: Box<dyn marketfeed_adapter_api::SessionMachine> = match observation_policy {
+        Some(NativeObservationPolicyDto::HyperliquidV1 { limits }) => {
+            let FactoryDto::HyperliquidPublic { market } = dto.factory else {
+                return Err(BootstrapError::Unsupported(
+                    "native policy requires Hyperliquid factory",
+                ));
+            };
+            Box::new(
+                marketfeed_adapter_hyperliquid::HyperliquidSession::new_with_observations(
+                    market == HyperliquidMarketDto::Spot,
+                    dto.session.session_spec()?.subscriptions,
+                    dto.catalog.catalog()?,
+                    limits,
+                )
+                .map_err(|e| BootstrapError::Factory(e.to_string()))?,
+            )
+        }
+        _ => factory
+            .create_session(dto.session.session_spec()?, dto.catalog.catalog()?)
+            .map_err(|e| BootstrapError::Factory(e.to_string()))?,
+    };
     CaptureSession::new(machine, dto.capture.config()?)
         .map_err(|e| BootstrapError::Factory(e.to_string()))
 }
@@ -622,6 +713,8 @@ pub struct BootstrappedSession {
     handle: BatchFeedHandle,
     owner_policy: Option<JournalOwnerPolicyDto>,
     history_policy: Option<HistoryRuntimePolicyDto>,
+    native_profile: bool,
+    wire_policy: Option<WirePolicyDto>,
 }
 impl BootstrappedSession {
     pub fn identity(&self) -> &OperationIdentity {

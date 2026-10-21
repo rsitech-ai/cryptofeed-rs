@@ -1,0 +1,1654 @@
+{
+  "actual_checkout_witnesses": [
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "4_clippy.txt",
+      "byte_range": [
+        1931,
+        10254
+      ],
+      "bytes": 8323,
+      "derived_section": "clippy/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "clippy",
+      "job_id": 118683873825,
+      "original_archive_member_sha256": "377916ed566c4b83b7746e5df8d8f883ac18a5e376026535fef242c33187459b",
+      "sha256": "8a3a2eaf0ba86ba03ae63e22d67b6d86c639a58024bba722d2b321d0be25447c"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "15_test (macos-latest).txt",
+      "byte_range": [
+        1966,
+        9594
+      ],
+      "bytes": 7628,
+      "derived_section": "test (macos-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "test (macos-latest)",
+      "job_id": 118683874004,
+      "original_archive_member_sha256": "6b2c0df0aa2db275d8d7e9f4dc8c71d7619b87e7d718484bdee1eb21cc4fd4c4",
+      "sha256": "a9e498a1811b2a12fcc7bc51dc6056dd221667892951c15d7e468c9d68355349"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "msrv (1.85)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "bytes": 8326,
+      "job": "msrv (1.85)",
+      "job_id": 118683874051,
+      "sha256": "f88ebc165927276ba877ee60eb2c36aa2c30b1da6230c00891f599509d9ba6cf"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "test (ubuntu-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "bytes": 8326,
+      "job": "test (ubuntu-latest)",
+      "job_id": 118683874176,
+      "sha256": "788eb2b9274b8598cdb7880ce214a62df88f8cce7e36e9331c378bf2530cc693"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "12_simd-json (marketfeed-adapter-okx).txt",
+      "byte_range": [
+        1961,
+        10284
+      ],
+      "bytes": 8323,
+      "derived_section": "simd-json (marketfeed-adapter-okx)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "simd-json (marketfeed-adapter-okx)",
+      "job_id": 118683874202,
+      "original_archive_member_sha256": "566b32a331d3474d9752d9c1f2dab03d27d38be9e99a5ce3a20dc5e497cbefac",
+      "sha256": "6ab48970b4d31728fdc58d98e767226b2e2ebddac4cc6d3b071ac0cae7c0adf3"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "13_C header and ABI exports.txt",
+      "byte_range": [
+        1955,
+        10278
+      ],
+      "bytes": 8323,
+      "derived_section": "C header and ABI exports/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "C header and ABI exports",
+      "job_id": 118683874235,
+      "original_archive_member_sha256": "43f39d03cb50ca409f397ad04f054079890e272141d287d3bd037036c00de77b",
+      "sha256": "91450314edcd282fdc30d399e43be37495b74991dd9a1523daddbba9f17b26c8"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "5_Windows directory durability.txt",
+      "byte_range": [
+        2215,
+        10146
+      ],
+      "bytes": 7931,
+      "derived_section": "Windows directory durability/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "Windows directory durability",
+      "job_id": 118683874286,
+      "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2",
+      "sha256": "b36de77a2f5c50a6af43718f35b849e08754d65e1b3eed347c62960921504c22"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "test (ubuntu-24.04-arm)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "bytes": 8326,
+      "job": "test (ubuntu-24.04-arm)",
+      "job_id": 118683874301,
+      "sha256": "57923689f737644d4d63b47420b55261675b9e4b78b006e57aaf54c8c57f9f61"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "3_rustfmt.txt",
+      "byte_range": [
+        1932,
+        10255
+      ],
+      "bytes": 8323,
+      "derived_section": "rustfmt/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "rustfmt",
+      "job_id": 118683874329,
+      "original_archive_member_sha256": "2f76bcbd4a184507501b115567bae56c9b2a6b43d600c9f155adad518439d885",
+      "sha256": "548119ae8daf76a09be0fea7d5dcd43cc092d0ea44ecb0209d5bcbf2310305b5"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "6_docs.txt",
+      "byte_range": [
+        1928,
+        10251
+      ],
+      "bytes": 8323,
+      "derived_section": "docs/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "docs",
+      "job_id": 118683874336,
+      "original_archive_member_sha256": "3576aee5a6eb980c40eda835e39592f496e8225eb689fc6ab80163cf63bb6182",
+      "sha256": "2d1d4c46b6aa132a745e863980c9595d6613b322fd9e3c8efe7984877a57c721"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "11_simd-json (marketfeed-adapter-bybit).txt",
+      "byte_range": [
+        1963,
+        10286
+      ],
+      "bytes": 8323,
+      "derived_section": "simd-json (marketfeed-adapter-bybit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "simd-json (marketfeed-adapter-bybit)",
+      "job_id": 118683874339,
+      "original_archive_member_sha256": "f15838decef8103d8b991845365489af8e3b1be84a7a802b4c2b6048ef438475",
+      "sha256": "af8b7e5ec53874865dd65cd2fd7ef2b1f4341efb7685d680c39812d9c6c0b557"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "1_cargo-deny.txt",
+      "byte_range": [
+        1934,
+        10257
+      ],
+      "bytes": 8323,
+      "derived_section": "cargo-deny/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "cargo-deny",
+      "job_id": 118683874380,
+      "original_archive_member_sha256": "103f7447514dac6fea1b53d919f9110306e9e2e0e203011ee38ec0505406d847",
+      "sha256": "60a9ba59fceaa886851251c65cf0db9391a4a59fc96be8ad902701dced49de4d"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "10_simd-json (marketfeed-adapter-deribit).txt",
+      "byte_range": [
+        1965,
+        10288
+      ],
+      "bytes": 8323,
+      "derived_section": "simd-json (marketfeed-adapter-deribit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "simd-json (marketfeed-adapter-deribit)",
+      "job_id": 118683874513,
+      "original_archive_member_sha256": "89e0a71dd4411aa5a220968c17bfb02c00ff64f4815ff33a926c21ab60ad45a8",
+      "sha256": "bb6e8716c08fe4e0b63b7316d615ab70a93745100ba8f0a604d226133c7727ef"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "2_test (windows-latest).txt",
+      "byte_range": [
+        2035,
+        9966
+      ],
+      "bytes": 7931,
+      "derived_section": "test (windows-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "test (windows-latest)",
+      "job_id": 118683874524,
+      "original_archive_member_sha256": "3ecb6837da70e7a85b7cffed615cfc4a98e6309be1c19276919c55665130a9d6",
+      "sha256": "c4298703725648f12778a9dd4dc3b158441e929a0e4be1d7308e57c0583e716f"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "8_sbom.txt",
+      "byte_range": [
+        2099,
+        10422
+      ],
+      "bytes": 8323,
+      "derived_section": "sbom/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "sbom",
+      "job_id": 118683874651,
+      "original_archive_member_sha256": "e79a252cb04696415cb664597e6d8af6d25e076b55f9abc412bf37a4848cbff3",
+      "sha256": "3a18b19d5d0e861028b62538569954e30d6734ff70187ab4315e966d95e64b63"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "7_simd-json (marketfeed-adapter-binance).txt",
+      "byte_range": [
+        1970,
+        10293
+      ],
+      "bytes": 8323,
+      "derived_section": "simd-json (marketfeed-adapter-binance)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "simd-json (marketfeed-adapter-binance)",
+      "job_id": 118683874794,
+      "original_archive_member_sha256": "0d6403845b053e93b46c6923a84a77f72c01dfdf533fdbadfe7c704e2c35a470",
+      "sha256": "1cb39c26995a43cf2c22a7d186fbba8207f34e7a5d2aca3c7b76972d7017d5ae"
+    },
+    {
+      "actual_checkout": "c8c73517afb125264a62256a34b507d174cbee22",
+      "archive_member": "0_simd-json (marketfeed-adapter-kraken).txt",
+      "byte_range": [
+        1961,
+        10284
+      ],
+      "bytes": 8323,
+      "derived_section": "simd-json (marketfeed-adapter-kraken)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+      "job": "simd-json (marketfeed-adapter-kraken)",
+      "job_id": 118683874994,
+      "original_archive_member_sha256": "a3231e638bab9d9bb2435f34a4368ca56dced63d5a3192290bedb67777b9659d",
+      "sha256": "0d6a416a7aa8fb286a3bea4ac746739a408b42d774dd47c6eb24e5025d248681"
+    }
+  ],
+  "archive_layout": {
+    "complete_original_job_aggregates": 17,
+    "derived_sections_from_missing_per_step_members": {
+      "C header and ABI exports/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "13_C header and ABI exports.txt",
+        "byte_range": [
+          1955,
+          10278
+        ],
+        "derived_section": "C header and ABI exports/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "43f39d03cb50ca409f397ad04f054079890e272141d287d3bd037036c00de77b"
+      },
+      "Windows directory durability/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "5_Windows directory durability.txt",
+        "byte_range": [
+          2215,
+          10146
+        ],
+        "derived_section": "Windows directory durability/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2"
+      },
+      "Windows directory durability/3_Probe directory handles and exact write-access flush.txt": {
+        "archive_member": "5_Windows directory durability.txt",
+        "byte_range": [
+          10146,
+          18357
+        ],
+        "derived_section": "Windows directory durability/3_Probe directory handles and exact write-access flush.txt",
+        "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2"
+      },
+      "Windows directory durability/4_Recording and directory backend on Rust 1.85.txt": {
+        "archive_member": "5_Windows directory durability.txt",
+        "byte_range": [
+          18357,
+          37953
+        ],
+        "derived_section": "Windows directory durability/4_Recording and directory backend on Rust 1.85.txt",
+        "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2"
+      },
+      "Windows directory durability/5_Dataset publication and recovery on Rust 1.88.txt": {
+        "archive_member": "5_Windows directory durability.txt",
+        "byte_range": [
+          37953,
+          61209
+        ],
+        "derived_section": "Windows directory durability/5_Dataset publication and recovery on Rust 1.88.txt",
+        "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2"
+      },
+      "cargo-deny/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "1_cargo-deny.txt",
+        "byte_range": [
+          1934,
+          10257
+        ],
+        "derived_section": "cargo-deny/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "103f7447514dac6fea1b53d919f9110306e9e2e0e203011ee38ec0505406d847"
+      },
+      "clippy/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "4_clippy.txt",
+        "byte_range": [
+          1931,
+          10254
+        ],
+        "derived_section": "clippy/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "377916ed566c4b83b7746e5df8d8f883ac18a5e376026535fef242c33187459b"
+      },
+      "docs/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "6_docs.txt",
+        "byte_range": [
+          1928,
+          10251
+        ],
+        "derived_section": "docs/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "3576aee5a6eb980c40eda835e39592f496e8225eb689fc6ab80163cf63bb6182"
+      },
+      "rustfmt/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "3_rustfmt.txt",
+        "byte_range": [
+          1932,
+          10255
+        ],
+        "derived_section": "rustfmt/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "2f76bcbd4a184507501b115567bae56c9b2a6b43d600c9f155adad518439d885"
+      },
+      "sbom/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "8_sbom.txt",
+        "byte_range": [
+          2099,
+          10422
+        ],
+        "derived_section": "sbom/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "e79a252cb04696415cb664597e6d8af6d25e076b55f9abc412bf37a4848cbff3"
+      },
+      "simd-json (marketfeed-adapter-binance)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "7_simd-json (marketfeed-adapter-binance).txt",
+        "byte_range": [
+          1970,
+          10293
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-binance)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "0d6403845b053e93b46c6923a84a77f72c01dfdf533fdbadfe7c704e2c35a470"
+      },
+      "simd-json (marketfeed-adapter-binance)/4_Run cargo test --locked -p marketfeed-adapter-binance --features simd-json.txt": {
+        "archive_member": "7_simd-json (marketfeed-adapter-binance).txt",
+        "byte_range": [
+          11148,
+          49955
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-binance)/4_Run cargo test --locked -p marketfeed-adapter-binance --features simd-json.txt",
+        "original_archive_member_sha256": "0d6403845b053e93b46c6923a84a77f72c01dfdf533fdbadfe7c704e2c35a470"
+      },
+      "simd-json (marketfeed-adapter-bybit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "11_simd-json (marketfeed-adapter-bybit).txt",
+        "byte_range": [
+          1963,
+          10286
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-bybit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "f15838decef8103d8b991845365489af8e3b1be84a7a802b4c2b6048ef438475"
+      },
+      "simd-json (marketfeed-adapter-bybit)/4_Run cargo test --locked -p marketfeed-adapter-bybit --features simd-json.txt": {
+        "archive_member": "11_simd-json (marketfeed-adapter-bybit).txt",
+        "byte_range": [
+          11141,
+          51612
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-bybit)/4_Run cargo test --locked -p marketfeed-adapter-bybit --features simd-json.txt",
+        "original_archive_member_sha256": "f15838decef8103d8b991845365489af8e3b1be84a7a802b4c2b6048ef438475"
+      },
+      "simd-json (marketfeed-adapter-deribit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "10_simd-json (marketfeed-adapter-deribit).txt",
+        "byte_range": [
+          1965,
+          10288
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-deribit)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "89e0a71dd4411aa5a220968c17bfb02c00ff64f4815ff33a926c21ab60ad45a8"
+      },
+      "simd-json (marketfeed-adapter-deribit)/4_Run cargo test --locked -p marketfeed-adapter-deribit --features simd-json.txt": {
+        "archive_member": "10_simd-json (marketfeed-adapter-deribit).txt",
+        "byte_range": [
+          11143,
+          41373
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-deribit)/4_Run cargo test --locked -p marketfeed-adapter-deribit --features simd-json.txt",
+        "original_archive_member_sha256": "89e0a71dd4411aa5a220968c17bfb02c00ff64f4815ff33a926c21ab60ad45a8"
+      },
+      "simd-json (marketfeed-adapter-kraken)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "0_simd-json (marketfeed-adapter-kraken).txt",
+        "byte_range": [
+          1961,
+          10284
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-kraken)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "a3231e638bab9d9bb2435f34a4368ca56dced63d5a3192290bedb67777b9659d"
+      },
+      "simd-json (marketfeed-adapter-kraken)/4_Run cargo test --locked -p marketfeed-adapter-kraken --features simd-json.txt": {
+        "archive_member": "0_simd-json (marketfeed-adapter-kraken).txt",
+        "byte_range": [
+          11139,
+          45098
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-kraken)/4_Run cargo test --locked -p marketfeed-adapter-kraken --features simd-json.txt",
+        "original_archive_member_sha256": "a3231e638bab9d9bb2435f34a4368ca56dced63d5a3192290bedb67777b9659d"
+      },
+      "simd-json (marketfeed-adapter-okx)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "12_simd-json (marketfeed-adapter-okx).txt",
+        "byte_range": [
+          1961,
+          10284
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-okx)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "566b32a331d3474d9752d9c1f2dab03d27d38be9e99a5ce3a20dc5e497cbefac"
+      },
+      "simd-json (marketfeed-adapter-okx)/4_Run cargo test --locked -p marketfeed-adapter-okx --features simd-json.txt": {
+        "archive_member": "12_simd-json (marketfeed-adapter-okx).txt",
+        "byte_range": [
+          11139,
+          46019
+        ],
+        "derived_section": "simd-json (marketfeed-adapter-okx)/4_Run cargo test --locked -p marketfeed-adapter-okx --features simd-json.txt",
+        "original_archive_member_sha256": "566b32a331d3474d9752d9c1f2dab03d27d38be9e99a5ce3a20dc5e497cbefac"
+      },
+      "test (macos-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "15_test (macos-latest).txt",
+        "byte_range": [
+          1966,
+          9594
+        ],
+        "derived_section": "test (macos-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "6b2c0df0aa2db275d8d7e9f4dc8c71d7619b87e7d718484bdee1eb21cc4fd4c4"
+      },
+      "test (macos-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt": {
+        "archive_member": "15_test (macos-latest).txt",
+        "byte_range": [
+          10666,
+          280099
+        ],
+        "derived_section": "test (macos-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+        "original_archive_member_sha256": "6b2c0df0aa2db275d8d7e9f4dc8c71d7619b87e7d718484bdee1eb21cc4fd4c4"
+      },
+      "test (windows-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt": {
+        "archive_member": "2_test (windows-latest).txt",
+        "byte_range": [
+          2035,
+          9966
+        ],
+        "derived_section": "test (windows-latest)/2_Run actions_checkout@11d5960a326750d5838078e36cf38b85af677262.txt",
+        "original_archive_member_sha256": "3ecb6837da70e7a85b7cffed615cfc4a98e6309be1c19276919c55665130a9d6"
+      },
+      "test (windows-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt": {
+        "archive_member": "2_test (windows-latest).txt",
+        "byte_range": [
+          10881,
+          284632
+        ],
+        "derived_section": "test (windows-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+        "original_archive_member_sha256": "3ecb6837da70e7a85b7cffed615cfc4a98e6309be1c19276919c55665130a9d6"
+      }
+    },
+    "original_member_count": 55,
+    "scope": "Original GH ZIP preserved byte-for-byte. Some jobs provide only complete aggregates; missing command-step sections are exact byte ranges bounded by top-level Run group headers. Aggregate-versus-segment test totals independently agree for every job; no result is inferred from absent logs."
+  },
+  "arm": {
+    "bootstrap_test": "causal_bootstrap::tests::actual_bootstrap_receipt_precedes_factory_and_initialized_owner",
+    "daemon_unit": {
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 187
+      },
+      "suite_count": 1,
+      "suites": [
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 187,
+          "status": "ok"
+        }
+      ]
+    },
+    "pass_witness_lines": [
+      "2026-10-20T14:35:21.3313607Z test causal_bootstrap::tests::actual_bootstrap_receipt_precedes_factory_and_initialized_owner ... ok"
+    ],
+    "phase_elapsed_diagnostics": [],
+    "private_callback_permit_history_tests_passed": 16,
+    "private_test_names": [
+      "causal_bootstrap::owner::history::tests::deadline_clock_overflow_rejects_before_acceptance_and_preserves_owned_input",
+      "causal_bootstrap::owner::history::tests::actual_bybit_factory_ingress_and_durable_handoff_share_one_valid_history",
+      "causal_bootstrap::owner::history::tests::deadline_observed_during_callback_still_commits_completion_as_withheld",
+      "causal_bootstrap::owner::history::tests::canonical_policy_role_and_profile_cannot_be_ignored_or_rebound",
+      "causal_bootstrap::owner::history::tests::delayed_operation_and_intent_ack_never_expose_new_state_and_dropped_waiter_does_not_cancel",
+      "causal_bootstrap::owner::history::tests::finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+      "causal_bootstrap::owner::history::tests::later_source_fence_withholds_old_callback_but_keeps_new_recovery_usable",
+      "causal_bootstrap::owner::history::tests::full_actor_retries_same_completion_without_reexecuting_callback",
+      "causal_bootstrap::owner::history::tests::external_io_and_live_control_inputs_are_rejected_before_native_acceptance",
+      "causal_bootstrap::owner::history::tests::native_failure_is_complete_evidence_and_never_a_second_execution",
+      "causal_bootstrap::owner::history::tests::native_and_observation_limits_return_owned_input_and_durably_settle_accepted_queue",
+      "causal_bootstrap::owner::history::tests::healthy_full_past_finalization_expiry_retains_complete_evidence_and_ordered_predecessors",
+      "causal_bootstrap::owner::history::tests::original_writer_failure_during_callback_keeps_uncertain_prefix_without_fabricated_completion",
+      "causal_bootstrap::owner::history::tests::stale_queued_frame_after_native_reconnect_does_not_advance_callback_counter",
+      "causal_bootstrap::owner::history::tests::panic_and_encoding_overflow_preserve_permit_uncertainty_and_settle_unexecuted_queue",
+      "causal_bootstrap::owner::history::tests::terminal_fence_before_callback_completion_preserves_exact_late_evidence_and_no_output"
+    ],
+    "scope": "Passing captured stderr hides elapsed phases.120s post-close bootstrap test watchdog, not 10s performance proof. Callback WAIT guards do not establish autonomous runtime watchdog; stalled writer/filesystem/native callback can delay shutdown."
+  },
+  "authority": "No activation, deployment, merge, release, live collection, workflow rerun or load retry. Current-artifact bounded multi-owner Bybit/Hyperliquid disk/null native-operation replay only; no independent owner wall-clock scheduler replay or measured RSS/native allocator-byte qualification. Parent95 local wrapper exit1 and corrected finalizer exit0 retain their historical source scope; current e2 local qualification has its own terminal0 receipt.",
+  "datasets_parquet": {
+    "archive_member": "msrv (1.85)/7_Independent exact Parquet cross-reader.txt",
+    "bytes": 2368,
+    "scope": "Fixture bidirectional cross-reader only, no native dataset qualification.",
+    "sha256": "ff417ba5ce63d5d4abc8defd313a108ef149723250c5677460ad23324c069f88",
+    "witness_lines": [
+      "2026-10-20T14:53:29.8435902Z   \"checks_passed\": true,",
+      "2026-10-20T14:53:29.8436133Z   \"rows\": 20,",
+      "2026-10-20T14:53:29.8436491Z     \"Rust-to-PyArrow\",",
+      "2026-10-20T14:53:29.8436620Z     \"PyArrow-to-Rust\""
+    ]
+  },
+  "independent_private_receipt": {
+    "bytes": 332532,
+    "file": "multi-owner-replay-producer-ci-independent-01.json",
+    "sha256": "e2a7067e2cd8079213c47c64b7116c1fbe7014b45df401efaa80e3fae2f3ff34"
+  },
+  "limitations_and_open_gates": [
+    "No live Hyperliquid, registered ingress/latency workload, hardware/calendar, ordinary-user Windows or economic/full-goal qualification.",
+    "No rerun-to-green of prior failed durable-ingress or old 10s ARM watchdog; preserved failures remain failed.",
+    "Consumer HLS pin/rebuild/saved replay/own CI is separate; producer CI gives no consumer artifact equivalence. This source has current-artifact bounded multi-owner disk/null native-operation replay, not independent owner wall-clock scheduling reproduction, measured native allocator-byte/RSS bounds, live migration or full committed consumer projection.",
+    "Current bounded multi-owner physical-order native-operation replay is exercised by this source\u2019s named tests. Full native-field committed consumer projection, bound external I/O/control/clock/source view, native checkpoints and safe restart remain separate acceptance gates.",
+    "No CI executable SHA, loaded-image/signed attestation, full transitive input/dependency-feature graph or reproducible-build claim.",
+    "Quadratic rejection fix has static complexity and max-vector rejection evidence, without timing/RSS performance proof."
+  ],
+  "method": {
+    "checkout": "Actual git log -1 --format=%H output parsed from all 17 individual checkout steps.",
+    "log_framing": "Native target stdout running-N-tests through its matching summary is framed after the Cargo target heading; this tolerates stderr headings arriving before the preceding child stdout summary. Exact committed-source test names are required in each frame.",
+    "test_counts": "Per-step result rows counted once; aggregate job members excluded. Repeated platform/MSRV tests are not summed as globally unique tests.",
+    "waiting": "Same original run, read-only backoff60/90/120seconds with each individual sleep chunk<=60seconds; no workflow rerun/restart."
+  },
+  "msrv": {
+    "causal_owner_named_pass_witnesses": [
+      "2026-10-20T14:31:01.2261301Z test legacy_v1_inspection_cannot_silently_instantiate_a_journal_owner ... ok",
+      "2026-10-20T14:31:01.3095431Z test connection_identity_is_monotonic_while_generation_counts_accepted_reconnects ... ok",
+      "2026-10-20T14:31:03.3027958Z test observed_close_fences_an_older_ack_and_rejects_text_and_http ... ok",
+      "2026-10-20T14:31:05.5059610Z test bybit_history_replays_actual_persistent_engine_through_transport_reconnect ... ok",
+      "2026-10-20T14:31:10.6521745Z test observed_close_immediately_removes_an_already_committed_release_and_snapshot ... ok",
+      "2026-10-20T14:31:12.8055222Z test observed_stop_fences_an_older_ack_and_still_journals_the_stop ... ok",
+      "2026-10-20T14:31:14.4529158Z test public_history_owner_preserves_real_spot_trade_and_committed_cursor_resume ... ok",
+      "2026-10-20T14:31:14.4545194Z test v2_binds_the_owner_policy_and_preserves_the_full_native_bundle ... ok",
+      "2026-10-20T14:31:14.7526015Z test observed_transport_loss_fences_an_older_ack_and_rejects_text_and_http ... ok",
+      "2026-10-20T14:31:23.2529322Z test startup_fence_preserves_multiple_future_inputs_queued_before_its_ack ... ok",
+      "2026-10-20T14:31:25.4276115Z test public_history_policy_rejects_missing_ambiguous_noncanonical_or_corrupt_binding_before_factory ... ok"
+    ],
+    "causal_owner_summary_lines": [
+      "2026-10-20T14:31:25.4276847Z test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.26s"
+    ],
+    "core": {
+      "archive_member": "msrv (1.85)/4_Run cargo +1.85 test --locked --workspace --exclude marketfeed-datasets --lib.txt",
+      "bytes": 99591,
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 555
+      },
+      "sha256": "3766ecaae18b76f9a03a81fa62ff22d388d48c5e47d1f1e3e36a0b039c44c64d",
+      "suite_count": 30,
+      "suites": [
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 4,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 24,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 12,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 6,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 13,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 24,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 10,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 16,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 26,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 21,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 4,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 2,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 9,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 106,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 5,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 85,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 8,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 1,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 4,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 5,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 4,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 8,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 17,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 91,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 10,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 32,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 8,
+          "status": "ok"
+        }
+      ]
+    },
+    "datasets": {
+      "archive_member": "msrv (1.85)/6_Offline dataset tool MSRV (Parquet 60).txt",
+      "bytes": 18973,
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 20
+      },
+      "sha256": "3f05f47377e084c2d72e9207e9b44e0fb63755ec8cfce100c771120fd3975e20",
+      "suite_count": 6,
+      "suites": [
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 14,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 2,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 3,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 1,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        }
+      ]
+    },
+    "explicit_bootstrap_owner": {
+      "archive_member": "msrv (1.85)/5_Opt-in causal owner on Rust 1.85.txt",
+      "bytes": 17427,
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 95
+      },
+      "sha256": "8e12a456882d9727d0d9d97bdb2ccb4c31bc06846e15cbc9fdc1d8d2dd4b2cc5",
+      "suite_count": 4,
+      "suites": [
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 51,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 4,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 11,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 29,
+          "status": "ok"
+        }
+      ]
+    },
+    "hyperliquid_causal_named_pass_witnesses": [
+      "2026-10-20T14:31:33.9099937Z test coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market ... ok",
+      "2026-10-20T14:31:33.9160913Z test mismatched_market_policy_topics_delivery_and_catalog_fail_before_admission ... ok",
+      "2026-10-20T14:31:34.2911011Z test maximum_malformed_cadence_vector_is_rejected_before_native_construction ... ok",
+      "2026-10-20T14:31:43.7211354Z test builder_perp_context_subset_keeps_collateral_and_emits_only_requested_channels ... ok",
+      "2026-10-20T14:32:03.1132677Z test malformed_late_trade_is_durable_failure_without_partial_trade_release ... ok",
+      "2026-10-20T14:32:03.3146038Z test multi_owner_tests::multi_replay_bootstraps_physically_and_retains_independent_idle_owners ... ok",
+      "2026-10-20T14:32:03.3856298Z test multi_owner_tests::multi_replay_budget_failure_precedes_actual_native_comparison ... ok",
+      "2026-10-20T14:32:12.9051335Z test multi_owner_tests::multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory ... ok",
+      "2026-10-20T14:32:32.8591745Z test multi_owner_tests::multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison ... ok",
+      "2026-10-20T14:32:32.8609004Z test multi_owner_tests::multi_replay_invalid_limits_reject_before_filesystem_access ... ok",
+      "2026-10-20T14:33:02.5106398Z test multi_owner_tests::multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs ... ok",
+      "2026-10-20T14:33:02.5151245Z test multi_owner_tests::multi_replay_rejects_all_other_profiles_before_watermark_access ... ok",
+      "2026-10-20T14:33:42.0996953Z test multi_owner_tests::multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners ... ok",
+      "2026-10-20T14:34:01.1971446Z test multi_owner_tests::multi_replay_exact_pending_source_and_active_canonical_aggregate_caps ... ok",
+      "2026-10-20T14:34:20.9001970Z test multi_owner_tests::multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases ... ok",
+      "2026-10-20T14:34:21.9052221Z test multi_owner_tests::multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal ... ok",
+      "2026-10-20T14:34:30.4834872Z test multi_owner_tests::multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations ... ok",
+      "2026-10-20T14:34:30.8696703Z test perps_actual_factory_persistent_owner_and_durable_history_agree ... ok",
+      "2026-10-20T14:34:36.7701317Z test replay_tests::actual_replay_reads_corrupt_future_only_when_reaching_that_physical_record ... ok",
+      "2026-10-20T14:34:45.3802573Z test replay_tests::actual_replay_reexecutes_available_late_completion_after_revocation_without_handoff ... ok",
+      "2026-10-20T14:34:45.8217852Z test replay_tests::actual_replay_rejects_financial_effect_mutation_accepted_by_structural_validator ... ok",
+      "2026-10-20T14:34:51.8091609Z test replay_tests::actual_replay_rejects_missing_actual_wire_drain_accepted_by_structural_validator ... ok",
+      "2026-10-20T14:35:00.2421322Z test replay_tests::actual_replay_rejects_second_owner_and_wrong_profile_or_bootstrap_budget ... ok",
+      "2026-10-20T14:35:15.1862093Z test replay_tests::actual_replay_rejects_wrong_artifact_and_fabricated_resume_boundary ... ok",
+      "2026-10-20T14:35:19.8691722Z test replay_tests::actual_replay_storage_rewind_or_growth_after_seal_poison_verified_progress ... ok",
+      "2026-10-20T14:35:29.8785189Z test spot_actual_factory_persistent_owner_and_durable_history_agree ... ok",
+      "2026-10-20T14:35:33.8491919Z test replay_tests::actual_replay_unknown_permit_is_not_executed_or_resolved_by_sealing ... ok",
+      "2026-10-20T14:44:31.9349240Z test replay_tests::actual_replay_spot_and_perps_preserve_every_physical_prefix_and_resume ... ok",
+      "2026-10-20T14:52:49.8415330Z test multi_owner_tests::multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume ... ok"
+    ],
+    "hyperliquid_causal_summary_lines": [
+      "2026-10-20T14:52:49.8416046Z test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1279.69s"
+    ],
+    "installed_toolchains": [
+      "2026-10-20T14:25:50.8827000Z   1.85-x86_64-unknown-linux-gnu installed - rustc 1.85.1 (4eb161250 2025-03-15)",
+      "2026-10-20T14:52:56.0271636Z   1.88-x86_64-unknown-linux-gnu installed - rustc 1.88.0 (6b00bc388 2025-06-23)"
+    ],
+    "local_macos_comparison": {
+      "hosted_counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 555
+      },
+      "hosted_only_test_names": [
+        "latency_runtime::tests::linux_rejects_core_beyond_setsize"
+      ],
+      "local_counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 554
+      },
+      "scope": "One Linux-only affinity test explains hosted555 versus local554. Local explicit toolchain1.85.0 and hosted1.85 channel patch are separately reported."
+    },
+    "scope": "Explicit Rust 1.85 opt-in step exercises 51 bootstrap/owner units, 4 public bootstrap, 11 public Bybit owner and 29 public Hyperliquid owner/replay tests. All four explicit Rust1.85 scopes are witnessed from this run."
+  },
+  "platforms": {
+    "test (macos-latest)": {
+      "archive_member": "15_test (macos-latest).txt",
+      "byte_range": [
+        10666,
+        280099
+      ],
+      "conclusion": "success",
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1518
+      },
+      "derived_section": "test (macos-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39439089627/job/118683874004",
+      "named_test_scopes": {
+        "bybit_owner": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 11
+          },
+          "passed_test_names": [
+            "legacy_v1_inspection_cannot_silently_instantiate_a_journal_owner",
+            "connection_identity_is_monotonic_while_generation_counts_accepted_reconnects",
+            "bybit_history_replays_actual_persistent_engine_through_transport_reconnect",
+            "observed_close_immediately_removes_an_already_committed_release_and_snapshot",
+            "observed_close_fences_an_older_ack_and_rejects_text_and_http",
+            "observed_stop_fences_an_older_ack_and_still_journals_the_stop",
+            "public_history_owner_preserves_real_spot_trade_and_committed_cursor_resume",
+            "observed_transport_loss_fences_an_older_ack_and_rejects_text_and_http",
+            "v2_binds_the_owner_policy_and_preserves_the_full_native_bundle",
+            "public_history_policy_rejects_missing_ambiguous_noncanonical_or_corrupt_binding_before_factory",
+            "startup_fence_preserves_multiple_future_inputs_queued_before_its_ack"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:33:24.9443490Z test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 18.95s"
+          ]
+        },
+        "hyperliquid_causal": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 29
+          },
+          "passed_test_names": [
+            "coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market",
+            "maximum_malformed_cadence_vector_is_rejected_before_native_construction",
+            "mismatched_market_policy_topics_delivery_and_catalog_fail_before_admission",
+            "builder_perp_context_subset_keeps_collateral_and_emits_only_requested_channels",
+            "malformed_late_trade_is_durable_failure_without_partial_trade_release",
+            "multi_owner_tests::multi_replay_bootstraps_physically_and_retains_independent_idle_owners",
+            "multi_owner_tests::multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory",
+            "multi_owner_tests::multi_replay_budget_failure_precedes_actual_native_comparison",
+            "multi_owner_tests::multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison",
+            "multi_owner_tests::multi_replay_exact_pending_source_and_active_canonical_aggregate_caps",
+            "multi_owner_tests::multi_replay_invalid_limits_reject_before_filesystem_access",
+            "multi_owner_tests::multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs",
+            "multi_owner_tests::multi_replay_rejects_all_other_profiles_before_watermark_access",
+            "multi_owner_tests::multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations",
+            "multi_owner_tests::multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners",
+            "multi_owner_tests::multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal",
+            "multi_owner_tests::multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases",
+            "perps_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_reads_corrupt_future_only_when_reaching_that_physical_record",
+            "replay_tests::actual_replay_reexecutes_available_late_completion_after_revocation_without_handoff",
+            "replay_tests::actual_replay_rejects_financial_effect_mutation_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_missing_actual_wire_drain_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_second_owner_and_wrong_profile_or_bootstrap_budget",
+            "replay_tests::actual_replay_rejects_wrong_artifact_and_fabricated_resume_boundary",
+            "replay_tests::actual_replay_storage_rewind_or_growth_after_seal_poison_verified_progress",
+            "replay_tests::actual_replay_unknown_permit_is_not_executed_or_resolved_by_sealing",
+            "spot_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_spot_and_perps_preserve_every_physical_prefix_and_resume",
+            "multi_owner_tests::multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:42:01.7746860Z test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 516.82s"
+          ]
+        },
+        "hyperliquid_contracts": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 18
+          },
+          "passed_test_names": [
+            "all_trade_rows_keep_exact_decimals_and_scoped_identity",
+            "acknowledgements_and_pongs_cannot_prove_required_stream_progress",
+            "book_is_snapshot_and_unsorted_crossed_books_are_rejected",
+            "builder_perps_use_native_namespace_and_their_own_collateral",
+            "disappearing_bbo_side_invalidates_the_previous_canonical_quote",
+            "invalid_values_and_unknown_channels_fail_closed",
+            "initial_trade_origin_resets_each_connection_and_preserves_overlap",
+            "live_book_ack_defaults_are_equivalent_but_precision_changes_are_not",
+            "malformed_late_trade_rejects_entire_frame",
+            "metadata_uses_token_indices_and_separate_product_namespaces",
+            "numeric_json_and_string_decimal_tokens_agree_without_float",
+            "protocol_pong_does_not_require_a_data_field",
+            "readiness_needs_all_acks_and_reconnect_exposes_gap",
+            "shared_context_is_one_subscription_and_derivative_fields_are_exact",
+            "silent_candle_is_unverified_while_required_book_freshness_expires_despite_pongs",
+            "snapshots_register_valid_books_and_disconnect_invalidates_control_queries",
+            "large_plan_splits_below_engine_capacity_without_duplicate_context_feeds",
+            "direct_session_and_bootstrap_topics_preserve_native_capacity_and_order"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:29:57.5318010Z test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s"
+          ]
+        }
+      },
+      "original_archive_member_sha256": "6b2c0df0aa2db275d8d7e9f4dc8c71d7619b87e7d718484bdee1eb21cc4fd4c4",
+      "sha256": "20d06862c6db029f9f6c8043c9e8cd221ceabda7e732842cc7d466c8f5d0fb9f",
+      "suite_count": 158
+    },
+    "test (ubuntu-24.04-arm)": {
+      "archive_member": "test (ubuntu-24.04-arm)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "conclusion": "success",
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1519
+      },
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39439089627/job/118683874301",
+      "named_test_scopes": {
+        "bybit_owner": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 11
+          },
+          "passed_test_names": [
+            "connection_identity_is_monotonic_while_generation_counts_accepted_reconnects",
+            "legacy_v1_inspection_cannot_silently_instantiate_a_journal_owner",
+            "observed_close_fences_an_older_ack_and_rejects_text_and_http",
+            "bybit_history_replays_actual_persistent_engine_through_transport_reconnect",
+            "observed_close_immediately_removes_an_already_committed_release_and_snapshot",
+            "observed_stop_fences_an_older_ack_and_still_journals_the_stop",
+            "observed_transport_loss_fences_an_older_ack_and_rejects_text_and_http",
+            "v2_binds_the_owner_policy_and_preserves_the_full_native_bundle",
+            "public_history_owner_preserves_real_spot_trade_and_committed_cursor_resume",
+            "startup_fence_preserves_multiple_future_inputs_queued_before_its_ack",
+            "public_history_policy_rejects_missing_ambiguous_noncanonical_or_corrupt_binding_before_factory"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:39:20.2020933Z test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 106.92s"
+          ]
+        },
+        "hyperliquid_causal": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 29
+          },
+          "passed_test_names": [
+            "coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market",
+            "mismatched_market_policy_topics_delivery_and_catalog_fail_before_admission",
+            "maximum_malformed_cadence_vector_is_rejected_before_native_construction",
+            "builder_perp_context_subset_keeps_collateral_and_emits_only_requested_channels",
+            "malformed_late_trade_is_durable_failure_without_partial_trade_release",
+            "multi_owner_tests::multi_replay_budget_failure_precedes_actual_native_comparison",
+            "multi_owner_tests::multi_replay_bootstraps_physically_and_retains_independent_idle_owners",
+            "multi_owner_tests::multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory",
+            "multi_owner_tests::multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison",
+            "multi_owner_tests::multi_replay_invalid_limits_reject_before_filesystem_access",
+            "multi_owner_tests::multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs",
+            "multi_owner_tests::multi_replay_rejects_all_other_profiles_before_watermark_access",
+            "multi_owner_tests::multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners",
+            "multi_owner_tests::multi_replay_exact_pending_source_and_active_canonical_aggregate_caps",
+            "multi_owner_tests::multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases",
+            "multi_owner_tests::multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal",
+            "multi_owner_tests::multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations",
+            "perps_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_reads_corrupt_future_only_when_reaching_that_physical_record",
+            "replay_tests::actual_replay_reexecutes_available_late_completion_after_revocation_without_handoff",
+            "replay_tests::actual_replay_rejects_financial_effect_mutation_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_missing_actual_wire_drain_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_second_owner_and_wrong_profile_or_bootstrap_budget",
+            "replay_tests::actual_replay_rejects_wrong_artifact_and_fabricated_resume_boundary",
+            "replay_tests::actual_replay_storage_rewind_or_growth_after_seal_poison_verified_progress",
+            "spot_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_unknown_permit_is_not_executed_or_resolved_by_sealing",
+            "replay_tests::actual_replay_spot_and_perps_preserve_every_physical_prefix_and_resume",
+            "multi_owner_tests::multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume"
+          ],
+          "summary_lines": [
+            "2026-10-20T15:44:12.5871757Z test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3892.38s"
+          ]
+        },
+        "hyperliquid_contracts": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 18
+          },
+          "passed_test_names": [
+            "all_trade_rows_keep_exact_decimals_and_scoped_identity",
+            "builder_perps_use_native_namespace_and_their_own_collateral",
+            "book_is_snapshot_and_unsorted_crossed_books_are_rejected",
+            "acknowledgements_and_pongs_cannot_prove_required_stream_progress",
+            "disappearing_bbo_side_invalidates_the_previous_canonical_quote",
+            "invalid_values_and_unknown_channels_fail_closed",
+            "initial_trade_origin_resets_each_connection_and_preserves_overlap",
+            "live_book_ack_defaults_are_equivalent_but_precision_changes_are_not",
+            "malformed_late_trade_rejects_entire_frame",
+            "metadata_uses_token_indices_and_separate_product_namespaces",
+            "protocol_pong_does_not_require_a_data_field",
+            "numeric_json_and_string_decimal_tokens_agree_without_float",
+            "readiness_needs_all_acks_and_reconnect_exposes_gap",
+            "shared_context_is_one_subscription_and_derivative_fields_are_exact",
+            "silent_candle_is_unverified_while_required_book_freshness_expires_despite_pongs",
+            "snapshots_register_valid_books_and_disconnect_invalidates_control_queries",
+            "direct_session_and_bootstrap_topics_preserve_native_capacity_and_order",
+            "large_plan_splits_below_engine_capacity_without_duplicate_context_feeds"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:28:17.4799535Z test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s"
+          ]
+        }
+      },
+      "sha256": "ba6735a29a925677facd84ad13a854f696e5b484e0cddb7447075aeb62e9b3e6",
+      "suite_count": 158
+    },
+    "test (ubuntu-latest)": {
+      "archive_member": "test (ubuntu-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "conclusion": "success",
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1519
+      },
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39439089627/job/118683874176",
+      "named_test_scopes": {
+        "bybit_owner": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 11
+          },
+          "passed_test_names": [
+            "connection_identity_is_monotonic_while_generation_counts_accepted_reconnects",
+            "legacy_v1_inspection_cannot_silently_instantiate_a_journal_owner",
+            "observed_close_fences_an_older_ack_and_rejects_text_and_http",
+            "bybit_history_replays_actual_persistent_engine_through_transport_reconnect",
+            "observed_close_immediately_removes_an_already_committed_release_and_snapshot",
+            "observed_stop_fences_an_older_ack_and_still_journals_the_stop",
+            "observed_transport_loss_fences_an_older_ack_and_rejects_text_and_http",
+            "v2_binds_the_owner_policy_and_preserves_the_full_native_bundle",
+            "public_history_owner_preserves_real_spot_trade_and_committed_cursor_resume",
+            "startup_fence_preserves_multiple_future_inputs_queued_before_its_ack",
+            "public_history_policy_rejects_missing_ambiguous_noncanonical_or_corrupt_binding_before_factory"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:32:40.4301284Z test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 38.91s"
+          ]
+        },
+        "hyperliquid_causal": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 29
+          },
+          "passed_test_names": [
+            "coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market",
+            "mismatched_market_policy_topics_delivery_and_catalog_fail_before_admission",
+            "maximum_malformed_cadence_vector_is_rejected_before_native_construction",
+            "builder_perp_context_subset_keeps_collateral_and_emits_only_requested_channels",
+            "multi_owner_tests::multi_replay_budget_failure_precedes_actual_native_comparison",
+            "multi_owner_tests::multi_replay_bootstraps_physically_and_retains_independent_idle_owners",
+            "malformed_late_trade_is_durable_failure_without_partial_trade_release",
+            "multi_owner_tests::multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory",
+            "multi_owner_tests::multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison",
+            "multi_owner_tests::multi_replay_invalid_limits_reject_before_filesystem_access",
+            "multi_owner_tests::multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs",
+            "multi_owner_tests::multi_replay_rejects_all_other_profiles_before_watermark_access",
+            "multi_owner_tests::multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners",
+            "multi_owner_tests::multi_replay_exact_pending_source_and_active_canonical_aggregate_caps",
+            "multi_owner_tests::multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases",
+            "multi_owner_tests::multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal",
+            "multi_owner_tests::multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations",
+            "perps_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_reads_corrupt_future_only_when_reaching_that_physical_record",
+            "replay_tests::actual_replay_reexecutes_available_late_completion_after_revocation_without_handoff",
+            "replay_tests::actual_replay_rejects_financial_effect_mutation_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_missing_actual_wire_drain_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_second_owner_and_wrong_profile_or_bootstrap_budget",
+            "replay_tests::actual_replay_rejects_wrong_artifact_and_fabricated_resume_boundary",
+            "replay_tests::actual_replay_storage_rewind_or_growth_after_seal_poison_verified_progress",
+            "spot_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_unknown_permit_is_not_executed_or_resolved_by_sealing",
+            "replay_tests::actual_replay_spot_and_perps_preserve_every_physical_prefix_and_resume",
+            "multi_owner_tests::multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:52:48.0552613Z test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1207.62s"
+          ]
+        },
+        "hyperliquid_contracts": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 18
+          },
+          "passed_test_names": [
+            "all_trade_rows_keep_exact_decimals_and_scoped_identity",
+            "builder_perps_use_native_namespace_and_their_own_collateral",
+            "acknowledgements_and_pongs_cannot_prove_required_stream_progress",
+            "book_is_snapshot_and_unsorted_crossed_books_are_rejected",
+            "initial_trade_origin_resets_each_connection_and_preserves_overlap",
+            "disappearing_bbo_side_invalidates_the_previous_canonical_quote",
+            "invalid_values_and_unknown_channels_fail_closed",
+            "malformed_late_trade_rejects_entire_frame",
+            "metadata_uses_token_indices_and_separate_product_namespaces",
+            "live_book_ack_defaults_are_equivalent_but_precision_changes_are_not",
+            "protocol_pong_does_not_require_a_data_field",
+            "numeric_json_and_string_decimal_tokens_agree_without_float",
+            "readiness_needs_all_acks_and_reconnect_exposes_gap",
+            "shared_context_is_one_subscription_and_derivative_fields_are_exact",
+            "silent_candle_is_unverified_while_required_book_freshness_expires_despite_pongs",
+            "snapshots_register_valid_books_and_disconnect_invalidates_control_queries",
+            "direct_session_and_bootstrap_topics_preserve_native_capacity_and_order",
+            "large_plan_splits_below_engine_capacity_without_duplicate_context_feeds"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:28:21.9337618Z test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+          ]
+        }
+      },
+      "sha256": "e70ff6782d6293f9699a0e1791bf5e1ffc18889aaa99bafa7dad7f9e48f2715f",
+      "suite_count": 158
+    },
+    "test (windows-latest)": {
+      "archive_member": "2_test (windows-latest).txt",
+      "byte_range": [
+        10881,
+        284632
+      ],
+      "conclusion": "success",
+      "counts": {
+        "failed": 0,
+        "ignored": 56,
+        "passed": 1516
+      },
+      "derived_section": "test (windows-latest)/4_Run cargo test --locked --workspace --all-targets --all-features.txt",
+      "job_url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39439089627/job/118683874524",
+      "named_test_scopes": {
+        "bybit_owner": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 11
+          },
+          "passed_test_names": [
+            "legacy_v1_inspection_cannot_silently_instantiate_a_journal_owner",
+            "connection_identity_is_monotonic_while_generation_counts_accepted_reconnects",
+            "observed_close_immediately_removes_an_already_committed_release_and_snapshot",
+            "bybit_history_replays_actual_persistent_engine_through_transport_reconnect",
+            "observed_close_fences_an_older_ack_and_rejects_text_and_http",
+            "public_history_owner_preserves_real_spot_trade_and_committed_cursor_resume",
+            "observed_stop_fences_an_older_ack_and_still_journals_the_stop",
+            "v2_binds_the_owner_policy_and_preserves_the_full_native_bundle",
+            "public_history_policy_rejects_missing_ambiguous_noncanonical_or_corrupt_binding_before_factory",
+            "observed_transport_loss_fences_an_older_ack_and_rejects_text_and_http",
+            "startup_fence_preserves_multiple_future_inputs_queued_before_its_ack"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:33:22.2974091Z test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.86s"
+          ]
+        },
+        "hyperliquid_causal": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 29
+          },
+          "passed_test_names": [
+            "coordinated_coin_topics_and_catalog_edits_cannot_switch_native_market",
+            "mismatched_market_policy_topics_delivery_and_catalog_fail_before_admission",
+            "maximum_malformed_cadence_vector_is_rejected_before_native_construction",
+            "builder_perp_context_subset_keeps_collateral_and_emits_only_requested_channels",
+            "multi_owner_tests::multi_replay_bootstraps_physically_and_retains_independent_idle_owners",
+            "multi_owner_tests::multi_replay_checks_aggregate_bootstrap_capture_reservation_before_second_factory",
+            "malformed_late_trade_is_durable_failure_without_partial_trade_release",
+            "multi_owner_tests::multi_replay_budget_failure_precedes_actual_native_comparison",
+            "multi_owner_tests::multi_replay_crc_correct_unknown_and_conflicting_global_owners_poison",
+            "multi_owner_tests::multi_replay_invalid_limits_reject_before_filesystem_access",
+            "multi_owner_tests::multi_replay_native_mismatch_globally_poisons_after_other_owner_handoffs",
+            "multi_owner_tests::multi_replay_rejects_all_other_profiles_before_watermark_access",
+            "multi_owner_tests::multi_replay_exact_static_aggregate_caps_and_native_book_cache_reservations",
+            "multi_owner_tests::multi_replay_exact_pending_source_and_active_canonical_aggregate_caps",
+            "multi_owner_tests::multi_replay_wrong_later_artifact_fails_whole_feed_after_prior_releases",
+            "multi_owner_tests::multi_replay_resume_limits_and_future_corruption_do_not_prescan_later_owners",
+            "multi_owner_tests::multi_replay_uncertain_owner_does_not_block_known_other_owner_even_after_seal",
+            "perps_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_reads_corrupt_future_only_when_reaching_that_physical_record",
+            "replay_tests::actual_replay_reexecutes_available_late_completion_after_revocation_without_handoff",
+            "replay_tests::actual_replay_rejects_financial_effect_mutation_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_missing_actual_wire_drain_accepted_by_structural_validator",
+            "replay_tests::actual_replay_rejects_second_owner_and_wrong_profile_or_bootstrap_budget",
+            "replay_tests::actual_replay_rejects_wrong_artifact_and_fabricated_resume_boundary",
+            "replay_tests::actual_replay_storage_rewind_or_growth_after_seal_poison_verified_progress",
+            "replay_tests::actual_replay_unknown_permit_is_not_executed_or_resolved_by_sealing",
+            "spot_actual_factory_persistent_owner_and_durable_history_agree",
+            "replay_tests::actual_replay_spot_and_perps_preserve_every_physical_prefix_and_resume",
+            "multi_owner_tests::multi_replay_actual_three_factories_preserve_interleaved_prefixes_and_global_resume"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:36:29.0374418Z test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 186.73s"
+          ]
+        },
+        "hyperliquid_contracts": {
+          "counts": {
+            "failed": 0,
+            "ignored": 0,
+            "passed": 18
+          },
+          "passed_test_names": [
+            "all_trade_rows_keep_exact_decimals_and_scoped_identity",
+            "builder_perps_use_native_namespace_and_their_own_collateral",
+            "book_is_snapshot_and_unsorted_crossed_books_are_rejected",
+            "acknowledgements_and_pongs_cannot_prove_required_stream_progress",
+            "disappearing_bbo_side_invalidates_the_previous_canonical_quote",
+            "invalid_values_and_unknown_channels_fail_closed",
+            "initial_trade_origin_resets_each_connection_and_preserves_overlap",
+            "live_book_ack_defaults_are_equivalent_but_precision_changes_are_not",
+            "malformed_late_trade_rejects_entire_frame",
+            "numeric_json_and_string_decimal_tokens_agree_without_float",
+            "metadata_uses_token_indices_and_separate_product_namespaces",
+            "protocol_pong_does_not_require_a_data_field",
+            "readiness_needs_all_acks_and_reconnect_exposes_gap",
+            "shared_context_is_one_subscription_and_derivative_fields_are_exact",
+            "silent_candle_is_unverified_while_required_book_freshness_expires_despite_pongs",
+            "snapshots_register_valid_books_and_disconnect_invalidates_control_queries",
+            "direct_session_and_bootstrap_topics_preserve_native_capacity_and_order",
+            "large_plan_splits_below_engine_capacity_without_duplicate_context_feeds"
+          ],
+          "summary_lines": [
+            "2026-10-20T14:32:08.5471424Z test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s"
+          ]
+        }
+      },
+      "original_archive_member_sha256": "3ecb6837da70e7a85b7cffed615cfc4a98e6309be1c19276919c55665130a9d6",
+      "sha256": "e7ece04b7f8fd193e6c88fdde8f8ba3a4cb524634add995704e872a92bfdd8fd",
+      "suite_count": 158
+    }
+  },
+  "prior_evidence_preserved": [
+    {
+      "bytes": 297742,
+      "file": "actual-replay-producer-ci-independent-01.json",
+      "sha256": "583a4b53ec038a8b4cdfbd22b466be20d7fee059742368bda9f2688b8256db21"
+    },
+    {
+      "bytes": 14634,
+      "file": "multi-owner-replay-qualification-independent-01.json",
+      "sha256": "eebd2886abc750bccb832a45be2a7237e6ac9f80cab5899ef07e99aa89fc0f74"
+    },
+    {
+      "bytes": 16188,
+      "file": "multi-owner-replay-qualified-01.json",
+      "sha256": "8b4c0356ce4314facce301bddb714db971f56cb5e9400f9ecd74f9e1120dba10"
+    },
+    {
+      "bytes": 269322,
+      "file": "hyperliquid-causal-producer-ci-independent-01.json",
+      "sha256": "53ca081b5d49baa90df89dad4e21a8b925cc8defa9d9916d9051ce60f6512954"
+    },
+    {
+      "bytes": 27132,
+      "file": "actual-replay-qualification-independent-01.json",
+      "sha256": "ca55faec7ea45f5255aef22da4bf477302a859dfa0ae726ed8e78f482e5866d5"
+    },
+    {
+      "bytes": 8025,
+      "file": "actual-replay-runner-terminal-01.json",
+      "sha256": "0c3db7be059c91eeff9f5358e7799d5a75b1e7390c7ae968b6a846196b4bca96"
+    },
+    {
+      "bytes": 1109,
+      "file": "actual-replay-finalizer-terminal-02.json",
+      "sha256": "4422d45b25737742c0458404acc5c487643e8e1d4d450cea7af7e939cefcd2d8"
+    },
+    {
+      "bytes": 166311,
+      "file": "history-runtime-producer-ci-independent-01.json",
+      "sha256": "e1cd5541e47f07ad963f2f748576d942712f2d6af0b589f4c828fae9639fd1e0"
+    },
+    {
+      "bytes": 163577,
+      "file": "owner-history-producer-ci-independent-02.json",
+      "sha256": "bda01d1cabaf46c0ef04f10a5bc9ad4376452dd01f0899ba44a869ed635bbd3a"
+    },
+    {
+      "bytes": 162790,
+      "file": "owner-history-producer-ci-independent-01.json",
+      "sha256": "080538581865bc21bcc93fcb65d95b5d4c268aa1f30a80a6137556b7f50c8af8"
+    },
+    {
+      "bytes": 276460,
+      "file": "owner-bootstrap-ci-independent-01.json",
+      "sha256": "25c08d32c310afa3ec1e4343671250cf65fa2f25d4b1b49c05313b761732864d"
+    },
+    {
+      "bytes": 19223,
+      "file": "hyperliquid-causal-bootstrap-review-01.json",
+      "sha256": "e3d82148b783b0e9043cc10ef455cd03bd77bc683f1625ff1a70159297144654"
+    },
+    {
+      "bytes": 580,
+      "file": "hyperliquid-causal-final-validation-01.json",
+      "sha256": "26d146e6a31bda30c80e4da9099a06705ab31dacbe65f79b1aaa8e915b652ca6"
+    },
+    {
+      "bytes": 1057,
+      "file": "hyperliquid-causal-identity-red-01.log",
+      "sha256": "fb25285e407ad1d93a295539ac40479eb9ad6bd25a9171137f66c36e6718d5a4"
+    }
+  ],
+  "raw_evidence": [
+    {
+      "bytes": 25546,
+      "file": "multi-owner-replay-producer-ci-independent-01-run.json",
+      "sha256": "680889821083599f57c6ee5839020ebe713dab983bd878432c4555584989eb1a"
+    },
+    {
+      "bytes": 570900,
+      "file": "multi-owner-replay-producer-ci-independent-01-logs.zip",
+      "sha256": "4cafff6f6fb2a18acc2debce8549ca644824a0b3b5f438d21df8b563c2fd88ab"
+    },
+    {
+      "bytes": 2961384,
+      "file": "multi-owner-replay-producer-ci-independent-01.log",
+      "sha256": "4b6b5cc14b1c399a9a408b1ffa0a4eb4441dc41f9f29ae6c08408a6f398a8502"
+    },
+    {
+      "bytes": 15629,
+      "file": "multi-owner-replay-producer-ci-independent-01-checkout-ffi.log",
+      "sha256": "43f39d03cb50ca409f397ad04f054079890e272141d287d3bd037036c00de77b"
+    },
+    {
+      "bytes": 1476,
+      "file": "multi-owner-replay-producer-ci-independent-01-artifacts.json",
+      "sha256": "890cd7360c7237a2eedd28bad251609f0b129b11d2cd0875e1289399173e4b7e"
+    },
+    {
+      "bytes": 284632,
+      "file": "multi-owner-replay-producer-ci-independent-01-windows.log",
+      "sha256": "3ecb6837da70e7a85b7cffed615cfc4a98e6309be1c19276919c55665130a9d6"
+    },
+    {
+      "bytes": 280099,
+      "file": "multi-owner-replay-producer-ci-independent-01-macos.log",
+      "sha256": "6b2c0df0aa2db275d8d7e9f4dc8c71d7619b87e7d718484bdee1eb21cc4fd4c4"
+    },
+    {
+      "bytes": 151375,
+      "file": "multi-owner-replay-producer-ci-independent-01-msrv.log",
+      "sha256": "2b59ebcbea72bc941390d97f1da756fd4ce53667292a3d3d0144cd26c005ebac"
+    },
+    {
+      "bytes": 280714,
+      "file": "multi-owner-replay-producer-ci-independent-01-ubuntu.log",
+      "sha256": "3d964ddaad4c2dbeebb1186952311e2d6bfa3d887da6b09a20c8c53204c5fb3e"
+    }
+  ],
+  "run": {
+    "conclusion": "success",
+    "createdAt": "2026-10-20T14:25:38Z",
+    "event": "pull_request",
+    "headSha": "e2ad84c413168aee37d130e574519c567fab978f",
+    "status": "completed",
+    "updatedAt": "2026-10-20T15:51:29Z",
+    "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39439089627",
+    "workflowName": "CI"
+  },
+  "schema_version": 1,
+  "source_proof": {
+    "actual_checkout_merge": "c8c73517afb125264a62256a34b507d174cbee22",
+    "all_frozen_git_blobs_equal": true,
+    "declared_source_files": 532,
+    "declared_source_sha256": "a59fe698b7012225eb64b50fe41f7e5940003a03f42faf5bdcae306d0a7b09c5",
+    "freeze_sha256": "6871bf07532ba9d741999f815fe448250c3bf1422dbe581bef8c862ebe55219a",
+    "merge_parents": [
+      "62a8fef3ed17b23ad968eb4f0d897acd969055a1",
+      "e2ad84c413168aee37d130e574519c567fab978f"
+    ],
+    "merge_tree": "f7491988bac1bd5147fc8e5501be61511e8ddeca",
+    "source_commit": "e2ad84c413168aee37d130e574519c567fab978f",
+    "source_parents": [
+      "95f00f51e076c83577228d95dc6605f3fb72df9c"
+    ],
+    "source_tree": "f7491988bac1bd5147fc8e5501be61511e8ddeca",
+    "whole_tree_equal": true
+  },
+  "source_proof_private": {
+    "bytes": 86697,
+    "file": "multi-owner-replay-producer-ci-independent-01-source-proof.json",
+    "sha256": "d96c129cd76528cb2382623099c70dfddbbc401d9ceebd40043a1c6798b36163"
+  },
+  "source_snapshot_method": "SHA256 domain marketfeed-source-snapshot-v1 followed by NUL; sorted normalized UTF8 paths; each path length(u64LE), path bytes, content length(u64LE), exact immutable Git blob bytes. All 532 records equal frozen map. Actual merge/source whole Git trees also equal.",
+  "status": "Hosted CI for source e2ad84c: all 17 jobs succeeded; software-test qualification only.",
+  "test_timing_scope": "Libtest finished-in durations are entire target wall times, not isolated heavy-case timing, source callback latency or registered ingress/load qualification.",
+  "unpublished_worktree_exclusion": "Later managed-worktree typed-native/MFCJ4 source539 and its durable queue, codec, replay and projection tests are outside committed e2 MFCJ3 source532 and this CI run. No later local result is used as e2 hosted evidence.",
+  "windows": {
+    "cases": [
+      {
+        "desired_access": "0x40000000",
+        "drive_type": 3,
+        "filesystem": "NTFS",
+        "flush_error": null,
+        "flush_ok": true,
+        "local_ntfs_candidate": true,
+        "name": "generic_write",
+        "open_ok": true
+      },
+      {
+        "desired_access": "0xC0000000",
+        "drive_type": 3,
+        "filesystem": "NTFS",
+        "flush_error": null,
+        "flush_ok": true,
+        "local_ntfs_candidate": true,
+        "name": "generic_read_write_diagnostic",
+        "open_ok": true
+      },
+      {
+        "desired_access": "0x80000000",
+        "drive_type": 3,
+        "filesystem": "NTFS",
+        "flush_error": 5,
+        "flush_ok": false,
+        "local_ntfs_candidate": true,
+        "name": "generic_read_control",
+        "open_ok": true
+      }
+    ],
+    "claim": "Windows directory-open/flush API compatibility only; no power-loss durability claim",
+    "datasets_1_88": {
+      "archive_member": "5_Windows directory durability.txt",
+      "byte_range": [
+        37953,
+        61209
+      ],
+      "bytes": 23256,
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 19
+      },
+      "derived_section": "Windows directory durability/5_Dataset publication and recovery on Rust 1.88.txt",
+      "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2",
+      "sha256": "719e7cebcf8b5e669f7e1d281e64d4b8420998a7970725640cbd009577ee11e9",
+      "suite_count": 6,
+      "suites": [
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 13,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 2,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 3,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 1,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        }
+      ]
+    },
+    "native_json": {
+      "bytes": 4373,
+      "file": "multi-owner-replay-producer-ci-independent-01-windows-native.json",
+      "sha256": "0afdf30c3575c4af8893dc784ecb3cab20cd40cd5f08e44664c7024f1ebb7375"
+    },
+    "native_original_artifact_zip": {
+      "bytes": 1001,
+      "file": "multi-owner-replay-producer-ci-independent-01-windows-native.zip",
+      "sha256": "ce150a994f36f52577220dcb36914254d84dd29806d4e9b96ca36a9284dcbdfc"
+    },
+    "native_probe_log_section": {
+      "archive_member": "5_Windows directory durability.txt",
+      "byte_range": [
+        10146,
+        18357
+      ],
+      "bytes": 8211,
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 0
+      },
+      "derived_section": "Windows directory durability/3_Probe directory handles and exact write-access flush.txt",
+      "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2",
+      "sha256": "f252b87266dacb06c69dae3af3c7c521584b0ebe1875433d132abc54b1039058",
+      "suite_count": 0,
+      "suites": []
+    },
+    "os": "Microsoft Windows NT 10.0.26100.0",
+    "recording_filesystem_1_85": {
+      "archive_member": "5_Windows directory durability.txt",
+      "byte_range": [
+        18357,
+        37953
+      ],
+      "bytes": 19596,
+      "counts": {
+        "failed": 0,
+        "ignored": 0,
+        "passed": 107
+      },
+      "derived_section": "Windows directory durability/4_Recording and directory backend on Rust 1.85.txt",
+      "original_archive_member_sha256": "8b29712a8e4c095b1cbd8a4aac76662f13aef441e4e607bd7f64904c2f6b38c2",
+      "sha256": "a35bbfcb219bf755f0b772481d6891d6765c2089ffea3fed22bb097cdd96dca5",
+      "suite_count": 6,
+      "suites": [
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 4,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 90,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 2,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 11,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        },
+        {
+          "failed": 0,
+          "ignored": 0,
+          "passed": 0,
+          "status": "ok"
+        }
+      ]
+    },
+    "required_variant": "generic_write",
+    "required_variant_passed": true,
+    "scope": "Hosted Windows NTFS API/permission compatibility and tests only. Required GENERIC_WRITE open+flush succeeds; read-only control fails with access-denied5. No power-loss, namespace-ordering, ordinary-user or production-backend durability qualification."
+  }
+}

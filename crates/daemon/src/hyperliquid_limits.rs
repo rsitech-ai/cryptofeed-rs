@@ -1,5 +1,7 @@
-//! Collector-wide Hyperliquid budgets. Other applications behind the same IP
-//! require their own coordination; this process never sends above its budget.
+//! Collector-wide Hyperliquid connection-attempt and application-write budgets.
+//! Automatic Pong/close controls and other processes/IP users are outside these
+//! counters. Causal static admission additionally allows one market each and a
+//! combined bounded subscription plan; it does not prove a total IP wire rate.
 use marketfeed_transport::{
     CloseReason, FrameBuffer, InboundFrame, OutboundFrame, TransportError, TungsteniteWebSocket,
     WebSocketSpec, WebSocketTransport,
@@ -13,6 +15,42 @@ use std::{
 pub(crate) struct HyperliquidLimits {
     connections: Mutex<VecDeque<Instant>>,
     messages: Mutex<VecDeque<Instant>>,
+    causal: Mutex<CausalReservations>,
+}
+#[derive(Debug, Default)]
+struct CausalReservations {
+    markets: [bool; 2],
+    subscriptions: usize,
+}
+impl HyperliquidLimits {
+    pub(crate) fn reserve_causal(
+        &self,
+        spot: bool,
+        subscriptions: usize,
+    ) -> Result<(), TransportError> {
+        let mut state = self
+            .causal
+            .lock()
+            .map_err(|_| TransportError::Io("Hyperliquid causal admission lock poisoned".into()))?;
+        let market = usize::from(!spot);
+        if subscriptions == 0
+            || subscriptions > 1000
+            || state.markets[market]
+            || state.subscriptions > 1000 - subscriptions
+        {
+            return Err(TransportError::Io(
+                "Hyperliquid causal market/subscription admission refused".into(),
+            ));
+        }
+        state.markets[market] = true;
+        state.subscriptions += subscriptions;
+        Ok(())
+    }
+    pub(crate) fn release_causal(&self, spot: bool, subscriptions: usize) {
+        let mut state = self.causal.lock().unwrap_or_else(|p| p.into_inner());
+        state.markets[usize::from(!spot)] = false;
+        state.subscriptions = state.subscriptions.saturating_sub(subscriptions);
+    }
 }
 fn reserve(
     queue: &Mutex<VecDeque<Instant>>,
@@ -45,6 +83,13 @@ impl BudgetedWebSocket {
         Self {
             inner: TungsteniteWebSocket::new(),
             limits,
+        }
+    }
+
+    pub(crate) fn new_causal(limits: Arc<HyperliquidLimits>) -> Self {
+        Self {
+            inner: TungsteniteWebSocket::new_causal(),
+            limits: Some(limits),
         }
     }
 }
@@ -84,5 +129,19 @@ mod tests {
         reserve(&q, 2, now + Duration::from_secs(60)).unwrap();
         assert!(reserve(&q, 2, now + Duration::from_secs(60)).is_err());
         reserve(&q, 2, now + Duration::from_secs(61)).unwrap();
+    }
+
+    #[test]
+    fn causal_admission_shares_market_and_total_subscription_bounds() {
+        let limits = Arc::new(HyperliquidLimits::default());
+        let clone = limits.clone();
+        assert!(limits.reserve_causal(true, 0).is_err());
+        limits.reserve_causal(true, 600).unwrap();
+        assert!(clone.reserve_causal(true, 1).is_err());
+        assert!(clone.reserve_causal(false, 401).is_err());
+        clone.reserve_causal(false, 400).unwrap();
+        limits.release_causal(true, 600);
+        clone.reserve_causal(true, 600).unwrap();
+        assert!(limits.reserve_causal(false, 1).is_err());
     }
 }

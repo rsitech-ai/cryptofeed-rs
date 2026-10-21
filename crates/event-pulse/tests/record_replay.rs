@@ -1705,6 +1705,7 @@ fn map_captured_frames(
 #[derive(Debug, PartialEq, Eq)]
 enum StableMechanicsMapError {
     UnmappableSystemEvent(SystemEvent),
+    UnmappableNativeObservations,
     ItemIndexOverflow(u32),
     Wire(String),
 }
@@ -1721,6 +1722,9 @@ fn map_stable_synthetic_lifecycle(
         let mut inputs = Vec::new();
         for record in &frame.ordinary {
             let input = match &record.action {
+                SessionAction::EmitObservedBatch(_) => {
+                    return Err(StableMechanicsMapError::UnmappableNativeObservations);
+                }
                 SessionAction::EmitBatch(batch) => {
                     let mut normalized =
                         batch.events[usize::try_from(record.item_index).unwrap()].clone();

@@ -1,0 +1,662 @@
+{
+  "schema_version": 1,
+  "status": "OWN_HEAD_MAIN_AND_FOUR_NATIVE_PACKAGE_WORKFLOWS_SUCCESS; ARCHIVE_AND_SOURCE_PROOF_PASS",
+  "head": "1338b01268538c78a9400213e8dc780bc3372ddc",
+  "tested_merge": "649e3a2776bc7b07b125c79067250b9d778f3253",
+  "tree": "69df2581c2a7b0e2e3d70741326ce2dcaa5dbffd",
+  "whole_merge_tree_equals_author": true,
+  "all351_committed_files_and342_qualified_inputs": true,
+  "qualified_source_map": "69e3fa03cdf849be672392a5682c1d574d614532b6e75329c1fbcb3577ef447f",
+  "all351_original_fullstats_hashes_and_index_unchanged": true,
+  "atime_claimed": false,
+  "runs": [
+    {
+      "id": 39581593798,
+      "head": "1338b01268538c78a9400213e8dc780bc3372ddc",
+      "conclusion": "success",
+      "run_json": {
+        "file": "39581593798-run-08.json",
+        "bytes": 12761,
+        "sha256": "555afe6ad1e11cf87580d9fe45ef42979ed9dc2378e36ec8c3a4f259400185b1"
+      },
+      "jobs_json": {
+        "file": "39581593798-jobs-08.json",
+        "bytes": 13794,
+        "sha256": "eb77e5ac9122a8053cca5108987e1554a01d4cf90f54cee2437c51d5cf33dd85"
+      },
+      "jobs": [
+        {
+          "id": 119160251427,
+          "name": "GitHub Actions security",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119160251427-01.log",
+            "bytes": 16955,
+            "sha256": "d39b10177aa6af8600458867d2c6d0c10f3499d6da7b2b8000133c85d80ee5ea"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119160251729,
+          "name": "Rust workspace",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119160251729-01.log",
+            "bytes": 211925,
+            "sha256": "62951851aa66f7294a90fde618d2e415d26f2aaf3ef72fc263b2e785d13a58cf"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119160251770,
+          "name": "PTY TUI (ubuntu-24.04)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119160251770-01.log",
+            "bytes": 27627,
+            "sha256": "684869ae0bc6b4166c82963cf432cae8ca8928c3ea6212ea4b0827f4617f8c64"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119160251867,
+          "name": "Dependency license and source policy",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119160251867-01.log",
+            "bytes": 49305,
+            "sha256": "2b4d0ccf1051aae7a459fd83572b4d50c8f26f51f17101146ad034c137feb27c"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119160251885,
+          "name": "RustSec advisory scan",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119160251885-01.log",
+            "bytes": 55507,
+            "sha256": "700bcd58802f9c1ef35074a2ab21b8373232e0e69f46d13fa5e4a75d9fe1aed8"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119160251997,
+          "name": "PTY TUI (macos-15)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119160251997-01.log",
+            "bytes": 31792,
+            "sha256": "7e88fa1db4e685a6f7aeb9d4fedaa8144ec9bf8498eb930706aa6a600322caec"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119160253237,
+          "name": "Scheduled public API contract smoke",
+          "conclusion": "skipped",
+          "scope": "Correct pull_request conditional skip; no publication/announcement or scheduled exchange/API execution"
+        }
+      ]
+    },
+    {
+      "id": 39581593520,
+      "head": "1338b01268538c78a9400213e8dc780bc3372ddc",
+      "conclusion": "success",
+      "run_json": {
+        "file": "39581593520-run-08.json",
+        "bytes": 12771,
+        "sha256": "fea537ce24d8db00d2dc9f527afc46f923e3e8cbe0ab1ae08deaf082da02ec65"
+      },
+      "jobs_json": {
+        "file": "39581593520-jobs-08.json",
+        "bytes": 22173,
+        "sha256": "a873e22e8fa645f732b92aa30819669c9fcd0a51d75f0e9faeb08388938ad108"
+      },
+      "jobs": [
+        {
+          "id": 119160251859,
+          "name": "Plan release",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119160251859-01.log",
+            "bytes": 95391,
+            "sha256": "48cfbceb33e4f80fdfdb6aa6acba66c86159c03293a73c1dd168a31603e0a53f"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119161705688,
+          "name": "build-local-artifacts (x86_64-unknown-linux-gnu)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119161705688-01.log",
+            "bytes": 98244,
+            "sha256": "13c8092471c85e5408fad78a5240d12af89c3765d1d66a329d6124b36ab33e37"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119161705793,
+          "name": "build-local-artifacts (aarch64-apple-darwin)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119161705793-01.log",
+            "bytes": 130551,
+            "sha256": "86ad3fa451747474110d9f9f1090b5c7b1b79494fe22f5b7ba14cbe14bc3614e"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119161705800,
+          "name": "build-local-artifacts (x86_64-apple-darwin)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119161705800-01.log",
+            "bytes": 133583,
+            "sha256": "81488bc2a7bbc65f5d4236638522dede24fff7a81b28fd7c03d862cbce965893"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119161705805,
+          "name": "build-local-artifacts (x86_64-pc-windows-msvc)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119161705805-01.log",
+            "bytes": 102392,
+            "sha256": "a0342581e004bdd9283014330c202015429ebc86dc453a6554e4745789a0ed0f"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119173914638,
+          "name": "Build global artifacts",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119173914638-01.log",
+            "bytes": 51437,
+            "sha256": "be2c12e6ade79e8e177b9f9e8c96ee5ce2ab19a4d34a7645a8e02da73739ed88"
+          },
+          "checkout_merge": "649e3a2776bc7b07b125c79067250b9d778f3253"
+        },
+        {
+          "id": 119174601130,
+          "name": "Publish tag artifacts",
+          "conclusion": "skipped",
+          "scope": "Correct pull_request conditional skip; no publication/announcement or scheduled exchange/API execution"
+        },
+        {
+          "id": 119174601969,
+          "name": "Confirm release announcement",
+          "conclusion": "skipped",
+          "scope": "Correct pull_request conditional skip; no publication/announcement or scheduled exchange/API execution"
+        }
+      ]
+    }
+  ],
+  "main_test_counts": {
+    "Rust_executions": 589,
+    "unique_Rust_cases": 565,
+    "packaging_repeats": 24,
+    "Python_summaries": [
+      8,
+      5,
+      10
+    ],
+    "failed": 0,
+    "ignored": 0,
+    "PTY_Mac_and_Linux_each": 6
+  },
+  "main_evidence": {
+    "file": "main-independent-01.json",
+    "bytes": 5954,
+    "sha256": "4de14652f335f5ded659bfab2843a4eb9afb085f79d75cb11c43c6227edbe99b"
+  },
+  "native": [
+    {
+      "target": "aarch64-apple-darwin",
+      "job": 119161705793,
+      "binary": {
+        "bytes": 26964624,
+        "sha256": "df3e37371ed2c91fecb19e493eae39a8861fd3975f47a50cd76bd96e434a251d"
+      },
+      "workflow_zip": {
+        "file": "artifact-12339171084-01.zip",
+        "sha256": "8f5593eaf1642cc4a91f9042b75460fd3db392b2486df37004b60143cf76ddc9",
+        "bytes": 6745220
+      },
+      "inner_archive_sha256": "803760dfe6a4c4e193e7e88d7512db57a256655111284b64ef0b9f933f7b3162",
+      "exact7_ordinary_members": true,
+      "six_docs": [
+        {
+          "path": "README.md",
+          "bytes": 31746,
+          "sha256": "a92c0f04c70a8b48ba4db33d962ab7ab5aba1d517438b13c6a6da9cce41621e5",
+          "committed_blob_sha256": "a92c0f04c70a8b48ba4db33d962ab7ab5aba1d517438b13c6a6da9cce41621e5",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "NOTICE",
+          "bytes": 124,
+          "sha256": "2f58cf26f1ba2892920da15ec52489e4f7c855b4b0cd7d93450815a8277d7ca9",
+          "committed_blob_sha256": "2f58cf26f1ba2892920da15ec52489e4f7c855b4b0cd7d93450815a8277d7ca9",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md",
+          "bytes": 3571,
+          "sha256": "fd22881a716ce6a6fc6b38b41aef7d66dee7a58914a2be1a404e3ea7c9292c05",
+          "committed_blob_sha256": "fd22881a716ce6a6fc6b38b41aef7d66dee7a58914a2be1a404e3ea7c9292c05",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "THIRD_PARTY_LICENSES.txt",
+          "bytes": 389925,
+          "sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "committed_blob_sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "CHANGELOG.md",
+          "bytes": 4564,
+          "sha256": "bfc7f83424eb70d224f1d8fcf2185e5bd361bf718484067df94c7ada35b0b0e0",
+          "committed_blob_sha256": "bfc7f83424eb70d224f1d8fcf2185e5bd361bf718484067df94c7ada35b0b0e0",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "committed_blob_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        }
+      ],
+      "official_hosted_strict_smoke": {
+        "exit_code": 0,
+        "market_events": 2,
+        "cursor": {
+          "feed_id": "c68007e7c93ae3fe9dcbb6c09242d9ab1f4cf9bb",
+          "offset": 171188,
+          "sequence": 67
+        },
+        "data_gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae",
+        "native_source_authentication_on_this_platform": false,
+        "availability_time_ns": null
+      },
+      "no_hidden_reader_or_UTF8_exception": true
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "job": 119161705800,
+      "binary": {
+        "bytes": 31237732,
+        "sha256": "da79fddf960d60e63b2b23fb9430356974880ad8cd56be1e26ed490e1fc2c936"
+      },
+      "workflow_zip": {
+        "file": "artifact-12339053920-01.zip",
+        "sha256": "d31914acd5a74e48063e31686e24a17e4d03c017acc9af7ce8c3d39cbbc8f20b",
+        "bytes": 7865461
+      },
+      "inner_archive_sha256": "d1a475c027b94f2f86532e3e729537190dabe4c43e7df3e8dbdc51f26ff73e5a",
+      "exact7_ordinary_members": true,
+      "six_docs": [
+        {
+          "path": "README.md",
+          "bytes": 31746,
+          "sha256": "a92c0f04c70a8b48ba4db33d962ab7ab5aba1d517438b13c6a6da9cce41621e5",
+          "committed_blob_sha256": "a92c0f04c70a8b48ba4db33d962ab7ab5aba1d517438b13c6a6da9cce41621e5",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "NOTICE",
+          "bytes": 124,
+          "sha256": "2f58cf26f1ba2892920da15ec52489e4f7c855b4b0cd7d93450815a8277d7ca9",
+          "committed_blob_sha256": "2f58cf26f1ba2892920da15ec52489e4f7c855b4b0cd7d93450815a8277d7ca9",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md",
+          "bytes": 3571,
+          "sha256": "fd22881a716ce6a6fc6b38b41aef7d66dee7a58914a2be1a404e3ea7c9292c05",
+          "committed_blob_sha256": "fd22881a716ce6a6fc6b38b41aef7d66dee7a58914a2be1a404e3ea7c9292c05",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "THIRD_PARTY_LICENSES.txt",
+          "bytes": 389925,
+          "sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "committed_blob_sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "CHANGELOG.md",
+          "bytes": 4564,
+          "sha256": "bfc7f83424eb70d224f1d8fcf2185e5bd361bf718484067df94c7ada35b0b0e0",
+          "committed_blob_sha256": "bfc7f83424eb70d224f1d8fcf2185e5bd361bf718484067df94c7ada35b0b0e0",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "committed_blob_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        }
+      ],
+      "official_hosted_strict_smoke": {
+        "exit_code": 0,
+        "market_events": 2,
+        "cursor": {
+          "feed_id": "c68007e7c93ae3fe9dcbb6c09242d9ab1f4cf9bb",
+          "offset": 171188,
+          "sequence": 67
+        },
+        "data_gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae",
+        "native_source_authentication_on_this_platform": false,
+        "availability_time_ns": null
+      },
+      "no_hidden_reader_or_UTF8_exception": true
+    },
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "job": 119161705688,
+      "binary": {
+        "bytes": 34589504,
+        "sha256": "18447ece2cf5edb6fd1a345d8b075a03d9d41e65f2df450fbba0a2a8afbc30ad"
+      },
+      "workflow_zip": {
+        "file": "artifact-12338975195-01.zip",
+        "sha256": "4eafba49246568a1dfb0bdfbcbde67d6897adb7f043c3e76845a10d7dcebc557",
+        "bytes": 8352161
+      },
+      "inner_archive_sha256": "6fbfc7b46b01751179e7e227e98ea7754d0f4764b787c6ce8759f05963fac1b9",
+      "exact7_ordinary_members": true,
+      "six_docs": [
+        {
+          "path": "README.md",
+          "bytes": 31746,
+          "sha256": "a92c0f04c70a8b48ba4db33d962ab7ab5aba1d517438b13c6a6da9cce41621e5",
+          "committed_blob_sha256": "a92c0f04c70a8b48ba4db33d962ab7ab5aba1d517438b13c6a6da9cce41621e5",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11358,
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "committed_blob_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "CHANGELOG.md",
+          "bytes": 4564,
+          "sha256": "bfc7f83424eb70d224f1d8fcf2185e5bd361bf718484067df94c7ada35b0b0e0",
+          "committed_blob_sha256": "bfc7f83424eb70d224f1d8fcf2185e5bd361bf718484067df94c7ada35b0b0e0",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "NOTICE",
+          "bytes": 124,
+          "sha256": "2f58cf26f1ba2892920da15ec52489e4f7c855b4b0cd7d93450815a8277d7ca9",
+          "committed_blob_sha256": "2f58cf26f1ba2892920da15ec52489e4f7c855b4b0cd7d93450815a8277d7ca9",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md",
+          "bytes": 3571,
+          "sha256": "fd22881a716ce6a6fc6b38b41aef7d66dee7a58914a2be1a404e3ea7c9292c05",
+          "committed_blob_sha256": "fd22881a716ce6a6fc6b38b41aef7d66dee7a58914a2be1a404e3ea7c9292c05",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "THIRD_PARTY_LICENSES.txt",
+          "bytes": 389925,
+          "sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "committed_blob_sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        }
+      ],
+      "official_hosted_strict_smoke": {
+        "exit_code": 0,
+        "market_events": 2,
+        "cursor": {
+          "feed_id": "c68007e7c93ae3fe9dcbb6c09242d9ab1f4cf9bb",
+          "offset": 171188,
+          "sequence": 67
+        },
+        "data_gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae",
+        "native_source_authentication_on_this_platform": false,
+        "availability_time_ns": null
+      },
+      "no_hidden_reader_or_UTF8_exception": true
+    },
+    {
+      "target": "x86_64-pc-windows-msvc",
+      "job": 119161705805,
+      "binary": {
+        "bytes": 28646400,
+        "sha256": "418ee23972bfa32bb174d5d08ac447a75d3f628db0f9a0393ec27b7977498a6f"
+      },
+      "workflow_zip": {
+        "file": "artifact-12337927154-01.zip",
+        "sha256": "2d1ef5a318c35d25e49b8a9d1d99b585c338c9ce1d65e8000ca28ba64ab29e27",
+        "bytes": 10741282
+      },
+      "inner_archive_sha256": "68cf78c234404031794bbe8feaf82b232dfb1f2725aac134c78eb3adff2f44b4",
+      "exact7_ordinary_members": true,
+      "six_docs": [
+        {
+          "path": "CHANGELOG.md",
+          "bytes": 4643,
+          "sha256": "5e2eeb6931ede73bbedb71f561a3cedd30cee816e5d6f562a1191fdc64f443e5",
+          "committed_blob_sha256": "bfc7f83424eb70d224f1d8fcf2185e5bd361bf718484067df94c7ada35b0b0e0",
+          "byte_exact": false,
+          "CRLF_normalization_applied": true
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 11560,
+          "sha256": "3ddf9be5c28fe27dad143a5dc76eea25222ad1dd68934a047064e56ed2fa40c5",
+          "committed_blob_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "byte_exact": false,
+          "CRLF_normalization_applied": true
+        },
+        {
+          "path": "NOTICE",
+          "bytes": 130,
+          "sha256": "e668517701ecad6559de54fbe379322623c5f416e6ea02b5e1bc3443f57327d3",
+          "committed_blob_sha256": "2f58cf26f1ba2892920da15ec52489e4f7c855b4b0cd7d93450815a8277d7ca9",
+          "byte_exact": false,
+          "CRLF_normalization_applied": true
+        },
+        {
+          "path": "README.md",
+          "bytes": 32387,
+          "sha256": "8586e03a171155c9df3ed3cf42ed7ebad370ff32fa3f8791a40d5352107633e0",
+          "committed_blob_sha256": "a92c0f04c70a8b48ba4db33d962ab7ab5aba1d517438b13c6a6da9cce41621e5",
+          "byte_exact": false,
+          "CRLF_normalization_applied": true
+        },
+        {
+          "path": "THIRD_PARTY_LICENSES.txt",
+          "bytes": 389925,
+          "sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "committed_blob_sha256": "16a3528924b61603922c52aee6aa8463214059e5c4948c4aea3093c78afa6b84",
+          "byte_exact": true,
+          "CRLF_normalization_applied": false
+        },
+        {
+          "path": "THIRD_PARTY_NOTICES.md",
+          "bytes": 3657,
+          "sha256": "af58afca31157c77ae3d2586a8145b25287974b96a0d6e92bc29e4b761447746",
+          "committed_blob_sha256": "fd22881a716ce6a6fc6b38b41aef7d66dee7a58914a2be1a404e3ea7c9292c05",
+          "byte_exact": false,
+          "CRLF_normalization_applied": true
+        }
+      ],
+      "official_hosted_strict_smoke": {
+        "exit_code": 0,
+        "market_events": 2,
+        "cursor": {
+          "feed_id": "c68007e7c93ae3fe9dcbb6c09242d9ab1f4cf9bb",
+          "offset": 171188,
+          "sequence": 67
+        },
+        "data_gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae",
+        "native_source_authentication_on_this_platform": false,
+        "availability_time_ns": null
+      },
+      "no_hidden_reader_or_UTF8_exception": true
+    }
+  ],
+  "archives": {
+    "evidence": {
+      "file": "archive-audit-final-01.json",
+      "bytes": 31255,
+      "sha256": "d52576dbac5cf1ec5dc883a5a17d52f399fac022380bcf6b287af65b7bc6b2f1"
+    },
+    "workflow_zip_count": 7,
+    "product_plan_native_global_count": 6,
+    "toolcache_never_executed": true,
+    "all_outer_CRC_and_GitHub_digests": true,
+    "all_inner_checksums_and_manifest_links": true,
+    "manifest_checksum_comparisons": 10,
+    "source_export": {
+      "archive_sha256": "079357186b5b94f1cd9898a9a24f7171c2005970ab1c61319c10d2544a99bbca",
+      "all351_exported_files_exact_Git_blobs": true,
+      "prefix": "hls-cli-0.1.2/"
+    }
+  },
+  "local_MacARM": {
+    "actual_session": 85315,
+    "actual_child_pid": 56228,
+    "actual_exit": 0,
+    "binary": {
+      "bytes": 26964624,
+      "sha256": "df3e37371ed2c91fecb19e493eae39a8861fd3975f47a50cd76bd96e434a251d"
+    },
+    "execution": {
+      "file": "local-arm-smoke-execution-01.json",
+      "bytes": 977,
+      "sha256": "a161a6d88cc5573276228d1898c4c80ebb05625479f1769944db4eb64c3621c7"
+    },
+    "terminal": {
+      "file": "local-arm-smoke-tool-terminal-01.json",
+      "bytes": 366,
+      "sha256": "36d7fc30ccef0fbb1eb543f93bd3114da4056186978a13de1219ca85d30e7cdc"
+    },
+    "smoke_receipt": {
+      "file": "local-arm-smoke-01.json",
+      "bytes": 3566,
+      "sha256": "156d7525f08609417a1337c514ebd8f7fd32f2f57f8bed5b21dd0e492c4c90d9"
+    }
+  },
+  "preservation_baseline": {
+    "file": "source-before-01.json",
+    "bytes": 114022,
+    "sha256": "ea02e01a9ad027e9f9c3256ab9d954440ca71e7f133965e7b05e2283bcf93044"
+  },
+  "tested_merge_proof": {
+    "file": "tested-tree-proof-01.json",
+    "bytes": 368,
+    "sha256": "97d610fcbb8af2dcf5a434af094c09e344476daccdcb002e2dc1edc486122cd4"
+  },
+  "material_findings": [],
+  "limits": [
+    "Hosted qualification applies only to author1338/testedmerge649e/tree69df. New producer source3474 and future owner changes receive no hosted qualification from these HLS runs.",
+    "All four native binaries were smoke-tested in their official hosted jobs. Only downloaded MacARM binary was additionally executed locally; local85315 actual0. No local foreign-platform execution.",
+    "Seven workflow ZIPs comprise six plan/native/global product artifacts plus one toolcache; cached tool was never executed.",
+    "Native archive includes binary plus six docs. Exact synthetic fixture is supplied from checked-out source and included in the source export, not inside each seven-file native archive.",
+    "Windows docs preserve raw hashes; five CRLF-normalized documentation files and exact mixed-newline third-party licenses are explicitly distinguished.",
+    "Publication and announcement jobs and the scheduled exchange API check used their existing skip conditions. No release, tag, deployment, extended soak or Razer run occurred. Live freshness and clock alignment remain unqualified. Native financial verification, usable-time admission and full-goal completion remain open.",
+    "Earlier05ef Windows decode-exception false pass, af6/27bd failures and local unexplained PTY failure remain unqualified historical evidence; new successful jobs do not relabel them.",
+    "Archive helper failures retained: initial wrapper-layout assumption; mixed-EOL normalization assumption; final aggregate-checksum parser initially rejected blank lines. Corrected helper skips whitespace-only lines while validating every nonempty checksum. No archive bytes changed."
+  ],
+  "helper": {
+    "file": "close-hosted-01.py",
+    "bytes": 7719,
+    "sha256": "c55ece26e7d99f6d10869d8e2e6d3d4370518e265a42008041a5a6e43c03f4f1"
+  },
+  "private_receipt": {
+    "file": "hosted-independent-final-01.json",
+    "bytes": 24187,
+    "sha256": "6cc2c92396934f157be9877de3f7d455cc06202778d488bb857283457168e940"
+  },
+  "artifact_zips": [
+    {
+      "id": 12339204327,
+      "name": "artifacts-build-global",
+      "bytes": 963579,
+      "sha256": "3f180e879f67380cf891f6098202631278e6ec0f8f66ac4fce943073207c6c5f"
+    },
+    {
+      "id": 12339171084,
+      "name": "artifacts-build-local-aarch64-apple-darwin",
+      "bytes": 6745220,
+      "sha256": "8f5593eaf1642cc4a91f9042b75460fd3db392b2486df37004b60143cf76ddc9"
+    },
+    {
+      "id": 12339053920,
+      "name": "artifacts-build-local-x86_64-apple-darwin",
+      "bytes": 7865461,
+      "sha256": "d31914acd5a74e48063e31686e24a17e4d03c017acc9af7ce8c3d39cbbc8f20b"
+    },
+    {
+      "id": 12338975195,
+      "name": "artifacts-build-local-x86_64-unknown-linux-gnu",
+      "bytes": 8352161,
+      "sha256": "4eafba49246568a1dfb0bdfbcbde67d6897adb7f043c3e76845a10d7dcebc557"
+    },
+    {
+      "id": 12337927154,
+      "name": "artifacts-build-local-x86_64-pc-windows-msvc",
+      "bytes": 10741282,
+      "sha256": "2d1ef5a318c35d25e49b8a9d1d99b585c338c9ce1d65e8000ca28ba64ab29e27"
+    },
+    {
+      "id": 12337456567,
+      "name": "cargo-dist-cache",
+      "bytes": 10037900,
+      "sha256": "def1668a48087cfa5bf34863b3274fed07360bdb846c4b5623046bedf96bfd4b"
+    },
+    {
+      "id": 12337086419,
+      "name": "artifacts-plan-dist-manifest",
+      "bytes": 3090,
+      "sha256": "79759b1cae9c52a725f2bd0ddee00b978d41dd210cfdba948a23ffed944faf6d"
+    }
+  ],
+  "public_prose_rewording": {
+    "original_portable_sha256": "a0a771cea2d83a73e87430ab631db5d218b1d66171942903d63fe08e9703d8da",
+    "changed_json_path": "limits[5]",
+    "original_sentence_sha256": "95b1953bed3509e3bd417e0334369d1d5f86fe51d7575818170e7a30b5ea3f03",
+    "scope": "One English limitation sentence reworded after a scanner matched its prose. All source, artifact, check, timing, count, status and other values remain exact; no scanner policy change. Original receipt and failed scan retained privately.",
+    "independent_classification_sha256": "e8660f7e5e8540cde5cfc5728e8d1b776b532093dc02595d048d599a748d7210"
+  }
+}

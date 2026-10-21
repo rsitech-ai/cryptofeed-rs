@@ -9,7 +9,7 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "MultiHistoryReplay current532-input source a59fe698b7012225eb64b50fe41f7e5940003a03f42faf5bdcae306d0a7b09c5 passes all16frozen-source local checks with actual runner21139 terminal0/marker and qualifier96728 terminal0/marker. Workspace1518/0failed/56existingignored/158targets; focused40; Rust1.85core554/HL29/bootstrap51/public4/owner11; disabled3; denied-warningClippy/docs; deny0.20.2/audit0.22.2 zero vulnerabilities/warnings; unchangedlock. Retained0555workspace executable SHA5fab4c5a5ec64923e929da2b2a0b1ba94d73a9aaa3c305c21858035377909fba and exact embedded532-source/parent95 recipe are bound; not loaded-image/transitive-input/reproducible-build proof. Original22frozen/2pilot/35HLS files preserve bytes+metadata. Independent final evidence audit passed, receipt eebd2886abc750bccb832a45be2a7237e6ac9f80cab5899ef07e99aa89fc0f74; source publication/ownhosted qualification remain required. Published95 owns independently verified17hostedjobs; HLS735/pin95 owns main/all4native/6ZIP/313sourceexport success. All52shared source paths/bytes remain identical, with independent comparison; no newconsumer build claimed. Typed native-observation foundation is being developed in isolated codex/native-observations worktree from95; staticreviewpasses, stablecodec3/Clippy and unchanged-source isolatedMSRV3pass. Original shared-targetMSRV101 is retained; noqueue/profile/projection authority implemented. Native projection/live/ingress/strictdataset/operational gates remain open; fullgoalactive.",
+  "current_slice": "Producer20f5 source570/e5cd and HLS0c07 final7/23pins qualified; producer own17hostedjobs PASS and HLS ownmain/all4nativepackages/sevenZIP/source/peer audit PASS. Actualjoint15 all4children0:9379records/1844items/2021native/6gaps, sealedmatchingconsumers;31.034556ms finalfiletail PASS. Five actualQuants checkpoint processes5/11/9378/9379/sealedidle all0;179originals unchanged. Local241member checksummed export saved/readback/fsync. Unsynced perpsBBOend0.231199s/max3.706897s has noSLA/availability/causality claim. Quants ownCI externalzero-stepblock; original480FAILED/unrerun; Razer deferred. Rootgitlinks unchanged.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)",
   "implementation_owners": {
     "cryptofeed-rs": "Exchange adapters, exact native semantics, instrument metadata, acquisition timestamps, quality events, authoritative live feed, durable raw/canonical storage and deterministic replay",
@@ -17,14 +17,12 @@
     "hlscreen": "Shared-feed consumer and presentation"
   },
   "handoff": "One authoritative cryptofeed source with independently progressing consumers; versioned schemas, instrument identity, provenance, cursors and dataset manifests. Each consumer checks freshness/quality and reports unavailable inputs. No second collector or strategy engine.",
-  "known_dependency_advisories": "Producer candidate Cargo.lock/dependency versions/edges remain unchanged. Exact cargo-audit0.22.2 reports zero vulnerabilities/warnings and cargo-deny0.20.2 passes. HLSb1ec minimally patches Wasmtime36.0.18\u219236.0.19 and26 related registry identities, preserving393 other complete registry records and all432 resolved nodes and their dependency-edge structure after the targeted identity substitution. The same1345-advisory RustSec database reduces2\u21920 without exceptions; local rebuilt replay and source-specific hosted native checks pass. Those Wasm tests do not establish compiler exploit resistance or arbitrary-Wasm safety. Original historical repair evidence stays source-scoped; default-branch alerts await reviewed integration.",
+  "known_dependency_advisories": "Producer5479 minimally updates Mozilla roots1.0.10/verifier0.103.16 and removes the unpatched roots0.26 wrapper using normal explicit-ring TLS. Fresh source09 audit/deny passes scan1348 advisories at RustSec DB e6f94f3760d5e6c54c1b05f204002263bc025524 without exceptions; current source10 dependency inputs are byte-identical. HLS5479 pins use these patched floors; attribution corrected in27bdca4 passes its own hosted checks. Quants isolated audit originally found Black24.10 and pip25.0.1 advisories; successor a1d45ac5 pins Black26.3.1/pip26.2.0 and all20 installed test-environment packages pass with0 findings. This is not an audit of entire Quants/Hummingbot environments. Original findings remain preserved. Default-branch alerts are not closed/merged; no new full NPM audit or arbitrary-Wasm safety claim.",
   "next_required_work": [
-    "Preserve completed producer95 own hosted17-job qualification and HLS735 own main/all-four-native/archive qualification as immutable source-specific evidence. DraftPR51/21 bodies now record verified closure and unfinished rsibot consumption accurately; source-scoped independent body reviews pass.",
-    "Publish the independently reviewed passing532-source multi-owner candidate as a draft51 update, verify exact source/tree/body readback and inspect its own hosted qualification. Preserve source/artifact/capture bindings. Native checkpoints/safe restart and complete failure/admission retention remain open.",
-    "Implement committed consumer projection from acknowledged HandoffObserved, carrying required typed native feature data atomically through canonical queue/drop/drain ownership. HLS currently derives features from Frame+FrameAccepted rather than Batch; do not expose dropped/withheld rows or silently lose order-count/candle/context capabilities. Bind metadata/control/clock ordering and explicit schema compatibility.",
-    "Migrate real daemon/CLI/live/control/supervisor and external I/O to privately persistent causal owners; settle accepted work before seal. Only then rerun the registered failed-ingress comparison with identical caps, schedule, thresholds and abort rules.",
-    "Implement the next opt-in time-qualified observation reader and availability tests in existing rsibot owners, preserving legacy decisions/inventory/exits. Cross-venue features/models/ETF/economics belong there; acquisition/storage/replay remain here. No economics authorization is granted.",
-    "Finish native semantic/continuity and strict dataset gates plus calendar/hardware/operational qualification. Preserve failed2b ARM watchdog, falsegreen05ef Windows reader and all historical source-specific evidence. No operational promotion, deployment, merge or release."
+    "Local shared-feed/finalpin capture and actual orderly recovery are qualified at20f5/HLS0c07/Q67; retain exact source/artifact/request/proof pins and179originals. Final handoff evidence: docs/evidence/shared-feed-integration-20261021/README.md. Local export is not an off-device backup or fullworkspace snapshot.",
+    "Quants67 ownCI39579537152 (and predecessor39561301014) ranzerosteps/tests: all4jobs rejected underGitHubaccountpayment/spendingrestriction. Accountowner resolvesBilling&plans thenrerunsunchangedworkflow. No billing/credential/workflow workaround. Synthetic115-cell spotcontext only; actualhistory/availability/fullRESEARCH_V1/perps remainunqualified.",
+    "Original480 comparison remains FAILED/unrerun. Its exact legacy SessionRunner/raw-sidecar/MFSF1 contract requires actualofflineBybitowner/rawsidecar/nativeoracle migration before identical480schedule/caps/deadlines/abort rerun. Hyperliquid pilots do not substitute.",
+    "Razer execution is deferred to the user pulling exact reviewed Git pins. Follow updated Mac/Linux runbook: fresh Linux builds and writerlifetimes, resource/disk preflight, unchanged120s reference first, independently registered longerduration/budgets and failure/restart gates before any24h/7d qualification. Preserve all failed/partial intervals and unknownavailability. No deployment/orders/activation/merge/release."
   ],
   "causal_integration_contract": "docs/plan/causal_journal_integration_contract.md",
   "owner_history_contract": "docs/plan/causal_owner_history.md",
@@ -33,5 +31,343 @@
   "actual_engine_replay_qualification": "docs/evidence/actual-engine-replay-20261020/qualification.json",
   "multi_owner_replay_contract": "docs/plan/causal_multi_owner_replay.md",
   "native_observation_projection_contract": "docs/plan/causal_native_observation_projection.md",
-  "multi_owner_replay_qualification": "docs/evidence/causal-multi-owner-replay-20261020/qualification.json"
+  "multi_owner_replay_qualification": "docs/evidence/causal-multi-owner-replay-20261020/qualification.json",
+  "native_observation_carrier_contract": "docs/plan/causal_native_observation_carrier.md",
+  "native_observation_carrier_qualification": "docs/evidence/native-observation-carrier-20261020/qualification.json",
+  "native_observation_history_contract": "docs/plan/causal_native_observation_history.md",
+  "native_observation_history_qualification": "docs/evidence/native-observation-history-20261020/qualification.json",
+  "verified_source_view_contract": "docs/plan/causal_verified_source_view.md",
+  "verified_source_view_qualification": "docs/evidence/verified-source-view-20261020/qualification.json",
+  "atomic_projection_candidate": {
+    "status": "locally-qualified-independent-evidence-audit-pass",
+    "source_files": 548,
+    "source_sha256": "141e4c967daa4f3a15f98b41ef01dfc9e2a5d7de10d9b43c59893a5674d74f1c",
+    "parent": "a63d2ae79208726552859b40ef401e962575f26e",
+    "new_regressions": 21,
+    "scope": "Exact548 source141e4c96 passes stable workspace1570/0/56, MSRV engine/recording288, bootstrap57, public63, disabled2+1, denied-warning Clippy/docs/fmt/diff; all21newnames pass both toolchains. Independent static review closes preserved findings (6b6c3997); final evidence audit85fdbff1passes. Retained0555 file/declared recipe and all22frozen/2pilot/35HLS files verified; no loaded-image/RSS/latency/deployed proof. Original failed frozen01 and preflights retained. Consumers/allMids/live remain open.",
+    "qualification": "docs/evidence/atomic-observation-projection-20261020/qualification.json",
+    "independent_evidence_audit_sha256": "85fdbff152678149e7ee20309a0f95f76b00f6aeca0b49badb2949d553cef190"
+  },
+  "native_observation_projection_qualification": "docs/evidence/atomic-observation-projection-20261020/qualification.json",
+  "projection_watchdog_diagnostics": "docs/evidence/hyperliquid-projection-watchdog-20261020/validation.json",
+  "platform_priority": {
+    "required": [
+      "macOS",
+      "Linux x86_64",
+      "Linux aarch64"
+    ],
+    "windows": "secondary; retain original failures and source-specific successor successes without substituting for required Mac/Linux checks",
+    "razer": "User deferred remote access and will pull repository changes from Git. Finish local implementation, integrated data tests and source-specific hosted checks first; remote soak is not run or claimed."
+  },
+  "sha256_debug_replay_qualification": "docs/evidence/sha256-debug-replay-20261020/validation.json",
+  "razer_verification_contract": "docs/plan/razer_shared_feed_verification.md",
+  "rsibot_projection_bridge_contract": "docs/plan/rsibot_projection_bridge.md",
+  "rsibot_projection_bridge_qualification": "docs/evidence/rsibot-projection-bridge-20261020/validation.json",
+  "publication_constraint": "The proposed hosted default-CLI step could not be pushed with the existing OAuth credential. Its unpublished commit/patch and rejected push are preserved locally; publication keeps the parent workflow. All compiled reader inputs and eight local checks are unchanged. No credential permission change or force push.",
+  "causal_application_wire_contract": "docs/plan/causal_application_wire_owner.md",
+  "owned_capture_command_contract": "docs/ops/hyperliquid-causal-capture.md",
+  "owned_capture_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/validation.json",
+  "owned_capture_timer_policy_v2_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/timer-policy-v2-validation.json",
+  "owned_capture_joint05_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint05.json",
+  "projection_batch_candidate": {
+    "source_files": 566,
+    "source_sha256": "a80528023e75356be8e54cd07400031fef5f997fce8b8c6f7d37b9bdb3e74ef6",
+    "focused_commands": 11,
+    "focused_status": "Prior source03 focused11 commands pass; source09 full10 local gates and exact artifact build pass. Actual source09 debug joint06 timing fails4.145830861s despite structural pass; current source10 results recorded separately.",
+    "independent_focused_review_sha256": "d0d965c166c6e0b83c534f6107d9438a911e79412d5704308bbeed115b51cdc8",
+    "failed_combined_log_sha256": "5d6e21a93b43b81eb1d97fd3b3fed9a29171b9812b2079ee1aec4b86159adfd1",
+    "failed_executable_sha256": "8179d4c37af21bc377a1a3bd25df46b69c0d35950846e5b6486e2fd9d29ed416",
+    "prior_focused_source_sha256": "4626a9c180c42f6f8d9af25bc66c007ff00bb51e6d71304a5a10e2e8bbbc1f03",
+    "independent_current_local_review_sha256": "cd1773726d17363c0c38c2792911e4731d7015ba72c375ae899e87d2e7b475c3"
+  },
+  "owned_capture_joint06_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint06.json",
+  "watermark_read_candidate": {
+    "source_files": 566,
+    "source_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+    "changed_from_source09": [
+      "crates/recording/src/shared_feed.rs"
+    ],
+    "actual_red_exit": 101,
+    "actual_green_exit": 0,
+    "old_reads_for110bytes": 111,
+    "new_maximum_tested_reads": 2,
+    "independent_review_sha256": "0db9d409b4950820319db5f7efb39f064d8bf133dfb376043ebf3ff60f1d32b9",
+    "broad_qualification": "All10 local stable/MSRV gates and independent17c8 audit pass; exact debug artifacts e6c/D96. Existing release build and core311/native103/public80 tests separately pass, with denied warnings and exact a626/f447 artifact/build-output bindings.",
+    "freshness_status": "Actual debug joint07 timing fails9.287134148s. Release joint08 passes unchanged2s filemtime-tail diagnostic at0.882445256s, but final committed-source interval is UNKNOWN and native availability/clock/continuity/SLA remain unqualified. Neither old failures nor original480 workload are relabelled."
+  },
+  "owned_capture_joint07_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint07.json",
+  "owned_capture_joint08_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint08.json",
+  "quants_checkpoint_joint07_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/quants-checkpoint-joint07.json",
+  "owned_capture_release_profile_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/release-profile-validation.json",
+  "owned_capture_joint09_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint09.json",
+  "owned_capture_hosted238_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/hosted238.json",
+  "projection_overlap_candidate": {
+    "status": "focused23pass; full stableFAIL existing paused32 watchdog; cause unresolved",
+    "parent": "23859663baac977613ca7a91bf326028150ca85d",
+    "scope": "ProjectionPump bounded overlap only; no owner/engine/writer/native external effect or dependency changes",
+    "invariants": [
+      "N1..8 includes prepared/admitted/receipt-cached records until whole physical ACK",
+      "16MiB encoded window and policy-maximum reservation before every source read",
+      "unchanged actor16pendingops/32MiB,8groupops/16MiB,1ms grouping/preparation age",
+      "FIFO admissions/ranges/source chains/full published cursor; no partial paired checkpoint",
+      "Full immutable retry; Seal final admission; failure poison/drain; default1 compatibility"
+    ],
+    "original_red_exec": 7205,
+    "original_red_exit": 101,
+    "original_red_source": "f0944d79c7d1b117759f0c3ce494a7d0a1bef0a3211350cd2f578bae55f7a71f",
+    "original_red_executable": "cea91a901ae6b4b7c63234ebeb02365ef19f72e1d2c3698f2d7581e900bacba6",
+    "focused_green_exec": 7764,
+    "focused_green_exit": 0,
+    "private_candidate_reviewed_sha256": "70f61fcea6cc0140b2f5dcd7c240bab1771a0f826e4e37b47c58a676dd70257f",
+    "source_sha256": "0ff75ebac247c3071cd91948dd045155193efbd11fda293e1499b810d5e4c842",
+    "focused_full_exec": 79627,
+    "focused_full_exit": 0,
+    "focused_passed": 23,
+    "stable_exec": 60555,
+    "stable_exit": 1,
+    "stable_test_totals_before_early_exit": [
+      805,
+      1,
+      46
+    ],
+    "stable_failure_receipt_sha256": "f09fa31640f0e2f052ae50c68b8209c200ccecca864b4314699f0af416a44bae",
+    "same_executable_isolated_exec": 69816,
+    "same_executable_isolated_exit": 0,
+    "same_executable_isolated_test_seconds": 5.54,
+    "watchdog_or_threads_changed": false,
+    "msrv": {
+      "exec": 12995,
+      "exit": 0,
+      "counts": [
+        108,
+        311,
+        112,
+        80
+      ],
+      "source_sha256": "0ff75ebac247c3071cd91948dd045155193efbd11fda293e1499b810d5e4c842"
+    },
+    "qualification": "docs/evidence/owned-hyperliquid-capture-20261020/projection-overlap-validation.json",
+    "release_only": {
+      "exec": 25180,
+      "exit": 0,
+      "core": 311,
+      "native": 112,
+      "public": 80,
+      "capture_sha256": "c53119b59c8febed26217d1387b81918f814b3e42e4ab4d0e92fad46a22177cc",
+      "full_candidate_qualified": false
+    },
+    "remaining_docs_cli": {
+      "exec": 63422,
+      "exit": 0,
+      "full_stable_failure_unchanged": true
+    }
+  },
+  "quants_publication": {
+    "status": "published-draft; hosted blocked:external",
+    "url": "https://github.com/s1korrrr/quants-lab/pull/98",
+    "commit": "a1d45ac5dc26c9ea47f0df96689d1ed97c01738a",
+    "qualification": "docs/evidence/owned-hyperliquid-capture-20261020/quants-publication.json",
+    "root_gitlink_changed": false
+  },
+  "receipt_wake_candidate": {
+    "source_sha256": "c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1",
+    "source_files": 566,
+    "scope": "CommitTicket bounded recv_timeout with cached outcomes; history-owner accepted commit/settlement waits only. No legacy owner/native permission/grouping/durability changes.",
+    "original_failure": "0ff source full stable60555 failed unchanged paused32 10s watchdog; same retained executable isolated pass5.54s. Historical failure not relabeled.",
+    "focused": {
+      "session": 42779,
+      "exit": 0,
+      "new_tests": 3
+    },
+    "stable_first": {
+      "session": 10146,
+      "exit": 0,
+      "workspace": [
+        1668,
+        0,
+        56
+      ],
+      "all6commands0": true
+    },
+    "stable_repeat": {
+      "session": 31481,
+      "exit": 0,
+      "workspace": [
+        1668,
+        0,
+        56
+      ]
+    },
+    "security": {
+      "session": 29942,
+      "exit": 0,
+      "audit": 0,
+      "deny": 0,
+      "gitleaks": 0,
+      "advisories_found": 0,
+      "database": "4b587f00996ebe5c05a73eaef105ef241e876414"
+    },
+    "next": "Finish same-source repeat, MSRV and release; exact artifact/native audits and unchanged request timing, then producer publication and all7/23HLS pin qualification; rsibot actual new-feed checkpoint/integration before Razer handoff.",
+    "msrv": {
+      "session": 74809,
+      "exit": 0,
+      "counts": [
+        108,
+        314,
+        112,
+        80
+      ]
+    },
+    "release": {
+      "session": 15105,
+      "exit": 0,
+      "counts": [
+        314,
+        112,
+        80
+      ],
+      "qualification": "docs/evidence/owned-hyperliquid-capture-20261020/receipt-wake-validation.json"
+    },
+    "joint10": {
+      "session": 8454,
+      "exit": 0,
+      "tail_ns": 24975966,
+      "groups": 6022,
+      "native_acquisition": "UNQUALIFIED",
+      "qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint10.json"
+    }
+  },
+  "closing_boundary_candidate": {
+    "source_sha256": "0f332bdf2535607281fe89330e3457498e5d81ef91867d6a4b05d2f3e91d0221",
+    "qualification": "docs/evidence/owned-hyperliquid-capture-20261020/closing-boundary-validation.json",
+    "source": "docs/evidence/owned-hyperliquid-capture-20261020/closing-boundary-source.json",
+    "review": "docs/evidence/owned-hyperliquid-capture-20261020/closing-boundary-review.json",
+    "joint11": "docs/evidence/owned-hyperliquid-capture-20261020/joint11.json",
+    "joint11_independent": "docs/evidence/owned-hyperliquid-capture-20261020/joint11-independent.json",
+    "original480_contract": "docs/evidence/owned-hyperliquid-capture-20261020/original480-rerun-contract.json",
+    "native_acquisition": "UNQUALIFIED",
+    "full_with_owned_predecessors_regression": "not deterministically covered"
+  },
+  "acquisition_read_diagnostics": {
+    "source_files": 568,
+    "source_sha256": "347481b92b568c3bd57a1f971121ab216573c8f8092740be9dc62f2a4df7b4e4",
+    "plan": "docs/plan/acquisition_read_diagnostics.md",
+    "focused_actual_session": 70085,
+    "focused_exit": 0,
+    "focused_tests": 30,
+    "broad_status": "local-qualified-independent-source-and-final-evidence-audits-pass",
+    "scope": "Fixedsize local monotonic gate/read spans in terminalreport only; no acquisitiontimestamp/policy/wire/permission/cap/wakechange. Original live test bytes exactprefix plus childmoduledecl.",
+    "local_workspace": [
+      1687,
+      0,
+      56
+    ],
+    "msrv_counts": [
+      111,
+      314,
+      131,
+      80
+    ],
+    "release_counts": [
+      314,
+      131,
+      80
+    ],
+    "qualification_sha256": "84c7341876984897c44f4f1bb349e94ad745f78584bbd90316339337d837585a",
+    "final_independent_sha256": "002cf6d15ffc54aad8b7c4cae8b1fe66a9c9cb48826b0a49199c1bd70b8ba98c",
+    "joint13": {
+      "actual_parent_session": 40037,
+      "exit_code": 0,
+      "all4children0": true,
+      "records": 7684,
+      "native_released": 1613,
+      "final_tail_ns": 23904762,
+      "strict_audit_sha256": "4dcd25af4b478407d8ae20ebf6cfcf785723a6112006768ad2e2cbd7d855c282",
+      "independent_audit": "PASS",
+      "native_acquisition": "UNQUALIFIED",
+      "qualification": "docs/evidence/acquisition-read-diagnostics-20261021/joint13.json",
+      "independent_sha256": "32d41aa32cf6a633e1bdda6dfbf3de178082c99cbbb22a71921cdcceb214cdf2",
+      "independent": "docs/evidence/acquisition-read-diagnostics-20261021/joint13-independent.json"
+    },
+    "qualification": "docs/evidence/acquisition-read-diagnostics-20261021/qualification.json",
+    "source": "docs/evidence/acquisition-read-diagnostics-20261021/source.json",
+    "qualification_independent": "docs/evidence/acquisition-read-diagnostics-20261021/qualification-independent.json",
+    "published_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+    "own_hosted_run": 39586842402,
+    "own_hosted_status": "required Mac/Linuxx64/LinuxARM/MSRV PASS; overallfailure secondaryWindowswirewatchdog;16success1failure0cancel",
+    "own_hosted_qualification": "docs/evidence/acquisition-read-diagnostics-20261021/hosted66.json",
+    "own_hosted_independent_sha256": "49020e972b23d8da8909027165a2dda0407c0cfc8de14f9e83a0431ff9914c5d"
+  },
+  "completion_intent_pipeline": {
+    "status": "local-and-ownhosted-qualified; finalHLS-pin-and-joint15-and-actualcheckpoint-independent-audits-PASS",
+    "plan": "docs/plan/completion_intent_pipeline.md",
+    "motivation": "Joint13 observed perps ownergate119.445s versus completedreads3.909ms, nativeBBOendpoint21.916s. Local wait evidence motivates durablebarrier optimization; no isolated filesystem or remoteclock causality claim.",
+    "source_files": 570,
+    "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+    "local_workspace": [
+      1699,
+      0,
+      56
+    ],
+    "msrv_counts": [
+      111,
+      314,
+      143,
+      80
+    ],
+    "release_counts": [
+      314,
+      143,
+      80
+    ],
+    "required_local_checks": 17,
+    "all_local_checks_passed": true,
+    "new_regression_cases": 12,
+    "history_suite_cases": 41,
+    "qualification_sha256": "b1d74a47a26cce33c568aa7c44cbe821f62696ec63c9e2e5c519b3f34e9be9ab",
+    "timing_status": "Joint15 actual55464/0, all4children0;9379records/1844items/2021native/6gaps,179filesunchanged. Finalfiletail31,034,556nsPASS. UnsyncedperpsBBOlast231.199ms/max3.706897s; noSLA/availability/causalityclaim. Originaljoint14andallfailures retained.",
+    "qualification": "docs/evidence/completion-intent-pipeline-20261021/qualification.json",
+    "source": "docs/evidence/completion-intent-pipeline-20261021/source.json",
+    "independent": "docs/evidence/completion-intent-pipeline-20261021/qualification-independent.json",
+    "independent_original_sha256": "da2b50c3b598e786d530bfd0c7e68ce2f4e2210e8ae5a917a938d571858b378e",
+    "joint14": "docs/evidence/completion-intent-pipeline-20261021/joint14.json",
+    "joint14_independent": "docs/evidence/completion-intent-pipeline-20261021/joint14-independent.json",
+    "joint14_independent_sha256": "998b659a22829df04bebdea260418da839338400758c34488637483700210f2c",
+    "published_commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+    "own_hosted_run": 39593757331,
+    "own_hosted_status": "17success/0failure/0cancel",
+    "hosted": "docs/evidence/shared-feed-integration-20261021/producer-hosted.json",
+    "joint15": "docs/evidence/shared-feed-integration-20261021/joint15.json",
+    "joint15_independent": "docs/evidence/shared-feed-integration-20261021/joint15-independent.json",
+    "checkpoint15_independent": "docs/evidence/shared-feed-integration-20261021/checkpoint15-independent.json"
+  },
+  "hlscreen_hosted_1338": {
+    "qualification": "docs/evidence/hlscreen-hosted-1338-20261021/qualification.json",
+    "main_run": 39581593798,
+    "native_run": 39581593520,
+    "status": "PASS all4nativeplatforms and independent archive/source audit",
+    "original_portable_sha256": "a0a771cea2d83a73e87430ab631db5d218b1d66171942903d63fe08e9703d8da",
+    "public_sha256": "65035ea28e1fdc77f07cb1710a775c7ecbbf919a2111d43e954830c7840b68a1",
+    "public_transform": "One authored limitation sentence reworded after Gitleaks prose false positive; transformation metadata binds original. Independent recursive review confirms every other result/source/artifact/count/type unchanged. Original failed scan retained; no scanner exception."
+  },
+  "hlscreen_hosted_0c07": {
+    "commit": "0c07b927f999b943ce9304af50314bed9fb148c3",
+    "producer_pin": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+    "main_run": 39595932396,
+    "native_run": 39595932607,
+    "status": "PASS ownmain/all4nativepackages/7ZIP/sourceexport/peer audit",
+    "qualification": "docs/evidence/shared-feed-integration-20261021/hls-hosted.json",
+    "peer": "docs/evidence/shared-feed-integration-20261021/hls-hosted-peer.json"
+  },
+  "saved_capture_export": {
+    "status": "local-integrity-export/readback/fsync-independent-audit-PASS",
+    "protected_files": 179,
+    "payload_members": 241,
+    "archive_bytes": 176229337,
+    "archive_sha256": "c0c575d331dccfd52e803a93864cfe3be881bb2bde932d3b5ecbf1a1829f343c",
+    "receipt": "docs/evidence/shared-feed-integration-20261021/export.json",
+    "limits": "Private local partialworkspace export; Mac native executablebound replay only; no offdevice/powerloss/signature/SLA claim.",
+    "independent": "docs/evidence/shared-feed-integration-20261021/export-independent.json",
+    "independent_sha256": "4d20c7be043813b3917410ae3f812172ce57fc9a9f089d13bfd34f80230301a1"
+  }
 }

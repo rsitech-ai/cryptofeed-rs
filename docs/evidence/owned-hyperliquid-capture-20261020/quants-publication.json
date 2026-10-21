@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "repository": "s1korrrr/quants-lab",
+  "branch": "feat/andrzej_cryptofeed_context_20261019",
+  "commit": "a1d45ac5dc26c9ea47f0df96689d1ed97c01738a",
+  "tree": "0f70b3b4bf4a3438f2bdf7019a626bcf031dec6b",
+  "draft_pr": "https://github.com/s1korrrr/quants-lab/pull/98",
+  "draft": true,
+  "publication_authorized_by_user": true,
+  "publication": "Initial git push rejected missing OAuth workflow scope; existing installed GitHub connector created the branch at exact tested commit, independently verified by git ls-remote. gh draft PR creation and task attachment succeeded. No credentials, workflow content or root gitlink changed.",
+  "local_qualification": {
+    "native_tests": 19,
+    "selected_ci_tests": 75,
+    "test_counts_overlap": true,
+    "isolated_python312_packages_audited": 20,
+    "advisories": 0,
+    "commit_bound_receipt_sha256": "9207e687ce38670cb9d03db26469eba3fe8f6c774b436911de7a08a183f04200"
+  },
+  "hosted": {
+    "url": "https://github.com/s1korrrr/quants-lab/actions/runs/39561301014",
+    "attempt": 1,
+    "head": "a1d45ac5dc26c9ea47f0df96689d1ed97c01738a",
+    "conclusion": "failure",
+    "jobs": [
+      {
+        "id": 119092954234,
+        "name": "75 boundary tests (ubuntu-24.04, Python 3.12)",
+        "conclusion": "failure",
+        "steps_executed": 0,
+        "annotations": [
+          {
+            "level": "failure",
+            "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+          }
+        ],
+        "annotations_sha256": "ca7796d942cdc9f258b44b2a763435eade18d7aac3d60c56c31d230fe037a241"
+      },
+      {
+        "id": 119092954444,
+        "name": "75 boundary tests (macos-15, Python 3.12)",
+        "conclusion": "failure",
+        "steps_executed": 0,
+        "annotations": [
+          {
+            "level": "failure",
+            "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+          },
+          {
+            "level": "notice",
+            "message": "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times."
+          }
+        ],
+        "annotations_sha256": "d98394e3fff9d302fc8d881fe263121d60006e221c280f4b103c72f83213ad50"
+      },
+      {
+        "id": 119092954461,
+        "name": "75 boundary tests (ubuntu-24.04, Python 3.13)",
+        "conclusion": "failure",
+        "steps_executed": 0,
+        "annotations": [
+          {
+            "level": "failure",
+            "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+          }
+        ],
+        "annotations_sha256": "ca7796d942cdc9f258b44b2a763435eade18d7aac3d60c56c31d230fe037a241"
+      },
+      {
+        "id": 119092954623,
+        "name": "75 boundary tests (macos-15, Python 3.13)",
+        "conclusion": "failure",
+        "steps_executed": 0,
+        "annotations": [
+          {
+            "level": "failure",
+            "message": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings"
+          },
+          {
+            "level": "notice",
+            "message": "Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times."
+          }
+        ],
+        "annotations_sha256": "d98394e3fff9d302fc8d881fe263121d60006e221c280f4b103c72f83213ad50"
+      }
+    ],
+    "tests_executed": 0,
+    "status": "blocked:external; GitHub account payment/spending restriction",
+    "next_external_action": "Account owner resolves GitHub Billing & plans payment/spending restriction, then reruns this unchanged workflow. No billing changes or repeated reruns attempted."
+  },
+  "limits": [
+    "No hosted Mac/Linux test result; all jobs failed before any step.",
+    "Native positive context remains synthetic spot115 cells; full research/perps/real availability admission unqualified.",
+    "No root submodule update, economic activation, deployment or merge."
+  ]
+}

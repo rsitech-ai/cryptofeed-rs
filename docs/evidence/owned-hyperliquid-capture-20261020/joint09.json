@@ -1,0 +1,1052 @@
+{
+  "schema_version": 1,
+  "status": "STRUCTURAL_FINAL_RECONCILIATION_PASS; PREREGISTERED_DEVELOPMENT_TIMING_GATE_FAIL",
+  "scope": "Portable selected actual joint09 failure evidence. Final sealed equality and all four child exits0 do not erase runner16196 exit1 or timing failure. No future overlap pipeline qualification.",
+  "actual_runner": {
+    "actual_exec_session": 16196,
+    "actual_exit_code": 1,
+    "actual_child_exit_codes": {
+      "capture": 0,
+      "quants": 0,
+      "hls": 0,
+      "verify": 0
+    },
+    "terminal_sha256": "08d176a72eb628fc46321a7a9c08f901a1a961568ca27ff8b7e4979b7c5d2520"
+  },
+  "runner_terminal": {
+    "file": "runner-terminal-01.json",
+    "bytes": 250,
+    "sha256": "dbbc1a63ec16ff041f70151083a95d7ebb3261bea032cfc4a9f39dbd3ec0d5bf"
+  },
+  "raw_terminal": {
+    "file": "terminal-01.json",
+    "bytes": 149423,
+    "sha256": "08d176a72eb628fc46321a7a9c08f901a1a961568ca27ff8b7e4979b7c5d2520"
+  },
+  "request": {
+    "file": "request-01.json",
+    "bytes": 999,
+    "sha256": "3c099a18482fc18deb3b83fbe781f9860ee8fd19e5bda4a245b05acacc6f6294",
+    "capture_session_ms": 120000,
+    "source_max_bytes": 67108864,
+    "target_max_bytes": 67108864,
+    "batch_groups": 8,
+    "same_bytes_as_joint08": true
+  },
+  "independent_original_receipts": {
+    "native_timing02": {
+      "file": "joint09-independent-native-timing-02.json",
+      "bytes": 81064,
+      "sha256": "8eeece7cde906ed7e4257c3ae1f5a50e35efd35d275963a643ffd32a31e5160a"
+    },
+    "consumer_preservation01": {
+      "file": "joint09-consumer-preservation-independent-01.json",
+      "bytes": 50249,
+      "sha256": "5e5e992e699196a04bf7ee994f8b85098518318c6c988e4931974c46cebac84a"
+    }
+  },
+  "count_summary": {
+    "source_records": 6568,
+    "target_logical_groups": 6568,
+    "projected_items": 1282,
+    "native_executed_rows": 1553,
+    "native_released_HLS_events": 1551,
+    "withheld_native_BBO_rows": 2,
+    "HLS_gaps": 8,
+    "preserved_original_files": 131
+  },
+  "native_timing_audit": {
+    "scope": "Read-only closed-source/target reconciliation and timing diagnostics; no new replay/nativeCLI/collector/consumer execution.",
+    "source_recipe": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+    "parent_commit": "5479d733f02f1a2777579460154e144babe67b87",
+    "source_cursor": {
+      "feed_id": "7c2de0eaa29fe9f58e6b55a8d512a6c374260f46",
+      "sequence": 6568,
+      "offset": 20473092
+    },
+    "target_cursor": {
+      "feed_id": "82483b7a634c059405b69f2c966bf53cf481ef66",
+      "sequence": 6568,
+      "offset": 19680829
+    },
+    "source_records": 6568,
+    "target_groups": 6568,
+    "allCRC32C_sequences_cursorchains": true,
+    "exact_eligible_handoff_bindings": 1298,
+    "binding_census_sha256": "b302c97562b2d0e689a18c25f64b76be74055257061ee74b528579d18470ef82",
+    "all_nonhandoff_groups_empty": true,
+    "native_executed": {
+      "HyperliquidContext": 193,
+      "HyperliquidBook": 39,
+      "HyperliquidTrade": 409,
+      "HyperliquidBbo": 912
+    },
+    "native_released": {
+      "HyperliquidContext": 193,
+      "HyperliquidBook": 39,
+      "HyperliquidTrade": 409,
+      "HyperliquidBbo": 910
+    },
+    "native_withheld": {
+      "HyperliquidBbo": 2
+    },
+    "released_by_session": {
+      "31": {
+        "HyperliquidContext": 117,
+        "HyperliquidBook": 23,
+        "HyperliquidTrade": 69,
+        "HyperliquidBbo": 390
+      },
+      "32": {
+        "HyperliquidContext": 76,
+        "HyperliquidBook": 16,
+        "HyperliquidTrade": 340,
+        "HyperliquidBbo": 520
+      }
+    },
+    "canonical_companions_executed": {
+      "MarkPrice": 193,
+      "OpenInterest": 76,
+      "BookSnapshot": 39,
+      "Trade": 409,
+      "Quote": 912
+    },
+    "canonical_companions_released": {
+      "MarkPrice": 193,
+      "OpenInterest": 76,
+      "BookSnapshot": 39,
+      "Trade": 409,
+      "Quote": 910
+    },
+    "projected_items": {
+      "market": 6,
+      "observed_market": 1270,
+      "system": 6
+    },
+    "hls_native_event_counts": {
+      "bbo": 910,
+      "book": 39,
+      "context": 193,
+      "trade": 409
+    },
+    "hls_market_events": 1551,
+    "hls_gaps": 8,
+    "gap_groups": [
+      {
+        "sequence": 6556,
+        "session": 31,
+        "event": "withheld",
+        "input_id": 577,
+        "items": 0
+      },
+      {
+        "sequence": 6560,
+        "session": 31,
+        "event": "execution_completed",
+        "input_id": 578,
+        "items": 0
+      },
+      {
+        "sequence": 6561,
+        "session": 32,
+        "event": "withheld",
+        "input_id": 723,
+        "items": 0
+      },
+      {
+        "sequence": 6563,
+        "session": 31,
+        "event": "revoked",
+        "input_id": null,
+        "items": 0
+      },
+      {
+        "sequence": 6564,
+        "session": 31,
+        "event": "withheld",
+        "input_id": 578,
+        "items": 0
+      },
+      {
+        "sequence": 6565,
+        "session": 32,
+        "event": "execution_completed",
+        "input_id": 724,
+        "items": 0
+      },
+      {
+        "sequence": 6566,
+        "session": 32,
+        "event": "revoked",
+        "input_id": null,
+        "items": 0
+      },
+      {
+        "sequence": 6567,
+        "session": 32,
+        "event": "withheld",
+        "input_id": 724,
+        "items": 0
+      }
+    ],
+    "withheld": [
+      {
+        "session": 31,
+        "input_id": 577,
+        "source_sequence": 6556,
+        "input_kind": "text",
+        "native_rows": {
+          "HyperliquidBbo": 1
+        },
+        "had_intent": true,
+        "had_handoff": false,
+        "complete_sequence": 6550
+      },
+      {
+        "session": 32,
+        "input_id": 723,
+        "source_sequence": 6561,
+        "input_kind": "text",
+        "native_rows": {
+          "HyperliquidBbo": 1
+        },
+        "had_intent": false,
+        "had_handoff": false,
+        "complete_sequence": 6559
+      },
+      {
+        "session": 31,
+        "input_id": 578,
+        "source_sequence": 6564,
+        "input_kind": "stop",
+        "native_rows": {},
+        "had_intent": false,
+        "had_handoff": false,
+        "complete_sequence": 6560
+      },
+      {
+        "session": 32,
+        "input_id": 724,
+        "source_sequence": 6567,
+        "input_kind": "stop",
+        "native_rows": {},
+        "had_intent": false,
+        "had_handoff": false,
+        "complete_sequence": 6565
+      }
+    ],
+    "drivers": [
+      {
+        "abandoned_inputs": 0,
+        "accepted_inputs": 578,
+        "clean_stop": true,
+        "connections": 1,
+        "executed_inputs": 578,
+        "finalization_expired": false,
+        "handoffs": 576,
+        "inbound_binary": 0,
+        "inbound_text": 571,
+        "last_transport_error": "None",
+        "market": "spot",
+        "owner_failure": "NativeStopped",
+        "owner_phase": "Stopped",
+        "reason": "SessionBudget",
+        "stop_committed": true,
+        "transport_error_count": 0,
+        "unaccepted_frames": 0,
+        "wire_clean": true,
+        "wire_completions": 9,
+        "withheld_inputs": 2
+      },
+      {
+        "abandoned_inputs": 0,
+        "accepted_inputs": 724,
+        "clean_stop": true,
+        "connections": 1,
+        "executed_inputs": 724,
+        "finalization_expired": false,
+        "handoffs": 722,
+        "inbound_binary": 0,
+        "inbound_text": 717,
+        "last_transport_error": "None",
+        "market": "perps",
+        "owner_failure": "NativeStopped",
+        "owner_phase": "Stopped",
+        "reason": "SessionBudget",
+        "stop_committed": true,
+        "transport_error_count": 0,
+        "unaccepted_frames": 0,
+        "wire_clean": true,
+        "wire_completions": 9,
+        "withheld_inputs": 2
+      }
+    ],
+    "last_publication": {
+      "groups": 7,
+      "source_after": {
+        "feed_id": "7c2de0eaa29fe9f58e6b55a8d512a6c374260f46",
+        "offset": 20473092,
+        "sequence": 6568
+      },
+      "source_before": {
+        "feed_id": "7c2de0eaa29fe9f58e6b55a8d512a6c374260f46",
+        "offset": 20467459,
+        "sequence": 6561
+      },
+      "target_after": {
+        "feed_id": "82483b7a634c059405b69f2c966bf53cf481ef66",
+        "offset": 19680829,
+        "sequence": 6568
+      },
+      "target_before": {
+        "feed_id": "82483b7a634c059405b69f2c966bf53cf481ef66",
+        "offset": 19665369,
+        "sequence": 6561
+      }
+    },
+    "channel_counts": {
+      "31": {
+        "subscriptionResponse": 4,
+        "activeSpotAssetCtx": 117,
+        "l2Book": 23,
+        "trades": 31,
+        "bbo": 391,
+        "pong": 5
+      },
+      "32": {
+        "subscriptionResponse": 4,
+        "activeAssetCtx": 76,
+        "l2Book": 16,
+        "trades": 97,
+        "bbo": 521,
+        "pong": 3
+      }
+    },
+    "source_event_kinds": {
+      "started": 2,
+      "ingress": 1302,
+      "execution_permitted": 1302,
+      "execution_completed": 1302,
+      "release_intent": 1299,
+      "handoff_observed": 1298,
+      "wire": 54,
+      "withheld": 4,
+      "revoked": 2
+    },
+    "input_kinds_by_session": {
+      "31": {
+        "connected": 1,
+        "text": 571,
+        "timer_poll": 5,
+        "stop": 1
+      },
+      "32": {
+        "connected": 1,
+        "text": 717,
+        "timer_poll": 5,
+        "stop": 1
+      }
+    },
+    "BBO_native_and_acquisition_progress_spans": {
+      "by_session": {
+        "32": {
+          "samples": 521,
+          "first": {
+            "native_ns": 1792542242969000000,
+            "local_receipt_unix_ns": 1792542244491183000,
+            "local_receipt_mono_ns": 2458105000
+          },
+          "last": {
+            "native_ns": 1792542320157000000,
+            "local_receipt_unix_ns": 1792542362018087000,
+            "local_receipt_mono_ns": 119984222458
+          },
+          "native_timestamp_progress_ns": 77188000000,
+          "local_receipt_wall_progress_ns": 117526904000,
+          "local_receipt_monotonic_progress_ns": 117526117458,
+          "wall_minus_monotonic_progress_ns": 786542,
+          "last_minus_first_receipt_minus_native_difference_ns": 40338904000,
+          "regressions": {
+            "native": 0,
+            "receipt_wall": 0,
+            "receipt_monotonic": 0
+          }
+        },
+        "31": {
+          "samples": 391,
+          "first": {
+            "native_ns": 1792542243547000000,
+            "local_receipt_unix_ns": 1792542244878040000,
+            "local_receipt_mono_ns": 2845068583
+          },
+          "last": {
+            "native_ns": 1792542361493000000,
+            "local_receipt_unix_ns": 1792542361954038000,
+            "local_receipt_mono_ns": 119920282792
+          },
+          "native_timestamp_progress_ns": 117946000000,
+          "local_receipt_wall_progress_ns": 117075998000,
+          "local_receipt_monotonic_progress_ns": 117075214209,
+          "wall_minus_monotonic_progress_ns": 783791,
+          "last_minus_first_receipt_minus_native_difference_ns": -870002000,
+          "regressions": {
+            "native": 0,
+            "receipt_wall": 0,
+            "receipt_monotonic": 0
+          }
+        }
+      },
+      "scope": "Localwall/monotonic progression agreement can exclude a localUTCstep explanation for relative accumulation in this sample; remote clock, native update/last-change semantics and server/transport/client buffering remain distinct unisolated explanations. No clock-aligned freshness/SLA/availability admission."
+    },
+    "all131_originals_fullstat_hash_closure": {
+      "baseline123_current": true,
+      "new_closed8_before_after_firstverify_and_both_independent_reads": true,
+      "distinct_union131": true,
+      "atime_claimed": false
+    },
+    "HLS_current_binding": {
+      "producer_commit": "23859663baac977613ca7a91bf326028150ca85d",
+      "source_map": "5b9f89c8d523bbf021c697002cde4ac574ca12fbb8ceb88eb39e6d0bde9d86cd",
+      "qualification": {
+        "path": "qualified-local-01.json",
+        "sha256": "c4c62465c4ea9c032da7002f10dfce141726e7370207b9a1023a0ae11a57f3a2"
+      },
+      "binary": {
+        "path": "hls",
+        "bytes": 26915584,
+        "sha256": "dbadeb60b9f58686cabc20d7d57d3510b9b9c810a7fda871829f45e49e6ae14b"
+      },
+      "scope": "Current source-qualified retained HLS decoder, structural consumer only; no same-platform native-source authentication."
+    },
+    "release_build_binding": {
+      "capture_build_identity": {
+        "compiled": {
+          "debug": "false",
+          "encoded_rustflags": "-Dwarnings",
+          "git_commit": "5479d733f02f1a2777579460154e144babe67b87",
+          "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+          "opt_level": "3",
+          "package_features": [
+            {
+              "features": [
+                "default"
+              ],
+              "package": "marketfeed-adapter-bybit"
+            },
+            {
+              "features": [],
+              "package": "marketfeed-adapter-hyperliquid"
+            },
+            {
+              "features": [
+                "causal-journal",
+                "default",
+                "kafka",
+                "nats",
+                "ui",
+                "ui-api"
+              ],
+              "package": "marketfeed-daemon"
+            },
+            {
+              "features": [
+                "default"
+              ],
+              "package": "marketfeed-engine"
+            },
+            {
+              "features": [
+                "default",
+                "kafka",
+                "nats"
+              ],
+              "package": "marketfeed-sinks"
+            }
+          ],
+          "package_version": "0.1.0-alpha.1",
+          "profile": "release",
+          "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+          "schema_version": 1,
+          "source_files": 566,
+          "source_scheme": "sha256-path-length-and-bytes-v1",
+          "source_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+          "target": "aarch64-apple-darwin"
+        },
+        "executable_bytes": 10867552,
+        "executable_sha256": "a626feec16145d63d8e7a284454210db994d351aad51e93882b844ace23ad37c"
+      },
+      "producer_qualification": {
+        "path": "qualified-local-01.json",
+        "sha256": "ed7f8e0d3668b2a1521055484906e276c472cab7183705d5a3a8c17932886f6a"
+      },
+      "positive_artifact_build_bindings": {
+        "marketfeed-capture": {
+          "artifact_sha256": "a626feec16145d63d8e7a284454210db994d351aad51e93882b844ace23ad37c",
+          "artifact_bytes": 10867552,
+          "source_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+          "profile": "release",
+          "encoded_rustflags": "-Dwarnings",
+          "target": "aarch64-apple-darwin",
+          "build_result_log_sha256": "1caa0cf185b02ab1652d5aad10e688cbca8efb3e0110e5478c0e31230562a233",
+          "build_output": {
+            "path": "marketfeed-capture",
+            "bytes": 10867552,
+            "sha256": "a626feec16145d63d8e7a284454210db994d351aad51e93882b844ace23ad37c"
+          },
+          "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+          "embedded_recipe": true
+        },
+        "marketfeed-observations": {
+          "artifact_sha256": "f447e6b34a97ee5afc416148bb245e548108b7019fff5f63bb79c301f66443aa",
+          "artifact_bytes": 2310032,
+          "source_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+          "profile": "release",
+          "encoded_rustflags": "-Dwarnings",
+          "target": "aarch64-apple-darwin",
+          "build_result_log_sha256": "1caa0cf185b02ab1652d5aad10e688cbca8efb3e0110e5478c0e31230562a233",
+          "build_output": {
+            "path": "marketfeed-observations",
+            "bytes": 2310032,
+            "sha256": "f447e6b34a97ee5afc416148bb245e548108b7019fff5f63bb79c301f66443aa"
+          },
+          "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+          "embedded_recipe": false
+        }
+      },
+      "limits": "Same002a source with existing release profile; no source/config/cap change. Separate artifact/profile qualification, not retrospective repair or isolated cause proof for debug06/07 failures."
+    },
+    "remaining_backlog_mechanism_evidence": {
+      "logical_records": 6568,
+      "source_physical_transactions": 6532,
+      "target_physical_transactions": 4630,
+      "target_records_per_publication_mean": 1.4185745140388768,
+      "target_minimum_single_record_publications": 2692,
+      "exact_publication_size_histogram_or_flush_reasons": "NOT_RECORDED",
+      "last_publication_records": 7,
+      "post_final_committed_source_brackets": {
+        "status": "OBSERVED",
+        "samples": 4,
+        "first": {
+          "unix_ns": 1792542362277929000,
+          "end_unix_ns": 1792542362281219000,
+          "monotonic_ns": 2468212325667791,
+          "end_monotonic_ns": 2468212328957500,
+          "source_before": 6568,
+          "target": 4707,
+          "source_after": 6568,
+          "deficit_lower": 1861,
+          "deficit_upper": 1861
+        },
+        "scope": "Requires source final committed cursor bracket; absence staysUNKNOWN, never zero."
+      },
+      "post_final_source_deficit_series": [
+        1861,
+        1317,
+        761,
+        209
+      ],
+      "source_append_total_ns": 118075521447,
+      "target_append_total_ns": 91706752596,
+      "target_append_mean_ns": 19807073.994816415,
+      "limit": "Measured cumulative stages overlap; source/target writers run concurrently, and native validation/preparation/polling time is not separately recorded. At least2692single-record publications are implied, but no sole bottleneck/fsync/ageflush reason or HLS causal effect is identified. No cap/age/durability relaxation or benchmark rerun."
+    },
+    "limitations": [
+      "Exact source eligible handoff\u2192target item/native values are compared without financial reexecution; actual retained native verify process result is separate.",
+      "Native timestamp\u2192local acquisition receipt compares unsynchronized clocks/semantics; initial trade snapshots separately retained. No native availability or one-way/network/SLA claim.",
+      "Seal.now_ns is pre-submission wall time, not durable ACK. Final events mtimes are file-write metadata, not ACK/delivery clocks.",
+      "Brackets bound committed logical-prefix deficit during each sampled read interval; no unsampled maximum, per-event delivery time or continuity inference. Missing post-source/pre-target interval is UNKNOWN.",
+      "Writer committed_operations is actor-operation count: source logical-record admissions, target one N-record transaction admission. Physical transaction and logical record counters remain separate; stage totals overlap and cannot establish elapsed fsync causality.",
+      "Uncontrolled public samples05/06 are not a paired workload/performance experiment. Target final-tail success cannot alone qualify native acquisition freshness.",
+      "No long soak, registered480 workload, strategy/economic, hosted/native-platform or operational qualification."
+    ],
+    "findings": [
+      "Preregistered0..2s source-final\u2192target-final filemtime tail failed; final synchronization does not erase timing failure."
+    ]
+  },
+  "consumer_preservation_audit": {
+    "status": "STRUCTURAL_SOURCE_RELEASE_CONSUMER_PRESERVATION_PASS; UNCHANGED2S_TIMING_GATE_FAILED",
+    "actual_runner_exit": 1,
+    "actual_child_exits": {
+      "capture": 0,
+      "quants": 0,
+      "hls": 0,
+      "verify": 0
+    },
+    "producer_commit": "23859663baac977613ca7a91bf326028150ca85d",
+    "producer_source_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+    "producer_profile": "release",
+    "hls_qualified_source_map": "5b9f89c8d523bbf021c697002cde4ac574ca12fbb8ceb88eb39e6d0bde9d86cd",
+    "hls_artifact_sha256": "dbadeb60b9f58686cabc20d7d57d3510b9b9c810a7fda871829f45e49e6ae14b",
+    "source_cursor": {
+      "feed_id": "7c2de0eaa29fe9f58e6b55a8d512a6c374260f46",
+      "sequence": 6568,
+      "offset": 20473092
+    },
+    "target_cursor": {
+      "feed_id": "82483b7a634c059405b69f2c966bf53cf481ef66",
+      "sequence": 6568,
+      "offset": 19680829
+    },
+    "source_records": 6568,
+    "source_transactions": 6532,
+    "target_records": 6568,
+    "target_transactions": 4630,
+    "all_CRC32C_physical_sequences_and_source_target_cursor_chains": true,
+    "exact_eligible_handoff_bindings": 1298,
+    "binding_census_sha256": "b302c97562b2d0e689a18c25f64b76be74055257061ee74b528579d18470ef82",
+    "all_nonhandoff_groups_empty": true,
+    "native_executed": {
+      "HyperliquidContext": 193,
+      "HyperliquidBook": 39,
+      "HyperliquidTrade": 409,
+      "HyperliquidBbo": 912
+    },
+    "native_released": {
+      "HyperliquidContext": 193,
+      "HyperliquidBook": 39,
+      "HyperliquidTrade": 409,
+      "HyperliquidBbo": 910
+    },
+    "native_withheld": {
+      "HyperliquidBbo": 2
+    },
+    "canonical_companions_released": {
+      "MarkPrice": 193,
+      "OpenInterest": 76,
+      "BookSnapshot": 39,
+      "Trade": 409,
+      "Quote": 910
+    },
+    "projected_items": {
+      "market": 6,
+      "observed_market": 1270,
+      "system": 6
+    },
+    "hls_events": {
+      "bbo": 910,
+      "book": 39,
+      "context": 193,
+      "trade": 409
+    },
+    "hls_market_events": 1551,
+    "hls_gaps": 8,
+    "quants_groups": 6568,
+    "quants_items": 1282,
+    "preservation": {
+      "old_originals": 123,
+      "new_capture_files": 8,
+      "all131_actual_fullstats_hashes_match_before_after_audit_reads": true,
+      "original_baseline": {
+        "file": "joint09-independent-read-baseline-01.json",
+        "bytes": 54137,
+        "sha256": "065aa1c242fa5d8deafc19e91891924e3651fc1f57d0a8bace1bc21178ff6f72"
+      },
+      "atime_claimed": false,
+      "HLS_all341_frozen_source_hashes_still_equal": true
+    },
+    "limits": [
+      "Read-only CRC/sourcecompleteddrain\u2192target exactvalue/canonical/nativecensus; no new financial native callback/replay/consumer/collector/CLI invocation. Parent retained actual nativeverify exit0 separate.",
+      "Endpoint nativeWithheld rows explicit; cleanStop/zeroabandoned does not mean zero completed-but-unreleased native observations.",
+      "Final filemtime diagnostic is not barrier ACK/delivery clock; sampleintervals unknown; native usabletime/clock synchronization/availability/freshness/SLA not established.",
+      "Current HLS source pins238 and actualdbad structurally match; old5479fixture generation and earlier successes/failures retain own scopes.",
+      "No source edits/test/build/economics/activation/publication."
+    ]
+  },
+  "timing_diagnostics": {
+    "units": "nanoseconds",
+    "requested_capture_ms": 120000,
+    "plan_start_unix_ns": 1792542239833328000,
+    "source_seal_pre_submission_unix_ns": 1792542362198974000,
+    "source_file_final_mtime_unix_ns": 1792542362199004614,
+    "target_file_final_mtime_unix_ns": 1792542365672500564,
+    "target_final_mtime_minus_source_final_mtime_ns": 3473495950,
+    "development_mtime_tail_bound_ns": [
+      0,
+      2000000000
+    ],
+    "development_mtime_tail_passed": false,
+    "target_final_mtime_minus_seal_pre_submission_ns": 3473526564,
+    "quants_last_ack_minus_source_final_mtime_ns": 7249632386,
+    "first_bracket_after_final_source_mtime": {
+      "unix_ns": 1792542362277929000,
+      "end_unix_ns": 1792542362281219000,
+      "monotonic_ns": 2468212325667791,
+      "end_monotonic_ns": 2468212328957500,
+      "source_before": 6568,
+      "target": 4707,
+      "source_after": 6568,
+      "deficit_lower": 1861,
+      "deficit_upper": 1861
+    },
+    "post_final_committed_source_pre_target_interval": {
+      "status": "OBSERVED",
+      "samples": 4,
+      "first": {
+        "unix_ns": 1792542362277929000,
+        "end_unix_ns": 1792542362281219000,
+        "monotonic_ns": 2468212325667791,
+        "end_monotonic_ns": 2468212328957500,
+        "source_before": 6568,
+        "target": 4707,
+        "source_after": 6568,
+        "deficit_lower": 1861,
+        "deficit_upper": 1861
+      },
+      "scope": "Requires source final committed cursor bracket; absence staysUNKNOWN, never zero."
+    },
+    "post_source_filemtime_pre_target_filemtime_interval": {
+      "status": "OBSERVED",
+      "samples": 4,
+      "first": {
+        "unix_ns": 1792542362277929000,
+        "end_unix_ns": 1792542362281219000,
+        "monotonic_ns": 2468212325667791,
+        "end_monotonic_ns": 2468212328957500,
+        "source_before": 6568,
+        "target": 4707,
+        "source_after": 6568,
+        "deficit_lower": 1861,
+        "deficit_upper": 1861
+      },
+      "scope": "Final source file-write mtime precedes or differs from durable watermark/Seal ACK."
+    },
+    "sampled_bracket_deficit_max_lower": 1861,
+    "sampled_bracket_deficit_max_upper": 1861,
+    "native_timestamp_to_acquisition_receipt_diagnostic": {
+      "(31, 'l2Book')": {
+        "receipt_minus_native_ns": {
+          "samples": 23,
+          "min": 409081000,
+          "median": 1604997000,
+          "p95": 5860727000,
+          "max": 6724336000,
+          "last": 409081000
+        }
+      },
+      "(32, 'l2Book')": {
+        "receipt_minus_native_ns": {
+          "samples": 16,
+          "min": 1105414000,
+          "median": 21834452000,
+          "p95": 40988933000,
+          "max": 41685097000,
+          "last": 41685097000
+        }
+      },
+      "(31, 'trades_initial')": {
+        "receipt_minus_native_ns": {
+          "samples": 30,
+          "min": 7238837000,
+          "median": 26271837000,
+          "p95": 69230837000,
+          "max": 72233837000,
+          "last": 7238837000
+        }
+      },
+      "(32, 'trades_initial')": {
+        "receipt_minus_native_ns": {
+          "samples": 30,
+          "min": 1737427000,
+          "median": 23240427000,
+          "p95": 27570427000,
+          "max": 31218427000,
+          "last": 1737427000
+        }
+      },
+      "(32, 'bbo')": {
+        "receipt_minus_native_ns": {
+          "samples": 521,
+          "min": 1511445000,
+          "median": 23097507000,
+          "p95": 41818711000,
+          "max": 42105112000,
+          "last": 41861087000
+        }
+      },
+      "(31, 'bbo')": {
+        "receipt_minus_native_ns": {
+          "samples": 391,
+          "min": 273060000,
+          "median": 2322269000,
+          "p95": 6536036000,
+          "max": 7252779000,
+          "last": 461038000
+        }
+      },
+      "(31, 'trades_subsequent')": {
+        "receipt_minus_native_ns": {
+          "samples": 39,
+          "min": 508557000,
+          "median": 2180040000,
+          "p95": 6689035000,
+          "max": 7228395000,
+          "last": 553629000
+        }
+      },
+      "(32, 'trades_subsequent')": {
+        "receipt_minus_native_ns": {
+          "samples": 310,
+          "min": 1691373000,
+          "median": 13717612000,
+          "p95": 40103074000,
+          "max": 42004688000,
+          "last": 41989049000
+        }
+      }
+    },
+    "approx_owner_started_plus_ingress_observed_minus_acquisition_receipt": {
+      "31": {
+        "samples": 571,
+        "min": -798167,
+        "median": -399959,
+        "p95": -42209,
+        "max": 2083,
+        "last": -798167
+      },
+      "32": {
+        "samples": 717,
+        "min": -798458,
+        "median": -407958,
+        "p95": -41500,
+        "max": 7458,
+        "last": -798458
+      }
+    },
+    "same_owner_ingress_to_completion": {
+      "31": {
+        "samples": 571,
+        "min": 31555167,
+        "median": 71077500,
+        "p95": 83981209,
+        "max": 128222708,
+        "last": 41395917
+      },
+      "32": {
+        "samples": 717,
+        "min": 31130500,
+        "median": 69231792,
+        "p95": 82320042,
+        "max": 124416250,
+        "last": 60827958
+      }
+    },
+    "same_owner_ingress_to_handoff": {
+      "31": {
+        "samples": 570,
+        "min": 71797125,
+        "median": 143622000,
+        "p95": 165898708,
+        "max": 270050875,
+        "last": 77289167
+      },
+      "32": {
+        "samples": 716,
+        "min": 65077000,
+        "median": 139830292,
+        "p95": 164063209,
+        "max": 238557459,
+        "last": 82466125
+      }
+    },
+    "individual_bracket_samples_omitted": 123
+  },
+  "writer_stage_count_summary": {
+    "source": {
+      "logical_records": 6568,
+      "actor_committed_operations": 6568,
+      "physical_transactions": 6532,
+      "append_completed_calls": 6532,
+      "append_total_ns": 118075521447,
+      "append_max_ns": 58445625
+    },
+    "target": {
+      "logical_records": 6568,
+      "actor_committed_operations": 4630,
+      "physical_transactions": 4630,
+      "append_completed_calls": 4630,
+      "append_total_ns": 91706752596,
+      "append_max_ns": 50003875
+    }
+  },
+  "one_shot_closed_verify_profile": {
+    "scope": "One exact retained-executable closed09 native verification sampled for CPU attribution only. No new collector or workload; original failed09 unchanged. Sampling overhead and closed/single-reader operation prevent live-performance causality.",
+    "registered_request": {
+      "file": "registration.json",
+      "bytes": 1047,
+      "sha256": "235f79eb81c4e93f3cf0f21b0af1a6b8f2dc8408db9a8a6b113b749a92fa3525"
+    },
+    "result": {
+      "file": "result.json",
+      "bytes": 1494,
+      "sha256": "3ac12943fc32c1e1dd1d10f892a583b7d61651d80e881e4573b200ee24e98bc1"
+    },
+    "actual_tool_terminal": {
+      "session": 28451,
+      "exit_code": 0,
+      "receipt": {
+        "file": "runner-terminal-01.json",
+        "bytes": 375,
+        "sha256": "b02158153d367235a3e656fc29644e3c68fdabfe8b8cdb16e6f37b4ace09ea79"
+      },
+      "scope": "Actual parent-saved tool terminal binds chunk/result and verify/sample exits0; no new execution."
+    },
+    "actual_verify_exit": 0,
+    "actual_sample_exit": 0,
+    "elapsed_seconds": 0.7939857081510127,
+    "protected131_unchanged": true,
+    "sample": {
+      "file": "sample.txt",
+      "bytes": 298469,
+      "sha256": "25237bb06b8187ab6d2627c04c1f5a2510519dc1e8b6d0d34544fb8f6c9a8f6b"
+    },
+    "main_thread_callgraph_root_count": 500,
+    "sample_duration_requested_seconds": 3,
+    "sample_interval_ms": 1,
+    "capture_sha256": "a626feec16145d63d8e7a284454210db994d351aad51e93882b844ace23ad37c",
+    "source_recipe": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+    "files": {
+      "before.json": {
+        "bytes": 51623,
+        "sha256": "ae7d9aa2dacf220d1347a7242986fa19ccc00fafd316f13f497a3ce2f551e0ea"
+      },
+      "verify.stderr": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "verify.stdout": {
+        "bytes": 273,
+        "sha256": "70aa94b302f20dab0c03e871b1c5bc34910c03194ec284b3d2888311c06ff048"
+      },
+      "registration.json": {
+        "bytes": 1047,
+        "sha256": "235f79eb81c4e93f3cf0f21b0af1a6b8f2dc8408db9a8a6b113b749a92fa3525"
+      },
+      "after.json": {
+        "bytes": 51623,
+        "sha256": "ae7d9aa2dacf220d1347a7242986fa19ccc00fafd316f13f497a3ce2f551e0ea"
+      },
+      "sample.stderr": {
+        "bytes": 307,
+        "sha256": "dff566d4dea90daaac1ffce3aaaea9ef3afbcca5a5f0e717626a4e149af48a7d"
+      },
+      "sample.txt": {
+        "bytes": 298469,
+        "sha256": "25237bb06b8187ab6d2627c04c1f5a2510519dc1e8b6d0d34544fb8f6c9a8f6b"
+      },
+      "sample.stdout": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "limits": [
+      "One registered exact retained-executable closed09 native verification, not a new collector/live workload.",
+      "Sampled standalone verification completed in0.7939857081510127s. It does not identify the sole live bottleneck or establish a paired performance, freshness, availability or SLA result.",
+      "Cumulative source118.075521447s and target91.706752596s append stages overlap; they are not exclusive wall-clock attribution. No identity cache or validation bypass qualified."
+    ]
+  },
+  "qualification_scope": {
+    "producer_published_commit": "23859663baac977613ca7a91bf326028150ca85d",
+    "producer_retained_build_parent": "5479d733f02f1a2777579460154e144babe67b87",
+    "producer_retained_source": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+    "producer_profile": "release opt3",
+    "HLS_current_source": "5b9f89c8d523bbf021c697002cde4ac574ca12fbb8ceb88eb39e6d0bde9d86cd",
+    "HLS_retained_sha256": "dbadeb60b9f58686cabc20d7d57d3510b9b9c810a7fda871829f45e49e6ae14b",
+    "HLS_qualification_sha256": "c4c62465c4ea9c032da7002f10dfce141726e7370207b9a1023a0ae11a57f3a2",
+    "HLS_publication_or_own_hosted_claim": false,
+    "future_overlap_candidate_qualified_by_this_sample": false
+  },
+  "prior_results_preserved": {
+    "joint08": {
+      "evidence": {
+        "file": "joint08.json",
+        "bytes": 28456,
+        "sha256": "b46b396c5754897ba513683f07d7ae557ef42e24c830f6b1f3122776de78046c"
+      },
+      "scope": "Separate bounded Release sample passed its registered file-mtime gate; not relabeled or a controlled causal comparison."
+    },
+    "joint06_and_joint07": "Original debug timing failures remain failed."
+  },
+  "limits": [
+    "Final same-host file-mtime tail3,473,495,950ns exceeded unchanged0..2,000,000,000ns development gate. This is not an ACK/delivery timestamp or SLA.",
+    "Unlike08,09 has four observed brackets after final committed source and before final target: first deficit1861groups, then1317/761/209. No unsampled maximum or per-event delivery latency is inferred.",
+    "Perps BBO native-to-local acquisition diagnostic max42,105,112,000ns is not clock-synchronized latency; server/native update semantics and transport/client buffering remain unisolated. Initial trade history is kept separate from subsequent trades.",
+    "Executed native1553 includes two completed but withheld BBO rows. Released1551 and projected1282items are distinct units; clean Stop is not uncensored endpoint continuity.",
+    "No economic/strategy admission, 480frames/s benchmark rerun, long soak, operational freshness qualification, deployment or new-source hosted result."
+  ],
+  "portability": {
+    "kind": "selected fields with exact read-back comparison",
+    "native_selected_fields": [
+      "scope",
+      "source_recipe",
+      "parent_commit",
+      "source_cursor",
+      "target_cursor",
+      "source_records",
+      "target_groups",
+      "allCRC32C_sequences_cursorchains",
+      "exact_eligible_handoff_bindings",
+      "binding_census_sha256",
+      "all_nonhandoff_groups_empty",
+      "native_executed",
+      "native_released",
+      "native_withheld",
+      "released_by_session",
+      "canonical_companions_executed",
+      "canonical_companions_released",
+      "projected_items",
+      "hls_native_event_counts",
+      "hls_market_events",
+      "hls_gaps",
+      "gap_groups",
+      "withheld",
+      "drivers",
+      "last_publication",
+      "channel_counts",
+      "source_event_kinds",
+      "input_kinds_by_session",
+      "BBO_native_and_acquisition_progress_spans",
+      "all131_originals_fullstat_hash_closure",
+      "HLS_current_binding",
+      "release_build_binding",
+      "remaining_backlog_mechanism_evidence",
+      "limitations",
+      "findings"
+    ],
+    "consumer_selected_fields": [
+      "status",
+      "actual_runner_exit",
+      "actual_child_exits",
+      "producer_commit",
+      "producer_source_sha256",
+      "producer_profile",
+      "hls_qualified_source_map",
+      "hls_artifact_sha256",
+      "source_cursor",
+      "target_cursor",
+      "source_records",
+      "source_transactions",
+      "target_records",
+      "target_transactions",
+      "all_CRC32C_physical_sequences_and_source_target_cursor_chains",
+      "exact_eligible_handoff_bindings",
+      "binding_census_sha256",
+      "all_nonhandoff_groups_empty",
+      "native_executed",
+      "native_released",
+      "native_withheld",
+      "canonical_companions_released",
+      "projected_items",
+      "hls_events",
+      "hls_market_events",
+      "hls_gaps",
+      "quants_groups",
+      "quants_items",
+      "preservation",
+      "limits"
+    ],
+    "timing_fields": "All aggregate timing fields retained; individual bracket array omitted with sample count.",
+    "writer_fields": "Logical/actor/physical counts and append aggregate statistics only; full stage data remain in hashed native receipt.",
+    "omitted": "Absolute archive maps, raw payloads/financial leaves and full individual sample arrays. Absolute /Users references replaced with basenames.",
+    "original_receipt_hashes_preserved": true
+  }
+}

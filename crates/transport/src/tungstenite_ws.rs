@@ -3,7 +3,7 @@
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
 use tokio_tungstenite::{
-    MaybeTlsStream, WebSocketStream, connect_async_with_config,
+    Connector, MaybeTlsStream, WebSocketStream, connect_async_tls_with_config,
     tungstenite::{
         client::IntoClientRequest,
         error::{CapacityError, Error as TungsteniteError},
@@ -20,16 +20,47 @@ use crate::{
 
 type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
+#[cfg(test)]
+#[path = "tls_tests.rs"]
+mod tls_tests;
+
+fn tls_config(roots: rustls::RootCertStore) -> Result<rustls::ClientConfig, TransportError> {
+    rustls::ClientConfig::builder_with_provider(std::sync::Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .map_err(|error| TransportError::Tls(error.to_string()))
+    .map(|builder| builder.with_root_certificates(roots).with_no_client_auth())
+}
+fn public_tls_connector() -> Result<Connector, TransportError> {
+    let roots = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
+    Ok(Connector::Rustls(std::sync::Arc::new(tls_config(roots)?)))
+}
+
 /// Real WebSocket client. TLS verifies certificates and hostnames (no insecure mode).
 #[derive(Default)]
 pub struct TungsteniteWebSocket {
     stream: Option<WsStream>,
     max_frame_bytes: usize,
+    queued_automatic_pong: bool,
 }
 
 impl TungsteniteWebSocket {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Opt-in mode for the causal driver. A consumed Ping is returned without
+    /// another await. Tungstenite 0.26 queues its automatic Pong while reading
+    /// the Ping, and flushes that control on a subsequent read or write.
+    ///
+    /// This does not make arbitrary `WebSocketTransport` implementations cancel
+    /// safe. Close payloads remain unavailable: Close is reported as `Closed`.
+    pub fn new_causal() -> Self {
+        Self {
+            queued_automatic_pong: true,
+            ..Self::default()
+        }
     }
 }
 
@@ -83,9 +114,17 @@ fn map_tungstenite_error(error: TungsteniteError) -> TransportError {
 impl WebSocketTransport for TungsteniteWebSocket {
     async fn connect(&mut self, spec: &WebSocketSpec) -> Result<(), TransportError> {
         let (request, config) = build_connect_parts(spec)?;
-        let (ws, _resp) = connect_async_with_config(request, Some(config), spec.tcp_nodelay)
-            .await
-            .map_err(map_tungstenite_error)?;
+        // Keep the audited0.26 frame/cancellation backend, but supply current
+        // roots directly: its0.26 roots wrapper has no patched release.
+        // The normal Rustls verifier still enforces certificate/hostname checks.
+        let (ws, _resp) = connect_async_tls_with_config(
+            request,
+            Some(config),
+            spec.tcp_nodelay,
+            Some(public_tls_connector()?),
+        )
+        .await
+        .map_err(map_tungstenite_error)?;
         self.max_frame_bytes = spec.max_frame_bytes;
         self.stream = Some(ws);
         Ok(())
@@ -127,10 +166,13 @@ impl WebSocketTransport for TungsteniteWebSocket {
                     });
                 }
                 Message::Ping(payload) => {
-                    // Auto-pong for transport liveness (venue app heartbeats remain separate).
-                    ws.send(Message::Pong(payload.clone()))
-                        .await
-                        .map_err(map_tungstenite_error)?;
+                    if !self.queued_automatic_pong {
+                        // Preserve the legacy explicit flush behavior. Causal
+                        // mode uses the library's already queued automatic Pong.
+                        ws.send(Message::Pong(payload.clone()))
+                            .await
+                            .map_err(map_tungstenite_error)?;
+                    }
                     return Ok(InboundFrame {
                         opcode: FrameOpcode::Ping,
                         payload: payload.to_vec(),
@@ -172,7 +214,11 @@ impl WebSocketTransport for TungsteniteWebSocket {
 
     async fn close(&mut self, _reason: CloseReason) -> Result<(), TransportError> {
         if let Some(mut ws) = self.stream.take() {
-            let _ = ws.close(None).await;
+            if self.queued_automatic_pong {
+                ws.close(None).await.map_err(map_tungstenite_error)?;
+            } else {
+                let _ = ws.close(None).await;
+            }
         }
         Ok(())
     }
@@ -181,6 +227,127 @@ impl WebSocketTransport for TungsteniteWebSocket {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    async fn causal_loopback(flush_with_write: bool) {
+        use std::time::Duration;
+        use tokio::{net::TcpListener, sync::oneshot, time::timeout};
+
+        timeout(Duration::from_secs(5), async {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let address = listener.local_addr().unwrap();
+            let (send_frames, wait_for_reader) = oneshot::channel();
+            let server = tokio::spawn(async move {
+                let (socket, _) = listener.accept().await.unwrap();
+                let mut ws = tokio_tungstenite::accept_async(socket).await.unwrap();
+                // The client explicitly polls then drops its first pending read
+                // before opening this barrier. No timing sleep establishes it.
+                wait_for_reader.await.unwrap();
+                ws.send(Message::Ping(b"native-ping".to_vec().into()))
+                    .await
+                    .unwrap();
+                if !flush_with_write {
+                    ws.send(Message::Text("after-ping".into())).await.unwrap();
+                }
+                let mut observed = Vec::new();
+                let mut confirmed = false;
+                while let Some(message) = ws.next().await {
+                    let message = message.unwrap();
+                    let closing = matches!(message, Message::Close(_));
+                    observed.push(message);
+                    if flush_with_write
+                        && !confirmed
+                        && observed.iter().any(|m| matches!(m, Message::Pong(_)))
+                        && observed.iter().any(|m| matches!(m, Message::Text(_)))
+                    {
+                        ws.send(Message::Text("after-ping".into())).await.unwrap();
+                        confirmed = true;
+                    }
+                    if closing {
+                        break;
+                    }
+                }
+                observed
+            });
+            let mut client = TungsteniteWebSocket::new_causal();
+            client
+                .connect(&WebSocketSpec {
+                    url: format!("ws://{address}/"),
+                    ..WebSocketSpec::default()
+                })
+                .await
+                .unwrap();
+            let mut buffer = FrameBuffer::with_capacity(1024);
+            let mut pending = Box::pin(client.read_frame(&mut buffer));
+            std::future::poll_fn(|cx| {
+                assert!(std::future::Future::poll(pending.as_mut(), cx).is_pending());
+                std::task::Poll::Ready(())
+            })
+            .await;
+            drop(pending);
+            send_frames.send(()).unwrap();
+            let ping = client.read_frame(&mut buffer).await.unwrap();
+            assert_eq!(ping.opcode, FrameOpcode::Ping);
+            assert_eq!(ping.payload, b"native-ping");
+            let application = OutboundFrame {
+                opcode: FrameOpcode::Text,
+                payload: b"one-application-write".to_vec(),
+            };
+            if flush_with_write {
+                client.write_frame(application.clone()).await.unwrap();
+            }
+            let text = client.read_frame(&mut buffer).await.unwrap();
+            assert_eq!(text.opcode, FrameOpcode::Text);
+            assert_eq!(text.payload, b"after-ping");
+            if !flush_with_write {
+                client.write_frame(application).await.unwrap();
+            }
+            client.close(CloseReason::LocalStop).await.unwrap();
+            let observed = server.await.unwrap();
+            assert_eq!(
+                observed
+                    .iter()
+                    .filter(|m| matches!(m, Message::Pong(_)))
+                    .count(),
+                1,
+                "automatic Pong must not be duplicated: {observed:?}"
+            );
+            assert!(
+                observed
+                    .iter()
+                    .any(|m| matches!(m, Message::Pong(p) if p.as_ref() == b"native-ping"))
+            );
+            assert_eq!(
+                observed
+                    .iter()
+                    .filter(|m| matches!(m, Message::Text(_)))
+                    .count(),
+                1
+            );
+            assert!(
+                observed.iter().any(
+                    |m| matches!(m, Message::Text(t) if t.as_str() == "one-application-write")
+                )
+            );
+        })
+        .await
+        .expect("loopback protocol barriers must complete");
+    }
+
+    #[tokio::test]
+    async fn causal_pending_read_cancellation_preserves_ping_and_text_next_read_flushes() {
+        causal_loopback(false).await;
+    }
+
+    #[tokio::test]
+    async fn causal_application_write_flushes_one_queued_pong() {
+        causal_loopback(true).await;
+    }
+
+    #[test]
+    fn legacy_constructor_retains_explicit_pong_mode() {
+        assert!(!TungsteniteWebSocket::new().queued_automatic_pong);
+        assert!(TungsteniteWebSocket::new_causal().queued_automatic_pong);
+    }
 
     #[test]
     fn connect_parts_apply_headers_and_wire_size_limits() {

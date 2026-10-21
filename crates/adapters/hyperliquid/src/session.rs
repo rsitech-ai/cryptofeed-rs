@@ -5,6 +5,115 @@ use marketfeed_model::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
+fn native_attachment(
+    message: &Message,
+    canonical_len: usize,
+) -> Result<NativeObservationAttachment, AdapterError> {
+    let level = |l: &protocol::Level| HyperliquidLevelObservation {
+        price: l.px.0,
+        size: l.sz.0,
+        orders: l.n,
+    };
+    let positions = (0..canonical_len)
+        .map(|position| {
+            u16::try_from(position)
+                .map_err(|_| AdapterError::Protocol("native association overflow".into()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let observation = match message {
+        Message::Trades(trades) => {
+            let rows = trades
+                .iter()
+                .enumerate()
+                .map(|(position, t)| {
+                    Ok(NativeObservationRow {
+                        canonical_positions: vec![u16::try_from(position).map_err(|_| {
+                            AdapterError::Protocol("native association overflow".into())
+                        })?],
+                        observation: NativeObservation::HyperliquidTrade(
+                            HyperliquidTradeObservation {
+                                coin: t.coin.clone(),
+                                side: match t.side.as_str() {
+                                    "B" => HyperliquidTradeSide::Buy,
+                                    "A" => HyperliquidTradeSide::Sell,
+                                    _ => {
+                                        return Err(AdapterError::Protocol(
+                                            "unknown native side".into(),
+                                        ));
+                                    }
+                                },
+                                price: t.px.0,
+                                size: t.sz.0,
+                                hash: t.hash.clone(),
+                                time_ms: t.time,
+                                tid: t.tid,
+                                users: t.users.clone(),
+                            },
+                        ),
+                    })
+                })
+                .collect::<Result<Vec<_>, AdapterError>>()?;
+            return Ok(NativeObservationAttachment {
+                schema_version: 1,
+                rows,
+            });
+        }
+        Message::Bbo(b) => NativeObservation::HyperliquidBbo(HyperliquidBboObservation {
+            coin: b.coin.clone(),
+            time_ms: b.time,
+            sides: [b.bbo[0].as_ref().map(level), b.bbo[1].as_ref().map(level)],
+        }),
+        Message::Book(b) => NativeObservation::HyperliquidBook(HyperliquidBookObservation {
+            coin: b.coin.clone(),
+            time_ms: b.time,
+            sides: [
+                b.levels[0].iter().map(level).collect(),
+                b.levels[1].iter().map(level).collect(),
+            ],
+        }),
+        Message::Candle(c) => NativeObservation::HyperliquidCandle(HyperliquidCandleObservation {
+            coin: c.s.clone(),
+            interval: c.i.clone(),
+            open_ms: c.t,
+            end_ms: c.end,
+            open: c.o.0,
+            high: c.h.0,
+            low: c.l.0,
+            close: c.c.0,
+            volume: c.v.0,
+            trades: c.n,
+        }),
+        Message::Context(c) => {
+            NativeObservation::HyperliquidContext(Box::new(HyperliquidContextObservation {
+                coin: c.coin.clone(),
+                day_notional_volume: c.ctx.day_ntl_vlm.0,
+                previous_day_price: c.ctx.prev_day_px.0,
+                mark_price: c.ctx.mark_px.0,
+                mid_price: c.ctx.mid_px.map(|d| d.0),
+                circulating_supply: c.ctx.circulating_supply.map(|d| d.0),
+                funding: c.ctx.funding.map(|d| d.0),
+                open_interest: c.ctx.open_interest.map(|d| d.0),
+                oracle_price: c.ctx.oracle_px.map(|d| d.0),
+                day_base_volume: c.ctx.day_base_vlm.map(|d| d.0),
+                premium: c.ctx.premium.map(|d| d.0),
+                impact_prices: c.ctx.impact_pxs.map(|p| [p[0].0, p[1].0]),
+            }))
+        }
+        _ => {
+            return Err(AdapterError::Protocol(
+                "unadmitted native observation channel".into(),
+            ));
+        }
+    };
+    Ok(NativeObservationAttachment {
+        schema_version: 1,
+        rows: vec![NativeObservationRow {
+            canonical_positions: positions,
+            observation,
+        }],
+    })
+}
+
 pub(crate) fn subscription(
     channel: &Channel,
     coin: &str,
@@ -97,6 +206,7 @@ fn subscription_key(value: &Value) -> Result<String, AdapterError> {
 /// subscription. Reconnects expose discontinuity; they do not prove gap repair.
 pub struct HyperliquidSession {
     spot: bool,
+    observations: Option<ObservedBatchLimits>,
     request: ConcreteSubscriptionSet,
     catalog: CatalogView,
     wire: Vec<Value>,
@@ -119,6 +229,7 @@ impl HyperliquidSession {
         let wire = subscriptions(&request, &catalog, spot)?;
         Ok(Self {
             spot,
+            observations: None,
             request,
             catalog,
             wire,
@@ -133,6 +244,23 @@ impl HyperliquidSession {
             stream_progress: BTreeMap::new(),
         })
     }
+    /// Explicit in-memory native-observation carrier. The daemon/factory and
+    /// existing durable profiles do not opt in: their codecs reject these units
+    /// until an enriched bootstrap/profile and committed projector are added.
+    pub fn new_with_observations(
+        spot: bool,
+        request: ConcreteSubscriptionSet,
+        catalog: CatalogView,
+        limits: ObservedBatchLimits,
+    ) -> Result<Self, AdapterError> {
+        limits
+            .validate()
+            .map_err(|e| AdapterError::Subscription(e.to_string()))?;
+        let mut session = Self::new(spot, request, catalog)?;
+        session.observations = Some(limits);
+        Ok(session)
+    }
+
     fn envelope(
         &self,
         coin: &str,
@@ -193,11 +321,7 @@ impl HyperliquidSession {
         }
         Ok(true)
     }
-    fn events(
-        &mut self,
-        msg: Message,
-        stamp: FrameStamp,
-    ) -> Result<Vec<EventEnvelope>, AdapterError> {
+    fn events(&self, msg: &Message, stamp: FrameStamp) -> Result<Vec<EventEnvelope>, AdapterError> {
         let mut out = Vec::new();
         match msg {
             Message::Trades(rows) => {
@@ -234,14 +358,13 @@ impl HyperliquidSession {
                         event.flags.insert(EventFlags::INITIAL_DELIVERY);
                     }
                     out.push(event);
-                    self.trade_deliveries.insert(t.coin);
                 }
             }
             Message::Bbo(b) => {
                 if !self.wants(&b.coin, &Channel::Quote) {
                     return Err(AdapterError::Protocol("unrequested bbo".into()));
                 }
-                if let [Some(bid), Some(ask)] = b.bbo {
+                if let [Some(bid), Some(ask)] = &b.bbo {
                     out.push(self.envelope(
                         &b.coin,
                         Some(b.time),
@@ -496,6 +619,43 @@ impl SessionMachine for HyperliquidSession {
                     }
                     Message::Pong => {}
                     data => {
+                        // Validate subscription, associations and complete-unit
+                        // budgets before advancing retained native market state.
+                        let events = self.events(&data, received)?;
+                        let native = self
+                            .observations
+                            .map(|_| native_attachment(&data, events.len()))
+                            .transpose()?;
+                        let batch = if !events.is_empty()
+                            || native.as_ref().is_some_and(|n| !n.rows.is_empty())
+                        {
+                            let canonical = EventBatch {
+                                session: SessionId(0),
+                                frame_seq: self.frame_seq,
+                                events,
+                            };
+                            Some(
+                                if let (Some(native), Some(limits)) = (native, self.observations) {
+                                    MarketBatch::Observed(
+                                        ObservedEventBatch::try_new(
+                                            canonical,
+                                            native,
+                                            ObservedBatchSource {
+                                                venue: self.catalog.venue,
+                                                connection: ConnectionId(0),
+                                                received,
+                                            },
+                                            limits,
+                                        )
+                                        .map_err(|e| AdapterError::Protocol(e.to_string()))?,
+                                    )
+                                } else {
+                                    MarketBatch::Canonical(canonical)
+                                },
+                            )
+                        } else {
+                            None
+                        };
                         let progress = match &data {
                             Message::Trades(rows) => {
                                 rows.first().map(|t| ("trades", t.coin.as_str()))
@@ -540,24 +700,28 @@ impl SessionMachine for HyperliquidSession {
                                 ));
                             }
                         }
-                        let events = self.events(data, received)?;
-                        for e in &events {
-                            if let (Some(instrument), MarketEvent::BookSnapshot(book)) =
-                                (e.instrument, &e.payload)
-                            {
-                                if self.books.insert(instrument, book.clone()).is_none() {
-                                    output.push(SessionAction::EmitSystem(
-                                        SystemEvent::BookResynchronized { instrument },
-                                    ));
+                        if let Message::Trades(rows) = &data {
+                            self.trade_deliveries
+                                .extend(rows.iter().map(|t| t.coin.clone()));
+                        }
+                        if let Some(batch) = batch {
+                            for e in &batch.events {
+                                if let (Some(instrument), MarketEvent::BookSnapshot(book)) =
+                                    (e.instrument, &e.payload)
+                                {
+                                    if self.books.insert(instrument, book.clone()).is_none() {
+                                        output.push(SessionAction::EmitSystem(
+                                            SystemEvent::BookResynchronized { instrument },
+                                        ));
+                                    }
                                 }
                             }
-                        }
-                        if !events.is_empty() {
-                            output.push(SessionAction::EmitBatch(EventBatch {
-                                session: SessionId(0),
-                                frame_seq: self.frame_seq,
-                                events,
-                            }));
+                            output.push(match batch {
+                                MarketBatch::Canonical(batch) => SessionAction::EmitBatch(batch),
+                                MarketBatch::Observed(batch) => {
+                                    SessionAction::EmitObservedBatch(batch)
+                                }
+                            });
                         }
                     }
                 }

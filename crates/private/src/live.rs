@@ -188,6 +188,7 @@ impl PrivatePump {
                     SessionAction::Reconnect(_) => self.reconnect = true,
                     SessionAction::StopSession(_) => self.stop = true,
                     SessionAction::EmitBatch(_)
+                    | SessionAction::EmitObservedBatch(_)
                     | SessionAction::MarkDegraded
                     | SessionAction::ResyncInstrument(_)
                     | SessionAction::DisableSubscription(_) => {

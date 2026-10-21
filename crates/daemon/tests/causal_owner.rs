@@ -2,6 +2,13 @@
 //! Uses the complete native Bybit spot bundle; no private owner/test hooks.
 #![cfg(feature = "causal-journal")]
 
+// MFCJ5 belongs to the owner-protocol suite. Keep it separate from the larger
+// causal replay/projection workload without changing either suite's bounds.
+#[path = "support/hyperliquid_fixture.rs"]
+mod hyperliquid_fixture;
+#[path = "support/wire_owner.rs"]
+mod wire_owner_tests;
+
 use marketfeed_adapter_api::{DisconnectReason, HttpResponse};
 use marketfeed_daemon::causal_bootstrap::{
     PreparedBootstrap, current_build,

@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "status": "PASS_INDEPENDENT_PEER_HLS0C07_OWN_HOSTED_SOURCE_AND_ALL4_ARTIFACTS",
+  "head": "0c07b927f999b943ce9304af50314bed9fb148c3",
+  "tested_merge": "03fa2dd05f1082e2d405eeddfa681f00afdc52b1",
+  "whole_merge_author_tree": "6dcb880a0a48b4e27341a258273380a433f01a0d",
+  "all362_published_Git_API_source_export_and_current_files_equal": true,
+  "all352_frozen_inputs_exact": true,
+  "source_map_sha256": "8fc77b2155e3a3370e3f62941a70ff6c3f26d53d00b91261d1d9a406659dbff1",
+  "producer_commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+  "parent_private": {
+    "file": "hls0c07-hosted-independent-01.json",
+    "bytes": 24281,
+    "sha256": "1c2aacfc954aa5a1811ec4d09e54c30e01922881f0f743fe7f7bdb03b5114cf1"
+  },
+  "parent_portable": {
+    "file": "hls0c07-hosted-portable-01.json",
+    "bytes": 25862,
+    "sha256": "eaa7b8266edd87293f4f89e6c038a308f0fb682f5542b451fc51af8b61f54806"
+  },
+  "portable_preserves_all_exact_types_values_and_artifact_relations": true,
+  "runs": [
+    {
+      "id": 39595932396,
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 119208108499,
+          "name": "PTY TUI (macos-15)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119208108499-01.log",
+            "bytes": 34402,
+            "sha256": "08b8789dc6b390c79f5b2cb2f582427cef414ca5ca612323b2201fc9ce9a4b1b"
+          }
+        },
+        {
+          "id": 119208108793,
+          "name": "RustSec advisory scan",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119208108793-01.log",
+            "bytes": 55515,
+            "sha256": "d3829e2496227d8c004c79ce4d7e865c6fea342599b6d4a744b1860e10e2b5b2"
+          }
+        },
+        {
+          "id": 119208108940,
+          "name": "PTY TUI (ubuntu-24.04)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119208108940-01.log",
+            "bytes": 28788,
+            "sha256": "4fd33c9637d4c605b8d3d93be6158e9e552432ad01ec8c0b50917582bd492c7c"
+          }
+        },
+        {
+          "id": 119208108965,
+          "name": "GitHub Actions security",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119208108965-01.log",
+            "bytes": 16951,
+            "sha256": "8ca8344107a99d94aa4a3d0a8481e7cbf63d0cd23624426d2220e36d223a75fd"
+          }
+        },
+        {
+          "id": 119208109129,
+          "name": "Rust workspace",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119208109129-01.log",
+            "bytes": 211999,
+            "sha256": "e79aa257f2cfc14430cb6e0a71f3568dddc56f84b49068d9eb5e257bb3550131"
+          }
+        },
+        {
+          "id": 119208109161,
+          "name": "Dependency license and source policy",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119208109161-01.log",
+            "bytes": 49305,
+            "sha256": "6a530d561fbdb464913c398a382da1769c5525b3a4bbdd78473fc5fc3ecfbdf6"
+          }
+        },
+        {
+          "id": 119208110423,
+          "name": "Scheduled public API contract smoke",
+          "conclusion": "skipped"
+        }
+      ],
+      "run_json": {
+        "file": "39595932396-run-04.json",
+        "bytes": 12767,
+        "sha256": "4c7270f58ccc250a40f0b4d0cfae94fa0359ec21a4aa287e200e888d23f167b9"
+      },
+      "jobs_json": {
+        "file": "39595932396-jobs-04.json",
+        "bytes": 13794,
+        "sha256": "c33226bcdf5f1d653c0f48027cdf63731b54b3bbf147e02f83707676ed7b0368"
+      }
+    },
+    {
+      "id": 39595932607,
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 119208110141,
+          "name": "Plan release",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119208110141-01.log",
+            "bytes": 95391,
+            "sha256": "53dc30bad409fed4093324027a0a4522c7400499ef6b5c97c167f3c3f5864d33"
+          }
+        },
+        {
+          "id": 119209861808,
+          "name": "build-local-artifacts (x86_64-pc-windows-msvc)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119209861808-01.log",
+            "bytes": 102390,
+            "sha256": "c84bb80eee75b3e1c6c92428cf51cadb92c7ba57db9b3aa009d4fc9a30ee0039"
+          }
+        },
+        {
+          "id": 119209861816,
+          "name": "build-local-artifacts (aarch64-apple-darwin)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119209861816-01.log",
+            "bytes": 130551,
+            "sha256": "817687c33359ec447cb9a1d6df9e558c15d657cbb23cedef73518566dcbbd165"
+          }
+        },
+        {
+          "id": 119209861819,
+          "name": "build-local-artifacts (x86_64-apple-darwin)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119209861819-01.log",
+            "bytes": 130347,
+            "sha256": "631b86e9a0983c6fd31d58a0ab8158681caa1addba4acbd5a120b2ed1223f9ac"
+          }
+        },
+        {
+          "id": 119209861920,
+          "name": "build-local-artifacts (x86_64-unknown-linux-gnu)",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119209861920-01.log",
+            "bytes": 98242,
+            "sha256": "96cff3acf6faaf754fbc1db2a207adea06427606d747811659d8524f999abfc2"
+          }
+        },
+        {
+          "id": 119217136325,
+          "name": "Build global artifacts",
+          "conclusion": "success",
+          "raw_log": {
+            "file": "job-119217136325-01.log",
+            "bytes": 51439,
+            "sha256": "9d83c96415ac25df726f8a8e50c72479678686b25735226f42c601d68378605d"
+          }
+        },
+        {
+          "id": 119217909890,
+          "name": "Publish tag artifacts",
+          "conclusion": "skipped"
+        },
+        {
+          "id": 119217910807,
+          "name": "Confirm release announcement",
+          "conclusion": "skipped"
+        }
+      ],
+      "run_json": {
+        "file": "39595932607-run-07.json",
+        "bytes": 12777,
+        "sha256": "94c9199ed5a2e29bacb74c2b2301ad1a2b5e3c0fc2b62a648a45747c8f3a21d3"
+      },
+      "jobs_json": {
+        "file": "39595932607-jobs-07.json",
+        "bytes": 22173,
+        "sha256": "81f65b6dde2cc1fbcda284303dfab883995e26925d740e8a26bd7a0e42a393b6"
+      }
+    }
+  ],
+  "main_counts": {
+    "executions": 589,
+    "unique": 565,
+    "summaries": 86,
+    "failed": 0,
+    "ignored": 0,
+    "packaging_repeats": 24,
+    "Python": [
+      8,
+      5,
+      10
+    ],
+    "owner5_pass": true
+  },
+  "PTY": {
+    "Mac": 6,
+    "Linux": 6
+  },
+  "native_artifacts": [
+    {
+      "target": "x86_64-pc-windows-msvc",
+      "official_job": 119209861808,
+      "binary": {
+        "bytes": 28649472,
+        "sha256": "779c630a870fb65838027c942c3e6d7500fd3a328be9cd05598f779c95119bc7"
+      },
+      "official_strict_fixture_smoke": {
+        "exit_code": 0,
+        "groups": 67,
+        "events": 2,
+        "gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae"
+      },
+      "workflow_zip": {
+        "id": 12344676987,
+        "bytes": 10740986,
+        "sha256": "c52d93f20b8b2cb72f3b0b2294a9d99fd1fd0e4b4e1cd485d8dc7646b16d95f4"
+      },
+      "inner_archive_sha256": "5860066bcca423d7364b2fb080e651c7b0e2aaf20257bdc508e5ca14132a5eaa"
+    },
+    {
+      "target": "aarch64-apple-darwin",
+      "official_job": 119209861816,
+      "binary": {
+        "bytes": 26964016,
+        "sha256": "1f8eb0ba46f70c4ba6179d259d8bdff03470528903c9d94b038d814fb7c320bc"
+      },
+      "official_strict_fixture_smoke": {
+        "exit_code": 0,
+        "groups": 67,
+        "events": 2,
+        "gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae"
+      },
+      "workflow_zip": {
+        "id": 12345645109,
+        "bytes": 6742415,
+        "sha256": "d7b96f17cfd40521e4e7b39c68aac1a1cd76d7e4bcb3f9fb9e090bc0bbb9b460"
+      },
+      "inner_archive_sha256": "d284367382327fd5f0feca11b0f4ad89afeeb9148c1bc4d4e658f275b7c9c60e"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "official_job": 119209861819,
+      "binary": {
+        "bytes": 31237164,
+        "sha256": "c0b47a34f032b52459557ef0dab3636e08dda0483e5aff128e057d54ac53bcd4"
+      },
+      "official_strict_fixture_smoke": {
+        "exit_code": 0,
+        "groups": 67,
+        "events": 2,
+        "gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae"
+      },
+      "workflow_zip": {
+        "id": 12345076959,
+        "bytes": 7862739,
+        "sha256": "8926b4863e666e4880cc01db7ade34c3c12036c06d239c494e213cde2afd2e5f"
+      },
+      "inner_archive_sha256": "0bb120dc37a474a82d01e0e091fa4ecbeebf7642c73982a7630a50adf13af413"
+    },
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "official_job": 119209861920,
+      "binary": {
+        "bytes": 34595704,
+        "sha256": "6bb6444759599fe5da115894b65cc6a41e537204d934248d67b83092a913ed33"
+      },
+      "official_strict_fixture_smoke": {
+        "exit_code": 0,
+        "groups": 67,
+        "events": 2,
+        "gaps": 6,
+        "sealed": true,
+        "fixture_manifest_sha256": "471e5b765aeab083aaf7167306b98e0385aa96a4baae08f390bc6dfea5b7e5ae"
+      },
+      "workflow_zip": {
+        "id": 12345070454,
+        "bytes": 8350668,
+        "sha256": "eddbcbb2c8aaadcd0e4571512c11dcb637dc9cc8223e4f00bc96b2cf8e6c9675"
+      },
+      "inner_archive_sha256": "9f8bc726b0796da38157d8fee4ff66fd866785f7c55da7d15384361f0477db47"
+    }
+  ],
+  "workflow_zip_count": 7,
+  "outerZIP_CRC_GitHub_digest_and_all_safe_member_checks_reproduced": true,
+  "archive_reproduction": {
+    "file": "hls0c07-archive-reproduction-01.json",
+    "bytes": 31337,
+    "sha256": "d3be3f6761bcf73577bb7926ae3612b1edc22140c3dd6b206e589e1a3303eaba"
+  },
+  "individual_checksum_relations": 5,
+  "aggregate_checksum_relations": 5,
+  "manifest_checksum_relations": 9,
+  "source_export_files": 362,
+  "all6_native_packaged_docs_match_Git_with_explicit_Windows_newline_normalization": true,
+  "local_MacARM_only": {
+    "actual_author_session": 4576,
+    "actual_exit": 0,
+    "actual_child_pid": 70665,
+    "binary_sha256": "1f8eb0ba46f70c4ba6179d259d8bdff03470528903c9d94b038d814fb7c320bc",
+    "receipt": {
+      "file": "local-arm-smoke-01.json",
+      "bytes": 3544,
+      "sha256": "ee22865239d786bb6789a1d6b601d16c8457b86111c0c527b6bbc25175e77459"
+    },
+    "terminal": {
+      "file": "local-arm-smoke-tool-terminal-01.json",
+      "bytes": 374,
+      "sha256": "19657c9e09f6abfe82da9d6740533d7147a0c0eb25cd99f5a32b574f8bd224f8"
+    }
+  },
+  "all362_original_hashes_fullstats_index_unchanged_before_after": true,
+  "atime_claimed": false,
+  "material_findings": [],
+  "reviewer_execution": "Read-only Python/Git audit, exact archive-check reproduction and raw official/local-execution evidence inspection only; no product/binary/native/consumer rerun",
+  "limits": [
+    "Own0c07 source352/8fc and producer20f5 immutable pins only. Actual official four platform binaries passed; only downloaded MacARM was previously executed locally by author. No foreign-platform or toolcache execution by reviewer.",
+    "Scheduled exchange/API, tag publication and release announcement correctly skipped for pull_request; no release/tag/deploy/merge action.",
+    "Historical5479 synthetic67/2/6 fixture and currentproducer native-owner5 tests are distinct; structural smoke does not authenticate financial values or historical availability.",
+    "Actual parent local smoke4576/0 is inspected, not independently rerun. Archive helper historical wrong10aggregate assumption/12245failure remains preserved; correct5+5relations and9manifestlinks are reproduced without changing archives.",
+    "No freshness/synchronized-clock/SLA/economics/extendedsoak/Razer/full-goal qualification; joint15 and checkpoint proofs remain separate."
+  ],
+  "helper": {
+    "file": "hls0c07-hosted-peer-01.py",
+    "bytes": 10959,
+    "sha256": "caf8dfd84ad4c78bbc247196b7b3bc308d43ec79ec5bb1a25bd9fcd16bdb5626"
+  },
+  "independent_private_receipt": {
+    "file": "hls0c07-hosted-peer-independent-01.json",
+    "bytes": 12282,
+    "sha256": "be3e2ded95a893cd52ebf1e80a152843e44298c8188df65aec638602ddb0501c"
+  }
+}

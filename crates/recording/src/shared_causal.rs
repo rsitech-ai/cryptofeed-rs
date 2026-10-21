@@ -1,6 +1,6 @@
 //! Negotiation and structural routing for the opt-in engine causal journal.
 //! Payload meaning, bootstrap digests and actual engine replay belong to engine.
-use super::{FeedRecord, MAX_RECORD, err};
+use super::{FeedCursor, FeedRecord, MAX_RECORD, err};
 use crate::RecordingError;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
@@ -11,20 +11,29 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeedProfile {
     Legacy,
+    /// Atomic consumer values/control groups with their source after-cursor.
+    ObservationProjectionV1,
     EngineCausalV1,
     /// Explicit owner-history negotiation. Journal ordinals include owner
     /// observations as well as native operations; payload semantics are engine-owned.
     EngineCausalV2,
     /// Runtime owner history with explicit execution permits and late completion.
     EngineCausalV3,
+    /// Native observations retained atomically with canonical owner outputs.
+    EngineCausalV4,
+    /// Receipt-gated public Hyperliquid application-write owner.
+    EngineCausalV5,
 }
 impl FeedProfile {
     pub(super) fn magic(self) -> &'static [u8; 8] {
         match self {
             Self::Legacy => b"MFSF1\0\0\0",
+            Self::ObservationProjectionV1 => b"MFOP1\0\0\0",
             Self::EngineCausalV1 => b"MFCJ1\0\0\0",
             Self::EngineCausalV2 => b"MFCJ2\0\0\0",
             Self::EngineCausalV3 => b"MFCJ3\0\0\0",
+            Self::EngineCausalV4 => b"MFCJ4\0\0\0",
+            Self::EngineCausalV5 => b"MFCJ5\0\0\0",
         }
     }
 }
@@ -81,7 +90,11 @@ impl CausalEnvelope {
             FeedProfile::EngineCausalV1 => 1,
             FeedProfile::EngineCausalV2 => 2,
             FeedProfile::EngineCausalV3 => 3,
-            FeedProfile::Legacy => return Err(err("causal envelope requires causal profile")),
+            FeedProfile::EngineCausalV4 => 4,
+            FeedProfile::EngineCausalV5 => 5,
+            FeedProfile::Legacy | FeedProfile::ObservationProjectionV1 => {
+                return Err(err("causal envelope requires causal profile"));
+            }
         };
         if payload.is_empty() || payload.len() > MAX_CAUSAL_ENCODED_PAYLOAD / 4 * 3 {
             return Err(err("causal payload byte budget"));
@@ -117,11 +130,11 @@ impl CausalEnvelope {
     }
 
     fn validate_fields(&self) -> Result<(), RecordingError> {
-        if !matches!(self.schema_version, 1..=3) {
+        if !matches!(self.schema_version, 1..=5) {
             return Err(RecordingError::UnsupportedVersion(self.schema_version));
         }
         if self.phase == CausalPhase::Owner && self.schema_version < 2 {
-            return Err(err("owner history requires causal V2 or V3"));
+            return Err(err("owner history requires causal V2 or later"));
         }
         let id = self.route.bootstrap_id.as_bytes();
         if self.route.session == 0
@@ -147,7 +160,7 @@ impl CausalEnvelope {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(super) struct CausalRoutes(pub(super) BTreeMap<u64, CausalRoute>);
+pub(super) struct CausalRoutes(pub(super) BTreeMap<u64, CausalRoute>, Option<FeedCursor>);
 impl CausalRoutes {
     /// Stage only changed routes. Avoid cloning all historical sessions for
     /// every record; install the delta only after the whole validation/commit.
@@ -166,6 +179,9 @@ impl CausalRoutes {
 
     pub(super) fn install(&mut self, changes: Self) {
         self.0.extend(changes.0);
+        if changes.1.is_some() {
+            self.1 = changes.1;
+        }
     }
 
     fn accept(
@@ -176,6 +192,20 @@ impl CausalRoutes {
         record: &FeedRecord,
     ) -> Result<(), RecordingError> {
         match (profile, record) {
+            (FeedProfile::ObservationProjectionV1, FeedRecord::Projection(envelope)) => {
+                envelope.validate()?;
+                let previous = self.1.as_ref().or(base.1.as_ref());
+                if previous.map_or(envelope.source_before.sequence != 0, |cursor| {
+                    cursor != &envelope.source_before
+                }) {
+                    return Err(err("projection source cursor discontinuity"));
+                }
+                self.1 = Some(envelope.source_after.clone());
+                Ok(())
+            }
+            (FeedProfile::ObservationProjectionV1, _) | (_, FeedRecord::Projection(_)) => {
+                Err(err("projection feed profile mismatch"))
+            }
             (FeedProfile::Legacy, FeedRecord::Causal(_)) => {
                 Err(err("causal record in legacy feed"))
             }
@@ -183,7 +213,9 @@ impl CausalRoutes {
             (
                 FeedProfile::EngineCausalV1
                 | FeedProfile::EngineCausalV2
-                | FeedProfile::EngineCausalV3,
+                | FeedProfile::EngineCausalV3
+                | FeedProfile::EngineCausalV4
+                | FeedProfile::EngineCausalV5,
                 FeedRecord::Causal(envelope),
             ) => {
                 envelope.validate()?;
@@ -192,7 +224,11 @@ impl CausalRoutes {
                         FeedProfile::EngineCausalV1 => 1,
                         FeedProfile::EngineCausalV2 => 2,
                         FeedProfile::EngineCausalV3 => 3,
-                        FeedProfile::Legacy => unreachable!(),
+                        FeedProfile::EngineCausalV4 => 4,
+                        FeedProfile::EngineCausalV5 => 5,
+                        FeedProfile::Legacy | FeedProfile::ObservationProjectionV1 => {
+                            unreachable!()
+                        }
                     }
                 {
                     return Err(err("causal envelope/profile version mismatch"));
@@ -232,7 +268,9 @@ impl CausalRoutes {
             (
                 FeedProfile::EngineCausalV1
                 | FeedProfile::EngineCausalV2
-                | FeedProfile::EngineCausalV3,
+                | FeedProfile::EngineCausalV3
+                | FeedProfile::EngineCausalV4
+                | FeedProfile::EngineCausalV5,
                 _,
             ) => Err(err("legacy record in causal feed")),
         }

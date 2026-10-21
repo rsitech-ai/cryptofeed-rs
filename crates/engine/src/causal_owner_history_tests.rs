@@ -71,6 +71,44 @@ fn permitted_completion_after_terminal_fence_is_retained_with_terminal_latched()
     assert!(h.is_terminal());
     assert!(h.uncertainties().is_empty());
 }
+
+#[test]
+fn native_profile_keeps_execution_permits_and_late_revocation_settlement() {
+    let (first, _) = operations(false);
+    let mut h = history3();
+    h.envelope_version = 4;
+    h.observation_policy = Some(NativeObservationPolicyDto::CanonicalOnlyV1);
+    start(&mut h);
+    let input = ingress(&h, 1, &first.original_input);
+    apply(&mut h, input, 1);
+    let completed = |h: &OwnerHistory, token| OwnerEventDto::ExecutionCompleted {
+        input_id: 1,
+        permit_ordinal: token,
+        operation: Box::new(OperationDto::from_observed_capture(&first, &h.identity).unwrap()),
+    };
+    let invalid = completed(&h, 2);
+    reject_unchanged(&mut h, invalid, 2, 1);
+    let token = permit(&mut h, 1, 1, 1, 2);
+    apply(
+        &mut h,
+        OwnerEventDto::Revoked {
+            through_input_id: 1,
+            cause: OwnerTerminalCause::Revoked,
+        },
+        3,
+    );
+    let event = completed(&h, token);
+    apply(&mut h, event, 4);
+    assert!(h.is_terminal());
+    assert_eq!(h.native_ordinal(), 1);
+    assert!(matches!(
+        h.uncertainties().as_slice(),
+        [OwnerPrefixUncertainty::CommittedWithoutRelease { input_id: 1, .. }]
+    ));
+    apply(&mut h, OwnerEventDto::Withheld { input_id: 1 }, 5);
+    assert!(h.is_terminal());
+    assert!(h.uncertainties().is_empty());
+}
 #[test]
 fn permit_wrong_duplicate_and_completion_tokens_reject_without_prefix_changes() {
     let (first, _) = operations(false);
@@ -341,6 +379,7 @@ fn permitted_native_extrema_and_actual_drains_roundtrip_without_numeric_projecti
 fn history() -> OwnerHistory {
     OwnerHistory {
         envelope_version: 2,
+        observation_policy: None,
         record_bytes: MAX_OPERATION_BYTES,
         permit: None,
         identity: OperationIdentity {
@@ -374,6 +413,7 @@ fn history() -> OwnerHistory {
         pending: BTreeMap::new(),
         active: None,
         previous_after: None,
+        wire: None,
     }
 }
 fn operations(fail: bool) -> (CapturedOperation, CapturedOperation) {

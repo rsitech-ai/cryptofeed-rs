@@ -9,6 +9,7 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 build = "build.rs"
+default-run = "marketfeed"
 
 [[bin]]
 name = "marketfeed"
@@ -72,6 +73,9 @@ tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 [build-dependencies]
 sha2.workspace = true
 serde_json.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"

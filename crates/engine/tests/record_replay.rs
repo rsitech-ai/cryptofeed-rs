@@ -21,9 +21,11 @@ fn new_machine() -> Box<dyn marketfeed_adapter_api::SessionMachine> {
         .expect("synthetic session")
 }
 
-fn flatten_markets(batches: &[marketfeed_adapter_api::EventBatch]) -> Vec<MarketEvent> {
+fn flatten_markets<'a>(
+    batches: impl IntoIterator<Item = &'a marketfeed_adapter_api::EventBatch>,
+) -> Vec<MarketEvent> {
     batches
-        .iter()
+        .into_iter()
         .flat_map(|b| b.events.iter().map(|e| e.payload.clone()))
         .collect()
 }
@@ -85,7 +87,9 @@ fn synthetic_record_replay_identical_market_events() {
             .unwrap();
     }
 
-    let live_markets = wire_derived(flatten_markets(&runner.market_batches));
+    let live_markets = wire_derived(flatten_markets(
+        runner.market_batches.iter().map(|batch| &**batch),
+    ));
     let recording = runner.recording_bytes().expect("recording enabled");
     assert!(!recording.is_empty());
 
@@ -155,6 +159,6 @@ async fn supervisor_drains_memory_transport() {
         .unwrap();
 
     let runner = supervisor.session_mut(session).unwrap();
-    let markets = flatten_markets(&runner.market_batches);
+    let markets = flatten_markets(runner.market_batches.iter().map(|batch| &**batch));
     assert!(markets.iter().any(|e| matches!(e, MarketEvent::Trade(_))));
 }

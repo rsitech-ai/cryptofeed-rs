@@ -1,0 +1,25 @@
+{
+  "status": "PASS",
+  "archive": "private-evidence/primary/.local/data-exports/integrated-20261021-01/saved-captures-01.tar.gz",
+  "archive_bytes": 176229337,
+  "archive_sha256": "c0c575d331dccfd52e803a93864cfe3be881bb2bde932d3b5ecbf1a1829f343c",
+  "manifest_sha256": "81481c46e6006c3a15285548085ff7015615692aca980b02ab8783733f5ca42e",
+  "protected_files": 179,
+  "payload_members": 241,
+  "input_bytes": 912237349,
+  "archive_members_verified": true,
+  "originals_fullstats_sha256_unchanged": true,
+  "atime_claimed": false,
+  "helper_sha256": "faed4e568d35be8f97f11046286bcc1a921ebe4baba7c6cde4f744504f0af0d0",
+  "limits": [
+    "Private local integrity export; no digital signature or off-device backup claim.",
+    "Saved Mac native executables require their original platform for executable-bound verification.",
+    "Fifteen original capture layouts are preserved under captures/; remaining59 protected fixtures/corpora use indexed names with source mapping. This is not a complete workspace/log backup.",
+    "No exchange-history, native-availability, freshness SLA, continuity or Razer soak qualification."
+  ],
+  "portable_copy": {
+    "original_sha256": "36c8edba6365201456a192a975814e9d8ab31c570145566e4921ed78c5d9a794",
+    "original_bytes": 1139,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

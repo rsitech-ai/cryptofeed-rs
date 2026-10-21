@@ -1,0 +1,2588 @@
+{
+  "schema_version": 1,
+  "status": "PASS exact framing/eligible-handoff/native census; timing development gate PASS",
+  "scope": "Implementer read-only closed-source/target reconciliation and timing diagnostics using a separate strictCRC/JSON census helper; not an independent human/agent review and no new replay/nativeCLI/collector/consumer execution.",
+  "source_recipe": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "parent_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+  "source_cursor": {
+    "feed_id": "c5ce5890ad9b9bed3b9be57966d8b765e1fe65c7",
+    "sequence": 9163,
+    "offset": 26981078
+  },
+  "target_cursor": {
+    "feed_id": "03e64371dcdde0e0976ad4ddc16d2a4d95dd2cd9",
+    "sequence": 9163,
+    "offset": 26741466
+  },
+  "source_records": 9163,
+  "target_groups": 9163,
+  "allCRC32C_sequences_cursorchains": true,
+  "exact_eligible_handoff_bindings": 1818,
+  "binding_census_sha256": "79c848310915818122223efa5d1224905d86266a330f4902a8db25181ab780ae",
+  "all_nonhandoff_groups_empty": true,
+  "native_executed": {
+    "HyperliquidContext": 232,
+    "HyperliquidBook": 46,
+    "HyperliquidBbo": 1352,
+    "HyperliquidTrade": 378
+  },
+  "native_released": {
+    "HyperliquidContext": 232,
+    "HyperliquidBook": 46,
+    "HyperliquidBbo": 1351,
+    "HyperliquidTrade": 378
+  },
+  "native_withheld": {
+    "HyperliquidBbo": 1
+  },
+  "released_by_session": {
+    "31": {
+      "HyperliquidContext": 116,
+      "HyperliquidBook": 23,
+      "HyperliquidTrade": 71,
+      "HyperliquidBbo": 439
+    },
+    "32": {
+      "HyperliquidContext": 116,
+      "HyperliquidBbo": 912,
+      "HyperliquidBook": 23,
+      "HyperliquidTrade": 307
+    }
+  },
+  "canonical_companions_executed": {
+    "MarkPrice": 232,
+    "OpenInterest": 116,
+    "BookSnapshot": 46,
+    "Quote": 1352,
+    "Trade": 378
+  },
+  "canonical_companions_released": {
+    "MarkPrice": 232,
+    "OpenInterest": 116,
+    "BookSnapshot": 46,
+    "Quote": 1351,
+    "Trade": 378
+  },
+  "projected_items": {
+    "market": 6,
+    "observed_market": 1788,
+    "system": 6
+  },
+  "hls_native_event_counts": {
+    "bbo": 1351,
+    "book": 46,
+    "context": 232,
+    "trade": 378
+  },
+  "hls_market_events": 2007,
+  "hls_gaps": 7,
+  "gap_groups": [
+    {
+      "sequence": 9155,
+      "session": 31,
+      "event": "execution_completed",
+      "input_id": 630,
+      "items": 0
+    },
+    {
+      "sequence": 9156,
+      "session": 32,
+      "event": "withheld",
+      "input_id": 1190,
+      "items": 0
+    },
+    {
+      "sequence": 9157,
+      "session": 31,
+      "event": "revoked",
+      "input_id": null,
+      "items": 0
+    },
+    {
+      "sequence": 9159,
+      "session": 31,
+      "event": "withheld",
+      "input_id": 630,
+      "items": 0
+    },
+    {
+      "sequence": 9160,
+      "session": 32,
+      "event": "execution_completed",
+      "input_id": 1191,
+      "items": 0
+    },
+    {
+      "sequence": 9161,
+      "session": 32,
+      "event": "revoked",
+      "input_id": null,
+      "items": 0
+    },
+    {
+      "sequence": 9162,
+      "session": 32,
+      "event": "withheld",
+      "input_id": 1191,
+      "items": 0
+    }
+  ],
+  "withheld": [
+    {
+      "session": 32,
+      "input_id": 1190,
+      "source_sequence": 9156,
+      "input_kind": "text",
+      "native_rows": {
+        "HyperliquidBbo": 1
+      },
+      "had_intent": false,
+      "had_handoff": false,
+      "complete_sequence": 9154
+    },
+    {
+      "session": 31,
+      "input_id": 630,
+      "source_sequence": 9159,
+      "input_kind": "stop",
+      "native_rows": {},
+      "had_intent": false,
+      "had_handoff": false,
+      "complete_sequence": 9155
+    },
+    {
+      "session": 32,
+      "input_id": 1191,
+      "source_sequence": 9162,
+      "input_kind": "stop",
+      "native_rows": {},
+      "had_intent": false,
+      "had_handoff": false,
+      "complete_sequence": 9160
+    }
+  ],
+  "drivers": [
+    {
+      "abandoned_inputs": 0,
+      "accepted_inputs": 630,
+      "clean_stop": true,
+      "connections": 1,
+      "executed_inputs": 630,
+      "finalization_expired": false,
+      "handoffs": 629,
+      "inbound_binary": 0,
+      "inbound_text": 623,
+      "last_transport_error": "None",
+      "market": "spot",
+      "owner_failure": "NativeStopped",
+      "owner_phase": "Stopped",
+      "read_diagnostics": {
+        "diagnostics_version": 1,
+        "gate_wait": {
+          "idle_pending_inputs_or_observations": {
+            "intervals": 804,
+            "max_ns": 2244959,
+            "total_ns": 706413820
+          },
+          "owner_awaiting_admission": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "owner_awaiting_commit": {
+            "intervals": 65898,
+            "max_ns": 2538958,
+            "total_ns": 65817754080
+          },
+          "owner_executing": {
+            "intervals": 65,
+            "max_ns": 1199792,
+            "total_ns": 71587084
+          },
+          "owner_release_pending": {
+            "intervals": 689,
+            "max_ns": 1218250,
+            "total_ns": 711190843
+          },
+          "owner_stopped": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "wire_not_quiescent": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "observed_gate_runs": {
+          "intervals": 629,
+          "max_ns": 586788292,
+          "total_ns": 68030518617
+        },
+        "read_calls": {
+          "errors": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "frames": {
+            "intervals": 623,
+            "max_ns": 1338166,
+            "total_ns": 127298710
+          },
+          "polled_future_dropped": {
+            "intervals": 51782,
+            "max_ns": 2264875,
+            "total_ns": 51210060981
+          },
+          "returned_timeouts": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "saturated": false
+      },
+      "read_diagnostics_scope": "local monotonic application-read and observed owner-gate timing; wait-entry reasons are not phase residency; gate waits and runs overlap and are non-additive; no kernel/TLS arrival, native freshness or availability evidence",
+      "reason": "SessionBudget",
+      "stop_committed": true,
+      "transport_error_count": 0,
+      "unaccepted_frames": 0,
+      "wire_clean": true,
+      "wire_completions": 9,
+      "withheld_inputs": 1
+    },
+    {
+      "abandoned_inputs": 0,
+      "accepted_inputs": 1191,
+      "clean_stop": true,
+      "connections": 1,
+      "executed_inputs": 1191,
+      "finalization_expired": false,
+      "handoffs": 1189,
+      "inbound_binary": 0,
+      "inbound_text": 1184,
+      "last_transport_error": "None",
+      "market": "perps",
+      "owner_failure": "NativeStopped",
+      "owner_phase": "Stopped",
+      "read_diagnostics": {
+        "diagnostics_version": 1,
+        "gate_wait": {
+          "idle_pending_inputs_or_observations": {
+            "intervals": 1404,
+            "max_ns": 1567125,
+            "total_ns": 1339704941
+          },
+          "owner_awaiting_admission": {
+            "intervals": 4,
+            "max_ns": 1178458,
+            "total_ns": 4602542
+          },
+          "owner_awaiting_commit": {
+            "intervals": 98357,
+            "max_ns": 2543833,
+            "total_ns": 98247396362
+          },
+          "owner_executing": {
+            "intervals": 115,
+            "max_ns": 1311709,
+            "total_ns": 126071668
+          },
+          "owner_release_pending": {
+            "intervals": 1316,
+            "max_ns": 1881375,
+            "total_ns": 1342103077
+          },
+          "owner_stopped": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "wire_not_quiescent": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "observed_gate_runs": {
+          "intervals": 1190,
+          "max_ns": 600355959,
+          "total_ns": 101818168267
+        },
+        "read_calls": {
+          "errors": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "frames": {
+            "intervals": 1184,
+            "max_ns": 1246459,
+            "total_ns": 80625019
+          },
+          "polled_future_dropped": {
+            "intervals": 17672,
+            "max_ns": 2092333,
+            "total_ns": 17478425602
+          },
+          "returned_timeouts": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "saturated": false
+      },
+      "read_diagnostics_scope": "local monotonic application-read and observed owner-gate timing; wait-entry reasons are not phase residency; gate waits and runs overlap and are non-additive; no kernel/TLS arrival, native freshness or availability evidence",
+      "reason": "SessionBudget",
+      "stop_committed": true,
+      "transport_error_count": 0,
+      "unaccepted_frames": 0,
+      "wire_clean": true,
+      "wire_completions": 9,
+      "withheld_inputs": 2
+    }
+  ],
+  "stage_census": {
+    "source": {
+      "logical_records": 9163,
+      "actor_committed_operations": 9163,
+      "physical_transactions": 5383,
+      "timings": {
+        "accepted_records": 9163,
+        "accepted_transactions": 5383,
+        "append": {
+          "completed_calls": 5383,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            6,
+            5377,
+            0
+          ],
+          "max_ns": 31998458,
+          "total_ns": 101430998348
+        },
+        "append_attempts": 5383,
+        "data_sync": {
+          "completed_calls": 5383,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5380,
+            3,
+            0
+          ],
+          "max_ns": 10397500,
+          "total_ns": 26798703865
+        },
+        "directory_sync": {
+          "completed_calls": 5383,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5371,
+            12,
+            0
+          ],
+          "max_ns": 17735750,
+          "total_ns": 32947849254
+        },
+        "encode": {
+          "completed_calls": 5383,
+          "errors": 0,
+          "latency_buckets": [
+            3341,
+            1985,
+            55,
+            2,
+            0,
+            0
+          ],
+          "max_ns": 1640209,
+          "total_ns": 83564137
+        },
+        "failed_attempts": 0,
+        "lock_wait": {
+          "completed_calls": 0,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "max_ns": 0,
+          "total_ns": 0
+        },
+        "replace": {
+          "completed_calls": 5383,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            5184,
+            199,
+            0,
+            0
+          ],
+          "max_ns": 7261625,
+          "total_ns": 2192191760
+        },
+        "watermark_write_sync": {
+          "completed_calls": 5383,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5362,
+            21,
+            0
+          ],
+          "max_ns": 15837625,
+          "total_ns": 35496546274
+        },
+        "write": {
+          "completed_calls": 5383,
+          "errors": 0,
+          "latency_buckets": [
+            1,
+            280,
+            3512,
+            1590,
+            0,
+            0
+          ],
+          "max_ns": 6261959,
+          "total_ns": 3891194792
+        }
+      }
+    },
+    "target": {
+      "logical_records": 9163,
+      "actor_committed_operations": 8939,
+      "physical_transactions": 5392,
+      "timings": {
+        "accepted_records": 9163,
+        "accepted_transactions": 5392,
+        "append": {
+          "completed_calls": 5392,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            33,
+            5359,
+            0
+          ],
+          "max_ns": 32158459,
+          "total_ns": 104299481169
+        },
+        "append_attempts": 5392,
+        "data_sync": {
+          "completed_calls": 5392,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5384,
+            8,
+            0
+          ],
+          "max_ns": 15810583,
+          "total_ns": 31887036013
+        },
+        "directory_sync": {
+          "completed_calls": 5392,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5383,
+            9,
+            0
+          ],
+          "max_ns": 15011250,
+          "total_ns": 32843232510
+        },
+        "encode": {
+          "completed_calls": 5392,
+          "errors": 0,
+          "latency_buckets": [
+            261,
+            5129,
+            0,
+            2,
+            0,
+            0
+          ],
+          "max_ns": 1877375,
+          "total_ns": 89632900
+        },
+        "failed_attempts": 0,
+        "lock_wait": {
+          "completed_calls": 0,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "max_ns": 0,
+          "total_ns": 0
+        },
+        "replace": {
+          "completed_calls": 5392,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            5205,
+            187,
+            0,
+            0
+          ],
+          "max_ns": 8058000,
+          "total_ns": 2167571010
+        },
+        "watermark_write_sync": {
+          "completed_calls": 5392,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5375,
+            17,
+            0
+          ],
+          "max_ns": 13550375,
+          "total_ns": 35777736032
+        },
+        "write": {
+          "completed_calls": 5392,
+          "errors": 0,
+          "latency_buckets": [
+            15,
+            382,
+            4899,
+            96,
+            0,
+            0
+          ],
+          "max_ns": 3502875,
+          "total_ns": 1516029143
+        }
+      }
+    }
+  },
+  "last_publication": {
+    "groups": 1,
+    "source_after": {
+      "feed_id": "c5ce5890ad9b9bed3b9be57966d8b765e1fe65c7",
+      "offset": 26981078,
+      "sequence": 9163
+    },
+    "source_before": {
+      "feed_id": "c5ce5890ad9b9bed3b9be57966d8b765e1fe65c7",
+      "offset": 26980909,
+      "sequence": 9162
+    },
+    "target_after": {
+      "feed_id": "03e64371dcdde0e0976ad4ddc16d2a4d95dd2cd9",
+      "offset": 26741466,
+      "sequence": 9163
+    },
+    "target_before": {
+      "feed_id": "03e64371dcdde0e0976ad4ddc16d2a4d95dd2cd9",
+      "offset": 26739460,
+      "sequence": 9162
+    }
+  },
+  "actual_child_exit_codes": {
+    "capture": 0,
+    "quants": 0,
+    "hls": 0,
+    "verify": 0
+  },
+  "timing": {
+    "units": "nanoseconds",
+    "requested_capture_ms": 120000,
+    "plan_start_unix_ns": 1792582251072790000,
+    "source_seal_pre_submission_unix_ns": 1792582373554006000,
+    "source_file_final_mtime_unix_ns": 1792582373555020005,
+    "target_file_final_mtime_unix_ns": 1792582373577929105,
+    "target_final_mtime_minus_source_final_mtime_ns": 22909100,
+    "development_mtime_tail_bound_ns": [
+      0,
+      2000000000
+    ],
+    "development_mtime_tail_passed": true,
+    "target_final_mtime_minus_seal_pre_submission_ns": 23923105,
+    "quants_last_ack_minus_source_final_mtime_ns": 41228995,
+    "first_bracket_after_final_source_mtime": null,
+    "post_final_committed_source_pre_target_interval": {
+      "status": "UNKNOWN",
+      "samples": 0,
+      "first": null,
+      "scope": "Requires source final committed cursor bracket; absence staysUNKNOWN, never zero."
+    },
+    "post_source_filemtime_pre_target_filemtime_interval": {
+      "status": "UNKNOWN",
+      "samples": 0,
+      "first": null,
+      "scope": "Final source file-write mtime precedes or differs from durable watermark/Seal ACK."
+    },
+    "sampled_bracket_deficit_max_lower": 7,
+    "sampled_bracket_deficit_max_upper": 7,
+    "brackets": [
+      {
+        "unix_ns": 1792582253292580000,
+        "end_unix_ns": 1792582253300854000,
+        "monotonic_ns": 2508103299308125,
+        "end_monotonic_ns": 2508103307580916,
+        "source_before": 1,
+        "target": 0,
+        "source_after": 1,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582254301938000,
+        "end_unix_ns": 1792582254306600000,
+        "monotonic_ns": 2508104308640583,
+        "end_monotonic_ns": 2508104313301458,
+        "source_before": 26,
+        "target": 24,
+        "source_after": 26,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582255310260000,
+        "end_unix_ns": 1792582255313960000,
+        "monotonic_ns": 2508105316937500,
+        "end_monotonic_ns": 2508105320637500,
+        "source_before": 93,
+        "target": 92,
+        "source_after": 93,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582256318727000,
+        "end_unix_ns": 1792582256322063000,
+        "monotonic_ns": 2508106325380583,
+        "end_monotonic_ns": 2508106328716083,
+        "source_before": 177,
+        "target": 173,
+        "source_after": 177,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582257326404000,
+        "end_unix_ns": 1792582257328424000,
+        "monotonic_ns": 2508107333033708,
+        "end_monotonic_ns": 2508107335052875,
+        "source_before": 259,
+        "target": 255,
+        "source_after": 259,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582258329839000,
+        "end_unix_ns": 1792582258334510000,
+        "monotonic_ns": 2508108336445583,
+        "end_monotonic_ns": 2508108341115958,
+        "source_before": 339,
+        "target": 335,
+        "source_after": 339,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582259335588000,
+        "end_unix_ns": 1792582259339731000,
+        "monotonic_ns": 2508109342171958,
+        "end_monotonic_ns": 2508109346314375,
+        "source_before": 425,
+        "target": 422,
+        "source_after": 425,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582260342393000,
+        "end_unix_ns": 1792582260344835000,
+        "monotonic_ns": 2508110348954250,
+        "end_monotonic_ns": 2508110351395500,
+        "source_before": 528,
+        "target": 525,
+        "source_after": 528,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582261346169000,
+        "end_unix_ns": 1792582261346782000,
+        "monotonic_ns": 2508111352708916,
+        "end_monotonic_ns": 2508111353320541,
+        "source_before": 615,
+        "target": 613,
+        "source_after": 615,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582262351847000,
+        "end_unix_ns": 1792582262358736000,
+        "monotonic_ns": 2508112358364375,
+        "end_monotonic_ns": 2508112365252166,
+        "source_before": 704,
+        "target": 702,
+        "source_after": 704,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582263360062000,
+        "end_unix_ns": 1792582263369665000,
+        "monotonic_ns": 2508113366557833,
+        "end_monotonic_ns": 2508113376159750,
+        "source_before": 785,
+        "target": 784,
+        "source_after": 787,
+        "deficit_lower": 1,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582264371314000,
+        "end_unix_ns": 1792582264374292000,
+        "monotonic_ns": 2508114377787916,
+        "end_monotonic_ns": 2508114380765208,
+        "source_before": 873,
+        "target": 870,
+        "source_after": 873,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582265378658000,
+        "end_unix_ns": 1792582265379981000,
+        "monotonic_ns": 2508115385111291,
+        "end_monotonic_ns": 2508115386433083,
+        "source_before": 957,
+        "target": 953,
+        "source_after": 957,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582266382604000,
+        "end_unix_ns": 1792582266383435000,
+        "monotonic_ns": 2508116389036000,
+        "end_monotonic_ns": 2508116389866791,
+        "source_before": 1039,
+        "target": 1032,
+        "source_after": 1039,
+        "deficit_lower": 7,
+        "deficit_upper": 7
+      },
+      {
+        "unix_ns": 1792582267388348000,
+        "end_unix_ns": 1792582267398810000,
+        "monotonic_ns": 2508117394760000,
+        "end_monotonic_ns": 2508117405220958,
+        "source_before": 1135,
+        "target": 1133,
+        "source_after": 1137,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582268402989000,
+        "end_unix_ns": 1792582268403502000,
+        "monotonic_ns": 2508118409379958,
+        "end_monotonic_ns": 2508118409892375,
+        "source_before": 1227,
+        "target": 1224,
+        "source_after": 1227,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582269407908000,
+        "end_unix_ns": 1792582269410754000,
+        "monotonic_ns": 2508119414279333,
+        "end_monotonic_ns": 2508119417124208,
+        "source_before": 1315,
+        "target": 1312,
+        "source_after": 1315,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582270413213000,
+        "end_unix_ns": 1792582270419644000,
+        "monotonic_ns": 2508120419563416,
+        "end_monotonic_ns": 2508120425993708,
+        "source_before": 1402,
+        "target": 1401,
+        "source_after": 1402,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582271424282000,
+        "end_unix_ns": 1792582271431732000,
+        "monotonic_ns": 2508121430612875,
+        "end_monotonic_ns": 2508121438062208,
+        "source_before": 1492,
+        "target": 1490,
+        "source_after": 1494,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582272432519000,
+        "end_unix_ns": 1792582272441510000,
+        "monotonic_ns": 2508122438831333,
+        "end_monotonic_ns": 2508122447821375,
+        "source_before": 1575,
+        "target": 1573,
+        "source_after": 1575,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582273446365000,
+        "end_unix_ns": 1792582273446903000,
+        "monotonic_ns": 2508123452656500,
+        "end_monotonic_ns": 2508123453193750,
+        "source_before": 1658,
+        "target": 1657,
+        "source_after": 1658,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582274451747000,
+        "end_unix_ns": 1792582274460315000,
+        "monotonic_ns": 2508124458019583,
+        "end_monotonic_ns": 2508124466587333,
+        "source_before": 1735,
+        "target": 1732,
+        "source_after": 1735,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582275461022000,
+        "end_unix_ns": 1792582275461505000,
+        "monotonic_ns": 2508125467274750,
+        "end_monotonic_ns": 2508125467757791,
+        "source_before": 1823,
+        "target": 1820,
+        "source_after": 1823,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582276463963000,
+        "end_unix_ns": 1792582276464454000,
+        "monotonic_ns": 2508126470197500,
+        "end_monotonic_ns": 2508126470687666,
+        "source_before": 1911,
+        "target": 1908,
+        "source_after": 1911,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582277465548000,
+        "end_unix_ns": 1792582277466154000,
+        "monotonic_ns": 2508127471763000,
+        "end_monotonic_ns": 2508127472368416,
+        "source_before": 2029,
+        "target": 2027,
+        "source_after": 2029,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582278468931000,
+        "end_unix_ns": 1792582278469382000,
+        "monotonic_ns": 2508128475127333,
+        "end_monotonic_ns": 2508128475577583,
+        "source_before": 2119,
+        "target": 2117,
+        "source_after": 2119,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582279473379000,
+        "end_unix_ns": 1792582279478002000,
+        "monotonic_ns": 2508129479556541,
+        "end_monotonic_ns": 2508129484179375,
+        "source_before": 2204,
+        "target": 2201,
+        "source_after": 2204,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582280482991000,
+        "end_unix_ns": 1792582280483461000,
+        "monotonic_ns": 2508130489149250,
+        "end_monotonic_ns": 2508130489619416,
+        "source_before": 2288,
+        "target": 2284,
+        "source_after": 2288,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582281483584000,
+        "end_unix_ns": 1792582281486427000,
+        "monotonic_ns": 2508131489725125,
+        "end_monotonic_ns": 2508131492566541,
+        "source_before": 2373,
+        "target": 2372,
+        "source_after": 2373,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582282491220000,
+        "end_unix_ns": 1792582282491788000,
+        "monotonic_ns": 2508132497341625,
+        "end_monotonic_ns": 2508132497909375,
+        "source_before": 2448,
+        "target": 2445,
+        "source_after": 2448,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582283495288000,
+        "end_unix_ns": 1792582283495822000,
+        "monotonic_ns": 2508133501391875,
+        "end_monotonic_ns": 2508133501925041,
+        "source_before": 2536,
+        "target": 2533,
+        "source_after": 2536,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582284500892000,
+        "end_unix_ns": 1792582284504183000,
+        "monotonic_ns": 2508134506976666,
+        "end_monotonic_ns": 2508134510267958,
+        "source_before": 2623,
+        "target": 2619,
+        "source_after": 2623,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582285509101000,
+        "end_unix_ns": 1792582285514022000,
+        "monotonic_ns": 2508135515168416,
+        "end_monotonic_ns": 2508135520088458,
+        "source_before": 2709,
+        "target": 2708,
+        "source_after": 2709,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582286516895000,
+        "end_unix_ns": 1792582286520783000,
+        "monotonic_ns": 2508136522943416,
+        "end_monotonic_ns": 2508136526831291,
+        "source_before": 2796,
+        "target": 2794,
+        "source_after": 2796,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582287521028000,
+        "end_unix_ns": 1792582287523369000,
+        "monotonic_ns": 2508137527057958,
+        "end_monotonic_ns": 2508137529398541,
+        "source_before": 2881,
+        "target": 2879,
+        "source_after": 2881,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582288525868000,
+        "end_unix_ns": 1792582288536238000,
+        "monotonic_ns": 2508138531880166,
+        "end_monotonic_ns": 2508138542249375,
+        "source_before": 2963,
+        "target": 2961,
+        "source_after": 2964,
+        "deficit_lower": 2,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582289538743000,
+        "end_unix_ns": 1792582289546723000,
+        "monotonic_ns": 2508139544737375,
+        "end_monotonic_ns": 2508139552717083,
+        "source_before": 3044,
+        "target": 3043,
+        "source_after": 3044,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582290551549000,
+        "end_unix_ns": 1792582290552883000,
+        "monotonic_ns": 2508140557526375,
+        "end_monotonic_ns": 2508140558858708,
+        "source_before": 3124,
+        "target": 3123,
+        "source_after": 3124,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582291555196000,
+        "end_unix_ns": 1792582291564614000,
+        "monotonic_ns": 2508141561154166,
+        "end_monotonic_ns": 2508141570571458,
+        "source_before": 3210,
+        "target": 3208,
+        "source_after": 3212,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582292569319000,
+        "end_unix_ns": 1792582292572956000,
+        "monotonic_ns": 2508142575259208,
+        "end_monotonic_ns": 2508142578895958,
+        "source_before": 3306,
+        "target": 3304,
+        "source_after": 3306,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582293574803000,
+        "end_unix_ns": 1792582293575306000,
+        "monotonic_ns": 2508143580725833,
+        "end_monotonic_ns": 2508143581228250,
+        "source_before": 3394,
+        "target": 3392,
+        "source_after": 3394,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582294576687000,
+        "end_unix_ns": 1792582294585786000,
+        "monotonic_ns": 2508144582592541,
+        "end_monotonic_ns": 2508144591690500,
+        "source_before": 3477,
+        "target": 3475,
+        "source_after": 3479,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582295590067000,
+        "end_unix_ns": 1792582295590586000,
+        "monotonic_ns": 2508145595953916,
+        "end_monotonic_ns": 2508145596472125,
+        "source_before": 3566,
+        "target": 3562,
+        "source_after": 3566,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582296590757000,
+        "end_unix_ns": 1792582296595130000,
+        "monotonic_ns": 2508146596626583,
+        "end_monotonic_ns": 2508146600998416,
+        "source_before": 3647,
+        "target": 3645,
+        "source_after": 3649,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582297599352000,
+        "end_unix_ns": 1792582297606708000,
+        "monotonic_ns": 2508147605203041,
+        "end_monotonic_ns": 2508147612558750,
+        "source_before": 3729,
+        "target": 3727,
+        "source_after": 3730,
+        "deficit_lower": 2,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582298608182000,
+        "end_unix_ns": 1792582298608734000,
+        "monotonic_ns": 2508148614015208,
+        "end_monotonic_ns": 2508148614567791,
+        "source_before": 3825,
+        "target": 3822,
+        "source_after": 3825,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582299609555000,
+        "end_unix_ns": 1792582299613174000,
+        "monotonic_ns": 2508149615370666,
+        "end_monotonic_ns": 2508149618989500,
+        "source_before": 3907,
+        "target": 3903,
+        "source_after": 3907,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582300616824000,
+        "end_unix_ns": 1792582300621783000,
+        "monotonic_ns": 2508150622622000,
+        "end_monotonic_ns": 2508150627580708,
+        "source_before": 3995,
+        "target": 3994,
+        "source_after": 3995,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582301624842000,
+        "end_unix_ns": 1792582301627586000,
+        "monotonic_ns": 2508151630623125,
+        "end_monotonic_ns": 2508151633366833,
+        "source_before": 4066,
+        "target": 4062,
+        "source_after": 4066,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582302632700000,
+        "end_unix_ns": 1792582302633989000,
+        "monotonic_ns": 2508152638464000,
+        "end_monotonic_ns": 2508152639751583,
+        "source_before": 4115,
+        "target": 4115,
+        "source_after": 4115,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582303637551000,
+        "end_unix_ns": 1792582303640276000,
+        "monotonic_ns": 2508153643296583,
+        "end_monotonic_ns": 2508153646021666,
+        "source_before": 4174,
+        "target": 4171,
+        "source_after": 4174,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582304642198000,
+        "end_unix_ns": 1792582304644891000,
+        "monotonic_ns": 2508154647926833,
+        "end_monotonic_ns": 2508154650618666,
+        "source_before": 4253,
+        "target": 4249,
+        "source_after": 4253,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582305649897000,
+        "end_unix_ns": 1792582305650389000,
+        "monotonic_ns": 2508155655607916,
+        "end_monotonic_ns": 2508155656099666,
+        "source_before": 4337,
+        "target": 4335,
+        "source_after": 4337,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582306651374000,
+        "end_unix_ns": 1792582306659412000,
+        "monotonic_ns": 2508156657068000,
+        "end_monotonic_ns": 2508156665104541,
+        "source_before": 4417,
+        "target": 4415,
+        "source_after": 4419,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582307661730000,
+        "end_unix_ns": 1792582307662252000,
+        "monotonic_ns": 2508157667406125,
+        "end_monotonic_ns": 2508157667927166,
+        "source_before": 4499,
+        "target": 4495,
+        "source_after": 4499,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582308666603000,
+        "end_unix_ns": 1792582308667117000,
+        "monotonic_ns": 2508158672261666,
+        "end_monotonic_ns": 2508158672774833,
+        "source_before": 4581,
+        "target": 4577,
+        "source_after": 4581,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582309672179000,
+        "end_unix_ns": 1792582309677380000,
+        "monotonic_ns": 2508159677819791,
+        "end_monotonic_ns": 2508159683020583,
+        "source_before": 4669,
+        "target": 4665,
+        "source_after": 4669,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582310679407000,
+        "end_unix_ns": 1792582310679948000,
+        "monotonic_ns": 2508160685030916,
+        "end_monotonic_ns": 2508160685571000,
+        "source_before": 4758,
+        "target": 4756,
+        "source_after": 4758,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582311685008000,
+        "end_unix_ns": 1792582311686641000,
+        "monotonic_ns": 2508161690613583,
+        "end_monotonic_ns": 2508161692246875,
+        "source_before": 4846,
+        "target": 4844,
+        "source_after": 4846,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582312689877000,
+        "end_unix_ns": 1792582312690431000,
+        "monotonic_ns": 2508162695465541,
+        "end_monotonic_ns": 2508162696018958,
+        "source_before": 4945,
+        "target": 4942,
+        "source_after": 4945,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582313692633000,
+        "end_unix_ns": 1792582313697146000,
+        "monotonic_ns": 2508163698204500,
+        "end_monotonic_ns": 2508163702716708,
+        "source_before": 5032,
+        "target": 5029,
+        "source_after": 5032,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582314699371000,
+        "end_unix_ns": 1792582314702810000,
+        "monotonic_ns": 2508164704924916,
+        "end_monotonic_ns": 2508164708364125,
+        "source_before": 5124,
+        "target": 5120,
+        "source_after": 5124,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582315707467000,
+        "end_unix_ns": 1792582315711594000,
+        "monotonic_ns": 2508165713003750,
+        "end_monotonic_ns": 2508165717129583,
+        "source_before": 5206,
+        "target": 5205,
+        "source_after": 5206,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582316716651000,
+        "end_unix_ns": 1792582316721687000,
+        "monotonic_ns": 2508166722170500,
+        "end_monotonic_ns": 2508166727205458,
+        "source_before": 5291,
+        "target": 5288,
+        "source_after": 5291,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582317724992000,
+        "end_unix_ns": 1792582317725579000,
+        "monotonic_ns": 2508167730494166,
+        "end_monotonic_ns": 2508167731080333,
+        "source_before": 5380,
+        "target": 5376,
+        "source_after": 5380,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582318728610000,
+        "end_unix_ns": 1792582318739296000,
+        "monotonic_ns": 2508168734094083,
+        "end_monotonic_ns": 2508168744780083,
+        "source_before": 5461,
+        "target": 5460,
+        "source_after": 5463,
+        "deficit_lower": 1,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582319743437000,
+        "end_unix_ns": 1792582319752824000,
+        "monotonic_ns": 2508169748903625,
+        "end_monotonic_ns": 2508169758290833,
+        "source_before": 5491,
+        "target": 5491,
+        "source_after": 5491,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582320753646000,
+        "end_unix_ns": 1792582320762450000,
+        "monotonic_ns": 2508170759096041,
+        "end_monotonic_ns": 2508170767899666,
+        "source_before": 5568,
+        "target": 5567,
+        "source_after": 5568,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582321766653000,
+        "end_unix_ns": 1792582321767216000,
+        "monotonic_ns": 2508171772085000,
+        "end_monotonic_ns": 2508171772648000,
+        "source_before": 5661,
+        "target": 5658,
+        "source_after": 5661,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582322767290000,
+        "end_unix_ns": 1792582322767859000,
+        "monotonic_ns": 2508172772705541,
+        "end_monotonic_ns": 2508172773273833,
+        "source_before": 5723,
+        "target": 5721,
+        "source_after": 5723,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582323771889000,
+        "end_unix_ns": 1792582323776620000,
+        "monotonic_ns": 2508173777287166,
+        "end_monotonic_ns": 2508173782017416,
+        "source_before": 5786,
+        "target": 5785,
+        "source_after": 5786,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582324781205000,
+        "end_unix_ns": 1792582324790018000,
+        "monotonic_ns": 2508174786585958,
+        "end_monotonic_ns": 2508174795397833,
+        "source_before": 5836,
+        "target": 5836,
+        "source_after": 5836,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582325794931000,
+        "end_unix_ns": 1792582325795800000,
+        "monotonic_ns": 2508175800294166,
+        "end_monotonic_ns": 2508175801162833,
+        "source_before": 5891,
+        "target": 5891,
+        "source_after": 5891,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582326799874000,
+        "end_unix_ns": 1792582326800851000,
+        "monotonic_ns": 2508176805220250,
+        "end_monotonic_ns": 2508176806195875,
+        "source_before": 5950,
+        "target": 5948,
+        "source_after": 5950,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582327805431000,
+        "end_unix_ns": 1792582327806314000,
+        "monotonic_ns": 2508177810759333,
+        "end_monotonic_ns": 2508177811642458,
+        "source_before": 5996,
+        "target": 5996,
+        "source_after": 5996,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582328806916000,
+        "end_unix_ns": 1792582328807390000,
+        "monotonic_ns": 2508178812227208,
+        "end_monotonic_ns": 2508178812700791,
+        "source_before": 6044,
+        "target": 6040,
+        "source_after": 6044,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582329808858000,
+        "end_unix_ns": 1792582329818014000,
+        "monotonic_ns": 2508179814151875,
+        "end_monotonic_ns": 2508179823307666,
+        "source_before": 6131,
+        "target": 6131,
+        "source_after": 6131,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582330818921000,
+        "end_unix_ns": 1792582330819632000,
+        "monotonic_ns": 2508180824197416,
+        "end_monotonic_ns": 2508180824907958,
+        "source_before": 6171,
+        "target": 6171,
+        "source_after": 6171,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582331822225000,
+        "end_unix_ns": 1792582331823984000,
+        "monotonic_ns": 2508181827485458,
+        "end_monotonic_ns": 2508181829242750,
+        "source_before": 6246,
+        "target": 6245,
+        "source_after": 6246,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582332828158000,
+        "end_unix_ns": 1792582332834160000,
+        "monotonic_ns": 2508182833401291,
+        "end_monotonic_ns": 2508182839401208,
+        "source_before": 6309,
+        "target": 6303,
+        "source_after": 6309,
+        "deficit_lower": 6,
+        "deficit_upper": 6
+      },
+      {
+        "unix_ns": 1792582333839196000,
+        "end_unix_ns": 1792582333839847000,
+        "monotonic_ns": 2508183844420666,
+        "end_monotonic_ns": 2508183845071291,
+        "source_before": 6366,
+        "target": 6366,
+        "source_after": 6366,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582334842948000,
+        "end_unix_ns": 1792582334848285000,
+        "monotonic_ns": 2508184848156208,
+        "end_monotonic_ns": 2508184853492208,
+        "source_before": 6452,
+        "target": 6452,
+        "source_after": 6452,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582335850211000,
+        "end_unix_ns": 1792582335850726000,
+        "monotonic_ns": 2508185855401583,
+        "end_monotonic_ns": 2508185855915708,
+        "source_before": 6515,
+        "target": 6511,
+        "source_after": 6515,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582336851445000,
+        "end_unix_ns": 1792582336851958000,
+        "monotonic_ns": 2508186856618375,
+        "end_monotonic_ns": 2508186857130666,
+        "source_before": 6597,
+        "target": 6596,
+        "source_after": 6597,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582337854596000,
+        "end_unix_ns": 1792582337855110000,
+        "monotonic_ns": 2508187859751708,
+        "end_monotonic_ns": 2508187860265208,
+        "source_before": 6677,
+        "target": 6676,
+        "source_after": 6677,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582338858474000,
+        "end_unix_ns": 1792582338859603000,
+        "monotonic_ns": 2508188863613083,
+        "end_monotonic_ns": 2508188864741750,
+        "source_before": 6761,
+        "target": 6757,
+        "source_after": 6761,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582339863306000,
+        "end_unix_ns": 1792582339869465000,
+        "monotonic_ns": 2508189868427916,
+        "end_monotonic_ns": 2508189874586458,
+        "source_before": 6847,
+        "target": 6846,
+        "source_after": 6847,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582340874253000,
+        "end_unix_ns": 1792582340875460000,
+        "monotonic_ns": 2508190879356916,
+        "end_monotonic_ns": 2508190880564041,
+        "source_before": 6921,
+        "target": 6919,
+        "source_after": 6921,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582341876466000,
+        "end_unix_ns": 1792582341878670000,
+        "monotonic_ns": 2508191881553500,
+        "end_monotonic_ns": 2508191883756458,
+        "source_before": 7007,
+        "target": 7006,
+        "source_after": 7007,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582342883572000,
+        "end_unix_ns": 1792582342884058000,
+        "monotonic_ns": 2508192888642125,
+        "end_monotonic_ns": 2508192889127250,
+        "source_before": 7096,
+        "target": 7092,
+        "source_after": 7096,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582343884996000,
+        "end_unix_ns": 1792582343888177000,
+        "monotonic_ns": 2508193890049000,
+        "end_monotonic_ns": 2508193893229541,
+        "source_before": 7163,
+        "target": 7159,
+        "source_after": 7163,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582344892079000,
+        "end_unix_ns": 1792582344893296000,
+        "monotonic_ns": 2508194897115083,
+        "end_monotonic_ns": 2508194898330458,
+        "source_before": 7217,
+        "target": 7217,
+        "source_after": 7217,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582345894074000,
+        "end_unix_ns": 1792582345894553000,
+        "monotonic_ns": 2508195899091666,
+        "end_monotonic_ns": 2508195899570625,
+        "source_before": 7284,
+        "target": 7281,
+        "source_after": 7284,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582346895716000,
+        "end_unix_ns": 1792582346900507000,
+        "monotonic_ns": 2508196900716583,
+        "end_monotonic_ns": 2508196905508083,
+        "source_before": 7368,
+        "target": 7364,
+        "source_after": 7368,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582347900923000,
+        "end_unix_ns": 1792582347904651000,
+        "monotonic_ns": 2508197905906708,
+        "end_monotonic_ns": 2508197909634875,
+        "source_before": 7438,
+        "target": 7434,
+        "source_after": 7438,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582348905018000,
+        "end_unix_ns": 1792582348908866000,
+        "monotonic_ns": 2508198909984458,
+        "end_monotonic_ns": 2508198913832000,
+        "source_before": 7528,
+        "target": 7526,
+        "source_after": 7528,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582349913575000,
+        "end_unix_ns": 1792582349914584000,
+        "monotonic_ns": 2508199918524000,
+        "end_monotonic_ns": 2508199919532791,
+        "source_before": 7597,
+        "target": 7597,
+        "source_after": 7597,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582350917490000,
+        "end_unix_ns": 1792582350924743000,
+        "monotonic_ns": 2508200922422291,
+        "end_monotonic_ns": 2508200929674875,
+        "source_before": 7639,
+        "target": 7636,
+        "source_after": 7639,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582351929809000,
+        "end_unix_ns": 1792582351930455000,
+        "monotonic_ns": 2508201934723583,
+        "end_monotonic_ns": 2508201935369416,
+        "source_before": 7683,
+        "target": 7679,
+        "source_after": 7683,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582352931603000,
+        "end_unix_ns": 1792582352932564000,
+        "monotonic_ns": 2508202936500708,
+        "end_monotonic_ns": 2508202937461166,
+        "source_before": 7762,
+        "target": 7762,
+        "source_after": 7762,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582353936274000,
+        "end_unix_ns": 1792582353944581000,
+        "monotonic_ns": 2508203941155000,
+        "end_monotonic_ns": 2508203949461083,
+        "source_before": 7841,
+        "target": 7839,
+        "source_after": 7841,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582354947940000,
+        "end_unix_ns": 1792582354950759000,
+        "monotonic_ns": 2508204952802791,
+        "end_monotonic_ns": 2508204955622166,
+        "source_before": 7918,
+        "target": 7915,
+        "source_after": 7918,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582355955831000,
+        "end_unix_ns": 1792582355956709000,
+        "monotonic_ns": 2508205960676750,
+        "end_monotonic_ns": 2508205961554875,
+        "source_before": 7963,
+        "target": 7963,
+        "source_after": 7963,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582356961450000,
+        "end_unix_ns": 1792582356963465000,
+        "monotonic_ns": 2508206966278583,
+        "end_monotonic_ns": 2508206968293541,
+        "source_before": 8025,
+        "target": 8023,
+        "source_after": 8025,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792582357967203000,
+        "end_unix_ns": 1792582357968540000,
+        "monotonic_ns": 2508207972015708,
+        "end_monotonic_ns": 2508207973350958,
+        "source_before": 8073,
+        "target": 8073,
+        "source_after": 8073,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582358969918000,
+        "end_unix_ns": 1792582358973873000,
+        "monotonic_ns": 2508208974712666,
+        "end_monotonic_ns": 2508208978667000,
+        "source_before": 8123,
+        "target": 8120,
+        "source_after": 8123,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582359978545000,
+        "end_unix_ns": 1792582359979560000,
+        "monotonic_ns": 2508209983322166,
+        "end_monotonic_ns": 2508209984336916,
+        "source_before": 8173,
+        "target": 8173,
+        "source_after": 8173,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582360983717000,
+        "end_unix_ns": 1792582360989866000,
+        "monotonic_ns": 2508210988476250,
+        "end_monotonic_ns": 2508210994625750,
+        "source_before": 8232,
+        "target": 8229,
+        "source_after": 8232,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582361994907000,
+        "end_unix_ns": 1792582361996540000,
+        "monotonic_ns": 2508211999650166,
+        "end_monotonic_ns": 2508212001281791,
+        "source_before": 8322,
+        "target": 8318,
+        "source_after": 8322,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582362996908000,
+        "end_unix_ns": 1792582362997769000,
+        "monotonic_ns": 2508213001633666,
+        "end_monotonic_ns": 2508213002493791,
+        "source_before": 8393,
+        "target": 8393,
+        "source_after": 8393,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582364000106000,
+        "end_unix_ns": 1792582364004727000,
+        "monotonic_ns": 2508214004814375,
+        "end_monotonic_ns": 2508214009434833,
+        "source_before": 8485,
+        "target": 8482,
+        "source_after": 8485,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582365007902000,
+        "end_unix_ns": 1792582365008917000,
+        "monotonic_ns": 2508215012593583,
+        "end_monotonic_ns": 2508215013607833,
+        "source_before": 8558,
+        "target": 8558,
+        "source_after": 8558,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582366009937000,
+        "end_unix_ns": 1792582366015295000,
+        "monotonic_ns": 2508216014610583,
+        "end_monotonic_ns": 2508216019968458,
+        "source_before": 8608,
+        "target": 8607,
+        "source_after": 8608,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582367016522000,
+        "end_unix_ns": 1792582367022202000,
+        "monotonic_ns": 2508217021178041,
+        "end_monotonic_ns": 2508217026858125,
+        "source_before": 8692,
+        "target": 8690,
+        "source_after": 8693,
+        "deficit_lower": 2,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582368026639000,
+        "end_unix_ns": 1792582368027449000,
+        "monotonic_ns": 2508218031278333,
+        "end_monotonic_ns": 2508218032087333,
+        "source_before": 8763,
+        "target": 8763,
+        "source_after": 8763,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582369028999000,
+        "end_unix_ns": 1792582369038820000,
+        "monotonic_ns": 2508219033621416,
+        "end_monotonic_ns": 2508219043441791,
+        "source_before": 8818,
+        "target": 8817,
+        "source_after": 8818,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792582370042183000,
+        "end_unix_ns": 1792582370043449000,
+        "monotonic_ns": 2508220046788416,
+        "end_monotonic_ns": 2508220048053625,
+        "source_before": 8878,
+        "target": 8878,
+        "source_after": 8878,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792582371044556000,
+        "end_unix_ns": 1792582371045248000,
+        "monotonic_ns": 2508221049143250,
+        "end_monotonic_ns": 2508221049834750,
+        "source_before": 8940,
+        "target": 8937,
+        "source_after": 8940,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792582372046722000,
+        "end_unix_ns": 1792582372051918000,
+        "monotonic_ns": 2508222051292000,
+        "end_monotonic_ns": 2508222056488000,
+        "source_before": 9032,
+        "target": 9028,
+        "source_after": 9032,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792582373056613000,
+        "end_unix_ns": 1792582373060057000,
+        "monotonic_ns": 2508223061166416,
+        "end_monotonic_ns": 2508223064609541,
+        "source_before": 9122,
+        "target": 9120,
+        "source_after": 9122,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      }
+    ],
+    "native_timestamp_to_acquisition_receipt_diagnostic": {
+      "(31, 'l2Book')": {
+        "receipt_minus_native_ns": {
+          "samples": 23,
+          "min": 419485000,
+          "median": 578093000,
+          "p95": 996316000,
+          "max": 1142441000,
+          "last": 443395000
+        }
+      },
+      "(32, 'bbo')": {
+        "receipt_minus_native_ns": {
+          "samples": 913,
+          "min": 281747000,
+          "median": 1094018000,
+          "p95": 2290035000,
+          "max": 2623870000,
+          "last": 764974000
+        }
+      },
+      "(31, 'trades_initial')": {
+        "receipt_minus_native_ns": {
+          "samples": 30,
+          "min": 3270980000,
+          "median": 40267980000,
+          "p95": 70231980000,
+          "max": 74263980000,
+          "last": 3270980000
+        }
+      },
+      "(32, 'l2Book')": {
+        "receipt_minus_native_ns": {
+          "samples": 23,
+          "min": 411358000,
+          "median": 1171083000,
+          "p95": 2056069000,
+          "max": 2382388000,
+          "last": 411358000
+        }
+      },
+      "(31, 'bbo')": {
+        "receipt_minus_native_ns": {
+          "samples": 439,
+          "min": 273493000,
+          "median": 490858000,
+          "p95": 1100829000,
+          "max": 1539541000,
+          "last": 344882000
+        }
+      },
+      "(32, 'trades_initial')": {
+        "receipt_minus_native_ns": {
+          "samples": 30,
+          "min": 1528998000,
+          "median": 7669998000,
+          "p95": 9295998000,
+          "max": 10665998000,
+          "last": 1528998000
+        }
+      },
+      "(31, 'trades_subsequent')": {
+        "receipt_minus_native_ns": {
+          "samples": 41,
+          "min": 443068000,
+          "median": 547466000,
+          "p95": 1063676000,
+          "max": 1328802000,
+          "last": 449647000
+        }
+      },
+      "(32, 'trades_subsequent')": {
+        "receipt_minus_native_ns": {
+          "samples": 277,
+          "min": 346026000,
+          "median": 1257566000,
+          "p95": 2423685000,
+          "max": 2560550000,
+          "last": 693070000
+        }
+      }
+    },
+    "approx_owner_started_plus_ingress_observed_minus_acquisition_receipt": {
+      "31": {
+        "samples": 623,
+        "min": -2169209,
+        "median": -1030292,
+        "p95": -119792,
+        "max": -25000,
+        "last": -2169209
+      },
+      "32": {
+        "samples": 1184,
+        "min": -2174250,
+        "median": -1093375,
+        "p95": -166834,
+        "max": -29667,
+        "last": -2174250
+      }
+    },
+    "same_owner_ingress_to_completion": {
+      "31": {
+        "samples": 623,
+        "min": 11077292,
+        "median": 36598459,
+        "p95": 44103417,
+        "max": 50835625,
+        "last": 37006500
+      },
+      "32": {
+        "samples": 1184,
+        "min": 9932458,
+        "median": 21004042,
+        "p95": 42577666,
+        "max": 54227791,
+        "last": 18029333
+      }
+    },
+    "same_owner_ingress_to_handoff": {
+      "31": {
+        "samples": 623,
+        "min": 24050875,
+        "median": 74759667,
+        "p95": 87384625,
+        "max": 100214166,
+        "last": 74103875
+      },
+      "32": {
+        "samples": 1183,
+        "min": 24418250,
+        "median": 46834500,
+        "p95": 85484083,
+        "max": 99214292,
+        "last": 37690125
+      }
+    }
+  },
+  "channel_counts": {
+    "31": {
+      "subscriptionResponse": 4,
+      "activeSpotAssetCtx": 116,
+      "l2Book": 23,
+      "trades": 36,
+      "bbo": 439,
+      "pong": 5
+    },
+    "32": {
+      "subscriptionResponse": 4,
+      "activeAssetCtx": 116,
+      "bbo": 913,
+      "l2Book": 23,
+      "trades": 123,
+      "pong": 5
+    }
+  },
+  "quants_local_ack_times": {
+    "end": 1792582373597624000,
+    "first_ack": 1792582254097814000,
+    "last_ack": 1792582373596249000,
+    "start": 1792582253343839000
+  },
+  "growing_witness": {
+    "quants_reported_first_actual_matching_ack_unix_ns": 1792582254097814000,
+    "later_live_producer_and_positive_hls_progress_sample": {
+      "unix_ns": 1792582259335588000,
+      "monotonic_ns": 2508109342171958,
+      "free_bytes": 82581504000,
+      "children": {
+        "capture": null,
+        "quants": null,
+        "hls": null
+      },
+      "source_committed_before_target_read": {
+        "schema_version": 1,
+        "cursor": {
+          "feed_id": "c5ce5890ad9b9bed3b9be57966d8b765e1fe65c7",
+          "sequence": 425,
+          "offset": 2654512
+        }
+      },
+      "committed": {
+        "schema_version": 1,
+        "cursor": {
+          "feed_id": "03e64371dcdde0e0976ad4ddc16d2a4d95dd2cd9",
+          "sequence": 422,
+          "offset": 2433063
+        }
+      },
+      "source_committed_after_target_read": {
+        "schema_version": 1,
+        "cursor": {
+          "feed_id": "c5ce5890ad9b9bed3b9be57966d8b765e1fe65c7",
+          "sequence": 425,
+          "offset": 2654512
+        }
+      },
+      "hls_latest_positive_progress": "shared progress: elapsed_secs=5 ws_messages=59 market_events=119 reconnects=0 data_gaps=0",
+      "capture_alive_after_progress_read": true,
+      "progress_read_end_unix_ns": 1792582259339731000,
+      "progress_read_end_monotonic_ns": 2508109346314375
+    },
+    "final_target_sequence": 9163,
+    "scope": "Reported same-host wall-clock ACK/application ordering only; no clock synchronization, native availability or latency/SLA qualification"
+  },
+  "capture8_before": {
+    "capture/build.json": {
+      "sha256": "ce9fce0275346f6cb9275459d2a485c0515017f9ebf1b2e07af7ad2678d77e68",
+      "st_size": 1606,
+      "st_dev": 16777229,
+      "st_ino": 59363478,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792582253227979470,
+      "st_ctime_ns": 1792582253227979470
+    },
+    "capture/capture-executable": {
+      "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+      "st_size": 10906832,
+      "st_dev": 16777229,
+      "st_ino": 59363477,
+      "st_mode": 33133,
+      "st_mtime_ns": 1792582253203440477,
+      "st_ctime_ns": 1792582253203440477
+    },
+    "capture/feed/committed.json": {
+      "sha256": "4b48ca78dd943abed939ab28f9229c08c34bdcc7f80c1859e0778da09c6d5efe",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59374347,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373581233370,
+      "st_ctime_ns": 1792582373585058477
+    },
+    "capture/feed/events.mfsf": {
+      "sha256": "116851d4810cd400053d4127da026d97458a525bd4cfa7a196f0e6a8ec0aad7a",
+      "st_size": 26741466,
+      "st_dev": 16777229,
+      "st_ino": 59363483,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373577929105,
+      "st_ctime_ns": 1792582373577929105
+    },
+    "capture/report.json": {
+      "sha256": "8350a5f2436219eac9a96a17b7e87e6d7631d714c4c7a3290b1e351c2c1636ce",
+      "st_size": 12151,
+      "st_dev": 16777229,
+      "st_ino": 59374348,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792582373595496781,
+      "st_ctime_ns": 1792582373595496781
+    },
+    "capture/request.json": {
+      "sha256": "c29519c190ef9c3b658f878a59f3535df899f00692b9de1160374d4dbf0c2478",
+      "st_size": 999,
+      "st_dev": 16777229,
+      "st_ino": 59363476,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792582253178009420,
+      "st_ctime_ns": 1792582253178009420
+    },
+    "capture/source/committed.json": {
+      "sha256": "8e59b5d6d67a8329339715e0d93fe0ef2b892af18e0c51544ee9eb740378a4c7",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59374345,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373558203309,
+      "st_ctime_ns": 1792582373564190412
+    },
+    "capture/source/events.mfsf": {
+      "sha256": "4d413269477620e2782178fc25aef529293bf11eafc51f9749d363d27ac154c6",
+      "st_size": 26981078,
+      "st_dev": 16777229,
+      "st_ino": 59363480,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373555020005,
+      "st_ctime_ns": 1792582373555020005
+    }
+  },
+  "capture8_after": {
+    "capture/build.json": {
+      "sha256": "ce9fce0275346f6cb9275459d2a485c0515017f9ebf1b2e07af7ad2678d77e68",
+      "st_size": 1606,
+      "st_dev": 16777229,
+      "st_ino": 59363478,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792582253227979470,
+      "st_ctime_ns": 1792582253227979470
+    },
+    "capture/capture-executable": {
+      "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+      "st_size": 10906832,
+      "st_dev": 16777229,
+      "st_ino": 59363477,
+      "st_mode": 33133,
+      "st_mtime_ns": 1792582253203440477,
+      "st_ctime_ns": 1792582253203440477
+    },
+    "capture/feed/committed.json": {
+      "sha256": "4b48ca78dd943abed939ab28f9229c08c34bdcc7f80c1859e0778da09c6d5efe",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59374347,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373581233370,
+      "st_ctime_ns": 1792582373585058477
+    },
+    "capture/feed/events.mfsf": {
+      "sha256": "116851d4810cd400053d4127da026d97458a525bd4cfa7a196f0e6a8ec0aad7a",
+      "st_size": 26741466,
+      "st_dev": 16777229,
+      "st_ino": 59363483,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373577929105,
+      "st_ctime_ns": 1792582373577929105
+    },
+    "capture/report.json": {
+      "sha256": "8350a5f2436219eac9a96a17b7e87e6d7631d714c4c7a3290b1e351c2c1636ce",
+      "st_size": 12151,
+      "st_dev": 16777229,
+      "st_ino": 59374348,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792582373595496781,
+      "st_ctime_ns": 1792582373595496781
+    },
+    "capture/request.json": {
+      "sha256": "c29519c190ef9c3b658f878a59f3535df899f00692b9de1160374d4dbf0c2478",
+      "st_size": 999,
+      "st_dev": 16777229,
+      "st_ino": 59363476,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792582253178009420,
+      "st_ctime_ns": 1792582253178009420
+    },
+    "capture/source/committed.json": {
+      "sha256": "8e59b5d6d67a8329339715e0d93fe0ef2b892af18e0c51544ee9eb740378a4c7",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59374345,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373558203309,
+      "st_ctime_ns": 1792582373564190412
+    },
+    "capture/source/events.mfsf": {
+      "sha256": "4d413269477620e2782178fc25aef529293bf11eafc51f9749d363d27ac154c6",
+      "st_size": 26981078,
+      "st_dev": 16777229,
+      "st_ino": 59363480,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792582373555020005,
+      "st_ctime_ns": 1792582373555020005
+    }
+  },
+  "capture8_fullstats_unchanged": true,
+  "historical_original_proofs": {
+    "capture-originals-before-01.json": {
+      "files": 163,
+      "receipt": {
+        "file": "capture-originals-before-01.json",
+        "bytes": 64192,
+        "sha256": "c1d07764465cecce7697d4a1eb60dc1826b3a06677201fc72bc7dc27315ca61d"
+      }
+    },
+    "protected-original163-baseline-01.json": {
+      "files": 163,
+      "receipt": {
+        "file": "protected-original163-baseline-01.json",
+        "bytes": 67815,
+        "sha256": "3bb7e0c019f73c1c9834abfcb9bc18843f27d3db594fe0855baf357c57524cfb"
+      }
+    }
+  },
+  "evidence": {
+    "new-capture-before-first-verify-01.json": {
+      "file": "new-capture-before-first-verify-01.json",
+      "bytes": 3146,
+      "sha256": "4b07dbb6d2beaedc3e3b2ea5ad2f6013e2da6bd6d5c0f539f5f40c80db5fec1a"
+    },
+    "new-capture-after-first-verify-01.json": {
+      "file": "new-capture-after-first-verify-01.json",
+      "bytes": 3146,
+      "sha256": "4b07dbb6d2beaedc3e3b2ea5ad2f6013e2da6bd6d5c0f539f5f40c80db5fec1a"
+    },
+    "runner-terminal-01.json": {
+      "file": "runner-terminal-01.json",
+      "bytes": 749,
+      "sha256": "88b0be201e209b3c5ca1d6d5800a64e0d93f6494817892f8a68e5c0b507cb338"
+    },
+    "registration-01.json": {
+      "file": "registration-01.json",
+      "bytes": 12673,
+      "sha256": "e58a264e6635fabf1d7409ee39a294d37afa1f8ced1a700bf826f1516ada37c0"
+    },
+    "request-01.json": {
+      "file": "request-01.json",
+      "bytes": 999,
+      "sha256": "3c099a18482fc18deb3b83fbe781f9860ee8fd19e5bda4a245b05acacc6f6294"
+    },
+    "plan-01.json": {
+      "file": "plan-01.json",
+      "bytes": 4092,
+      "sha256": "b22869721171a63e4626df0e056671ef2d7c76e49aae9981b03d34ff488b06a9"
+    },
+    "terminal-01.json": {
+      "file": "terminal-01.json",
+      "bytes": 146035,
+      "sha256": "e6408c779a6a2bfc81de3ccf945e07aa5caf512160698d55a1ce93d84f194402"
+    },
+    "capture/report.json": {
+      "file": "report.json",
+      "bytes": 12151,
+      "sha256": "8350a5f2436219eac9a96a17b7e87e6d7631d714c4c7a3290b1e351c2c1636ce"
+    },
+    "hls-stdout-01.log": {
+      "file": "hls-stdout-01.log",
+      "bytes": 6780,
+      "sha256": "0d3346a01ab948e284d5d1e9eda023f66a3f6dd692cff7252969228ae8a34e57"
+    },
+    "hls-stderr-01.log": {
+      "file": "hls-stderr-01.log",
+      "bytes": 2692,
+      "sha256": "0b72170496e17a8b264ab7a28771a6833154cb1c0812624038b12d62d05283cb"
+    },
+    "quants-observer-01.json": {
+      "file": "quants-observer-01.json",
+      "bytes": 2338,
+      "sha256": "3c9f954cb28391f14d480edd300016cd2e3af0b813916c597a262859cabab491"
+    },
+    "verify-stdout-01.log": {
+      "file": "verify-stdout-01.log",
+      "bytes": 273,
+      "sha256": "48587c21f5e0ca2e8d28a29da2bb0ae46fe6e48ab8d7c283931dcc6e3be73a91"
+    },
+    "run-joint-01.py": {
+      "file": "run-joint-01.py",
+      "bytes": 25139,
+      "sha256": "d15e0f5416a53e8c512fb9abdceeb113d18166a6106a73b220fffaec2997cc98"
+    },
+    "capture-originals-before-01.json": {
+      "file": "capture-originals-before-01.json",
+      "bytes": 64192,
+      "sha256": "c1d07764465cecce7697d4a1eb60dc1826b3a06677201fc72bc7dc27315ca61d"
+    },
+    "protected-original163-baseline-01.json": {
+      "file": "protected-original163-baseline-01.json",
+      "bytes": 67815,
+      "sha256": "3bb7e0c019f73c1c9834abfcb9bc18843f27d3db594fe0855baf357c57524cfb"
+    }
+  },
+  "limitations": [
+    "Exact source eligible handoff\u2192target item/native values are compared without financial reexecution; actual retained native verify process result is separate.",
+    "Native timestamp\u2192local acquisition receipt compares unsynchronized clocks/semantics; initial trade snapshots separately retained. No native availability or one-way/network/SLA claim.",
+    "Seal.now_ns is pre-submission wall time, not durable ACK. Final events mtimes are file-write metadata, not ACK/delivery clocks.",
+    "Brackets bound committed logical-prefix deficit during each sampled read interval; no unsampled maximum, per-event delivery time or continuity inference. Missing post-source/pre-target interval is UNKNOWN.",
+    "Writer committed_operations is actor-operation count: source logical-record admissions, target one N-record transaction admission. Physical transaction and logical record counters remain separate; stage totals overlap and cannot establish elapsed fsync causality.",
+    "Uncontrolled public samples05/06 are not a paired workload/performance experiment. Target final-tail success cannot alone qualify native acquisition freshness.",
+    "No long soak, registered480 workload, strategy/economic, hosted/native-platform or operational qualification."
+  ],
+  "findings": [],
+  "helper": {
+    "file": "audit-native-01.py",
+    "bytes": 30122,
+    "sha256": "678004a5ceb07a85de192a4400a19c746ab8057f7a9142e9c09c90e914064454"
+  },
+  "methodology_history": {
+    "prior_closed_inspector": "joint08-independent-native-timing-01.py",
+    "scope": "New joint14 Completion/Intent pipeline570sourcee5cd/release19b7 and unchanged qualified84aa-pinned HLS8a638/Q67 from13. Dynamic actual counts/cursors/timings. No causal performance claim."
+  },
+  "HLS_current_binding": {
+    "producer_commit": "84aa63534f79ae65161117effd624d66f0294f48",
+    "source_map": "69e3fa03cdf849be672392a5682c1d574d614532b6e75329c1fbcb3577ef447f",
+    "qualification": {
+      "path": "private-evidence/hls/.hls/source0f332-pin-03/qualified-local-02.json",
+      "sha256": "19168d8585bca30a27af3cad974935b884a54d19c4b0f9a62598c8a3a0c2e009"
+    },
+    "binary": {
+      "path": "private-evidence/producer/.local/causal-capture-joint-pilot-14/artifacts/hls",
+      "bytes": 26916832,
+      "sha256": "8a63828d5f4ae686cd6caade59faea78ca180e38c78a5aca1c28d001eae1bb89"
+    },
+    "scope": "Current source-qualified retained HLS decoder, structural consumer only; no same-platform native-source authentication."
+  },
+  "release_build_binding": {
+    "capture_build_identity": {
+      "compiled": {
+        "debug": "false",
+        "encoded_rustflags": "-Dwarnings",
+        "git_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+        "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+        "opt_level": "3",
+        "package_features": [
+          {
+            "features": [
+              "default"
+            ],
+            "package": "marketfeed-adapter-bybit"
+          },
+          {
+            "features": [],
+            "package": "marketfeed-adapter-hyperliquid"
+          },
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          },
+          {
+            "features": [
+              "default"
+            ],
+            "package": "marketfeed-engine"
+          },
+          {
+            "features": [
+              "default",
+              "kafka",
+              "nats"
+            ],
+            "package": "marketfeed-sinks"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "release",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 570,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "target": "aarch64-apple-darwin"
+      },
+      "executable_bytes": 10906832,
+      "executable_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+    },
+    "producer_qualification": {
+      "path": "private-evidence/producer/.local/completion-intent-qualification/qualified-local-16.json",
+      "sha256": "b1d74a47a26cce33c568aa7c44cbe821f62696ec63c9e2e5c519b3f34e9be9ab"
+    },
+    "positive_artifact_build_bindings": {
+      "marketfeed-capture": {
+        "artifact_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+        "artifact_bytes": 10906832,
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+        "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+        "embedded_recipe": true,
+        "build_output": {
+          "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-capture",
+          "bytes": 10906832,
+          "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+        }
+      },
+      "marketfeed-observations": {
+        "artifact_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+        "artifact_bytes": 2310032,
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+        "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+        "embedded_recipe": false,
+        "build_output": {
+          "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-observations",
+          "bytes": 2310032,
+          "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+        }
+      }
+    },
+    "limits": "Sourcee5cd bounded Completion/Intent co-admission plus ownCompletion settlement atop66 read/gate diagnostics; compiled Gitparent66; exact existing release profile/request/caps. Published candidate commit remains unknown; no acquisition repair or optimization claim."
+  },
+  "producer_published_source_commit": null,
+  "producer_predecessor_published_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+  "source_event_kinds": {
+    "started": 2,
+    "ingress": 1821,
+    "execution_permitted": 1821,
+    "execution_completed": 1821,
+    "release_intent": 1818,
+    "handoff_observed": 1818,
+    "wire": 54,
+    "withheld": 3,
+    "revoked": 2
+  },
+  "input_kinds_by_session": {
+    "31": {
+      "connected": 1,
+      "text": 623,
+      "timer_poll": 5,
+      "stop": 1
+    },
+    "32": {
+      "connected": 1,
+      "text": 1184,
+      "timer_poll": 5,
+      "stop": 1
+    }
+  },
+  "source_and_hls_clock_approximation_consistency": true,
+  "portable_copy": {
+    "original_sha256": "04c8319f28a63e8a3e906b69ab5709d9176b8b4cc43a6a15e24fb54998de90f8",
+    "original_bytes": 77166,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}
