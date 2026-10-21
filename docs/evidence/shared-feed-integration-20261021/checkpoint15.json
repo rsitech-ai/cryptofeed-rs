@@ -1,0 +1,164 @@
+{
+  "schema_version": 1,
+  "status": "PASS",
+  "scope": "Closed joint15 actual pinned Rust bridge and Quants durable counter checkpoint restart/resume only",
+  "quants_commit": "67a9e1d055fe3dd137756225fd8d97c8ee1f7b2a",
+  "quants_sources": {
+    "core/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "core/market_observations/__init__.py": "7ce805898ba50b2d30cea492f037b6baf5319aa9ae14273a24818c1cc2d92556",
+    "core/market_observations/cryptofeed_projection.py": "d43147b3083651446f83f9a38f0c7c3cbd51c41aaa172face54f6682696bf6c9",
+    "core/market_observations/cryptofeed_checkpoint.py": "7e2ea94a97e0aecaa07ace4056a465dbb9164dea2c281de0737474f4cb054152",
+    "tests/market_observations/test_cryptofeed_checkpoint.py": "9e88d06023182e7ba64db7d5abda6ac22e1c735f4a0db23a4a0fcdeca31158b2"
+  },
+  "producer_source_recipe_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "bridge_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+  "bridge_build_evidence": "Retained exact fresh Cargo output byte binding; no embedded bridge recipe or loaded-image attestation.",
+  "runtime_version": "3.12.14 (main, Aug 25 2026, 13:50:33) [Clang 22.1.3 ]",
+  "runtime_sha256": "21a9986bad1dbbcd813a252b19b4263fc0755ed2dbf8632c83e5d6117a12f319",
+  "execution": {
+    "actual_session_id": 50635,
+    "actual_exit_code": 0,
+    "application_processes": 5,
+    "stage_exit_codes": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "elapsed_seconds": 94.28187829209492
+  },
+  "boundaries": [
+    {
+      "boundary": "5",
+      "state": {
+        "groups": 5,
+        "items": 0
+      },
+      "pair": {
+        "target": {
+          "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+          "sequence": 5,
+          "offset": 1219861
+        },
+        "source": {
+          "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+          "sequence": 5,
+          "offset": 1213164
+        }
+      },
+      "sealed": false,
+      "checkpoint_sha256": "92f4ab173347a608313079036d16feb7b6685a13e44f610fbd7bdbe75cf0a97a"
+    },
+    {
+      "boundary": "11",
+      "state": {
+        "groups": 11,
+        "items": 2
+      },
+      "pair": {
+        "target": {
+          "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+          "sequence": 11,
+          "offset": 1235574
+        },
+        "source": {
+          "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+          "sequence": 11,
+          "offset": 1229118
+        }
+      },
+      "sealed": false,
+      "checkpoint_sha256": "b474468f2e58dfdef48eaa08a2c0aff68f98df20f55d14ffe834af9f8d58b0a9"
+    },
+    {
+      "boundary": "9378",
+      "state": {
+        "groups": 9378,
+        "items": 1844
+      },
+      "pair": {
+        "target": {
+          "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+          "sequence": 9378,
+          "offset": 27296668
+        },
+        "source": {
+          "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+          "sequence": 9378,
+          "offset": 27399205
+        }
+      },
+      "sealed": false,
+      "checkpoint_sha256": "708574f3010bf07c5dbbb2d8ec736491c92c43dff38b7f15164da85fcc2b3d81"
+    },
+    {
+      "boundary": "9379",
+      "state": {
+        "groups": 9379,
+        "items": 1844
+      },
+      "pair": {
+        "target": {
+          "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+          "sequence": 9379,
+          "offset": 27298674
+        },
+        "source": {
+          "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+          "sequence": 9379,
+          "offset": 27399374
+        }
+      },
+      "sealed": true,
+      "checkpoint_sha256": "6186717b6006bf9a8470221a5a499a55b90b18428454a11bd31526b51dd46bf2"
+    },
+    {
+      "boundary": "sealed-idle",
+      "state": {
+        "groups": 9379,
+        "items": 1844
+      },
+      "pair": {
+        "target": {
+          "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+          "sequence": 9379,
+          "offset": 27298674
+        },
+        "source": {
+          "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+          "sequence": 9379,
+          "offset": 27399374
+        }
+      },
+      "sealed": true,
+      "checkpoint_sha256": "6186717b6006bf9a8470221a5a499a55b90b18428454a11bd31526b51dd46bf2"
+    }
+  ],
+  "groups": 9379,
+  "items": 1844,
+  "sealed_idle_unchanged": true,
+  "all_protected_archive_files_fullstats_sha256_unchanged": true,
+  "atime_claimed": false,
+  "physical_interior_claim": false,
+  "evidence_sha256": {
+    "plan": "7d662e8603e8e81bf0efe362625b3e3c8d474b3a82c872d59e551eee13ede5b6",
+    "prepare_helper": "58b0e5ec7aeed14a0d81c9408e06d5f44296521758378c88b08ec2c71e690cbe",
+    "execution_helper": "a9197c414345cc4f6c6e7c7b5e2520641094578a4fe02205af9eb7869f109921",
+    "execution_receipt": "b93529e33c125c277cbf779aaff3b946852d878f58db9c3ba535c5354762fceb",
+    "runner_terminal": "3e4217f77555f59ec5cfd652d52b3d5cb854c4670f375fde1c687af6bd6cb523",
+    "audit_helper": "4d56fddb50260d45b47943f6c42abc73402ab67fa74bfcdb5fb49be58b975194",
+    "parent_closure": "899a12701a3791fa34f14dbc220b7fcd476668fa7f88813f31ee5eee345a2a7f"
+  },
+  "validation": "mfop1_structure",
+  "native_source_verified": false,
+  "availability_time_ns": null,
+  "economics_supported": false,
+  "limitations": [
+    "mfop1_structure only; native_source_verified=false; availability_time_ns=null; economics_supported=false.",
+    "Orderly exit/reopen; crash/lostACK cases are separately covered by synthetic tests.",
+    "RAM counter only, no actual strategy/feature-state or external side effects.",
+    "Native timestamp differences are unsynchronized; no freshness/SLA/availability/continuity qualification.",
+    "No collector/network/nativekernel/Cargo/orders/activation or tracked-source mutation."
+  ]
+}

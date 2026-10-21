@@ -83,3 +83,12 @@ unsynchronized perps BBO timestamp diagnostic ended at 0.765 seconds and peaked
 at 2.624 seconds. Independent capture review, successor hosted checks and final
 consumer pins remain separate gates; this is not a freshness SLA or a controlled
 performance comparison.
+
+
+Final source-specific checkpoint: producer20f5 own17 hosted jobs pass, including
+Mac/Linux/MSRV and original watchdog/closing regressions. HLS0c07 pins20f5;
+its own main and all four native packages pass. Joint15 and five actual Quants
+restart processes pass independent audits, with all179 originals unchanged.
+See [final integration evidence](../evidence/shared-feed-integration-20261021/README.md)
+for exact counts, timing limits, saved-data receipts and remaining gates. These
+later proofs close the earlier pending consumer/platform checks for these pins.

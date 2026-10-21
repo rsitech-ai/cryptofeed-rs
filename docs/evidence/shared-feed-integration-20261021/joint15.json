@@ -1,0 +1,2569 @@
+{
+  "schema_version": 1,
+  "status": "PASS exact framing/eligible-handoff/native census; timing development gate PASS",
+  "scope": "Implementer read-only closed-source/target reconciliation and timing diagnostics using a separate strictCRC/JSON census helper; not an independent human/agent review and no new replay/nativeCLI/collector/consumer execution.",
+  "source_recipe": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "parent_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+  "source_cursor": {
+    "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+    "sequence": 9379,
+    "offset": 27399374
+  },
+  "target_cursor": {
+    "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+    "sequence": 9379,
+    "offset": 27298674
+  },
+  "source_records": 9379,
+  "target_groups": 9379,
+  "allCRC32C_sequences_cursorchains": true,
+  "exact_eligible_handoff_bindings": 1862,
+  "binding_census_sha256": "8a29079a2c6a255b4407d6d25092a878c7a4026a5f9131d88ca6d2ea79b470bc",
+  "all_nonhandoff_groups_empty": true,
+  "native_executed": {
+    "HyperliquidContext": 234,
+    "HyperliquidBook": 46,
+    "HyperliquidBbo": 1373,
+    "HyperliquidTrade": 368
+  },
+  "native_released": {
+    "HyperliquidContext": 234,
+    "HyperliquidBook": 46,
+    "HyperliquidBbo": 1373,
+    "HyperliquidTrade": 368
+  },
+  "native_withheld": {},
+  "released_by_session": {
+    "31": {
+      "HyperliquidContext": 117,
+      "HyperliquidBook": 23,
+      "HyperliquidBbo": 469,
+      "HyperliquidTrade": 72
+    },
+    "32": {
+      "HyperliquidContext": 117,
+      "HyperliquidBook": 23,
+      "HyperliquidTrade": 296,
+      "HyperliquidBbo": 904
+    }
+  },
+  "canonical_companions_executed": {
+    "MarkPrice": 234,
+    "OpenInterest": 117,
+    "BookSnapshot": 46,
+    "Quote": 1373,
+    "Trade": 368
+  },
+  "canonical_companions_released": {
+    "MarkPrice": 234,
+    "OpenInterest": 117,
+    "BookSnapshot": 46,
+    "Quote": 1373,
+    "Trade": 368
+  },
+  "projected_items": {
+    "market": 6,
+    "observed_market": 1832,
+    "system": 6
+  },
+  "hls_native_event_counts": {
+    "bbo": 1373,
+    "book": 46,
+    "context": 234,
+    "trade": 368
+  },
+  "hls_market_events": 2021,
+  "hls_gaps": 6,
+  "gap_groups": [
+    {
+      "sequence": 9373,
+      "session": 32,
+      "event": "execution_completed",
+      "input_id": 1202,
+      "items": 0
+    },
+    {
+      "sequence": 9374,
+      "session": 31,
+      "event": "execution_completed",
+      "input_id": 662,
+      "items": 0
+    },
+    {
+      "sequence": 9375,
+      "session": 32,
+      "event": "revoked",
+      "input_id": null,
+      "items": 0
+    },
+    {
+      "sequence": 9376,
+      "session": 31,
+      "event": "revoked",
+      "input_id": null,
+      "items": 0
+    },
+    {
+      "sequence": 9377,
+      "session": 32,
+      "event": "withheld",
+      "input_id": 1202,
+      "items": 0
+    },
+    {
+      "sequence": 9378,
+      "session": 31,
+      "event": "withheld",
+      "input_id": 662,
+      "items": 0
+    }
+  ],
+  "withheld": [
+    {
+      "session": 32,
+      "input_id": 1202,
+      "source_sequence": 9377,
+      "input_kind": "stop",
+      "native_rows": {},
+      "had_intent": false,
+      "had_handoff": false,
+      "complete_sequence": 9373
+    },
+    {
+      "session": 31,
+      "input_id": 662,
+      "source_sequence": 9378,
+      "input_kind": "stop",
+      "native_rows": {},
+      "had_intent": false,
+      "had_handoff": false,
+      "complete_sequence": 9374
+    }
+  ],
+  "drivers": [
+    {
+      "abandoned_inputs": 0,
+      "accepted_inputs": 1202,
+      "clean_stop": true,
+      "connections": 1,
+      "executed_inputs": 1202,
+      "finalization_expired": false,
+      "handoffs": 1201,
+      "inbound_binary": 0,
+      "inbound_text": 1195,
+      "last_transport_error": "None",
+      "market": "perps",
+      "owner_failure": "NativeStopped",
+      "owner_phase": "Stopped",
+      "read_diagnostics": {
+        "diagnostics_version": 1,
+        "gate_wait": {
+          "idle_pending_inputs_or_observations": {
+            "intervals": 1404,
+            "max_ns": 2272792,
+            "total_ns": 1358221572
+          },
+          "owner_awaiting_admission": {
+            "intervals": 6,
+            "max_ns": 1180791,
+            "total_ns": 6851749
+          },
+          "owner_awaiting_commit": {
+            "intervals": 99288,
+            "max_ns": 2297959,
+            "total_ns": 99201438473
+          },
+          "owner_executing": {
+            "intervals": 100,
+            "max_ns": 1175667,
+            "total_ns": 111946662
+          },
+          "owner_release_pending": {
+            "intervals": 1344,
+            "max_ns": 2471083,
+            "total_ns": 1348835387
+          },
+          "owner_stopped": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "wire_not_quiescent": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "observed_gate_runs": {
+          "intervals": 1201,
+          "max_ns": 572934084,
+          "total_ns": 102777571457
+        },
+        "read_calls": {
+          "errors": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "frames": {
+            "intervals": 1195,
+            "max_ns": 1202583,
+            "total_ns": 65800366
+          },
+          "polled_future_dropped": {
+            "intervals": 16777,
+            "max_ns": 2015375,
+            "total_ns": 16586126597
+          },
+          "returned_timeouts": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "saturated": false
+      },
+      "read_diagnostics_scope": "local monotonic application-read and observed owner-gate timing; wait-entry reasons are not phase residency; gate waits and runs overlap and are non-additive; no kernel/TLS arrival, native freshness or availability evidence",
+      "reason": "SessionBudget",
+      "stop_committed": true,
+      "transport_error_count": 0,
+      "unaccepted_frames": 0,
+      "wire_clean": true,
+      "wire_completions": 9,
+      "withheld_inputs": 1
+    },
+    {
+      "abandoned_inputs": 0,
+      "accepted_inputs": 662,
+      "clean_stop": true,
+      "connections": 1,
+      "executed_inputs": 662,
+      "finalization_expired": false,
+      "handoffs": 661,
+      "inbound_binary": 0,
+      "inbound_text": 655,
+      "last_transport_error": "None",
+      "market": "spot",
+      "owner_failure": "NativeStopped",
+      "owner_phase": "Stopped",
+      "read_diagnostics": {
+        "diagnostics_version": 1,
+        "gate_wait": {
+          "idle_pending_inputs_or_observations": {
+            "intervals": 822,
+            "max_ns": 2264958,
+            "total_ns": 745596041
+          },
+          "owner_awaiting_admission": {
+            "intervals": 1,
+            "max_ns": 1151958,
+            "total_ns": 1151958
+          },
+          "owner_awaiting_commit": {
+            "intervals": 68385,
+            "max_ns": 2471000,
+            "total_ns": 68327046448
+          },
+          "owner_executing": {
+            "intervals": 71,
+            "max_ns": 1165375,
+            "total_ns": 76516044
+          },
+          "owner_release_pending": {
+            "intervals": 747,
+            "max_ns": 1944125,
+            "total_ns": 745339372
+          },
+          "owner_stopped": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "wire_not_quiescent": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "observed_gate_runs": {
+          "intervals": 661,
+          "max_ns": 526856042,
+          "total_ns": 70623395709
+        },
+        "read_calls": {
+          "errors": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "frames": {
+            "intervals": 655,
+            "max_ns": 1256875,
+            "total_ns": 107219298
+          },
+          "polled_future_dropped": {
+            "intervals": 49242,
+            "max_ns": 2000125,
+            "total_ns": 48702873007
+          },
+          "returned_timeouts": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "saturated": false
+      },
+      "read_diagnostics_scope": "local monotonic application-read and observed owner-gate timing; wait-entry reasons are not phase residency; gate waits and runs overlap and are non-additive; no kernel/TLS arrival, native freshness or availability evidence",
+      "reason": "SessionBudget",
+      "stop_committed": true,
+      "transport_error_count": 0,
+      "unaccepted_frames": 0,
+      "wire_clean": true,
+      "wire_completions": 9,
+      "withheld_inputs": 1
+    }
+  ],
+  "stage_census": {
+    "source": {
+      "logical_records": 9379,
+      "actor_committed_operations": 9379,
+      "physical_transactions": 5524,
+      "timings": {
+        "accepted_records": 9379,
+        "accepted_transactions": 5524,
+        "append": {
+          "completed_calls": 5524,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            3,
+            5521,
+            0
+          ],
+          "max_ns": 35018500,
+          "total_ns": 102996949314
+        },
+        "append_attempts": 5524,
+        "data_sync": {
+          "completed_calls": 5524,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5512,
+            12,
+            0
+          ],
+          "max_ns": 17535250,
+          "total_ns": 27376327230
+        },
+        "directory_sync": {
+          "completed_calls": 5524,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5518,
+            6,
+            0
+          ],
+          "max_ns": 12114000,
+          "total_ns": 32992195758
+        },
+        "encode": {
+          "completed_calls": 5524,
+          "errors": 0,
+          "latency_buckets": [
+            3460,
+            2012,
+            50,
+            2,
+            0,
+            0
+          ],
+          "max_ns": 1601583,
+          "total_ns": 84001237
+        },
+        "failed_attempts": 0,
+        "lock_wait": {
+          "completed_calls": 0,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "max_ns": 0,
+          "total_ns": 0
+        },
+        "replace": {
+          "completed_calls": 5524,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            5099,
+            425,
+            0,
+            0
+          ],
+          "max_ns": 7375500,
+          "total_ns": 2841562026
+        },
+        "watermark_write_sync": {
+          "completed_calls": 5524,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5499,
+            25,
+            0
+          ],
+          "max_ns": 16797416,
+          "total_ns": 35913216290
+        },
+        "write": {
+          "completed_calls": 5524,
+          "errors": 0,
+          "latency_buckets": [
+            1,
+            263,
+            3656,
+            1604,
+            0,
+            0
+          ],
+          "max_ns": 5691375,
+          "total_ns": 3767634685
+        }
+      }
+    },
+    "target": {
+      "logical_records": 9379,
+      "actor_committed_operations": 9176,
+      "physical_transactions": 5522,
+      "timings": {
+        "accepted_records": 9379,
+        "accepted_transactions": 5522,
+        "append": {
+          "completed_calls": 5522,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            17,
+            5505,
+            0
+          ],
+          "max_ns": 32726625,
+          "total_ns": 105858074254
+        },
+        "append_attempts": 5522,
+        "data_sync": {
+          "completed_calls": 5522,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5513,
+            9,
+            0
+          ],
+          "max_ns": 13415416,
+          "total_ns": 32523414851
+        },
+        "directory_sync": {
+          "completed_calls": 5522,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5511,
+            11,
+            0
+          ],
+          "max_ns": 16579208,
+          "total_ns": 32939546285
+        },
+        "encode": {
+          "completed_calls": 5522,
+          "errors": 0,
+          "latency_buckets": [
+            271,
+            5248,
+            2,
+            1,
+            0,
+            0
+          ],
+          "max_ns": 1556500,
+          "total_ns": 91567274
+        },
+        "failed_attempts": 0,
+        "lock_wait": {
+          "completed_calls": 0,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "max_ns": 0,
+          "total_ns": 0
+        },
+        "replace": {
+          "completed_calls": 5522,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            5124,
+            398,
+            0,
+            0
+          ],
+          "max_ns": 6678375,
+          "total_ns": 2768426538
+        },
+        "watermark_write_sync": {
+          "completed_calls": 5522,
+          "errors": 0,
+          "latency_buckets": [
+            0,
+            0,
+            0,
+            5489,
+            33,
+            0
+          ],
+          "max_ns": 15695250,
+          "total_ns": 36078512890
+        },
+        "write": {
+          "completed_calls": 5522,
+          "errors": 0,
+          "latency_buckets": [
+            35,
+            382,
+            5002,
+            103,
+            0,
+            0
+          ],
+          "max_ns": 7437500,
+          "total_ns": 1437133454
+        }
+      }
+    }
+  },
+  "last_publication": {
+    "groups": 1,
+    "source_after": {
+      "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+      "offset": 27399374,
+      "sequence": 9379
+    },
+    "source_before": {
+      "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+      "offset": 27399205,
+      "sequence": 9378
+    },
+    "target_after": {
+      "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+      "offset": 27298674,
+      "sequence": 9379
+    },
+    "target_before": {
+      "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+      "offset": 27296668,
+      "sequence": 9378
+    }
+  },
+  "actual_child_exit_codes": {
+    "capture": 0,
+    "quants": 0,
+    "hls": 0,
+    "verify": 0
+  },
+  "timing": {
+    "units": "nanoseconds",
+    "requested_capture_ms": 120000,
+    "plan_start_unix_ns": 1792584394967545000,
+    "source_seal_pre_submission_unix_ns": 1792584516273849000,
+    "source_file_final_mtime_unix_ns": 1792584516276331799,
+    "target_file_final_mtime_unix_ns": 1792584516307366355,
+    "target_final_mtime_minus_source_final_mtime_ns": 31034556,
+    "development_mtime_tail_bound_ns": [
+      0,
+      2000000000
+    ],
+    "development_mtime_tail_passed": true,
+    "target_final_mtime_minus_seal_pre_submission_ns": 33517355,
+    "quants_last_ack_minus_source_final_mtime_ns": 61128201,
+    "first_bracket_after_final_source_mtime": null,
+    "post_final_committed_source_pre_target_interval": {
+      "status": "UNKNOWN",
+      "samples": 0,
+      "first": null,
+      "scope": "Requires source final committed cursor bracket; absence staysUNKNOWN, never zero."
+    },
+    "post_source_filemtime_pre_target_filemtime_interval": {
+      "status": "UNKNOWN",
+      "samples": 0,
+      "first": null,
+      "scope": "Final source file-write mtime precedes or differs from durable watermark/Seal ACK."
+    },
+    "sampled_bracket_deficit_max_lower": 8,
+    "sampled_bracket_deficit_max_upper": 8,
+    "brackets": [
+      {
+        "unix_ns": 1792584396141575000,
+        "end_unix_ns": 1792584396149134000,
+        "monotonic_ns": 2510246200490708,
+        "end_monotonic_ns": 2510246208048416,
+        "source_before": 0,
+        "target": 0,
+        "source_after": 1,
+        "deficit_lower": 0,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584397151500000,
+        "end_unix_ns": 1792584397156352000,
+        "monotonic_ns": 2510247210459041,
+        "end_monotonic_ns": 2510247215309916,
+        "source_before": 30,
+        "target": 28,
+        "source_after": 30,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584398161024000,
+        "end_unix_ns": 1792584398164599000,
+        "monotonic_ns": 2510248220022458,
+        "end_monotonic_ns": 2510248223596958,
+        "source_before": 112,
+        "target": 110,
+        "source_after": 112,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584399166161000,
+        "end_unix_ns": 1792584399166692000,
+        "monotonic_ns": 2510249225197791,
+        "end_monotonic_ns": 2510249225727666,
+        "source_before": 202,
+        "target": 198,
+        "source_after": 202,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584400170040000,
+        "end_unix_ns": 1792584400173526000,
+        "monotonic_ns": 2510250229112375,
+        "end_monotonic_ns": 2510250232598083,
+        "source_before": 291,
+        "target": 283,
+        "source_after": 291,
+        "deficit_lower": 8,
+        "deficit_upper": 8
+      },
+      {
+        "unix_ns": 1792584401177669000,
+        "end_unix_ns": 1792584401178913000,
+        "monotonic_ns": 2510251236776250,
+        "end_monotonic_ns": 2510251238018791,
+        "source_before": 358,
+        "target": 358,
+        "source_after": 358,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584402179107000,
+        "end_unix_ns": 1792584402185678000,
+        "monotonic_ns": 2510252238244541,
+        "end_monotonic_ns": 2510252244815875,
+        "source_before": 426,
+        "target": 422,
+        "source_after": 426,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584403185836000,
+        "end_unix_ns": 1792584403186481000,
+        "monotonic_ns": 2510253245002875,
+        "end_monotonic_ns": 2510253245647333,
+        "source_before": 503,
+        "target": 500,
+        "source_after": 503,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584404189664000,
+        "end_unix_ns": 1792584404210603000,
+        "monotonic_ns": 2510254248859500,
+        "end_monotonic_ns": 2510254269798083,
+        "source_before": 570,
+        "target": 568,
+        "source_after": 572,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584405213932000,
+        "end_unix_ns": 1792584405214948000,
+        "monotonic_ns": 2510255273154125,
+        "end_monotonic_ns": 2510255274169500,
+        "source_before": 603,
+        "target": 603,
+        "source_after": 603,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584406219363000,
+        "end_unix_ns": 1792584406220604000,
+        "monotonic_ns": 2510256278609416,
+        "end_monotonic_ns": 2510256279850083,
+        "source_before": 663,
+        "target": 660,
+        "source_after": 663,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584407222656000,
+        "end_unix_ns": 1792584407228769000,
+        "monotonic_ns": 2510257281925125,
+        "end_monotonic_ns": 2510257288038291,
+        "source_before": 754,
+        "target": 750,
+        "source_after": 754,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584408231995000,
+        "end_unix_ns": 1792584408237872000,
+        "monotonic_ns": 2510258291286458,
+        "end_monotonic_ns": 2510258297163166,
+        "source_before": 848,
+        "target": 847,
+        "source_after": 850,
+        "deficit_lower": 1,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584409238092000,
+        "end_unix_ns": 1792584409243578000,
+        "monotonic_ns": 2510259297403000,
+        "end_monotonic_ns": 2510259302888958,
+        "source_before": 935,
+        "target": 933,
+        "source_after": 935,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584410248418000,
+        "end_unix_ns": 1792584410248989000,
+        "monotonic_ns": 2510260307748333,
+        "end_monotonic_ns": 2510260308319041,
+        "source_before": 1018,
+        "target": 1018,
+        "source_after": 1018,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584411252240000,
+        "end_unix_ns": 1792584411254572000,
+        "monotonic_ns": 2510261311588208,
+        "end_monotonic_ns": 2510261313920416,
+        "source_before": 1064,
+        "target": 1060,
+        "source_after": 1064,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584412259599000,
+        "end_unix_ns": 1792584412263694000,
+        "monotonic_ns": 2510262318963833,
+        "end_monotonic_ns": 2510262323059500,
+        "source_before": 1150,
+        "target": 1147,
+        "source_after": 1150,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584413268728000,
+        "end_unix_ns": 1792584413270147000,
+        "monotonic_ns": 2510263328109208,
+        "end_monotonic_ns": 2510263329527875,
+        "source_before": 1237,
+        "target": 1233,
+        "source_after": 1237,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584414270775000,
+        "end_unix_ns": 1792584414275402000,
+        "monotonic_ns": 2510264330170666,
+        "end_monotonic_ns": 2510264334798125,
+        "source_before": 1325,
+        "target": 1324,
+        "source_after": 1325,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584415280432000,
+        "end_unix_ns": 1792584415289437000,
+        "monotonic_ns": 2510265339842416,
+        "end_monotonic_ns": 2510265348847500,
+        "source_before": 1415,
+        "target": 1413,
+        "source_after": 1417,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584416294356000,
+        "end_unix_ns": 1792584416296426000,
+        "monotonic_ns": 2510266353779583,
+        "end_monotonic_ns": 2510266355849000,
+        "source_before": 1507,
+        "target": 1503,
+        "source_after": 1507,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584417298991000,
+        "end_unix_ns": 1792584417308959000,
+        "monotonic_ns": 2510267358427625,
+        "end_monotonic_ns": 2510267368394916,
+        "source_before": 1593,
+        "target": 1591,
+        "source_after": 1595,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584418309919000,
+        "end_unix_ns": 1792584418317529000,
+        "monotonic_ns": 2510268369366500,
+        "end_monotonic_ns": 2510268376976291,
+        "source_before": 1679,
+        "target": 1678,
+        "source_after": 1679,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584419319165000,
+        "end_unix_ns": 1792584419321513000,
+        "monotonic_ns": 2510269378623916,
+        "end_monotonic_ns": 2510269380971250,
+        "source_before": 1771,
+        "target": 1768,
+        "source_after": 1771,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584420323509000,
+        "end_unix_ns": 1792584420324029000,
+        "monotonic_ns": 2510270382978041,
+        "end_monotonic_ns": 2510270383498083,
+        "source_before": 1856,
+        "target": 1853,
+        "source_after": 1856,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584421324491000,
+        "end_unix_ns": 1792584421332429000,
+        "monotonic_ns": 2510271383969708,
+        "end_monotonic_ns": 2510271391907583,
+        "source_before": 1918,
+        "target": 1915,
+        "source_after": 1918,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584422336237000,
+        "end_unix_ns": 1792584422340561000,
+        "monotonic_ns": 2510272395725666,
+        "end_monotonic_ns": 2510272400048416,
+        "source_before": 2002,
+        "target": 1998,
+        "source_after": 2002,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584423341242000,
+        "end_unix_ns": 1792584423348814000,
+        "monotonic_ns": 2510273400738916,
+        "end_monotonic_ns": 2510273408310250,
+        "source_before": 2060,
+        "target": 2058,
+        "source_after": 2061,
+        "deficit_lower": 2,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584424352817000,
+        "end_unix_ns": 1792584424359150000,
+        "monotonic_ns": 2510274412323458,
+        "end_monotonic_ns": 2510274418655000,
+        "source_before": 2133,
+        "target": 2129,
+        "source_after": 2133,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584425360851000,
+        "end_unix_ns": 1792584425361820000,
+        "monotonic_ns": 2510275420365041,
+        "end_monotonic_ns": 2510275421332541,
+        "source_before": 2164,
+        "target": 2164,
+        "source_after": 2164,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584426364866000,
+        "end_unix_ns": 1792584426370095000,
+        "monotonic_ns": 2510276424386125,
+        "end_monotonic_ns": 2510276429615375,
+        "source_before": 2213,
+        "target": 2211,
+        "source_after": 2214,
+        "deficit_lower": 2,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584427370975000,
+        "end_unix_ns": 1792584427377157000,
+        "monotonic_ns": 2510277430501666,
+        "end_monotonic_ns": 2510277436683791,
+        "source_before": 2295,
+        "target": 2293,
+        "source_after": 2297,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584428381912000,
+        "end_unix_ns": 1792584428382593000,
+        "monotonic_ns": 2510278441445500,
+        "end_monotonic_ns": 2510278442126041,
+        "source_before": 2379,
+        "target": 2379,
+        "source_after": 2379,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584429384920000,
+        "end_unix_ns": 1792584429385437000,
+        "monotonic_ns": 2510279444459666,
+        "end_monotonic_ns": 2510279444976750,
+        "source_before": 2469,
+        "target": 2467,
+        "source_after": 2469,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584430387460000,
+        "end_unix_ns": 1792584430387960000,
+        "monotonic_ns": 2510280447005791,
+        "end_monotonic_ns": 2510280447505041,
+        "source_before": 2558,
+        "target": 2555,
+        "source_after": 2558,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584431392847000,
+        "end_unix_ns": 1792584431393382000,
+        "monotonic_ns": 2510281452398541,
+        "end_monotonic_ns": 2510281452932791,
+        "source_before": 2641,
+        "target": 2638,
+        "source_after": 2641,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584432393539000,
+        "end_unix_ns": 1792584432400821000,
+        "monotonic_ns": 2510282453095833,
+        "end_monotonic_ns": 2510282460376916,
+        "source_before": 2729,
+        "target": 2728,
+        "source_after": 2731,
+        "deficit_lower": 1,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584433404827000,
+        "end_unix_ns": 1792584433412825000,
+        "monotonic_ns": 2510283464388875,
+        "end_monotonic_ns": 2510283472386541,
+        "source_before": 2823,
+        "target": 2821,
+        "source_after": 2825,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584434412881000,
+        "end_unix_ns": 1792584434413395000,
+        "monotonic_ns": 2510284472447791,
+        "end_monotonic_ns": 2510284472960291,
+        "source_before": 2915,
+        "target": 2911,
+        "source_after": 2915,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584435416356000,
+        "end_unix_ns": 1792584435416826000,
+        "monotonic_ns": 2510285475926750,
+        "end_monotonic_ns": 2510285476396208,
+        "source_before": 3004,
+        "target": 3003,
+        "source_after": 3004,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584436417660000,
+        "end_unix_ns": 1792584436425078000,
+        "monotonic_ns": 2510286477235916,
+        "end_monotonic_ns": 2510286484652083,
+        "source_before": 3093,
+        "target": 3091,
+        "source_after": 3093,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584437430117000,
+        "end_unix_ns": 1792584437432568000,
+        "monotonic_ns": 2510287489695916,
+        "end_monotonic_ns": 2510287492146791,
+        "source_before": 3167,
+        "target": 3165,
+        "source_after": 3167,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584438434228000,
+        "end_unix_ns": 1792584438434819000,
+        "monotonic_ns": 2510288493810875,
+        "end_monotonic_ns": 2510288494401000,
+        "source_before": 3244,
+        "target": 3243,
+        "source_after": 3244,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584439436045000,
+        "end_unix_ns": 1792584439439890000,
+        "monotonic_ns": 2510289495631333,
+        "end_monotonic_ns": 2510289499475458,
+        "source_before": 3324,
+        "target": 3320,
+        "source_after": 3324,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584440441690000,
+        "end_unix_ns": 1792584440442241000,
+        "monotonic_ns": 2510290501279625,
+        "end_monotonic_ns": 2510290501830125,
+        "source_before": 3405,
+        "target": 3402,
+        "source_after": 3405,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584441447281000,
+        "end_unix_ns": 1792584441455887000,
+        "monotonic_ns": 2510291506873541,
+        "end_monotonic_ns": 2510291515479333,
+        "source_before": 3498,
+        "target": 3494,
+        "source_after": 3498,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584442459923000,
+        "end_unix_ns": 1792584442462798000,
+        "monotonic_ns": 2510292519519458,
+        "end_monotonic_ns": 2510292522394041,
+        "source_before": 3582,
+        "target": 3579,
+        "source_after": 3582,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584443467912000,
+        "end_unix_ns": 1792584443473003000,
+        "monotonic_ns": 2510293527511708,
+        "end_monotonic_ns": 2510293532602125,
+        "source_before": 3674,
+        "target": 3670,
+        "source_after": 3674,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584444474644000,
+        "end_unix_ns": 1792584444478096000,
+        "monotonic_ns": 2510294534245916,
+        "end_monotonic_ns": 2510294537697791,
+        "source_before": 3762,
+        "target": 3761,
+        "source_after": 3762,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584445478527000,
+        "end_unix_ns": 1792584445479052000,
+        "monotonic_ns": 2510295538131541,
+        "end_monotonic_ns": 2510295538655916,
+        "source_before": 3849,
+        "target": 3846,
+        "source_after": 3849,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584446484027000,
+        "end_unix_ns": 1792584446489624000,
+        "monotonic_ns": 2510296543634750,
+        "end_monotonic_ns": 2510296549230875,
+        "source_before": 3934,
+        "target": 3932,
+        "source_after": 3934,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584447490796000,
+        "end_unix_ns": 1792584447493303000,
+        "monotonic_ns": 2510297550406166,
+        "end_monotonic_ns": 2510297552912708,
+        "source_before": 4018,
+        "target": 4014,
+        "source_after": 4018,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584448493575000,
+        "end_unix_ns": 1792584448494119000,
+        "monotonic_ns": 2510298553187541,
+        "end_monotonic_ns": 2510298553730625,
+        "source_before": 4099,
+        "target": 4096,
+        "source_after": 4099,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584449499236000,
+        "end_unix_ns": 1792584449504536000,
+        "monotonic_ns": 2510299558851375,
+        "end_monotonic_ns": 2510299564150541,
+        "source_before": 4189,
+        "target": 4187,
+        "source_after": 4189,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584450505039000,
+        "end_unix_ns": 1792584450505530000,
+        "monotonic_ns": 2510300564655916,
+        "end_monotonic_ns": 2510300565146750,
+        "source_before": 4278,
+        "target": 4276,
+        "source_after": 4278,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584451510007000,
+        "end_unix_ns": 1792584451510695000,
+        "monotonic_ns": 2510301569625416,
+        "end_monotonic_ns": 2510301570313083,
+        "source_before": 4369,
+        "target": 4365,
+        "source_after": 4369,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584452515737000,
+        "end_unix_ns": 1792584452524159000,
+        "monotonic_ns": 2510302575357583,
+        "end_monotonic_ns": 2510302583779208,
+        "source_before": 4460,
+        "target": 4457,
+        "source_after": 4460,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584453526629000,
+        "end_unix_ns": 1792584453528803000,
+        "monotonic_ns": 2510303586251916,
+        "end_monotonic_ns": 2510303588425750,
+        "source_before": 4547,
+        "target": 4544,
+        "source_after": 4547,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584454530060000,
+        "end_unix_ns": 1792584454537584000,
+        "monotonic_ns": 2510304589685375,
+        "end_monotonic_ns": 2510304597209166,
+        "source_before": 4635,
+        "target": 4634,
+        "source_after": 4637,
+        "deficit_lower": 1,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584455542641000,
+        "end_unix_ns": 1792584455548416000,
+        "monotonic_ns": 2510305602268083,
+        "end_monotonic_ns": 2510305608042708,
+        "source_before": 4720,
+        "target": 4719,
+        "source_after": 4722,
+        "deficit_lower": 1,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584456552607000,
+        "end_unix_ns": 1792584456558678000,
+        "monotonic_ns": 2510306612236333,
+        "end_monotonic_ns": 2510306618306125,
+        "source_before": 4809,
+        "target": 4806,
+        "source_after": 4809,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584457563677000,
+        "end_unix_ns": 1792584457571491000,
+        "monotonic_ns": 2510307623307083,
+        "end_monotonic_ns": 2510307631120916,
+        "source_before": 4897,
+        "target": 4893,
+        "source_after": 4897,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584458573595000,
+        "end_unix_ns": 1792584458574082000,
+        "monotonic_ns": 2510308633226875,
+        "end_monotonic_ns": 2510308633713625,
+        "source_before": 4986,
+        "target": 4984,
+        "source_after": 4986,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584459576574000,
+        "end_unix_ns": 1792584459577117000,
+        "monotonic_ns": 2510309636207625,
+        "end_monotonic_ns": 2510309636750041,
+        "source_before": 5083,
+        "target": 5080,
+        "source_after": 5083,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584460580424000,
+        "end_unix_ns": 1792584460580944000,
+        "monotonic_ns": 2510310640059166,
+        "end_monotonic_ns": 2510310640578416,
+        "source_before": 5171,
+        "target": 5168,
+        "source_after": 5171,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584461584603000,
+        "end_unix_ns": 1792584461586869000,
+        "monotonic_ns": 2510311644239416,
+        "end_monotonic_ns": 2510311646504958,
+        "source_before": 5255,
+        "target": 5253,
+        "source_after": 5255,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584462587004000,
+        "end_unix_ns": 1792584462596697000,
+        "monotonic_ns": 2510312646643208,
+        "end_monotonic_ns": 2510312656335166,
+        "source_before": 5321,
+        "target": 5321,
+        "source_after": 5321,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584463600982000,
+        "end_unix_ns": 1792584463602099000,
+        "monotonic_ns": 2510313660621458,
+        "end_monotonic_ns": 2510313661738375,
+        "source_before": 5373,
+        "target": 5370,
+        "source_after": 5373,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584464604843000,
+        "end_unix_ns": 1792584464607039000,
+        "monotonic_ns": 2510314664484291,
+        "end_monotonic_ns": 2510314666679125,
+        "source_before": 5446,
+        "target": 5446,
+        "source_after": 5446,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584465612157000,
+        "end_unix_ns": 1792584465612841000,
+        "monotonic_ns": 2510315671800000,
+        "end_monotonic_ns": 2510315672483208,
+        "source_before": 5506,
+        "target": 5506,
+        "source_after": 5506,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584466617942000,
+        "end_unix_ns": 1792584466620891000,
+        "monotonic_ns": 2510316677586166,
+        "end_monotonic_ns": 2510316680534666,
+        "source_before": 5551,
+        "target": 5548,
+        "source_after": 5551,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584467625802000,
+        "end_unix_ns": 1792584467635370000,
+        "monotonic_ns": 2510317685448750,
+        "end_monotonic_ns": 2510317695014833,
+        "source_before": 5596,
+        "target": 5596,
+        "source_after": 5596,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584468636955000,
+        "end_unix_ns": 1792584468637510000,
+        "monotonic_ns": 2510318696601166,
+        "end_monotonic_ns": 2510318697156333,
+        "source_before": 5630,
+        "target": 5628,
+        "source_after": 5630,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584469640787000,
+        "end_unix_ns": 1792584469646657000,
+        "monotonic_ns": 2510319700434916,
+        "end_monotonic_ns": 2510319706304458,
+        "source_before": 5716,
+        "target": 5713,
+        "source_after": 5716,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584470651369000,
+        "end_unix_ns": 1792584470658803000,
+        "monotonic_ns": 2510320711018166,
+        "end_monotonic_ns": 2510320718451833,
+        "source_before": 5807,
+        "target": 5802,
+        "source_after": 5807,
+        "deficit_lower": 5,
+        "deficit_upper": 5
+      },
+      {
+        "unix_ns": 1792584471659387000,
+        "end_unix_ns": 1792584471659904000,
+        "monotonic_ns": 2510321719037500,
+        "end_monotonic_ns": 2510321719553583,
+        "source_before": 5885,
+        "target": 5881,
+        "source_after": 5885,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584472664247000,
+        "end_unix_ns": 1792584472669402000,
+        "monotonic_ns": 2510322723897791,
+        "end_monotonic_ns": 2510322729052833,
+        "source_before": 5969,
+        "target": 5965,
+        "source_after": 5969,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584473671902000,
+        "end_unix_ns": 1792584473672461000,
+        "monotonic_ns": 2510323731554125,
+        "end_monotonic_ns": 2510323732113125,
+        "source_before": 6051,
+        "target": 6049,
+        "source_after": 6051,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584474676469000,
+        "end_unix_ns": 1792584474678684000,
+        "monotonic_ns": 2510324736122375,
+        "end_monotonic_ns": 2510324738337541,
+        "source_before": 6130,
+        "target": 6127,
+        "source_after": 6130,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584475682171000,
+        "end_unix_ns": 1792584475687606000,
+        "monotonic_ns": 2510325741826041,
+        "end_monotonic_ns": 2510325747260041,
+        "source_before": 6217,
+        "target": 6213,
+        "source_after": 6217,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584476690681000,
+        "end_unix_ns": 1792584476702623000,
+        "monotonic_ns": 2510326750336875,
+        "end_monotonic_ns": 2510326762278416,
+        "source_before": 6305,
+        "target": 6303,
+        "source_after": 6307,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584477707672000,
+        "end_unix_ns": 1792584477713072000,
+        "monotonic_ns": 2510327767329083,
+        "end_monotonic_ns": 2510327772728708,
+        "source_before": 6389,
+        "target": 6387,
+        "source_after": 6389,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584478715808000,
+        "end_unix_ns": 1792584478716371000,
+        "monotonic_ns": 2510328775466250,
+        "end_monotonic_ns": 2510328776028500,
+        "source_before": 6476,
+        "target": 6473,
+        "source_after": 6476,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584479721172000,
+        "end_unix_ns": 1792584479721721000,
+        "monotonic_ns": 2510329780831291,
+        "end_monotonic_ns": 2510329781379166,
+        "source_before": 6559,
+        "target": 6556,
+        "source_after": 6559,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584480723707000,
+        "end_unix_ns": 1792584480727813000,
+        "monotonic_ns": 2510330783367625,
+        "end_monotonic_ns": 2510330787472541,
+        "source_before": 6641,
+        "target": 6639,
+        "source_after": 6641,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584481728600000,
+        "end_unix_ns": 1792584481734150000,
+        "monotonic_ns": 2510331788262041,
+        "end_monotonic_ns": 2510331793810500,
+        "source_before": 6725,
+        "target": 6721,
+        "source_after": 6725,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584482739190000,
+        "end_unix_ns": 1792584482742716000,
+        "monotonic_ns": 2510332798851750,
+        "end_monotonic_ns": 2510332802378333,
+        "source_before": 6805,
+        "target": 6803,
+        "source_after": 6805,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584483742916000,
+        "end_unix_ns": 1792584483743428000,
+        "monotonic_ns": 2510333802579541,
+        "end_monotonic_ns": 2510333803090833,
+        "source_before": 6887,
+        "target": 6885,
+        "source_after": 6887,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584484748203000,
+        "end_unix_ns": 1792584484748781000,
+        "monotonic_ns": 2510334807867208,
+        "end_monotonic_ns": 2510334808444375,
+        "source_before": 6977,
+        "target": 6975,
+        "source_after": 6977,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584485749542000,
+        "end_unix_ns": 1792584485750075000,
+        "monotonic_ns": 2510335809207458,
+        "end_monotonic_ns": 2510335809739916,
+        "source_before": 7066,
+        "target": 7063,
+        "source_after": 7066,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584486751712000,
+        "end_unix_ns": 1792584486759769000,
+        "monotonic_ns": 2510336811377666,
+        "end_monotonic_ns": 2510336819435083,
+        "source_before": 7154,
+        "target": 7152,
+        "source_after": 7154,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584487762202000,
+        "end_unix_ns": 1792584487770823000,
+        "monotonic_ns": 2510337821868958,
+        "end_monotonic_ns": 2510337830489666,
+        "source_before": 7241,
+        "target": 7240,
+        "source_after": 7242,
+        "deficit_lower": 1,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584488775728000,
+        "end_unix_ns": 1792584488780300000,
+        "monotonic_ns": 2510338835396250,
+        "end_monotonic_ns": 2510338839967583,
+        "source_before": 7334,
+        "target": 7331,
+        "source_after": 7334,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584489785115000,
+        "end_unix_ns": 1792584489785699000,
+        "monotonic_ns": 2510339844785000,
+        "end_monotonic_ns": 2510339845367750,
+        "source_before": 7416,
+        "target": 7413,
+        "source_after": 7416,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584490788469000,
+        "end_unix_ns": 1792584490789225000,
+        "monotonic_ns": 2510340848138875,
+        "end_monotonic_ns": 2510340848894208,
+        "source_before": 7462,
+        "target": 7462,
+        "source_after": 7462,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584491791188000,
+        "end_unix_ns": 1792584491795770000,
+        "monotonic_ns": 2510341850858916,
+        "end_monotonic_ns": 2510341855440583,
+        "source_before": 7522,
+        "target": 7520,
+        "source_after": 7522,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584492800175000,
+        "end_unix_ns": 1792584492801099000,
+        "monotonic_ns": 2510342859847375,
+        "end_monotonic_ns": 2510342860770708,
+        "source_before": 7612,
+        "target": 7612,
+        "source_after": 7612,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584493804237000,
+        "end_unix_ns": 1792584493805202000,
+        "monotonic_ns": 2510343863909500,
+        "end_monotonic_ns": 2510343864874833,
+        "source_before": 7682,
+        "target": 7682,
+        "source_after": 7682,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584494808640000,
+        "end_unix_ns": 1792584494809534000,
+        "monotonic_ns": 2510344868314583,
+        "end_monotonic_ns": 2510344869207625,
+        "source_before": 7727,
+        "target": 7727,
+        "source_after": 7727,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584495811359000,
+        "end_unix_ns": 1792584495812051000,
+        "monotonic_ns": 2510345871033500,
+        "end_monotonic_ns": 2510345871725583,
+        "source_before": 7797,
+        "target": 7797,
+        "source_after": 7797,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584496814702000,
+        "end_unix_ns": 1792584496819350000,
+        "monotonic_ns": 2510346874377625,
+        "end_monotonic_ns": 2510346879025333,
+        "source_before": 7848,
+        "target": 7844,
+        "source_after": 7848,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584497823426000,
+        "end_unix_ns": 1792584497823890000,
+        "monotonic_ns": 2510347883102458,
+        "end_monotonic_ns": 2510347883565875,
+        "source_before": 7935,
+        "target": 7932,
+        "source_after": 7935,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584498824046000,
+        "end_unix_ns": 1792584498824589000,
+        "monotonic_ns": 2510348883723750,
+        "end_monotonic_ns": 2510348884266500,
+        "source_before": 8025,
+        "target": 8022,
+        "source_after": 8025,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584499829631000,
+        "end_unix_ns": 1792584499840999000,
+        "monotonic_ns": 2510349889309583,
+        "end_monotonic_ns": 2510349900676875,
+        "source_before": 8110,
+        "target": 8109,
+        "source_after": 8110,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584500845968000,
+        "end_unix_ns": 1792584500849159000,
+        "monotonic_ns": 2510350905647625,
+        "end_monotonic_ns": 2510350908838083,
+        "source_before": 8194,
+        "target": 8192,
+        "source_after": 8194,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584501852456000,
+        "end_unix_ns": 1792584501862190000,
+        "monotonic_ns": 2510351912137000,
+        "end_monotonic_ns": 2510351921870208,
+        "source_before": 8274,
+        "target": 8272,
+        "source_after": 8275,
+        "deficit_lower": 2,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584502866784000,
+        "end_unix_ns": 1792584502867989000,
+        "monotonic_ns": 2510352926465375,
+        "end_monotonic_ns": 2510352927669791,
+        "source_before": 8366,
+        "target": 8362,
+        "source_after": 8366,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584503872018000,
+        "end_unix_ns": 1792584503881473000,
+        "monotonic_ns": 2510353931699875,
+        "end_monotonic_ns": 2510353941154875,
+        "source_before": 8455,
+        "target": 8453,
+        "source_after": 8455,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584504884374000,
+        "end_unix_ns": 1792584504884948000,
+        "monotonic_ns": 2510354944057500,
+        "end_monotonic_ns": 2510354944630416,
+        "source_before": 8542,
+        "target": 8538,
+        "source_after": 8542,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584505889999000,
+        "end_unix_ns": 1792584505897226000,
+        "monotonic_ns": 2510355949683375,
+        "end_monotonic_ns": 2510355956909583,
+        "source_before": 8628,
+        "target": 8627,
+        "source_after": 8628,
+        "deficit_lower": 1,
+        "deficit_upper": 1
+      },
+      {
+        "unix_ns": 1792584506902294000,
+        "end_unix_ns": 1792584506905852000,
+        "monotonic_ns": 2510356961978875,
+        "end_monotonic_ns": 2510356965536541,
+        "source_before": 8715,
+        "target": 8713,
+        "source_after": 8715,
+        "deficit_lower": 2,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584507910442000,
+        "end_unix_ns": 1792584507910965000,
+        "monotonic_ns": 2510357970127333,
+        "end_monotonic_ns": 2510357970650500,
+        "source_before": 8796,
+        "target": 8792,
+        "source_after": 8796,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584508911642000,
+        "end_unix_ns": 1792584508912215000,
+        "monotonic_ns": 2510358971329125,
+        "end_monotonic_ns": 2510358971901083,
+        "source_before": 8877,
+        "target": 8874,
+        "source_after": 8877,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584509913297000,
+        "end_unix_ns": 1792584509922088000,
+        "monotonic_ns": 2510359972984250,
+        "end_monotonic_ns": 2510359981775583,
+        "source_before": 8957,
+        "target": 8956,
+        "source_after": 8958,
+        "deficit_lower": 1,
+        "deficit_upper": 2
+      },
+      {
+        "unix_ns": 1792584510926011000,
+        "end_unix_ns": 1792584510926674000,
+        "monotonic_ns": 2510360985699958,
+        "end_monotonic_ns": 2510360986361708,
+        "source_before": 9045,
+        "target": 9042,
+        "source_after": 9045,
+        "deficit_lower": 3,
+        "deficit_upper": 3
+      },
+      {
+        "unix_ns": 1792584511930439000,
+        "end_unix_ns": 1792584511943671000,
+        "monotonic_ns": 2510361990128500,
+        "end_monotonic_ns": 2510362003360750,
+        "source_before": 9135,
+        "target": 9133,
+        "source_after": 9137,
+        "deficit_lower": 2,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584512944954000,
+        "end_unix_ns": 1792584512945489000,
+        "monotonic_ns": 2510363004643541,
+        "end_monotonic_ns": 2510363005179000,
+        "source_before": 9227,
+        "target": 9223,
+        "source_after": 9227,
+        "deficit_lower": 4,
+        "deficit_upper": 4
+      },
+      {
+        "unix_ns": 1792584513950554000,
+        "end_unix_ns": 1792584513951726000,
+        "monotonic_ns": 2510364010244750,
+        "end_monotonic_ns": 2510364011417125,
+        "source_before": 9283,
+        "target": 9283,
+        "source_after": 9283,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      },
+      {
+        "unix_ns": 1792584514952162000,
+        "end_unix_ns": 1792584514957564000,
+        "monotonic_ns": 2510365011854083,
+        "end_monotonic_ns": 2510365017255458,
+        "source_before": 9327,
+        "target": 9322,
+        "source_after": 9327,
+        "deficit_lower": 5,
+        "deficit_upper": 5
+      },
+      {
+        "unix_ns": 1792584515960474000,
+        "end_unix_ns": 1792584515961471000,
+        "monotonic_ns": 2510366020167000,
+        "end_monotonic_ns": 2510366021163541,
+        "source_before": 9368,
+        "target": 9368,
+        "source_after": 9368,
+        "deficit_lower": 0,
+        "deficit_upper": 0
+      }
+    ],
+    "native_timestamp_to_acquisition_receipt_diagnostic": {
+      "(31, 'l2Book')": {
+        "receipt_minus_native_ns": {
+          "samples": 23,
+          "min": 303155000,
+          "median": 526497000,
+          "p95": 992372000,
+          "max": 2787190000,
+          "last": 321352000
+        }
+      },
+      "(31, 'bbo')": {
+        "receipt_minus_native_ns": {
+          "samples": 469,
+          "min": 215164000,
+          "median": 526940000,
+          "p95": 2443260000,
+          "max": 2841206000,
+          "last": 358354000
+        }
+      },
+      "(32, 'l2Book')": {
+        "receipt_minus_native_ns": {
+          "samples": 23,
+          "min": 336967000,
+          "median": 1085212000,
+          "p95": 2711102000,
+          "max": 3657315000,
+          "last": 406508000
+        }
+      },
+      "(32, 'trades_initial')": {
+        "receipt_minus_native_ns": {
+          "samples": 30,
+          "min": 1404043000,
+          "median": 9085043000,
+          "p95": 11547043000,
+          "max": 18117043000,
+          "last": 1404043000
+        }
+      },
+      "(31, 'trades_initial')": {
+        "receipt_minus_native_ns": {
+          "samples": 30,
+          "min": 11143841000,
+          "median": 16229841000,
+          "p95": 20190841000,
+          "max": 21015841000,
+          "last": 11143841000
+        }
+      },
+      "(32, 'bbo')": {
+        "receipt_minus_native_ns": {
+          "samples": 904,
+          "min": 214840000,
+          "median": 1412922000,
+          "p95": 3183834000,
+          "max": 3706897000,
+          "last": 231199000
+        }
+      },
+      "(32, 'trades_subsequent')": {
+        "receipt_minus_native_ns": {
+          "samples": 266,
+          "min": 296675000,
+          "median": 1918201000,
+          "p95": 3066483000,
+          "max": 3680560000,
+          "last": 296675000
+        }
+      },
+      "(31, 'trades_subsequent')": {
+        "receipt_minus_native_ns": {
+          "samples": 42,
+          "min": 317900000,
+          "median": 575570000,
+          "p95": 859919000,
+          "max": 2434163000,
+          "last": 905061000
+        }
+      }
+    },
+    "approx_owner_started_plus_ingress_observed_minus_acquisition_receipt": {
+      "31": {
+        "samples": 655,
+        "min": 51375,
+        "median": 721375,
+        "p95": 774792,
+        "max": 784709,
+        "last": 783709
+      },
+      "32": {
+        "samples": 1195,
+        "min": 52834,
+        "median": 711292,
+        "p95": 774792,
+        "max": 788500,
+        "last": 779584
+      }
+    },
+    "same_owner_ingress_to_completion": {
+      "31": {
+        "samples": 655,
+        "min": 11967083,
+        "median": 36186083,
+        "p95": 43993709,
+        "max": 52222917,
+        "last": 14101125
+      },
+      "32": {
+        "samples": 1195,
+        "min": 10832334,
+        "median": 21599792,
+        "p95": 42324500,
+        "max": 58469667,
+        "last": 21208291
+      }
+    },
+    "same_owner_ingress_to_handoff": {
+      "31": {
+        "samples": 655,
+        "min": 26205916,
+        "median": 74129875,
+        "p95": 87909500,
+        "max": 110589875,
+        "last": 31773125
+      },
+      "32": {
+        "samples": 1195,
+        "min": 24177500,
+        "median": 53445500,
+        "p95": 85310833,
+        "max": 108125708,
+        "last": 42112125
+      }
+    }
+  },
+  "channel_counts": {
+    "31": {
+      "subscriptionResponse": 4,
+      "activeSpotAssetCtx": 117,
+      "l2Book": 23,
+      "bbo": 469,
+      "trades": 37,
+      "pong": 5
+    },
+    "32": {
+      "subscriptionResponse": 4,
+      "activeAssetCtx": 117,
+      "l2Book": 23,
+      "trades": 142,
+      "bbo": 904,
+      "pong": 5
+    }
+  },
+  "quants_local_ack_times": {
+    "end": 1792584516338793000,
+    "first_ack": 1792584396831688000,
+    "last_ack": 1792584516337460000,
+    "start": 1792584396168856000
+  },
+  "growing_witness": {
+    "quants_reported_first_actual_matching_ack_unix_ns": 1792584396831688000,
+    "later_live_producer_and_positive_hls_progress_sample": {
+      "unix_ns": 1792584402179107000,
+      "monotonic_ns": 2510252238244541,
+      "free_bytes": 80649768960,
+      "children": {
+        "capture": null,
+        "quants": null,
+        "hls": null
+      },
+      "source_committed_before_target_read": {
+        "schema_version": 1,
+        "cursor": {
+          "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+          "sequence": 426,
+          "offset": 2662260
+        }
+      },
+      "committed": {
+        "schema_version": 1,
+        "cursor": {
+          "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+          "sequence": 422,
+          "offset": 2432087
+        }
+      },
+      "source_committed_after_target_read": {
+        "schema_version": 1,
+        "cursor": {
+          "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+          "sequence": 426,
+          "offset": 2662260
+        }
+      },
+      "hls_latest_positive_progress": "shared progress: elapsed_secs=5 ws_messages=59 market_events=119 reconnects=0 data_gaps=0",
+      "capture_alive_after_progress_read": true,
+      "progress_read_end_unix_ns": 1792584402185678000,
+      "progress_read_end_monotonic_ns": 2510252244815875
+    },
+    "final_target_sequence": 9379,
+    "scope": "Reported same-host wall-clock ACK/application ordering only; no clock synchronization, native availability or latency/SLA qualification"
+  },
+  "capture8_before": {
+    "capture/build.json": {
+      "sha256": "ce9fce0275346f6cb9275459d2a485c0515017f9ebf1b2e07af7ad2678d77e68",
+      "st_size": 1606,
+      "st_dev": 16777229,
+      "st_ino": 59394478,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792584396082340833,
+      "st_ctime_ns": 1792584396082340833
+    },
+    "capture/capture-executable": {
+      "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+      "st_size": 10906832,
+      "st_dev": 16777229,
+      "st_ino": 59394477,
+      "st_mode": 33133,
+      "st_mtime_ns": 1792584396058228307,
+      "st_ctime_ns": 1792584396058228307
+    },
+    "capture/feed/committed.json": {
+      "sha256": "cf16ab6c1aa89c6ed9e4dd43a765321f65edf56668f13f21204eb880e9a17deb",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59405711,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516311528060,
+      "st_ctime_ns": 1792584516315458973
+    },
+    "capture/feed/events.mfsf": {
+      "sha256": "a1aec62fa1ad03f102d02c74a302d1f174b9781114539c27a19aac9a8f359702",
+      "st_size": 27298674,
+      "st_dev": 16777229,
+      "st_ino": 59394483,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516307366355,
+      "st_ctime_ns": 1792584516307366355
+    },
+    "capture/report.json": {
+      "sha256": "57aeea1d7603c40f8d803b87a0d548f6591899497b575000c9ed62f0f1c0f056",
+      "st_size": 12165,
+      "st_dev": 16777229,
+      "st_ino": 59405712,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792584516327226213,
+      "st_ctime_ns": 1792584516327226213
+    },
+    "capture/request.json": {
+      "sha256": "c29519c190ef9c3b658f878a59f3535df899f00692b9de1160374d4dbf0c2478",
+      "st_size": 999,
+      "st_dev": 16777229,
+      "st_ino": 59394476,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792584396032992916,
+      "st_ctime_ns": 1792584396032992916
+    },
+    "capture/source/committed.json": {
+      "sha256": "d4b4eed38ebc106307eecb7a96bb76333a74ec08138b82fc0485dba54ab7e994",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59405709,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516280705629,
+      "st_ctime_ns": 1792584516288645247
+    },
+    "capture/source/events.mfsf": {
+      "sha256": "50217229529fd20654b8186cc28cdc2d2e726d5d5bd9d8da66ecc5f8cc8b47fb",
+      "st_size": 27399374,
+      "st_dev": 16777229,
+      "st_ino": 59394480,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516276331799,
+      "st_ctime_ns": 1792584516276331799
+    }
+  },
+  "capture8_after": {
+    "capture/build.json": {
+      "sha256": "ce9fce0275346f6cb9275459d2a485c0515017f9ebf1b2e07af7ad2678d77e68",
+      "st_size": 1606,
+      "st_dev": 16777229,
+      "st_ino": 59394478,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792584396082340833,
+      "st_ctime_ns": 1792584396082340833
+    },
+    "capture/capture-executable": {
+      "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+      "st_size": 10906832,
+      "st_dev": 16777229,
+      "st_ino": 59394477,
+      "st_mode": 33133,
+      "st_mtime_ns": 1792584396058228307,
+      "st_ctime_ns": 1792584396058228307
+    },
+    "capture/feed/committed.json": {
+      "sha256": "cf16ab6c1aa89c6ed9e4dd43a765321f65edf56668f13f21204eb880e9a17deb",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59405711,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516311528060,
+      "st_ctime_ns": 1792584516315458973
+    },
+    "capture/feed/events.mfsf": {
+      "sha256": "a1aec62fa1ad03f102d02c74a302d1f174b9781114539c27a19aac9a8f359702",
+      "st_size": 27298674,
+      "st_dev": 16777229,
+      "st_ino": 59394483,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516307366355,
+      "st_ctime_ns": 1792584516307366355
+    },
+    "capture/report.json": {
+      "sha256": "57aeea1d7603c40f8d803b87a0d548f6591899497b575000c9ed62f0f1c0f056",
+      "st_size": 12165,
+      "st_dev": 16777229,
+      "st_ino": 59405712,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792584516327226213,
+      "st_ctime_ns": 1792584516327226213
+    },
+    "capture/request.json": {
+      "sha256": "c29519c190ef9c3b658f878a59f3535df899f00692b9de1160374d4dbf0c2478",
+      "st_size": 999,
+      "st_dev": 16777229,
+      "st_ino": 59394476,
+      "st_mode": 33152,
+      "st_mtime_ns": 1792584396032992916,
+      "st_ctime_ns": 1792584396032992916
+    },
+    "capture/source/committed.json": {
+      "sha256": "d4b4eed38ebc106307eecb7a96bb76333a74ec08138b82fc0485dba54ab7e994",
+      "st_size": 118,
+      "st_dev": 16777229,
+      "st_ino": 59405709,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516280705629,
+      "st_ctime_ns": 1792584516288645247
+    },
+    "capture/source/events.mfsf": {
+      "sha256": "50217229529fd20654b8186cc28cdc2d2e726d5d5bd9d8da66ecc5f8cc8b47fb",
+      "st_size": 27399374,
+      "st_dev": 16777229,
+      "st_ino": 59394480,
+      "st_mode": 33188,
+      "st_mtime_ns": 1792584516276331799,
+      "st_ctime_ns": 1792584516276331799
+    }
+  },
+  "capture8_fullstats_unchanged": true,
+  "historical_original_proofs": {
+    "capture-originals-before-01.json": {
+      "files": 171,
+      "receipt": {
+        "file": "capture-originals-before-01.json",
+        "bytes": 67335,
+        "sha256": "d7a9c0d6e1d9d9128e71e3e325a65da3f4dc8ba225ac4c5ca03fa69f9bcf453e"
+      }
+    },
+    "protected-original171-baseline-01.json": {
+      "files": 171,
+      "receipt": {
+        "file": "protected-original171-baseline-01.json",
+        "bytes": 70680,
+        "sha256": "95220101fbe5f8f7e6c5431f5378d306a758daf6f95093f2d1da39bf648c1992"
+      }
+    }
+  },
+  "evidence": {
+    "new-capture-before-first-verify-01.json": {
+      "file": "new-capture-before-first-verify-01.json",
+      "bytes": 3146,
+      "sha256": "0d5403b25cecd5e6f65d5acb7bcf9184e76cb70525fa539b20e260db6c1e603c"
+    },
+    "new-capture-after-first-verify-01.json": {
+      "file": "new-capture-after-first-verify-01.json",
+      "bytes": 3146,
+      "sha256": "0d5403b25cecd5e6f65d5acb7bcf9184e76cb70525fa539b20e260db6c1e603c"
+    },
+    "runner-terminal-01.json": {
+      "file": "runner-terminal-01.json",
+      "bytes": 749,
+      "sha256": "e3191af0f42a556c012a912839caaecef1e8e56f59c12c149b81cffa646d9b89"
+    },
+    "registration-01.json": {
+      "file": "registration-01.json",
+      "bytes": 13190,
+      "sha256": "8fad6b4457780a4667145773b3fcae9d8e638e1b9d15d4a2d9d367c6ebcb69e6"
+    },
+    "request-01.json": {
+      "file": "request-01.json",
+      "bytes": 999,
+      "sha256": "3c099a18482fc18deb3b83fbe781f9860ee8fd19e5bda4a245b05acacc6f6294"
+    },
+    "plan-01.json": {
+      "file": "plan-01.json",
+      "bytes": 4908,
+      "sha256": "2dbb5b59790e7374aa6592b4d72ceac097092fc29855250b01d31a92e7026b45"
+    },
+    "terminal-01.json": {
+      "file": "terminal-01.json",
+      "bytes": 146013,
+      "sha256": "10fad5e8605295f51ee1ed1f01783cb8470dde3c4daf4fcae78bacaa74bb485a"
+    },
+    "capture/report.json": {
+      "file": "report.json",
+      "bytes": 12165,
+      "sha256": "57aeea1d7603c40f8d803b87a0d548f6591899497b575000c9ed62f0f1c0f056"
+    },
+    "hls-stdout-01.log": {
+      "file": "hls-stdout-01.log",
+      "bytes": 6750,
+      "sha256": "209dc55f00aaaeb2d7b2d4769ff2c9d8a54c21748c67a9ad1158c5db92d4c523"
+    },
+    "hls-stderr-01.log": {
+      "file": "hls-stderr-01.log",
+      "bytes": 2628,
+      "sha256": "3e6981fea3d00a39bf13379bb7f935f77e3859f6afc8c18c4441e2d517c40e1d"
+    },
+    "quants-observer-01.json": {
+      "file": "quants-observer-01.json",
+      "bytes": 2338,
+      "sha256": "fc9f08ee74db80b8d8b7ae60d77d2e4d9b2c139115e9962866d82a1501f4cda1"
+    },
+    "verify-stdout-01.log": {
+      "file": "verify-stdout-01.log",
+      "bytes": 273,
+      "sha256": "6441d71daa34f77f2be257f61e3037b3d7a94e86f42778c29d9d5160764e7178"
+    },
+    "run-joint-01.py": {
+      "file": "run-joint-01.py",
+      "bytes": 27405,
+      "sha256": "c1aa3d5e2e2af63bf76fc7e5e54a3253b9ccf347176b551bfd2950ebfa10f1bf"
+    },
+    "capture-originals-before-01.json": {
+      "file": "capture-originals-before-01.json",
+      "bytes": 67335,
+      "sha256": "d7a9c0d6e1d9d9128e71e3e325a65da3f4dc8ba225ac4c5ca03fa69f9bcf453e"
+    },
+    "protected-original171-baseline-01.json": {
+      "file": "protected-original171-baseline-01.json",
+      "bytes": 70680,
+      "sha256": "95220101fbe5f8f7e6c5431f5378d306a758daf6f95093f2d1da39bf648c1992"
+    }
+  },
+  "limitations": [
+    "Exact source eligible handoff\u2192target item/native values are compared without financial reexecution; actual retained native verify process result is separate.",
+    "Native timestamp\u2192local acquisition receipt compares unsynchronized clocks/semantics; initial trade snapshots separately retained. No native availability or one-way/network/SLA claim.",
+    "Seal.now_ns is pre-submission wall time, not durable ACK. Final events mtimes are file-write metadata, not ACK/delivery clocks.",
+    "Brackets bound committed logical-prefix deficit during each sampled read interval; no unsampled maximum, per-event delivery time or continuity inference. Missing post-source/pre-target interval is UNKNOWN.",
+    "Writer committed_operations is actor-operation count: source logical-record admissions, target one N-record transaction admission. Physical transaction and logical record counters remain separate; stage totals overlap and cannot establish elapsed fsync causality.",
+    "Uncontrolled public samples05/06 are not a paired workload/performance experiment. Target final-tail success cannot alone qualify native acquisition freshness.",
+    "No long soak, registered480 workload, strategy/economic, hosted/native-platform or operational qualification."
+  ],
+  "findings": [],
+  "helper": {
+    "file": "audit-native-01.py",
+    "bytes": 30616,
+    "sha256": "77e645a640df6281faed9b642a795ca8712d998173d650e4be2217de592c2c63"
+  },
+  "methodology_history": {
+    "prior_closed_inspector": "joint08-independent-native-timing-01.py",
+    "scope": "New joint15 published20f5 Completion/Intent pipeline570sourcee5cd/release19b7 and qualified HLS0c07/source3528fc/release354c pinned20f5 plusQ67. OwnHLSremoteCI stillpending atregistration; dynamicactual counts/cursors/timings. Dynamic actual counts/cursors/timings. No causal performance claim."
+  },
+  "HLS_current_binding": {
+    "producer_commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+    "source_map": "8fc77b2155e3a3370e3f62941a70ff6c3f26d53d00b91261d1d9a406659dbff1",
+    "qualification": {
+      "path": "private-evidence/hls/.hls/sourcee5cd-pin-01/qualified-local-01.json",
+      "sha256": "ecc9f158134892507755662c181b472c1f868f4f7d02887aea961a48ff496a6f"
+    },
+    "binary": {
+      "path": "private-evidence/producer/.local/causal-capture-joint-pilot-15/artifacts/hls",
+      "bytes": 26915760,
+      "sha256": "354c9ed210b0cc77ff727451fc6bb89f683250247a1290dae84e19ccd629be3e"
+    },
+    "scope": "Current source-qualified retained HLS decoder, structural consumer only; no same-platform native-source authentication."
+  },
+  "release_build_binding": {
+    "capture_build_identity": {
+      "compiled": {
+        "debug": "false",
+        "encoded_rustflags": "-Dwarnings",
+        "git_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+        "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+        "opt_level": "3",
+        "package_features": [
+          {
+            "features": [
+              "default"
+            ],
+            "package": "marketfeed-adapter-bybit"
+          },
+          {
+            "features": [],
+            "package": "marketfeed-adapter-hyperliquid"
+          },
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          },
+          {
+            "features": [
+              "default"
+            ],
+            "package": "marketfeed-engine"
+          },
+          {
+            "features": [
+              "default",
+              "kafka",
+              "nats"
+            ],
+            "package": "marketfeed-sinks"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "release",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 570,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "target": "aarch64-apple-darwin"
+      },
+      "executable_bytes": 10906832,
+      "executable_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+    },
+    "producer_qualification": {
+      "path": "private-evidence/producer/.local/completion-intent-qualification/qualified-local-16.json",
+      "sha256": "b1d74a47a26cce33c568aa7c44cbe821f62696ec63c9e2e5c519b3f34e9be9ab"
+    },
+    "positive_artifact_build_bindings": {
+      "marketfeed-capture": {
+        "artifact_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+        "artifact_bytes": 10906832,
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+        "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+        "embedded_recipe": true,
+        "build_output": {
+          "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-capture",
+          "bytes": 10906832,
+          "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+        }
+      },
+      "marketfeed-observations": {
+        "artifact_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+        "artifact_bytes": 2310032,
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+        "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+        "embedded_recipe": false,
+        "build_output": {
+          "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-observations",
+          "bytes": 2310032,
+          "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+        }
+      }
+    },
+    "limits": "Sourcee5cd bounded Completion/Intent co-admission plus ownCompletion settlement atop66 read/gate diagnostics; compiled Gitparent66; exact existing release profile/request/caps. Publishedsource20f5 and publishedHLS0c07 finalpin bound beforeexecution; no acquisition repair or optimization claim."
+  },
+  "producer_published_source_commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+  "hls_published_commit": "0c07b927f999b943ce9304af50314bed9fb148c3",
+  "hls_own_hosted_scope_at_registration": "PENDING_REMOTE_CHECKS; localdiagnostic only until actualownCIclosure",
+  "producer_predecessor_published_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+  "source_event_kinds": {
+    "started": 2,
+    "ingress": 1864,
+    "execution_permitted": 1864,
+    "execution_completed": 1864,
+    "release_intent": 1862,
+    "handoff_observed": 1862,
+    "wire": 54,
+    "revoked": 2,
+    "withheld": 2
+  },
+  "input_kinds_by_session": {
+    "31": {
+      "connected": 1,
+      "text": 655,
+      "timer_poll": 5,
+      "stop": 1
+    },
+    "32": {
+      "connected": 1,
+      "text": 1195,
+      "timer_poll": 5,
+      "stop": 1
+    }
+  },
+  "source_and_hls_clock_approximation_consistency": true,
+  "portable_copy": {
+    "original_sha256": "2adb15cccaf95476f8ba1d2862d61c1ea18336c453809702d2d2767bdfef1b34",
+    "original_bytes": 77108,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

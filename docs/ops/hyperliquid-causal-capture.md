@@ -2,9 +2,9 @@
 
 This opt-in command records one source history and one MFOP projection for public
 spot/perpetual observations. It never starts the legacy collector or a strategy.
-Use a new output directory for every lifetime. The current candidate still needs
-its combined platform, live and consumer qualification; a successful command is
-not operational promotion or proof of uninterrupted market coverage.
+Use a new output directory for every lifetime. Producer20f5 and HLS0c07 have source-specific platform, live and consumer
+[qualification](../evidence/shared-feed-integration-20261021/README.md). A successful
+command is not operational promotion or proof of uninterrupted market coverage.
 
 New captures explicitly bind driver policy version 2: a local timer wake admits
 a native poll only when the latest observed committed native schedule has a due
@@ -112,7 +112,7 @@ writer metrics after a failure mean unavailable, and cumulative/overlapping
 stage times do not measure source freshness or end-to-end delivery latency.
 
 Both consumers must use the capture's **`feed/` subdirectory**, not `source/`
-or the output root. After the coordinated HLS producer pin is qualified, use
+or the output root. The qualified coordinated HLS0c07 pin uses
 `hls live --shared-feed /data/new-canary/feed --symbols spot:@107,perps:BTC`
 with the actual selected native symbols. Add `--once` to replay a saved committed
 prefix. For Quants, use its Python 3.12+ module

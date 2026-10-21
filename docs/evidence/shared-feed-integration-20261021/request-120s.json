@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "markets": [
+    {
+      "market": "spot",
+      "coins": [
+        "@107"
+      ],
+      "channels": [
+        {
+          "kind": "trades"
+        },
+        {
+          "kind": "quote"
+        },
+        {
+          "kind": "l2_book",
+          "config": {
+            "depth": 20,
+            "cadence": null
+          }
+        },
+        {
+          "kind": "mark_price"
+        }
+      ]
+    },
+    {
+      "market": "perps",
+      "coins": [
+        "BTC"
+      ],
+      "channels": [
+        {
+          "kind": "trades"
+        },
+        {
+          "kind": "quote"
+        },
+        {
+          "kind": "l2_book",
+          "config": {
+            "depth": 20,
+            "cadence": null
+          }
+        },
+        {
+          "kind": "mark_price"
+        },
+        {
+          "kind": "open_interest"
+        }
+      ]
+    }
+  ],
+  "duration_ms": 120000,
+  "source_max_bytes": 67108864,
+  "target_max_bytes": 67108864,
+  "projection_batch_groups": 8
+}

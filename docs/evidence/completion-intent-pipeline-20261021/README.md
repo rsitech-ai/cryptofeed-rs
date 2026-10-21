@@ -71,16 +71,15 @@ The independent audit verifies all 171 files through its final read, reconstruct
 the exact source from the published parent and four retained changed files, and
 checks the public JSON transformations without changing result values or types.
 
-## Remaining gates
+## Final source-specific closure
 
-The candidate needs its own hosted Mac/Linux checks and coordinated final
-hlscreen dependency pins, local checks, hosted packages and integrated proof.
-Quants hosted checks remain externally blocked before any test execution by the
-GitHub account restriction. The original Bybit 480-frame comparison remains
-failed and unrepeated; it uses legacy wiring and needs an explicit migration.
-Strict datasets, native context admission and the longer Razer run remain open.
-No root submodule pointer, strategy activation, order, deployment or release is
-part of this qualification.
+Producer20f5 own17 hosted jobs, final HLS0c07 pins and its own main/native packages,
+actual joint15 capture and five real Quants restart processes now pass their
+independent audits. All179 originals are preserved and a checksummed private
+local data export is saved. See [the final integration evidence](../shared-feed-integration-20261021/README.md).
+Joint14 and all preceding failure evidence above remain unchanged. Quants hosted
+execution is externally blocked, original480 remains failed/unrerun, and strict
+datasets/context and the later Razer run remain open.
 
 Public JSON copies replace private absolute paths with distinct opaque roots.
 Each copy binds its original receipt hash. Results, scalar types, counts, artifact

@@ -1,0 +1,1191 @@
+{
+  "schema_version": 1,
+  "status": "CLOSED_PREFIX_RELEASE_CONSUMER_PRESERVATION_PASS; FINAL_FILEMTIME_GATE_PASS; FRESHNESS_UNQUALIFIED",
+  "scope": "Independent read-only physical/source eligible handoff/consumer evidence audit; no collector/native/replay/consumer invocation or build",
+  "source_recipe": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "producer_parent": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+  "producer_published_source_commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+  "producer_qualification": {
+    "file": "qualified-local-16.json",
+    "bytes": 24689,
+    "sha256": "b1d74a47a26cce33c568aa7c44cbe821f62696ec63c9e2e5c519b3f34e9be9ab"
+  },
+  "hls_published_commit": "0c07b927f999b943ce9304af50314bed9fb148c3",
+  "hls_current_producer_pin": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+  "hls_source_map": "8fc77b2155e3a3370e3f62941a70ff6c3f26d53d00b91261d1d9a406659dbff1",
+  "hls_artifact": {
+    "path": "private-producer/.local/causal-capture-joint-pilot-15/artifacts/hls",
+    "bytes": 26915760,
+    "sha256": "354c9ed210b0cc77ff727451fc6bb89f683250247a1290dae84e19ccd629be3e"
+  },
+  "hls_qualification": {
+    "file": "qualified-local-01.json",
+    "bytes": 142355,
+    "sha256": "ecc9f158134892507755662c181b472c1f868f4f7d02887aea961a48ff496a6f"
+  },
+  "quants_commit": "67a9e1d055fe3dd137756225fd8d97c8ee1f7b2a",
+  "actual_runner_session": 55464,
+  "actual_runner_exit": 0,
+  "actual_child_exits": {
+    "capture": 0,
+    "quants": 0,
+    "hls": 0,
+    "verify": 0
+  },
+  "source_cursor": {
+    "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+    "sequence": 9379,
+    "offset": 27399374
+  },
+  "target_cursor": {
+    "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+    "sequence": 9379,
+    "offset": 27298674
+  },
+  "all_CRC32C_sequences_cursorchains": true,
+  "source_records": 9379,
+  "target_records": 9379,
+  "exact_eligible_handoff_bindings": 1862,
+  "binding_census_sha256": "8a29079a2c6a255b4407d6d25092a878c7a4026a5f9131d88ca6d2ea79b470bc",
+  "all_nonhandoff_groups_empty": true,
+  "native_executed": {
+    "HyperliquidContext": 234,
+    "HyperliquidBook": 46,
+    "HyperliquidBbo": 1373,
+    "HyperliquidTrade": 368
+  },
+  "native_released": {
+    "HyperliquidContext": 234,
+    "HyperliquidBook": 46,
+    "HyperliquidBbo": 1373,
+    "HyperliquidTrade": 368
+  },
+  "native_withheld": {},
+  "released_by_session": {
+    "31": {
+      "HyperliquidContext": 117,
+      "HyperliquidBook": 23,
+      "HyperliquidBbo": 469,
+      "HyperliquidTrade": 72
+    },
+    "32": {
+      "HyperliquidContext": 117,
+      "HyperliquidBook": 23,
+      "HyperliquidTrade": 296,
+      "HyperliquidBbo": 904
+    }
+  },
+  "projected_items": {
+    "market": 6,
+    "observed_market": 1832,
+    "system": 6
+  },
+  "HLS_events": {
+    "bbo": 1373,
+    "book": 46,
+    "context": 234,
+    "trade": 368
+  },
+  "HLS_market_events": 2021,
+  "HLS_data_gaps": 6,
+  "gap_groups": [
+    {
+      "sequence": 9373,
+      "session": 32,
+      "event": "execution_completed",
+      "input_id": 1202,
+      "items": 0
+    },
+    {
+      "sequence": 9374,
+      "session": 31,
+      "event": "execution_completed",
+      "input_id": 662,
+      "items": 0
+    },
+    {
+      "sequence": 9375,
+      "session": 32,
+      "event": "revoked",
+      "input_id": null,
+      "items": 0
+    },
+    {
+      "sequence": 9376,
+      "session": 31,
+      "event": "revoked",
+      "input_id": null,
+      "items": 0
+    },
+    {
+      "sequence": 9377,
+      "session": 32,
+      "event": "withheld",
+      "input_id": 1202,
+      "items": 0
+    },
+    {
+      "sequence": 9378,
+      "session": 31,
+      "event": "withheld",
+      "input_id": 662,
+      "items": 0
+    }
+  ],
+  "withheld": [
+    {
+      "session": 32,
+      "input_id": 1202,
+      "source_sequence": 9377,
+      "input_kind": "stop",
+      "native_rows": {},
+      "had_intent": false,
+      "had_handoff": false,
+      "completion_sequence": 9373
+    },
+    {
+      "session": 31,
+      "input_id": 662,
+      "source_sequence": 9378,
+      "input_kind": "stop",
+      "native_rows": {},
+      "had_intent": false,
+      "had_handoff": false,
+      "completion_sequence": 9374
+    }
+  ],
+  "quants_counts": {
+    "control_groups": 0,
+    "groups": 9379,
+    "items": 1844,
+    "source_kinds": {
+      "bootstrap": 2,
+      "owner": 9376,
+      "seal": 1
+    }
+  },
+  "quants_ack_times": {
+    "end": 1792584516338793000,
+    "first_ack": 1792584396831688000,
+    "last_ack": 1792584516337460000,
+    "start": 1792584396168856000
+  },
+  "last_publication": {
+    "groups": 1,
+    "source_after": {
+      "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+      "offset": 27399374,
+      "sequence": 9379
+    },
+    "source_before": {
+      "feed_id": "2551637a4a83f26e8f4f322ff4caecdd4fe91199",
+      "offset": 27399205,
+      "sequence": 9378
+    },
+    "target_after": {
+      "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+      "offset": 27298674,
+      "sequence": 9379
+    },
+    "target_before": {
+      "feed_id": "b66f94fef424dd17385906520e16fb492f8ebb3e",
+      "offset": 27296668,
+      "sequence": 9378
+    }
+  },
+  "timing": {
+    "units": "ns",
+    "source_final_write_mtime": 1792584516276331799,
+    "target_final_write_mtime": 1792584516307366355,
+    "final_filemtime_tail": 31034556,
+    "registered_tail_bound": 2000000000,
+    "registered_tail_passed": true,
+    "quants_lastACK_minus_target_final_write": 30093645,
+    "same_owner_by_inputkind_or_channel": {
+      "(31, 'connected')": {
+        "same_owner_ingress_to_completion": {
+          "samples": 1,
+          "min": 14549959,
+          "median": 14549959,
+          "p95": 14549959,
+          "max": 14549959,
+          "first": 14549959,
+          "last": 14549959
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 1,
+          "min": 31291750,
+          "median": 31291750,
+          "p95": 31291750,
+          "max": 31291750,
+          "first": 31291750,
+          "last": 31291750
+        }
+      },
+      "(32, 'connected')": {
+        "same_owner_ingress_to_completion": {
+          "samples": 1,
+          "min": 28552417,
+          "median": 28552417,
+          "p95": 28552417,
+          "max": 28552417,
+          "first": 28552417,
+          "last": 28552417
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 1,
+          "min": 70221917,
+          "median": 70221917,
+          "p95": 70221917,
+          "max": 70221917,
+          "first": 70221917,
+          "last": 70221917
+        }
+      },
+      "(31, 'subscriptionResponse')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 4,
+          "min": 51375,
+          "median": 66375,
+          "p95": 66375,
+          "max": 84209,
+          "first": 51375,
+          "last": 84209
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 4,
+          "min": 36215875,
+          "median": 39805625,
+          "p95": 39805625,
+          "max": 46432667,
+          "first": 37931292,
+          "last": 36215875
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 4,
+          "min": 74124375,
+          "median": 85396750,
+          "p95": 85396750,
+          "max": 87944584,
+          "first": 87944584,
+          "last": 74124375
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 4,
+          "min": 74208584,
+          "median": 85463125,
+          "p95": 85463125,
+          "max": 87995959,
+          "first": 87995959,
+          "last": 74208584
+        }
+      },
+      "(32, 'subscriptionResponse')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 4,
+          "min": 52834,
+          "median": 71459,
+          "p95": 71459,
+          "max": 79959,
+          "first": 52834,
+          "last": 79959
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 4,
+          "min": 36941666,
+          "median": 37385209,
+          "p95": 37385209,
+          "max": 39666291,
+          "first": 39666291,
+          "last": 36941666
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 4,
+          "min": 72869875,
+          "median": 76637125,
+          "p95": 76637125,
+          "max": 85157500,
+          "first": 76637125,
+          "last": 72869875
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 4,
+          "min": 72949834,
+          "median": 76689959,
+          "p95": 76689959,
+          "max": 85220625,
+          "first": 76689959,
+          "last": 72949834
+        }
+      },
+      "(31, 'activeSpotAssetCtx')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 117,
+          "min": 56042,
+          "median": 718750,
+          "p95": 776250,
+          "max": 783709,
+          "first": 56042,
+          "last": 783709
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 117,
+          "min": 12824083,
+          "median": 35205458,
+          "p95": 41670833,
+          "max": 47635458,
+          "first": 36204208,
+          "last": 14101125
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 117,
+          "min": 26244625,
+          "median": 72993375,
+          "p95": 84019375,
+          "max": 96745417,
+          "first": 80471208,
+          "last": 31773125
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 117,
+          "min": 27026542,
+          "median": 73707584,
+          "p95": 84794459,
+          "max": 97520459,
+          "first": 80527250,
+          "last": 32556834
+        }
+      },
+      "(32, 'activeAssetCtx')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 117,
+          "min": 58334,
+          "median": 719750,
+          "p95": 776042,
+          "max": 779709,
+          "first": 58334,
+          "last": 779709
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 117,
+          "min": 13477167,
+          "median": 22580792,
+          "p95": 43391583,
+          "max": 50775958,
+          "first": 50775958,
+          "last": 16716833
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 117,
+          "min": 26392917,
+          "median": 54469834,
+          "p95": 85443500,
+          "max": 93223291,
+          "first": 91782708,
+          "last": 35083958
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 117,
+          "min": 27170417,
+          "median": 55078959,
+          "p95": 86113875,
+          "max": 93935750,
+          "first": 91841042,
+          "last": 35863667
+        }
+      },
+      "(31, 'l2Book')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 23,
+          "min": 71834,
+          "median": 716625,
+          "p95": 769209,
+          "max": 779750,
+          "first": 71834,
+          "last": 779750
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 23,
+          "min": 12584125,
+          "median": 33029667,
+          "p95": 39265041,
+          "max": 42948584,
+          "first": 35783333,
+          "last": 27901834
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 23,
+          "min": 26314500,
+          "median": 70593125,
+          "p95": 76869250,
+          "max": 86108959,
+          "first": 72698083,
+          "last": 46443917
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 23,
+          "min": 26933000,
+          "median": 71237500,
+          "p95": 77572334,
+          "max": 86782334,
+          "first": 72769917,
+          "last": 47223667
+        }
+      },
+      "(31, 'bbo')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 469,
+          "min": 74084,
+          "median": 723542,
+          "p95": 774250,
+          "max": 784709,
+          "first": 74084,
+          "last": 784042
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 469,
+          "min": 11967083,
+          "median": 36255542,
+          "p95": 43993709,
+          "max": 52222917,
+          "first": 36365375,
+          "last": 14004750
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 469,
+          "min": 26205916,
+          "median": 74573916,
+          "p95": 88008000,
+          "max": 98996583,
+          "first": 73542416,
+          "last": 27614708
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 469,
+          "min": 26653500,
+          "median": 75232542,
+          "p95": 88783584,
+          "max": 99769917,
+          "first": 73616500,
+          "last": 28398750
+        }
+      },
+      "(32, 'l2Book')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 23,
+          "min": 76625,
+          "median": 714875,
+          "p95": 771500,
+          "max": 779875,
+          "first": 76625,
+          "last": 779875
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 23,
+          "min": 13626750,
+          "median": 23056041,
+          "p95": 37771417,
+          "max": 40128375,
+          "first": 37061917,
+          "last": 32759417
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 23,
+          "min": 27466875,
+          "median": 67216000,
+          "p95": 76069709,
+          "max": 80432709,
+          "first": 76069709,
+          "last": 71813167
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 23,
+          "min": 28038792,
+          "median": 67974792,
+          "p95": 76146334,
+          "max": 81204209,
+          "first": 76146334,
+          "last": 72593042
+        }
+      },
+      "(32, 'trades')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 142,
+          "min": 91292,
+          "median": 712625,
+          "p95": 775167,
+          "max": 786459,
+          "first": 91292,
+          "last": 785084
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 142,
+          "min": 12861958,
+          "median": 22083125,
+          "p95": 40930584,
+          "max": 46109500,
+          "first": 36561500,
+          "last": 21644166
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 142,
+          "min": 27569416,
+          "median": 46666417,
+          "p95": 81910416,
+          "max": 92637417,
+          "first": 74162833,
+          "last": 43541375
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 142,
+          "min": 28159500,
+          "median": 47339917,
+          "p95": 82649750,
+          "max": 93414834,
+          "first": 74254125,
+          "last": 44326459
+        }
+      },
+      "(31, 'trades')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 37,
+          "min": 96667,
+          "median": 731875,
+          "p95": 774000,
+          "max": 775875,
+          "first": 96667,
+          "last": 775875
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 37,
+          "min": 15140250,
+          "median": 36913000,
+          "p95": 46407334,
+          "max": 49751375,
+          "first": 36872292,
+          "last": 46407334
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 37,
+          "min": 34233500,
+          "median": 76168333,
+          "p95": 89697375,
+          "max": 110589875,
+          "first": 72740792,
+          "last": 91482334
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 37,
+          "min": 34857542,
+          "median": 76911042,
+          "p95": 90464000,
+          "max": 111289917,
+          "first": 72837459,
+          "last": 92258209
+        }
+      },
+      "(32, 'bbo')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 904,
+          "min": 89250,
+          "median": 711000,
+          "p95": 774042,
+          "max": 788500,
+          "first": 89250,
+          "last": 779584
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 904,
+          "min": 10832334,
+          "median": 21176750,
+          "p95": 42324500,
+          "max": 58469667,
+          "first": 37481584,
+          "last": 21208291
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 904,
+          "min": 24177500,
+          "median": 51766083,
+          "p95": 85310833,
+          "max": 108125708,
+          "first": 74206084,
+          "last": 42112125
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 904,
+          "min": 24764125,
+          "median": 52502375,
+          "p95": 86057667,
+          "max": 108822000,
+          "first": 74295334,
+          "last": 42891709
+        }
+      },
+      "(31, 'timer_poll')": {
+        "same_owner_ingress_to_completion": {
+          "samples": 5,
+          "min": 27923500,
+          "median": 38908667,
+          "p95": 39730833,
+          "max": 43888667,
+          "first": 27923500,
+          "last": 35491459
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 5,
+          "min": 64828667,
+          "median": 78263833,
+          "p95": 78521167,
+          "max": 92382958,
+          "first": 64828667,
+          "last": 69491000
+        }
+      },
+      "(32, 'timer_poll')": {
+        "same_owner_ingress_to_completion": {
+          "samples": 5,
+          "min": 35681459,
+          "median": 36105625,
+          "p95": 38980667,
+          "max": 46283166,
+          "first": 35681459,
+          "last": 36105625
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 5,
+          "min": 74023625,
+          "median": 74144333,
+          "p95": 78112500,
+          "max": 94645958,
+          "first": 74101167,
+          "last": 74023625
+        }
+      },
+      "(31, 'pong')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 5,
+          "min": 523250,
+          "median": 718292,
+          "p95": 746834,
+          "max": 764875,
+          "first": 523250,
+          "last": 764875
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 5,
+          "min": 35040084,
+          "median": 35940792,
+          "p95": 38228416,
+          "max": 42378083,
+          "first": 35940792,
+          "last": 35040084
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 5,
+          "min": 71125709,
+          "median": 74023750,
+          "p95": 74783750,
+          "max": 87196500,
+          "first": 74023750,
+          "last": 71125709
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 5,
+          "min": 71890584,
+          "median": 74547000,
+          "p95": 75530584,
+          "max": 87866542,
+          "first": 74547000,
+          "last": 71890584
+        }
+      },
+      "(32, 'pong')": {
+        "approx_owner_ingress_minus_acquisition": {
+          "samples": 5,
+          "min": 530167,
+          "median": 720459,
+          "p95": 746000,
+          "max": 764042,
+          "first": 530167,
+          "last": 764042
+        },
+        "same_owner_ingress_to_completion": {
+          "samples": 5,
+          "min": 17123291,
+          "median": 34426750,
+          "p95": 39091250,
+          "max": 41045958,
+          "first": 41045958,
+          "last": 34426750
+        },
+        "same_owner_ingress_to_handoff": {
+          "samples": 5,
+          "min": 36537833,
+          "median": 61775417,
+          "p95": 70462792,
+          "max": 76324084,
+          "first": 61775417,
+          "last": 70462792
+        },
+        "approx_owner_handoff_minus_acquisition": {
+          "samples": 5,
+          "min": 37258292,
+          "median": 62305584,
+          "p95": 71226834,
+          "max": 77070084,
+          "first": 62305584,
+          "last": 71226834
+        }
+      },
+      "(31, 'stop')": {
+        "same_owner_ingress_to_completion": {
+          "samples": 1,
+          "min": 13446750,
+          "median": 13446750,
+          "p95": 13446750,
+          "max": 13446750,
+          "first": 13446750,
+          "last": 13446750
+        }
+      },
+      "(32, 'stop')": {
+        "same_owner_ingress_to_completion": {
+          "samples": 1,
+          "min": 13315250,
+          "median": 13315250,
+          "p95": 13315250,
+          "max": 13315250,
+          "first": 13315250,
+          "last": 13315250
+        }
+      }
+    },
+    "input_kinds_by_session": {
+      "31": {
+        "connected": 1,
+        "text": 655,
+        "timer_poll": 5,
+        "stop": 1
+      },
+      "32": {
+        "connected": 1,
+        "text": 1195,
+        "timer_poll": 5,
+        "stop": 1
+      }
+    },
+    "text_channels": {
+      "31": {
+        "subscriptionResponse": 4,
+        "activeSpotAssetCtx": 117,
+        "l2Book": 23,
+        "bbo": 469,
+        "trades": 37,
+        "pong": 5
+      },
+      "32": {
+        "subscriptionResponse": 4,
+        "activeAssetCtx": 117,
+        "l2Book": 23,
+        "trades": 142,
+        "bbo": 904,
+        "pong": 5
+      }
+    },
+    "native_timestamp_to_acquisition": {
+      "(31, 'l2Book')": {
+        "samples": 23,
+        "min": 303155000,
+        "median": 526497000,
+        "p95": 992372000,
+        "max": 2787190000,
+        "first": 814726000,
+        "last": 321352000
+      },
+      "(31, 'bbo')": {
+        "samples": 469,
+        "min": 215164000,
+        "median": 526940000,
+        "p95": 2443260000,
+        "max": 2841206000,
+        "first": 723228000,
+        "last": 358354000
+      },
+      "(32, 'l2Book')": {
+        "samples": 23,
+        "min": 336967000,
+        "median": 1085212000,
+        "p95": 2711102000,
+        "max": 3657315000,
+        "first": 982607000,
+        "last": 406508000
+      },
+      "(32, 'trades_initial')": {
+        "samples": 30,
+        "min": 1404043000,
+        "median": 9085043000,
+        "p95": 11547043000,
+        "max": 18117043000,
+        "first": 18117043000,
+        "last": 1404043000
+      },
+      "(31, 'trades_initial')": {
+        "samples": 30,
+        "min": 11143841000,
+        "median": 16229841000,
+        "p95": 20190841000,
+        "max": 21015841000,
+        "first": 21015841000,
+        "last": 11143841000
+      },
+      "(32, 'bbo')": {
+        "samples": 904,
+        "min": 214840000,
+        "median": 1412922000,
+        "p95": 3183834000,
+        "max": 3706897000,
+        "first": 903050000,
+        "last": 231199000
+      },
+      "(32, 'trades_subsequent')": {
+        "samples": 266,
+        "min": 296675000,
+        "median": 1918201000,
+        "p95": 3066483000,
+        "max": 3680560000,
+        "first": 849133000,
+        "last": 296675000
+      },
+      "(31, 'trades_subsequent')": {
+        "samples": 42,
+        "min": 317900000,
+        "median": 575570000,
+        "p95": 859919000,
+        "max": 2434163000,
+        "first": 505746000,
+        "last": 905061000
+      }
+    },
+    "worst_native_acquisition_rows_without_financial_values": {
+      "(31, 'l2Book')": {
+        "delta_ns": 2787190000,
+        "input_id": 486,
+        "source_ingress_sequence": 6850,
+        "acquisition_receive_ts": 1792584483297190000,
+        "native_timestamp_ms": 1792584480510,
+        "released": true
+      },
+      "(31, 'bbo')": {
+        "delta_ns": 2841206000,
+        "input_id": 480,
+        "source_ingress_sequence": 6790,
+        "acquisition_receive_ts": 1792584482527206000,
+        "native_timestamp_ms": 1792584479686,
+        "released": true
+      },
+      "(32, 'l2Book')": {
+        "delta_ns": 3657315000,
+        "input_id": 883,
+        "source_ingress_sequence": 6928,
+        "acquisition_receive_ts": 1792584484167315000,
+        "native_timestamp_ms": 1792584480510,
+        "released": true
+      },
+      "(32, 'trades_initial')": {
+        "delta_ns": 18117043000,
+        "input_id": 9,
+        "source_ingress_sequence": 113,
+        "acquisition_receive_ts": 1792584398139043000,
+        "native_timestamp_ms": 1792584380022,
+        "released": true
+      },
+      "(31, 'trades_initial')": {
+        "delta_ns": 21015841000,
+        "input_id": 10,
+        "source_ingress_sequence": 118,
+        "acquisition_receive_ts": 1792584398193841000,
+        "native_timestamp_ms": 1792584377178,
+        "released": true
+      },
+      "(32, 'bbo')": {
+        "delta_ns": 3706897000,
+        "input_id": 876,
+        "source_ingress_sequence": 6858,
+        "acquisition_receive_ts": 1792584483392897000,
+        "native_timestamp_ms": 1792584479686,
+        "released": true
+      },
+      "(32, 'trades_subsequent')": {
+        "delta_ns": 3680560000,
+        "input_id": 874,
+        "source_ingress_sequence": 6838,
+        "acquisition_receive_ts": 1792584483168560000,
+        "native_timestamp_ms": 1792584479488,
+        "released": true
+      },
+      "(31, 'trades_subsequent')": {
+        "delta_ns": 2434163000,
+        "input_id": 455,
+        "source_ingress_sequence": 6540,
+        "acquisition_receive_ts": 1792584479470163000,
+        "native_timestamp_ms": 1792584477036,
+        "released": true
+      }
+    },
+    "post_source_filemtime_pre_target_sampled_interval": {
+      "status": "UNKNOWN",
+      "samples": 0
+    },
+    "post_final_source_commit_pre_target_sampled_interval": {
+      "status": "UNKNOWN",
+      "samples": 0
+    },
+    "maximum_sampled_committed_prefix_deficit": 8,
+    "unsampled_intervals": "UNKNOWN, never zero"
+  },
+  "preservation": {
+    "old_originals": 171,
+    "new_capture_files": 8,
+    "all179_fullstats_and_hashes_equal_before_after": true,
+    "recorded_fields": [
+      "st_size",
+      "st_dev",
+      "st_ino",
+      "st_mode",
+      "st_mtime_ns",
+      "st_ctime_ns",
+      "sha256"
+    ],
+    "atime_claimed": false,
+    "before_read_baseline": {
+      "file": "joint15-independent-read-baseline-01.json",
+      "bytes": 73966,
+      "sha256": "c693677b28f2e45b00a1aeee5450cc69415683c7fffd226dfd5509922c055313"
+    }
+  },
+  "limitations": [
+    "Parent actual verify exit0 is inspected, not rerun. CRC/native field comparison does not replace actual native execution or independent economic verification.",
+    "Exact published HLS0c07/source8fc352/artifact354c pins published producer20f5/e5cd570. Own HLS hosted status was pending at registration and cannot be qualified by this capture. Producer own20f5 hosted all17 PASS has separate source-bound proof. No native-financial authentication inferred from HLS structural reading.",
+    "Quants observer counts whole matchingACK groups and RAM counters; no strategy feature checkpoint or availability/native authentication claimed.",
+    "Native timestamps and local acquisition receipt have unsynchronized clock/semantic uncertainty. Initial trade snapshot rows are separate; context/ACK/pong have no comparable native timestamp and remain unavailable for that span.",
+    "Same-owner ingress-to-handoff observed_ns excludes native->acquisition and later HandoffObserved ACK/projection/consumer delivery. Approximate ownerStarted+observed wall joins are diagnostic only.",
+    "Final content-file mtime is neither durability ACK nor historical availability. A passing short final-file tail does not qualify native/acquisition freshness; each channel diagnostic retains its actual values.",
+    "HLS progress counts converted event vectors as ws_messages; no per-cursor callback durations or per-event application latency recorded.",
+    "Source/target stage totals overlap and cannot establish fsync-only causality. Current sparse samples bound sampled deficits only; no sole-cause/throughput/SLA inference.",
+    "No source edits, new workload, live activation, source publication, economic or full-goal completion claim.",
+    "Newread metrics are fixed-size localmonotonic firstpoll/observedgate observations only. Entrywait and gateRun overlap; no kernel/TLS/nativearrival timing, exactphase residency, solefsync causality or freshnessevidence."
+  ],
+  "checkpoint_gate": {
+    "status": "PASS",
+    "capture_terminal_sha256": "e3191af0f42a556c012a912839caaecef1e8e56f59c12c149b81cffa646d9b89",
+    "native_audit_sha256": "2adb15cccaf95476f8ba1d2862d61c1ea18336c453809702d2d2767bdfef1b34",
+    "protected_files": 179,
+    "records": 9379,
+    "projected_items": 1844,
+    "native_observations": 2021,
+    "producer_commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+    "hls_commit": "0c07b927f999b943ce9304af50314bed9fb148c3",
+    "required_checks_verified": true,
+    "findings": []
+  },
+  "exact_bootstrap_metadata_and_archive_clock_bindings": true,
+  "independent_audit": {
+    "file": "joint15-consumer-preservation-independent-01.json",
+    "bytes": 86134,
+    "sha256": "e43106e133171be2c646b1c00ec0f8a0af4cfa4ba71ba54f0c88b42f6bd02870"
+  },
+  "closure_supplement": {
+    "file": "joint15-closure-independent-01.json",
+    "bytes": 4638,
+    "sha256": "5c4db9600a7ab8b24b5871e81f0d4a7d980d4eadb701d2dafebfa899cd51e349"
+  },
+  "independent_python_execution": {
+    "actual_session": 68125,
+    "actual_exit": 0,
+    "terminal": {
+      "file": "joint15-independent-audit-terminal-01.json",
+      "bytes": 707,
+      "sha256": "0bfb9109f202433fb8ef2b0293cef11b2f6edf78ffc396da46406aa18ab396db"
+    }
+  },
+  "published_source_bindings": {
+    "producer": {
+      "commit": "20f5b1fa16665ce93d0d2da6764e9ad0fd2bfca9",
+      "tree": "21cab38dfaa66bc186729adbfa2a1ed1b351da93",
+      "source_files": 570,
+      "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+      "all_published_Git_blob_hashes_match_qualified_manifest": true
+    },
+    "hls": {
+      "commit": "0c07b927f999b943ce9304af50314bed9fb148c3",
+      "tree": "6dcb880a0a48b4e27341a258273380a433f01a0d",
+      "source_files": 352,
+      "source_sha256": "8fc77b2155e3a3370e3f62941a70ff6c3f26d53d00b91261d1d9a406659dbff1",
+      "all_published_Git_blob_hashes_match_qualified_manifest": true
+    }
+  },
+  "read_metrics": {
+    "perps": {
+      "reported": {
+        "diagnostics_version": 1,
+        "gate_wait": {
+          "idle_pending_inputs_or_observations": {
+            "intervals": 1404,
+            "max_ns": 2272792,
+            "total_ns": 1358221572
+          },
+          "owner_awaiting_admission": {
+            "intervals": 6,
+            "max_ns": 1180791,
+            "total_ns": 6851749
+          },
+          "owner_awaiting_commit": {
+            "intervals": 99288,
+            "max_ns": 2297959,
+            "total_ns": 99201438473
+          },
+          "owner_executing": {
+            "intervals": 100,
+            "max_ns": 1175667,
+            "total_ns": 111946662
+          },
+          "owner_release_pending": {
+            "intervals": 1344,
+            "max_ns": 2471083,
+            "total_ns": 1348835387
+          },
+          "owner_stopped": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "wire_not_quiescent": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "observed_gate_runs": {
+          "intervals": 1201,
+          "max_ns": 572934084,
+          "total_ns": 102777571457
+        },
+        "read_calls": {
+          "errors": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "frames": {
+            "intervals": 1195,
+            "max_ns": 1202583,
+            "total_ns": 65800366
+          },
+          "polled_future_dropped": {
+            "intervals": 16777,
+            "max_ns": 2015375,
+            "total_ns": 16586126597
+          },
+          "returned_timeouts": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "saturated": false
+      },
+      "scope": "local monotonic application-read and observed owner-gate timing; wait-entry reasons are not phase residency; gate waits and runs overlap and are non-additive; no kernel/TLS arrival, native freshness or availability evidence",
+      "sum_entry_wait_ns_not_added_to_runs": 102027293843,
+      "each_returned_frame_has_parsed_Text_input_in_this_capture": true,
+      "firstpoll_frame_time_total_ns": 65800366,
+      "cancelled_firstpoll_time_total_ns": 16586126597
+    },
+    "spot": {
+      "reported": {
+        "diagnostics_version": 1,
+        "gate_wait": {
+          "idle_pending_inputs_or_observations": {
+            "intervals": 822,
+            "max_ns": 2264958,
+            "total_ns": 745596041
+          },
+          "owner_awaiting_admission": {
+            "intervals": 1,
+            "max_ns": 1151958,
+            "total_ns": 1151958
+          },
+          "owner_awaiting_commit": {
+            "intervals": 68385,
+            "max_ns": 2471000,
+            "total_ns": 68327046448
+          },
+          "owner_executing": {
+            "intervals": 71,
+            "max_ns": 1165375,
+            "total_ns": 76516044
+          },
+          "owner_release_pending": {
+            "intervals": 747,
+            "max_ns": 1944125,
+            "total_ns": 745339372
+          },
+          "owner_stopped": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "wire_not_quiescent": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "observed_gate_runs": {
+          "intervals": 661,
+          "max_ns": 526856042,
+          "total_ns": 70623395709
+        },
+        "read_calls": {
+          "errors": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          },
+          "frames": {
+            "intervals": 655,
+            "max_ns": 1256875,
+            "total_ns": 107219298
+          },
+          "polled_future_dropped": {
+            "intervals": 49242,
+            "max_ns": 2000125,
+            "total_ns": 48702873007
+          },
+          "returned_timeouts": {
+            "intervals": 0,
+            "max_ns": 0,
+            "total_ns": 0
+          }
+        },
+        "saturated": false
+      },
+      "scope": "local monotonic application-read and observed owner-gate timing; wait-entry reasons are not phase residency; gate waits and runs overlap and are non-additive; no kernel/TLS arrival, native freshness or availability evidence",
+      "sum_entry_wait_ns_not_added_to_runs": 69895649863,
+      "each_returned_frame_has_parsed_Text_input_in_this_capture": true,
+      "firstpoll_frame_time_total_ns": 107219298,
+      "cancelled_firstpoll_time_total_ns": 48702873007
+    }
+  },
+  "growing_witness": {
+    "quants_first_matchingACK_unix_ns": 1792584396831688000,
+    "later_sample_unix_ns": 1792584402179107000,
+    "producer_alive_after_read": true,
+    "target_prefix_sequence": 422,
+    "later_prefix_less_than_final": true,
+    "positive_HLS_progress_line": "shared progress: elapsed_secs=5 ws_messages=59 market_events=119 reconnects=0 data_gaps=0"
+  },
+  "all179_fullstats_hashes_unchanged": true,
+  "material_findings": [],
+  "HLS_own_hosted_scope_at_registration": "PENDING_REMOTE_CHECKS; localdiagnostic only until actualownCIclosure"
+}

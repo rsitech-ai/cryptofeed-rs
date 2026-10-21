@@ -1,17 +1,17 @@
 # Hyperliquid shared feed implementation and verification ledger
 
-Current checkpoint, 2026-10-21: [active scope](active_goal_scope.json) tracks the
-current source and required gates; the dated entries below preserve earlier
-results. Published producer84aa635 passes required Mac and both Linux hosts.
-Published HLS1338b01 and Quants67a9e1d consume the authoritative projected feed;
-Quants hosted tests remain blocked before execution by an account restriction.
-The [application-read diagnostic](acquisition_read_diagnostics.md) has local
-source-specific tests and actual joint13 consumer/native reconciliation, but
-perps acquisition backlog remains open. The next bounded repair is
-[Completion/Intent admission](completion_intent_pipeline.md). Razer verification,
-strict historical dataset/context admission and the original480 workload remain
-separate gates. Earlier pending dispositions below are historical, not current
-completion claims.
+Current checkpoint, 2026-10-21: [active scope](active_goal_scope.json) and the
+[final integration evidence](../evidence/shared-feed-integration-20261021/README.md)
+track producer20f5, HLS0c07 final producer pins and Quants67. Producer own17 hosted
+jobs and HLS own main/all four native packages pass. The unchanged120-second
+joint15 reconciles9379 records/1844 items/2021 native observations across both
+consumers; final-file catch-up31.034556ms passes. Five actual Quants restart
+processes and all179 protected originals pass independent audit. Quants hosted
+jobs remain blocked before execution by an account restriction. A private local
+checksummed capture export is saved; longer Razer verification, strict dataset
+and native-context admission, and the failed/unrerun original480 workload remain
+open. Timestamp diagnostics are unsynchronized and establish no freshness SLA.
+Dated entries below preserve historical results and pending dispositions.
 
 User-authorized implementation goal, 2026-10-19. Baseline cryptofeed
 `8b186c33fa6b5cc99060a0efe20f4ff8d4b5801f`, hlscreen
