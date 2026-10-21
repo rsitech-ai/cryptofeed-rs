@@ -33,6 +33,10 @@ contact: [info@rsitech.ai](mailto:info@rsitech.ai).
 - Reconnect supervision with graceful cancellation and bounded shutdown.
 - Raw MFR1 recording, deterministic adapter-level replay, normalized JSONL, and
   binary protobuf-compatible output.
+- Opt-in owned Hyperliquid public spot/perpetual capture with durable native
+  input/application-write history, exact retained-executable verification and
+  one atomic shared feed for independent consumers. See the
+  [capture runbook](docs/ops/hyperliquid-causal-capture.md).
 - Opt-in `causal-journal` library APIs for current-artifact Bybit/Hyperliquid
   disk/null execution histories: exact native-operation replay with one owner
   or bounded interleaved spot/perpetual owners and a physical resume cursor.
@@ -62,10 +66,13 @@ the remaining work before research dataset qualification.
 
 The [active integration scope](docs/plan/active_goal_scope.json) keeps acquisition,
 durable storage and replay here, strategy context/features/models in rsibot, and
-presentation in hlscreen. The
-[committed native projection](docs/plan/causal_native_observation_projection.md),
-live/control migration and registered failed-ingress repair remain unfinished.
-The replay APIs do not provide native checkpoints or production restart authority.
+presentation in hlscreen. The opt-in capture implements the
+[committed native projection](docs/plan/causal_native_observation_projection.md)
+and owned Hyperliquid live/application-write path; its
+[qualification](docs/evidence/owned-hyperliquid-capture-20261020/README.md)
+records exact source and platform scope. Legacy caller migration, the registered
+failed-ingress workload, strict dataset/strategy admission and extended operation
+remain open. Replay does not grant production restart authority.
 
 ## Install
 

@@ -215,7 +215,7 @@ fn project_with_hook(
         }
         let checkpoint = pump.last_acknowledged();
         Ok(
-            json!({"groups":pump.prepared_groups(),"source":checkpoint.source,"target":checkpoint.target,"sealed":checkpoint.sealed}),
+            json!({"projection_batch_groups":pump.max_groups_per_publication(),"last_publication":pump.last_publication(),"groups":pump.prepared_groups(),"source":checkpoint.source,"target":checkpoint.target,"sealed":checkpoint.sealed}),
         )
     })();
     if result.is_err() {
@@ -276,7 +276,7 @@ pub async fn run_public(request: CaptureRequest, root: &Path) -> Result<Value, E
     )?;
     let reader =
         MultiHistoryReplay::open_profile(&source, replay_limits(), FeedProfile::EngineCausalV5)?;
-    let pump = ProjectionPump::create(
+    let pump = ProjectionPump::create_batched(
         reader,
         ProjectionPolicy {
             schema_version: 1,
@@ -287,6 +287,7 @@ pub async fn run_public(request: CaptureRequest, root: &Path) -> Result<Value, E
         &target,
         request.target_max_bytes,
         batch(),
+        request.projection_batch_groups,
     )?;
     let finished = Arc::new(AtomicBool::new(false));
     let failed = Arc::new(AtomicBool::new(false));

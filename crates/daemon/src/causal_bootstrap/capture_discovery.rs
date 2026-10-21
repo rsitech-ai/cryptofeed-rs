@@ -214,6 +214,7 @@ mod tests {
             duration_ms: 1000,
             source_max_bytes: 64 << 20,
             target_max_bytes: 64 << 20,
+            projection_batch_groups: 1,
         }
     }
     const SPOT: &[u8] = br#"{"tokens":[{"name":"USDC","szDecimals":8,"weiDecimals":8,"index":0,"tokenId":"0x0"},{"name":"PURR","szDecimals":0,"weiDecimals":5,"index":7,"tokenId":"0x7"}],"universe":[{"name":"@12","tokens":[7,0],"index":12}]}"#;

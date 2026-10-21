@@ -9,7 +9,7 @@
   "latest_user_attachment_sha256": "5df04ad15ddf855397f1cb83f368ddcebef67ac2b6b46c7ddf2043d353de4ba3",
   "economic_run_status": "not-authorized/not-run; frozen history and supported baseline gates required",
   "operational_promotion": "not-granted",
-  "current_slice": "Current source07 (566 inputs,16a538c0...) passes ten local denied-warning gates:1642workspace/0failed/56ignored and Rust1.85default108/core308/native92/public80; fresh audit/deny0. Driver policy2 admits only committed-due native timers; policy1 periodic behavior remains. Same-request pilot04 cleanly seals1415 matching native-verified source/target/Quants groups271items, with one actual due poll permarket/zeroempty, five wire triplets permarket, no abandoned/unaccepted inputs or transporterrors. BBO native/acquisition max0.940s spot/1.445s perps in this uncontrolled shortsample is lower than retained pilot03 10\u201311s; no clock/SLA/availability/continuity promotion. All83priororiginals retain recordedhash/metadata. Quants checkpoint code66a8125 passes65tests and actual source07 restarts5/11/1415; docs-onlyf226545 follows, alllocal/unpushed. Published8de source05 ownhosted run has15success/2fail: all3Mac/Linux fullsuites pass, MSRVunusedfixturecompile and secondaryWindowswatchdogfail. Source06 fixes fixturegating; source07 requires its own hosted result. HLS5genuinewiretests pass provisionally; finalimmutable7/23pin, nativefixture/artifact/fullgates pending.",
+  "current_slice": "Source10 (566 inputs / 002a2f5b) passes stable macOS 1656/0/56 and Rust1.85 default/core/native/public 108/311/103/80; independent17c8 audit and exact debug artifacts e6c/D96 bind these results. Dependency inputs are byte-identical to actual audit/deny09 passes. Watermark regression111 reads/110 bytes -> at most2 passes with unchanged cap/refresh/errors. Existing portable release profile separately passes build and core311/native103/public80 with exact a626/f447 artifacts and positive build bindings. Actual joint08 release runner98870 exits0: all4 children0,5554 groups/1079 items/1172 native rows, unchanged2s filemtime-tail diagnostic passes0.882445256s,115 old+8 new originals unchanged. Final committed source boundary was not sampled before target finalization; backlog in that interval is UNKNOWN. Unsynchronized BBO maxima1.991s spot/5.090s perps are not availability/SLA admission. Debug joint06/07 timing failures4.1458s/9.2871s remain failures. Actual Quants checkpoint restart at6147 inside joint07 final two-record publication passes, protected115 unchanged. Current-head hosted tests and coordinated new HLS pins/artifact qualification remain pending. HLS27bd mainCI and3Mac/Linux native artifacts pass; fixture text-conversion repair locally verified. Quantsa1d local19 native/75 boundary/20-package audit pass; publication awaits explicit approval, root gitlink unchanged; real feature/economic admission remains closed.",
   "context_implementation_owner": "rsibot (Quants Lab features/models/economics; Research OS evidence; Hummingbot admitted decisions and native execution)",
   "implementation_owners": {
     "cryptofeed-rs": "Exchange adapters, exact native semantics, instrument metadata, acquisition timestamps, quality events, authoritative live feed, durable raw/canonical storage and deterministic replay",
@@ -17,12 +17,12 @@
     "hlscreen": "Shared-feed consumer and presentation"
   },
   "handoff": "One authoritative cryptofeed source with independently progressing consumers; versioned schemas, instrument identity, provenance, cursors and dataset manifests. Each consumer checks freshness/quality and reports unavailable inputs. No second collector or strategy engine.",
-  "known_dependency_advisories": "New RustSec1348 database e6f94f3760d5e6c54c1b05f204002263bc025524 exposes RUSTSEC-2026-0381 (roots0.26.11/1.0.9) and0382 (verifier0.103.15). Preserve original audit/deny failure. Candidate producer minimally updates roots1.0.10/verifier0.103.16, removes the unpatched compat wrapper using the existing0.26 WebSocket backend with a normal explicit-ring connector, and enforces downstream minimum versions. Actual TLS trust/hostname/Pong checks pass; fresh local audit0/deny0, no advisory exceptions. HLS patches the same2 registry versions and its connector but remains affected by the wrapper from its unchanged old producer pin until coordinated upgrade. Prior Wasmtime repairs/default-branch alerts remain source-scoped; no exploit-resistance or arbitrary-Wasm safety claim.",
+  "known_dependency_advisories": "Producer5479 minimally updates Mozilla roots1.0.10/verifier0.103.16 and removes the unpatched roots0.26 wrapper using normal explicit-ring TLS. Fresh source09 audit/deny passes scan1348 advisories at RustSec DB e6f94f3760d5e6c54c1b05f204002263bc025524 without exceptions; current source10 dependency inputs are byte-identical. HLS5479 pins use these patched floors; attribution corrected in27bdca4 passes its own hosted checks. Quants isolated audit originally found Black24.10 and pip25.0.1 advisories; successor a1d45ac5 pins Black26.3.1/pip26.2.0 and all20 installed test-environment packages pass with0 findings. This is not an audit of entire Quants/Hummingbot environments. Original findings remain preserved. Default-branch alerts are not closed/merged; no new full NPM audit or arbitrary-Wasm safety claim.",
   "next_required_work": [
-    "Obtain current-source hosted macOS/Linux/MSRV results and final coordinated HLS source/native artifact qualification. Preserve secondary Windows failure and all failed prior captures; do not inherit old-head passes.",
-    "Measure longer native/receipt and full consumer-delivery timing, continuity and resource/failure recovery before operational/data admission. Pilot04 lower observed deltas are shortsample diagnostics, not a clock/SLA or decision-time availability qualification.",
-    "Upgrade every HLS producer dependency to the same immutable fixed revision, remove the remaining affected wrapper, run actual-owner/wire/MFOP/HLS and direct Quants checks, and qualify each consumer source and native platform artifact independently.",
-    "Quants RAM-only atomic state/cursor checkpoint infrastructure is locally implemented,65tested and producer-backed verified; publication/rootgitlink remain separately unauthorized. Actual strategy-context integration must select an admitted current native owner contract package (existing events_v2 types are absent from checked-out owner), then satisfy source/mapping/availability gates. No placeholder feature or false availability promotion.",
+    "Publish qualified producer source002a with actual release joint08 evidence, then obtain its own macOS/Linux/MSRV hosted results and verify tested merge-source identity. Do not inherit5479 results or relabel debug joint06/07 failures. Final-source committed-prefix delivery interval remains unmeasured; filemtime diagnostic is not an SLA.",
+    "Preserve actual joint08 runner98870/0, all4 children0,5554 records/1079 items/1172 native rows, unchanged120s request/budgets/2s tail gate and123 protected files. Publish independent native/consumer audits and actual Quants checkpoint24691/0 at6147 inside joint07 final two-record publication. No480-workload substitution or availability/economic promotion.",
+    "Advance all7 direct/23 resolved HLS pins together to the published producer successor. Combine the narrow fixture-subtree byte-preservation attribute repair and independently qualify the new consumer source/artifact, generated attribution and actual native fixture/real-feed replay. Prior27bd hosted runs are terminal; no CI cancellation. Fresh growing-feed integration must bind the new HLS artifact. Matching sealed cursors never establishes freshness.",
+    "Quants atomic checkpoint and opt-in actual22f context adapter are locally committed through a1d45ac5 with19 native/75 boundary tests, real1415-group and native-only78-group replay/resume checks, and isolated dependency audit0. Publish branch/draftPR only after the pending explicit approval required by rsibot AGENTS.md; root gitlink remains separate. New focused macOS/Linux Python3.12/3.13 workflow is unexecuted until publication. Actual positive context is a named115-cell synthetic spot profile; full RESEARCH_V1 history, real candle/history/availability admission and perps-native context remain unqualified.",
     "After actual daemon/live/control/external-I/O integration, rerun the registered failed-ingress comparison with identical workload, capacities, thresholds and abort rules; preserve any continued failure. Complete continuity/strict dataset checks before economics.",
     "Deliver exact producer/HLS/Quants source and artifact/config/data pins, tested commands, disk/resource/abort/recovery bounds and retained failure evidence for the user to pull from Git. Razer execution and calendar-spaced24h/7d verification are deferred by the user; finish local work first. No deployment, orders, strategy activation, merge or release."
   ],
@@ -69,5 +69,36 @@
   "causal_application_wire_contract": "docs/plan/causal_application_wire_owner.md",
   "owned_capture_command_contract": "docs/ops/hyperliquid-causal-capture.md",
   "owned_capture_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/validation.json",
-  "owned_capture_timer_policy_v2_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/timer-policy-v2-validation.json"
+  "owned_capture_timer_policy_v2_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/timer-policy-v2-validation.json",
+  "owned_capture_joint05_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint05.json",
+  "projection_batch_candidate": {
+    "source_files": 566,
+    "source_sha256": "a80528023e75356be8e54cd07400031fef5f997fce8b8c6f7d37b9bdb3e74ef6",
+    "focused_commands": 11,
+    "focused_status": "Prior source03 focused11 commands pass; source09 full10 local gates and exact artifact build pass. Actual source09 debug joint06 timing fails4.145830861s despite structural pass; current source10 results recorded separately.",
+    "independent_focused_review_sha256": "d0d965c166c6e0b83c534f6107d9438a911e79412d5704308bbeed115b51cdc8",
+    "failed_combined_log_sha256": "5d6e21a93b43b81eb1d97fd3b3fed9a29171b9812b2079ee1aec4b86159adfd1",
+    "failed_executable_sha256": "8179d4c37af21bc377a1a3bd25df46b69c0d35950846e5b6486e2fd9d29ed416",
+    "prior_focused_source_sha256": "4626a9c180c42f6f8d9af25bc66c007ff00bb51e6d71304a5a10e2e8bbbc1f03",
+    "independent_current_local_review_sha256": "cd1773726d17363c0c38c2792911e4731d7015ba72c375ae899e87d2e7b475c3"
+  },
+  "owned_capture_joint06_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint06.json",
+  "watermark_read_candidate": {
+    "source_files": 566,
+    "source_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+    "changed_from_source09": [
+      "crates/recording/src/shared_feed.rs"
+    ],
+    "actual_red_exit": 101,
+    "actual_green_exit": 0,
+    "old_reads_for110bytes": 111,
+    "new_maximum_tested_reads": 2,
+    "independent_review_sha256": "0db9d409b4950820319db5f7efb39f064d8bf133dfb376043ebf3ff60f1d32b9",
+    "broad_qualification": "All10 local stable/MSRV gates and independent17c8 audit pass; exact debug artifacts e6c/D96. Existing release build and core311/native103/public80 tests separately pass, with denied warnings and exact a626/f447 artifact/build-output bindings.",
+    "freshness_status": "Actual debug joint07 timing fails9.287134148s. Release joint08 passes unchanged2s filemtime-tail diagnostic at0.882445256s, but final committed-source interval is UNKNOWN and native availability/clock/continuity/SLA remain unqualified. Neither old failures nor original480 workload are relabelled."
+  },
+  "owned_capture_joint07_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint07.json",
+  "owned_capture_joint08_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/joint08.json",
+  "quants_checkpoint_joint07_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/quants-checkpoint-joint07.json",
+  "owned_capture_release_profile_qualification": "docs/evidence/owned-hyperliquid-capture-20261020/release-profile-validation.json"
 }

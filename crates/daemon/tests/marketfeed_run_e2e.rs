@@ -91,8 +91,7 @@ id = "synthetic-demo"
 adapter = "synthetic"
 required = true
 transport = "memory"
-"#,
-        port = port
+"#
     );
     std::fs::write(&cfg_path, cfg).unwrap();
 

@@ -1,0 +1,440 @@
+{
+  "schema_version": 1,
+  "scope": "Source09 current a805 local macOS qualification and exact retained debug-profile artifacts; hosted Linux/current-head results and live timing remain separate required gates",
+  "created_unix_ns": 1792538596685941000,
+  "source_sha256": "a80528023e75356be8e54cd07400031fef5f997fce8b8c6f7d37b9bdb3e74ef6",
+  "source_files": 566,
+  "source_inventory": {
+    "receipt": "projection-batching-source.json",
+    "sha256": "48002a3a5da8c53aec54880bd42b7b1759c30baae93d614ed5c6dde3d88a6226"
+  },
+  "required_checks_all_passed": true,
+  "local_checks": [
+    {
+      "name": "fmt",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.9490344589576125,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "diff",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 0.01931633334606886,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "workspace",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 227.34273854177445,
+      "log_sha256": "c9ddc704e7ad0d5813f7f5926388dbc09c1a6d2646775e10485d65cd4a4a1842",
+      "source_unchanged": true,
+      "test_totals": [
+        1653,
+        0,
+        56
+      ]
+    },
+    {
+      "name": "clippy",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 6.057695374824107,
+      "log_sha256": "52fb7b538a83f9cb5fe2d14ae46af66e24cc4cc72cb4f7b81e6c612b1aa87fb9",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "docs",
+      "argv": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 7.302085957955569,
+      "log_sha256": "f74eeb1f3c29d3f5165b7bfb61490c6bda6c57a33ad9ec0f0257cc8153df525a",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "default-cli",
+      "argv": [
+        "cargo",
+        "run",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--",
+        "validate",
+        "--config",
+        "crates/daemon/config.offline.toml"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-stable"
+      },
+      "exit_code": 0,
+      "seconds": 3.4193878336809576,
+      "log_sha256": "b6ba198392f958393e5b37cb5cb783d1308dc8c84fc9317c7aa2746b78a25c88",
+      "source_unchanged": true,
+      "test_totals": null
+    },
+    {
+      "name": "msrv-default",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--lib"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 6.423916583,
+      "log_sha256": "6671fd9213b0f4a57a782f2b907a696d0e1a4627761c3be3b298b83f80eeb696",
+      "source_unchanged": true,
+      "test_totals": [
+        108,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-core",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 6.6311142499999995,
+      "log_sha256": "9ec7385b309869fd732fe4a7cb9d2236966dc841690a0d07e2f93d6a76a7e363",
+      "source_unchanged": true,
+      "test_totals": [
+        308,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-native",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 29.881125542,
+      "log_sha256": "fc6217f4d42516993af443cf3f7c31edee62e5c1a1c85e97fa9f8e0cf34f7567",
+      "source_unchanged": true,
+      "test_totals": [
+        103,
+        0,
+        0
+      ]
+    },
+    {
+      "name": "msrv-public",
+      "argv": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "env": {
+        "RUSTFLAGS": "-Dwarnings",
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_TARGET_DIR": ".local/target-native-msrv"
+      },
+      "exit_code": 0,
+      "seconds": 96.14491075,
+      "log_sha256": "78decb817ca21caf9f0c4cf7f4e76b02538cfb481c5e738c1bd837870b20ebcb",
+      "source_unchanged": true,
+      "test_totals": [
+        80,
+        0,
+        0
+      ]
+    }
+  ],
+  "security": {
+    "audit": {
+      "argv": [
+        "validation-tools/cargo-audit",
+        "audit",
+        "--json"
+      ],
+      "exit_code": 0,
+      "seconds": 4.2194249629974365,
+      "stdout_sha256": "bf841b1cad9bbe7a0953d7f72f4580c263529a93ee08580a18b9e93d2140a43f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "deny": {
+      "argv": [
+        "validation-tools/cargo-deny",
+        "--all-features",
+        "check"
+      ],
+      "exit_code": 0,
+      "seconds": 2.745598793029785,
+      "stdout_sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "audit_database": {
+    "advisory-count": 1348,
+    "last-commit": "e6f94f3760d5e6c54c1b05f204002263bc025524",
+    "last-updated": "2026-10-20T21:24:19+02:00"
+  },
+  "retained_artifacts": {
+    "marketfeed-capture": {
+      "path": ".local/causal-capture-qualification/retained-artifacts-09/marketfeed-capture",
+      "bytes": 36552304,
+      "sha256": "ce7d3311722ed2a7712ea05412b291997bddffe052bc6a2de056874599a19605"
+    },
+    "marketfeed-observations": {
+      "path": ".local/causal-capture-qualification/retained-artifacts-09/marketfeed-observations",
+      "bytes": 8081984,
+      "sha256": "f27ab3b89ca71df6a36ee2686243c21be0b180c070c7fdfe9dba8aaac8a2d2a5"
+    }
+  },
+  "capture_identity": {
+    "compiled": {
+      "debug": "false",
+      "encoded_rustflags": "-Dwarnings",
+      "git_commit": "5479d733f02f1a2777579460154e144babe67b87",
+      "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+      "opt_level": "0",
+      "package_features": [
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-adapter-bybit"
+        },
+        {
+          "features": [],
+          "package": "marketfeed-adapter-hyperliquid"
+        },
+        {
+          "features": [
+            "causal-journal",
+            "default",
+            "kafka",
+            "nats",
+            "ui",
+            "ui-api"
+          ],
+          "package": "marketfeed-daemon"
+        },
+        {
+          "features": [
+            "default"
+          ],
+          "package": "marketfeed-engine"
+        },
+        {
+          "features": [
+            "default",
+            "kafka",
+            "nats"
+          ],
+          "package": "marketfeed-sinks"
+        }
+      ],
+      "package_version": "0.1.0-alpha.1",
+      "profile": "debug",
+      "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+      "schema_version": 1,
+      "source_files": 566,
+      "source_scheme": "sha256-path-length-and-bytes-v1",
+      "source_sha256": "a80528023e75356be8e54cd07400031fef5f997fce8b8c6f7d37b9bdb3e74ef6",
+      "target": "aarch64-apple-darwin"
+    },
+    "executable_bytes": 36552304,
+    "executable_sha256": "ce7d3311722ed2a7712ea05412b291997bddffe052bc6a2de056874599a19605"
+  },
+  "independent_implementation_reviews": [
+    {
+      "path": "private-independent-review/projection-batch-source03-independent-01.json",
+      "bytes": 23040,
+      "sha256": "d0d965c166c6e0b83c534f6107d9438a911e79412d5704308bbeed115b51cdc8"
+    },
+    {
+      "path": "private-independent-review/projection-batch-fixture-isolation04-independent-01.json",
+      "bytes": 3473,
+      "sha256": "f23c6eea75ce57e730f3127a39e4748b835c104af105d84d162109ae564a7151"
+    }
+  ],
+  "actual_terminal_receipts": [
+    {
+      "path": ".local/causal-capture-qualification/stable-terminal-09.json",
+      "bytes": 297,
+      "sha256": "1db1726b142a55ca9d1b244a84925c9710d8afdc195821bdc4a7a9074be8bf9e"
+    },
+    {
+      "path": ".local/causal-capture-qualification/msrv-terminal-09.json",
+      "bytes": 297,
+      "sha256": "ed3e0c98338eb8cd99f165b07b67890017266e2d4e1235774efa498cecebcca5"
+    },
+    {
+      "path": ".local/causal-capture-qualification/security-terminal-09.json",
+      "bytes": 210,
+      "sha256": "1f58bced63fc03a238ec056f841700e83dbf5c7dc0bba1922de10d422a9adf33"
+    },
+    {
+      "path": ".local/causal-capture-qualification/artifact-runner-terminal-09.json",
+      "bytes": 306,
+      "sha256": "30ed1872f8099ef3d2e72657ad5d3c560ee8ab9ce79317283054e77c7d1513a0"
+    }
+  ],
+  "prior_failure": {
+    "source08_workspace_failed": true,
+    "log": {
+      "path": ".local/causal-capture-qualification/workspace-08.log",
+      "bytes": 86032,
+      "sha256": "5d6e21a93b43b81eb1d97fd3b3fed9a29171b9812b2079ee1aec4b86159adfd1"
+    },
+    "retained_executable": {
+      "path": ".local/causal-capture-qualification/failed-source08-unit-executable",
+      "bytes": 48836624,
+      "sha256": "8179d4c37af21bc377a1a3bd25df46b69c0d35950846e5b6486e2fd9d29ed416"
+    },
+    "meaning": "Same-executable diagnostics isolate interaction with the new heavy125-group fixture in the full test suite. Source09 only serializes two test-fixture lifetimes before watchdog setup; no original assertion/cap/watchdog change and no production/freshness fix claimed."
+  },
+  "qualification_limits": [
+    "No live run or Linux/hosted pass is inherited from predecessor source5479.",
+    "Actual bridge bytes match predecessor artifact after the fresh current-source build; retained-artifact identity is hashing, not a loaded-image or reproducible-build attestation.",
+    "Original failed registered Bybit480 workload remains failed and unrerun.",
+    "Current-source Linux/hosted, live timing, long soak, real feature/availability and economic gates are separate."
+  ],
+  "final_independent_review": {
+    "receipt": "projection-batch-parent-source09-independent-02.json",
+    "sha256": "cd1773726d17363c0c38c2792911e4731d7015ba72c375ae899e87d2e7b475c3",
+    "status": "PASS local source/logs/security/artifacts; no hosted/live/freshness qualification"
+  }
+}

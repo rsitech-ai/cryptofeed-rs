@@ -21,6 +21,12 @@ test loop is not an exchange-data soak or operational promotion.
    groups, preserve independent consumer cursors, and settle owners and target
    publication before sealing. Recovery creates a fresh writer lifetime; never
    silently take over an existing feed directory.
+   The optional physical projector batch is 1–8 complete MFOP records per
+   transaction, default 1, within existing actor operation/byte/age bounds. Qualify
+   exact default 1/batch 8 logical record bytes, per-record paired resumes, whole
+   ACK spans, immutable Full retry and fault/Seal behavior. Register batch 8 as the
+   sole request change for a new matching growing-feed comparison; do not claim
+   it repairs native acquisition lag from target-only transaction counts.
 4. The direct Quants reader and diagnostic observer are locally qualified; new
    MFCJ5 capture/consumer integration needs its own actual checks. Bind cursor pairs to the consumer's restored
    state/config/version; acknowledging a feed does not persist feature state.

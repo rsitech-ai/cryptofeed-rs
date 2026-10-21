@@ -24,6 +24,19 @@ pub mod owner;
 pub mod projection;
 pub mod replay;
 
+// These two independent correctness fixtures share one test-only disk-lifetime
+// resource. The asynchronous semaphore is FIFO and works across their separate
+// Tokio runtimes; no native callback or actor concurrency inside a fixture is
+// changed. Acquire before fixture construction and its existing watchdogs.
+#[cfg(all(test, feature = "causal-journal"))]
+async fn native_publication_fixture_permit() -> tokio::sync::SemaphorePermit<'static> {
+    static RESOURCE: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+    RESOURCE
+        .acquire()
+        .await
+        .expect("test publication resource is never closed")
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum BootstrapError {
     #[error(transparent)]

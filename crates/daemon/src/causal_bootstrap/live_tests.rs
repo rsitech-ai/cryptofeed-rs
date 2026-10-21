@@ -847,6 +847,7 @@ async fn acquired_frame_facing_actual_ingress_full_is_counted_and_never_retried(
 
 #[tokio::test]
 async fn paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly() {
+    let _publication = super::super::native_publication_fixture_permit().await;
     const FRAMES: u64 = 32;
     let Fixture {
         _dir,

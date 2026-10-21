@@ -35,6 +35,7 @@ pub(super) fn request() -> CaptureRequest {
         duration_ms: 60_000,
         source_max_bytes: 64 << 20,
         target_max_bytes: 64 << 20,
+        projection_batch_groups: 1,
     }
 }
 pub(super) fn build(request: &CaptureRequest) -> Result<Vec<BootstrapDto>, BootstrapError> {
@@ -295,5 +296,56 @@ fn recent_trade_snapshots_fit_frame_budget_and_excess_rows_still_fail_closed() {
                 assert!(observed.is_empty(), "oversize rows partially released");
             }
         }
+    }
+}
+
+#[test]
+fn projection_batch_default_preserves_request_bytes_and_invalid_counts_fail_preflight() {
+    let recipe = request();
+    let old_shape = serde_json::json!({
+        "schema_version": recipe.schema_version,
+        "markets": recipe.markets,
+        "duration_ms": recipe.duration_ms,
+        "source_max_bytes": recipe.source_max_bytes,
+        "target_max_bytes": recipe.target_max_bytes,
+    });
+    let serialized = serde_json::to_vec(&recipe).unwrap();
+    // Compare a struct-shaped serialization preserving the existing field order.
+    let text = String::from_utf8(serialized.clone()).unwrap();
+    assert!(!text.contains("projection_batch_groups"));
+    let omitted: CaptureRequest = serde_json::from_value(old_shape.clone()).unwrap();
+    assert_eq!(omitted.projection_batch_groups, 1);
+    assert_eq!(serde_json::to_vec(&omitted).unwrap(), serialized);
+    let mut explicit = old_shape;
+    explicit["projection_batch_groups"] = serde_json::json!(1);
+    let parsed: CaptureRequest = serde_json::from_value(explicit).unwrap();
+    assert_eq!(serde_json::to_vec(&parsed).unwrap(), serialized);
+    for count in [0, 9] {
+        let mut invalid = request();
+        invalid.projection_batch_groups = count;
+        assert!(invalid.validate().is_err());
+        assert!(build(&invalid).is_err());
+    }
+    let mut eight = request();
+    eight.projection_batch_groups = 8;
+    eight.validate().unwrap();
+    let bytes = serde_json::to_vec(&eight).unwrap();
+    assert!(
+        String::from_utf8(bytes)
+            .unwrap()
+            .contains("\"projection_batch_groups\":8")
+    );
+}
+
+#[tokio::test]
+async fn invalid_physical_batch_counts_never_create_public_capture_output() {
+    let temp = tempfile::tempdir().unwrap();
+    for count in [0, 9] {
+        let mut recipe = request();
+        recipe.projection_batch_groups = count;
+        let path = temp.path().join(format!("invalid-{count}"));
+        let error = run_public(recipe, &path).await.unwrap_err();
+        assert!(error.to_string().contains("capture request version/bounds"));
+        assert!(!path.exists());
     }
 }

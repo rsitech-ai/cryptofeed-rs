@@ -37,12 +37,26 @@ pub struct CaptureRequest {
     pub duration_ms: u64,
     pub source_max_bytes: u64,
     pub target_max_bytes: u64,
+    /// Physical MFOP records per target transaction; native source work and
+    /// independently resumable logical groups retain their existing bounds.
+    #[serde(
+        default = "one_projection_group",
+        skip_serializing_if = "is_one_projection_group"
+    )]
+    pub projection_batch_groups: usize,
+}
+fn one_projection_group() -> usize {
+    1
+}
+fn is_one_projection_group(value: &usize) -> bool {
+    *value == 1
 }
 impl CaptureRequest {
     pub fn validate(&self) -> Result<(), BootstrapError> {
         if self.schema_version != 1
             || self.markets.is_empty()
             || self.markets.len() > 2
+            || !(1..=8).contains(&self.projection_batch_groups)
             || !(1..=86_400_000).contains(&self.duration_ms)
             || !(64 << 20..=1 << 40).contains(&self.source_max_bytes)
             || !(64 << 20..=1 << 40).contains(&self.target_max_bytes)
@@ -291,3 +305,10 @@ fn prepare(
 #[cfg(all(test, feature = "causal-journal"))]
 #[path = "capture_tests.rs"]
 mod tests;
+
+// Reuse the exact native capture fixture without exposing test modules or a
+// runtime constructor bypass to other projection tests.
+#[cfg(all(test, feature = "causal-journal"))]
+pub(super) fn projection_test_bootstraps() -> Vec<BootstrapDto> {
+    tests::build(&tests::request()).unwrap()
+}

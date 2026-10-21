@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "status": "PASS_CLOSED_ARCHIVE_SELECTED_BOUNDARY_CHECKPOINT_SMOKE",
+  "scope": "Actual real Rust debugD96 bridge/current local Quants a1d generic RAMcounter checkpoint execution on closed joint07. Separate from Release joint08 and from native market-context admission.",
+  "actual_runner": {
+    "session": 24691,
+    "exit_code": 0,
+    "elapsed_seconds": 128.5494956667535
+  },
+  "actual_terminal": {
+    "file": "checkpoint-smoke-terminal-01.json",
+    "sha256": "1df39772b45bda25ed6cb2bb140cee3328cca9673c4d17312002bbbb9893374b",
+    "bytes": 1289
+  },
+  "raw_log": {
+    "file": "checkpoint-smoke-01.log",
+    "sha256": "335c2cc7f22ad6f311c2ed31d0a758bfe94ed4b87106d37a394ea5f3f6728c32",
+    "bytes": 228
+  },
+  "script": {
+    "file": "checkpoint-smoke-01.py",
+    "sha256": "16a23d7b03008bb07115eb675b97ab82c7975dd2cdd19b25f886da87a613c38c",
+    "bytes": 6897
+  },
+  "original_receipts": {
+    "actual_original": {
+      "file": "receipt.json",
+      "sha256": "3dae0ef6b56aa3898235f0983df9c5038e14aca50bce6d99104ca6012522b527",
+      "bytes": 100920
+    },
+    "prose_corrected": {
+      "file": "receipt-02.json",
+      "sha256": "fbee74a59a0fb0a19543a7467847c4b3f85fc71013c4d8c97d6a5c1af1bda3e3",
+      "bytes": 100812
+    },
+    "scope_correction": {
+      "file": "checkpoint-smoke-scope-correction-01.json",
+      "sha256": "8e7a610cc89491e1a6518631b7596f7f8a23252bab732726a1e4248a40c1d9a3",
+      "bytes": 1835
+    }
+  },
+  "correction_scope": {
+    "sole_change": "Removed one stale pre-execution limit from the actual executed receipt; every other JSON field is identical.",
+    "original_and_raw_log_preserved": true,
+    "raw_log_marker_binds_original_receipt": "3dae0ef6b56aa3898235f0983df9c5038e14aca50bce6d99104ca6012522b527",
+    "rerun": false
+  },
+  "checkpoint_smoke": {
+    "scope": "Actual closed07 realRustD96 bridge/currenta1d RAMcounter checkpoint only; structural correctness, no nativecallback/context/availability/economic/freshness qualification.",
+    "status": "PASS",
+    "error": null,
+    "elapsed_seconds": 128.5494956667535,
+    "proposal_sha256": "3d51faa16d2ffb3b2b7ca5b1071c7c99b101ec5fa86c30eaf898bdd5c3be8c54",
+    "script_sha256": "16a23d7b03008bb07115eb675b97ab82c7975dd2cdd19b25f886da87a613c38c",
+    "quants_commit": "a1d45ac5dc26c9ea47f0df96689d1ed97c01738a",
+    "sources": {
+      "core/__init__.py": {
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "core/market_observations/__init__.py": {
+        "bytes": 87,
+        "sha256": "7ce805898ba50b2d30cea492f037b6baf5319aa9ae14273a24818c1cc2d92556"
+      },
+      "core/market_observations/cryptofeed_projection.py": {
+        "bytes": 20347,
+        "sha256": "d43147b3083651446f83f9a38f0c7c3cbd51c41aaa172face54f6682696bf6c9"
+      },
+      "core/market_observations/cryptofeed_checkpoint.py": {
+        "bytes": 26354,
+        "sha256": "7e2ea94a97e0aecaa07ace4056a465dbb9164dea2c281de0737474f4cb054152"
+      }
+    },
+    "bridge": {
+      "path": "marketfeed-observations",
+      "bytes": 8085744,
+      "sha256": "d96cfc4955ae4c027a0b48028b427e1631cec4589d22107eba326af1bddaed9e"
+    },
+    "binding": {
+      "clock_policy": "per_owner_started_physical_order_v1",
+      "source_recipe_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+      "reducer_version": "diagnostic.counter.v1",
+      "state_schema": "diagnostic.counter.v1",
+      "source_feed_id": "f8508d7d8cb186f2e5cf2710e30255868d38e4a6",
+      "target_feed_id": "9ef3460f5ac1ae1f56b75715f8165f465fce8a6b",
+      "application_source_sha256": "16a23d7b03008bb07115eb675b97ab82c7975dd2cdd19b25f886da87a613c38c",
+      "configuration": {
+        "scope": "Closed07 checkpoint/refusal structural restart diagnostic",
+        "economics_supported": false
+      },
+      "bridge_sha256": "d96cfc4955ae4c027a0b48028b427e1631cec4589d22107eba326af1bddaed9e",
+      "source_profile": 5
+    },
+    "runtime": {
+      "version": "3.12.14 (main, Aug 14 2026, 15:24:41) [Clang 22.1.3 ]",
+      "executable": "python3.12",
+      "sha256": "bc56ea9cdc0fface1eb75712f871a454324f6cbfec4e30311b197f208a7f3d07"
+    },
+    "boundaries": [
+      {
+        "state": {
+          "groups": 5,
+          "items": 0
+        },
+        "pair": {
+          "target": {
+            "feed_id": "9ef3460f5ac1ae1f56b75715f8165f465fce8a6b",
+            "sequence": 5,
+            "offset": 1218729
+          },
+          "source": {
+            "feed_id": "f8508d7d8cb186f2e5cf2710e30255868d38e4a6",
+            "sequence": 5,
+            "offset": 1212032
+          }
+        },
+        "checkpoint_file_sha256": "cc130da772983c72d7d434965ea48aadebec0b61b04241595d4bf43b8ca98f14"
+      },
+      {
+        "state": {
+          "groups": 11,
+          "items": 0
+        },
+        "pair": {
+          "target": {
+            "feed_id": "9ef3460f5ac1ae1f56b75715f8165f465fce8a6b",
+            "sequence": 11,
+            "offset": 1232758
+          },
+          "source": {
+            "feed_id": "f8508d7d8cb186f2e5cf2710e30255868d38e4a6",
+            "sequence": 11,
+            "offset": 1240154
+          }
+        },
+        "checkpoint_file_sha256": "7fd0c1214bf9bf99b683cf44aeb61137a1ab04fdd51778a289f55bc163db0f12"
+      },
+      {
+        "state": {
+          "groups": 6147,
+          "items": 1196
+        },
+        "pair": {
+          "target": {
+            "feed_id": "9ef3460f5ac1ae1f56b75715f8165f465fce8a6b",
+            "sequence": 6147,
+            "offset": 18505533
+          },
+          "source": {
+            "feed_id": "f8508d7d8cb186f2e5cf2710e30255868d38e4a6",
+            "sequence": 6147,
+            "offset": 19250907
+          }
+        },
+        "checkpoint_file_sha256": "1150e003a2b35ae48cf9c8bf5b0788035bbe2793a2d401bdfccb0c0035cf69f0"
+      },
+      {
+        "state": {
+          "groups": 6148,
+          "items": 1196
+        },
+        "pair": {
+          "target": {
+            "feed_id": "9ef3460f5ac1ae1f56b75715f8165f465fce8a6b",
+            "sequence": 6148,
+            "offset": 18507539
+          },
+          "source": {
+            "feed_id": "f8508d7d8cb186f2e5cf2710e30255868d38e4a6",
+            "sequence": 6148,
+            "offset": 19251076
+          }
+        },
+        "checkpoint_file_sha256": "b53fb749a58ebab8195609f768a7fd9002cd1ad0292b2088b5b3b5b2165f450b"
+      }
+    ],
+    "interior_publication": {
+      "last_publication": {
+        "groups": 2,
+        "source_after": {
+          "feed_id": "f8508d7d8cb186f2e5cf2710e30255868d38e4a6",
+          "offset": 19251076,
+          "sequence": 6148
+        },
+        "source_before": {
+          "feed_id": "f8508d7d8cb186f2e5cf2710e30255868d38e4a6",
+          "offset": 19250337,
+          "sequence": 6146
+        },
+        "target_after": {
+          "feed_id": "9ef3460f5ac1ae1f56b75715f8165f465fce8a6b",
+          "offset": 18507539,
+          "sequence": 6148
+        },
+        "target_before": {
+          "feed_id": "9ef3460f5ac1ae1f56b75715f8165f465fce8a6b",
+          "offset": 18503442,
+          "sequence": 6146
+        }
+      },
+      "interior_record": 6147,
+      "strictly_inside_actual_source_and_target_publication_span": true
+    },
+    "sealed_resume_idle": true,
+    "protected_archive_files": 115,
+    "archive_hashes_fullstats_unchanged": true,
+    "atime_claimed": false,
+    "timing_failure_retained": {
+      "runner_session": 95563,
+      "actual_exit": 1,
+      "tail_ns": 9287134148,
+      "maximum_tail_ns": 2000000000
+    },
+    "validation": "mfop1_structure",
+    "native_source_verified": false,
+    "availability_time_ns": null,
+    "economics_supported": false,
+    "limits": [
+      "Only chosen restart boundaries, not allsuffix/fullremainingresume matrix.",
+      "RAMcounter is not actual marketcontext, external sideeffect exactlyonce or availability qualification."
+    ]
+  },
+  "artifact_profile": {
+    "producer_source_recipe_sha256": "002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0",
+    "producer_and_bridge_build": "debug opt0, from joint07",
+    "bridge_sha256": "d96cfc4955ae4c027a0b48028b427e1631cec4589d22107eba326af1bddaed9e",
+    "bridge_bytes": 8085744,
+    "release08_artifact_used": false
+  },
+  "limits": [
+    "Only restart boundaries5,11,6147,6148 and final sealed idle were exercised; not every suffix or remaining-suffix replay matrix.",
+    "Boundary6147 is inside the actual final two-record physical publication6146→6148, for both source and target.",
+    "Generic RAMcounter state contains only groups/items and fits the existing1MiB checkpoint contract; no full OHLCV builder history, native context, external side-effect exactly-once or availability claim.",
+    "Actual local macOS filesystem execution only; no Linux, crash/power-loss, hosted or SLA qualification.",
+    "Joint07 actual runner95563 exit1 and9,287,134,148ns tail failure remain failed. This later closed-feed smoke does not repair timing."
+  ],
+  "portability": {
+    "kind": "selected_fields_from_corrected_receipt",
+    "selected_fields": [
+      "scope",
+      "status",
+      "error",
+      "elapsed_seconds",
+      "proposal_sha256",
+      "script_sha256",
+      "quants_commit",
+      "sources",
+      "bridge",
+      "binding",
+      "runtime",
+      "boundaries",
+      "interior_publication",
+      "sealed_resume_idle",
+      "protected_archive_files",
+      "archive_hashes_fullstats_unchanged",
+      "atime_claimed",
+      "timing_failure_retained",
+      "validation",
+      "native_source_verified",
+      "availability_time_ns",
+      "economics_supported",
+      "limits"
+    ],
+    "omitted": "The115-entry absolute archive_before/archive_after maps; count and unchanged hash/fullstat result remain, bound to the original corrected receipt.",
+    "absolute_paths": "Bridge and runtime executable absolute paths are replaced by basenames. Repository-relative source paths remain unchanged.",
+    "no_new_execution": "This curation reads existing receipt/log/terminal only; no smoke or native replay was rerun."
+  }
+}

@@ -6,13 +6,115 @@ reexecutes committed history into the shared MFOP feed. See the
 [capture runbook](../../ops/hyperliquid-causal-capture.md) and
 [wire contract](../../plan/causal_application_wire_owner.md).
 
-The latest policy-2 successor passes all ten local gates and a new public capture:
+The buffered-watermark successor has its own local
+[qualification](watermark-buffering-validation.json) and
+[source inventory](watermark-buffering-source.json), recipe
+`002a2f5bc3c329c2979f6083ff431f207dea826c3d2b27cc9267cd6f1ff84ac0`.
+All ten local gates pass: macOS 1,656/0/56; Rust 1.85 default 108, core 311,
+native/bootstrap 103 and public integration 80. Actual dependency audit/deny09
+passes apply to its byte-identical manifests, lockfile and dependency inputs;
+this change adds no dependency or exception. The retained debug-profile capture
+is `e6c69783…` and bridge `d96cfc49…`.
+
+The real regular-file regression reproduces 111 backing reads for a 110-byte
+watermark before the fix, then passes with at most two. A fresh bounded buffer
+coalesces reads without caching across calls. The existing 4,097-byte cap,
+short reads, I/O failures, JSON/schema checks and every-record watermark refresh
+remain. This proves a read-amplification repair, not sole causality for backlog
+or acquisition lag.
+
+The subsequent debug-profile [joint run07](joint07.json) **also fails** the
+unchanged two-second tail gate: 9.2871 seconds, with 1,413 groups pending at the
+first post-source sample. All four children exit0 at matching 6,148 groups,
+1,196 items and 1,384 released native rows; target has 4,987 transactions.
+Two completed native rows are withheld at Stop. All 107 earlier originals and
+eight new files remain unchanged. Unsynchronized BBO deltas reach 6.217 seconds
+spot / 17.170 perps. These uncontrolled samples do not isolate why their measured
+tails differ. The existing release profile is qualified separately below;
+passing release results cannot repair or relabel a failed debug result.
+
+The unchanged source also passes the existing portable Cargo release-profile
+build and 311 core, 103 native/bootstrap and 80 public integration tests, with
+denied warnings. See [release-profile validation](release-profile-validation.json).
+Retained capture `a626feec…` and bridge `f447e6b3…` are fresh release-build outputs;
+the capture embeds its recipe, while the bridge is bound by actual build-output
+and retained-file hashes. The runtime request, one-millisecond grouping age and
+all queue/byte/operation caps are unchanged. This is neither a full release
+workspace test nor release MSRV, Linux runtime, SLA or data-admission qualification.
+
+The subsequent release-profile [joint run08](joint08.json) passes the unchanged
+two-second final-file-mtime diagnostic at 0.882445256 seconds. Capture, native
+verification, Quants and the retained predecessor hlscreen consumer all exit0 at
+the same sealed boundary: 5,554 groups, 1,079 projection items and 1,172 released
+native rows. Independent audits reconcile CRCs, paired cursors, native routing
+and all consumer counts; all 115 earlier originals and eight new files retain
+their recorded hashes and metadata. The last physical projection publication
+contains seven complete records. The final committed source boundary was not
+sampled before target finalization, so backlog during that interval is unknown.
+Unsynchronized BBO deltas reach 1.991 seconds spot / 5.090 perps; this remains
+a development diagnostic, not clock, availability, continuity or SLA admission.
+The request is byte-identical to runs06/07 and the existing build profile is the
+only declared change. Uncontrolled traffic prevents a causal profile comparison.
+Current-head hosted qualification and a freshly pinned hlscreen build remain
+separate gates; the debug timing failures above remain failures.
+
+The actual Quants checkpoint also passes [restart checks on run07](quants-checkpoint-joint07.json)
+at groups 5, 11, 6,147 and 6,148, followed by sealed idle. Group 6,147 lies inside
+the final two-record physical publication. Its 1,196-item state and paired
+cursors agree after restart, and all 115 protected files remain unchanged.
+This verifies a RAM-only structural reducer and durable checkpoint, not native
+market-context admission or exactly-once external effects. The original receipt's
+stale pre-execution sentence is retained with a prose-only correction receipt.
+
+The preceding complete-group projection batch candidate has its own local
+[qualification](projection-batching-validation.json) and
+[566-input source inventory](projection-batching-source.json), recipe
+`a80528023e75356be8e54cd07400031fef5f997fce8b8c6f7d37b9bdb3e74ef6`.
+macOS passes 1,653 tests, 0 failures, 56 ignored; all ten local stable/MSRV checks
+and fresh audit/deny checks pass. Rust 1.85 passes default 108, core 308,
+native/bootstrap 103 and public integration 80. The retained capture artifact is
+`ce7d3311…`; the bridge is `f27ab3b8…`. These are debug-profile local artifacts,
+not release or Linux qualification. Its actual joint run06 **fails** the unchanged
+two-second development tail diagnostic: 4.1458 seconds, with 552 groups pending
+at the first post-source sample. All four children exit0 at matching 5,438 groups,
+1,055 items and 1,231 released native observations; target has 4,400 physical
+transactions. All 99 older originals and eight new capture files remain intact.
+See [run06 reconciliation and failure evidence](joint06.json). Unsynchronized
+BBO acquisition-minus-native-clock maxima are 4.740 seconds spot / 14.672 perps.
+The buffered successor does not relabel this failed result.
+
+The preceding combined source08 run failed the paused-input watchdog. Its exact
+source, executable and raw log remain retained. Same-executable diagnostics
+reproduced failure in the full suite and passed when the new heavy native
+comparison fixture was omitted. Source09 shares a FIFO permit between these two
+fixture lifetimes, acquired before fixture construction and their existing
+watchdogs. Both cases, default test threads, assertions, caps, watchdogs and
+within-case concurrency remain. This repairs fixture interference; it does not
+establish the I/O cause of the timeout or repair production freshness.
+
+The longer simultaneous producer/hlscreen/Quants run05 passes structural
+reconciliation but **fails its timing gate**. All four processes exit0 at matching
+6,203 groups, 1,209 projection items and 1,468 released native display observations.
+Target publication ends 34.0466 seconds after the source file's final mtime;
+2,288 groups remain outstanding in the first sample after source completion.
+Unsynchronized native-to-acquisition BBO maxima are 7.753 seconds spot and
+28.427 seconds perps. See [the independent run05 receipt](joint05.json).
+Correct persistence and eventual synchronization do not establish timely delivery.
+The bounded physical projection-batching candidate's local qualification above
+does not replace this failed timing result.
+
+The earlier 30-second policy-2 successor passes all ten local gates and a public capture:
 1,415 groups / 271 items agree across native verification and Quants. BBO
 acquisition-minus-native-clock peaks are 0.940 seconds spot / 1.445 seconds perps
 in this short sample. See [the successor validation](timer-policy-v2-validation.json)
 and [its exact source](timer-policy-v2-source.json). This is not a clock, latency
-SLA, continuity or extended-soak qualification. hlscreen's coordinated revision
-and the successor's own hosted checks remain separate gates.
+SLA, continuity or extended-soak qualification. Its own
+[hosted result](hosted5479.json) independently binds source `5479d733` and all
+566 compiled inputs: macOS passes 1,642 tests, both Linux architectures pass
+1,643, and MSRV checks pass. The run has 16 successful jobs; the secondary Windows
+paused-frame watchdog remains failed, with no cancellations. hlscreen's
+revision `af6ff557` passes its own eleven local checks and the joint run05
+structural check; its hosted/native artifact checks remain separate.
 
 The earlier source05 slice passed its local correctness checks but **failed its
 timing diagnostic**: in that 30-second public pilot, spot BBO acquisition-minus-native-clock
@@ -79,10 +181,14 @@ private; only hashes, counts and diagnostic summaries are published.
 ## Remaining gates
 
 Finish the coordinated immutable hlscreen dependency upgrade and native artifact
-smokes. Quants RAM-only checkpoint restarts are now locally verified; strategy
-feature admission and the current native owner contract package remain separate.
-The new producer requires its own hosted macOS/Linux results; predecessor hosted
-passes are historical evidence only. Diagnose acquisition backlog, then rerun the
+smokes after the new producer qualifies. Quants RAM-only checkpoint restarts and
+an opt-in adapter invoking the actual native context owner are locally verified;
+the positive context profile is explicitly synthetic spot data. Real history,
+availability, perpetual context and strategy admission remain separate. Quants
+publication awaits approval and the root gitlink is unchanged.
+Published producer5479's own macOS/Linux results are in `hosted5479.json`;
+they do not qualify this new source. Check longer acquisition
+and full consumer-delivery timing, then rerun the
 registered ingress comparison unchanged after actual consumer integration.
 Extended Razer/24-hour/7-day checks remain deferred by the user. No dataset,
 availability-time, feature/economic, strategy activation or release qualification

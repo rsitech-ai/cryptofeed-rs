@@ -17,6 +17,12 @@ be measured separately from storage correctness.
 
 Build and retain both tools from the same reviewed source and lockfile:
 
+Use the release profile for operational timing checks. The retained debug runs06
+and07 failed their unchanged two-second final-file-mtime diagnostic; release
+run08 passed it on the same source and request. This short development check is
+not a freshness SLA. See the [source-specific evidence](../evidence/owned-hyperliquid-capture-20261020/README.md)
+for exact artifact pins, preserved failures and remaining delivery measurements.
+
 ```sh
 cargo build --locked --release -p marketfeed-daemon --features causal-journal \
   --bin marketfeed-capture --bin marketfeed-observations
@@ -95,6 +101,42 @@ time/group budgets. Each consumer has its own progress; neither forwards data
 through the other. These commands do not qualify unknown availability or persist
 strategy feature state.
 
+The optional request field `projection_batch_groups` accepts 1–8; omitted or
+explicit 1 retains the original one-record transaction behavior and the same
+serialized request bytes. A value such as 8 groups complete MFOP records in one
+physical transaction; it changes no native subscriptions, source handoffs or
+consumer logical group. Values 0/9 fail before output creation or HTTP acquisition.
+The report declares the configured maximum and last observed publication's N
+records and exclusive-before/inclusive-after source/target cursor interval.
+
+`projection.groups` counts logical MFOP records. Writer `committed_operations`
+counts admitted transactions, `groups` counts physical publications, and
+`timings.accepted_records` counts acknowledged records. A publication can combine
+transactions; a transaction can contain multiple records. Keep these counts
+separate when inspecting batching or deciding whether a consumer caught up.
+
+Grouping stops at count, available committed source, Seal, or the existing byte
+and preparation-age bounds. Another source step is read only when a policy-maximum
+record can fit, so there is no held lookahead. The capture keeps the existing
+8-operation/16MiB publication, 32MiB pending and 1ms actor grouping bounds. Preparation
+checks that age between replay calls; native execution, scheduling and I/O are not
+interruptible or covered by a wall-time guarantee. Caller preparation memory and
+the writer encoding buffer are additional to the actor's pending-byte budget.
+
+A Full refusal retains the exact immutable transaction without replaying native
+callbacks. Pump progress advances only after its actual whole-transaction ACK.
+Readers still acknowledge and resume individual complete MFOP records, including
+boundaries inside a physical transaction. An error while preparing later records
+discards the entire unadmitted candidate and poisons the pump; an earlier valid
+prefix of that candidate need not have been published. An I/O failure or dropped
+waiter can leave a complete later transaction visible without a pump ACK. Retain
+that evidence and reconstruct into a new target lifetime; never invent progress
+or append takeover. Source data and native eligibility rules are unchanged.
+
+This opt-in physical grouping requires its own source/platform and growing-feed
+consumer qualification. Fewer target transactions in an offline correctness
+fixture do not establish an acquisition-delay or freshness repair.
+
 The projector tails only committed source records and independently reexecutes
 native callbacks. Readers tail `feed/` with independent complete-group ACK pairs.
 Retain the separate `marketfeed-observations` executable and SHA256 pin for the
@@ -116,6 +158,8 @@ source execution; source may be ahead of a live target. An unsealed verified
 prefix is not complete history. Keep the original files, hashes and errors.
 Artifact hashing is not signed attestation or proof of the OS loaded image.
 
-Unknown usable/availability time remains unavailable. Strict dataset admission,
-consumer feature checkpoints, economic runs and 24h/7d operational qualification
-remain separate gates. Follow [the Razer verification contract](../plan/razer_shared_feed_verification.md).
+Unknown usable/availability time remains unavailable. Quants' opt-in RAM-state
+and paired-cursor checkpoint is locally implemented and tested separately; it
+does not qualify strategy features or external side effects. Strict dataset and
+strategy admission, economic runs and 24h/7d operational qualification remain
+separate gates. Follow [the Razer verification contract](../plan/razer_shared_feed_verification.md).

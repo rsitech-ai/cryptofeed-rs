@@ -10,7 +10,7 @@ use marketfeed_model::{SessionId, SystemEvent};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File, OpenOptions},
-    io::{Read, Seek, SeekFrom, Write},
+    io::{BufReader, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Instant,
@@ -264,6 +264,16 @@ impl FeedRecord {
 struct Watermark {
     schema_version: u16,
     cursor: FeedCursor,
+}
+fn read_watermark(reader: impl Read) -> Result<FeedCursor, RecordingError> {
+    // Refresh on every call, preserving the existing cap and validation. The
+    // buffer coalesces serde's byte reads; it never spans watermark lifetimes.
+    let reader = BufReader::with_capacity(4097, reader.take(4097));
+    let w: Watermark = serde_json::from_reader(reader).map_err(err)?;
+    if w.schema_version != 1 || w.cursor.offset < HEADER_LEN {
+        return Err(err("invalid shared feed watermark"));
+    }
+    Ok(w.cursor)
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -798,11 +808,7 @@ impl FeedReader {
     }
     fn watermark(directory: &Path) -> Result<FeedCursor, RecordingError> {
         let f = File::open(directory.join("committed.json"))?;
-        let w: Watermark = serde_json::from_reader(f.take(4097)).map_err(err)?;
-        if w.schema_version != 1 || w.cursor.offset < HEADER_LEN {
-            return Err(err("invalid shared feed watermark"));
-        }
-        Ok(w.cursor)
+        read_watermark(f)
     }
     /// None means caught up to the durable prefix, not end of live collection.
     pub fn read_next(&mut self) -> Result<Option<FeedRecord>, RecordingError> {
@@ -858,6 +864,111 @@ impl FeedReader {
         self.routes.install(routes);
         self.seen_commit = w;
         Ok(Some(wire.record))
+    }
+}
+
+#[cfg(test)]
+mod watermark_read_tests {
+    use super::*;
+    use std::io::{self, Cursor};
+
+    struct Counted<R> {
+        reader: R,
+        reads: usize,
+        bytes: usize,
+    }
+    impl<R: Read> Read for Counted<R> {
+        fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+            self.reads += 1;
+            let n = self.reader.read(buffer)?;
+            self.bytes += n;
+            Ok(n)
+        }
+    }
+    fn counted<R>(reader: R) -> Counted<R> {
+        Counted {
+            reader,
+            reads: 0,
+            bytes: 0,
+        }
+    }
+    fn fixture() -> Watermark {
+        Watermark {
+            schema_version: 1,
+            cursor: FeedCursor {
+                feed_id: "0123456789012345678901234567890123456789".into(),
+                sequence: 7,
+                offset: 248,
+            },
+        }
+    }
+
+    #[test]
+    fn watermark_regular_file_reads_are_coalesced_within_existing_byte_bound() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("committed.json");
+        let expected = fixture();
+        let bytes = serde_json::to_vec(&expected).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        let mut input = counted(File::open(path).unwrap());
+        assert_eq!(read_watermark(&mut input).unwrap(), expected.cursor);
+        assert_eq!(input.bytes, bytes.len());
+        assert!(
+            input.reads <= 2,
+            "one small regular-file watermark used {} backing reads for {} bytes",
+            input.reads,
+            input.bytes
+        );
+    }
+
+    #[test]
+    fn watermark_read_limit_and_parser_failures_remain_closed() {
+        let mut oversized = counted(Cursor::new(vec![b' '; 8192]));
+        assert!(read_watermark(&mut oversized).is_err());
+        assert_eq!(oversized.bytes, 4097);
+        let mut bytes = serde_json::to_vec(&fixture()).unwrap();
+        bytes.extend_from_slice(b" true");
+        assert!(read_watermark(Cursor::new(bytes)).is_err());
+        let mut wrong = fixture();
+        wrong.schema_version = 2;
+        assert!(read_watermark(Cursor::new(serde_json::to_vec(&wrong).unwrap())).is_err());
+        wrong = fixture();
+        wrong.cursor.offset = HEADER_LEN - 1;
+        assert!(read_watermark(Cursor::new(serde_json::to_vec(&wrong).unwrap())).is_err());
+    }
+
+    #[test]
+    fn watermark_short_reads_and_io_failures_are_not_hidden() {
+        struct ShortOrFail {
+            bytes: Cursor<Vec<u8>>,
+            fail: bool,
+        }
+        impl Read for ShortOrFail {
+            fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+                if self.fail && self.bytes.position() >= 8 {
+                    return Err(io::Error::other("injected watermark read failure"));
+                }
+                let n = buffer.len().min(8);
+                self.bytes.read(&mut buffer[..n])
+            }
+        }
+        let expected = fixture();
+        let bytes = serde_json::to_vec(&expected).unwrap();
+        assert_eq!(
+            read_watermark(ShortOrFail {
+                bytes: Cursor::new(bytes.clone()),
+                fail: false,
+            })
+            .unwrap(),
+            expected.cursor
+        );
+        assert!(
+            read_watermark(ShortOrFail {
+                bytes: Cursor::new(bytes),
+                fail: true,
+            })
+            .is_err()
+        );
     }
 }
 
