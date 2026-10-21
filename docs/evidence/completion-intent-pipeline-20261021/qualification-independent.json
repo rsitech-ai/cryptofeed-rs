@@ -1,0 +1,732 @@
+{
+  "schema_version": 1,
+  "status": "FINAL_LOCAL_Q16_EVIDENCE_AUDIT_PASS; JOINT14_NOT_EXECUTED",
+  "execution_gate": {
+    "status": "PASS",
+    "source_files": 570,
+    "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+    "qualification_sha256": "b1d74a47a26cce33c568aa7c44cbe821f62696ec63c9e2e5c519b3f34e9be9ab",
+    "required_checks_verified": true,
+    "findings": []
+  },
+  "scope": "Independent read-only current570source/log/rawcount/parentterminal/retainedimage/build/prose preservation audit; parent actual executions inspected, no reviewer execution",
+  "qualification": {
+    "file": "qualified-local-16.json",
+    "bytes": 24689,
+    "sha256": "b1d74a47a26cce33c568aa7c44cbe821f62696ec63c9e2e5c519b3f34e9be9ab"
+  },
+  "all570_current_membership_bytes_and_digest_verified": true,
+  "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "source_inventory": {
+    "file": "source-16.json",
+    "bytes": 92344,
+    "sha256": "1b8f85769c379505fbbe96b89de8997cfa3b03e27ab34bcc62b20c473dcb8757"
+  },
+  "required17_command_rows_all0": true,
+  "logs_and_counts": [
+    {
+      "kind": "stable",
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "fmt-16.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "parsed_test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "kind": "stable",
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "diff-16.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "parsed_test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "kind": "stable",
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "clippy-16.log",
+        "bytes": 2692,
+        "sha256": "bc86573982c44a20faa589ec67062b925fdbc992a9afece1ef91f83a6387dbd6"
+      },
+      "parsed_test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "kind": "stable",
+      "name": "workspace",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--all-features"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "workspace-16.log",
+        "bytes": 178362,
+        "sha256": "e48afdd15971f8d1bd4942887788b1c8d6977593870a636f525a2c7b6c11bd62"
+      },
+      "parsed_test_totals": [
+        1699,
+        0,
+        56
+      ],
+      "test_summaries": 162
+    },
+    {
+      "kind": "stable",
+      "name": "docs",
+      "command": [
+        "cargo",
+        "doc",
+        "--locked",
+        "--workspace",
+        "--all-features",
+        "--no-deps"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "docs-16.log",
+        "bytes": 468,
+        "sha256": "f7b46203e325ea7d509e1efc9f2510f95d10657993d49e0d48b0c00e1339d640"
+      },
+      "parsed_test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "kind": "stable",
+      "name": "default-cli",
+      "command": [
+        "cargo",
+        "run",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--",
+        "validate",
+        "--config",
+        "crates/daemon/config.offline.toml"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "default-cli-16.log",
+        "bytes": 338,
+        "sha256": "41274d04631528fdc6d2396f39c344ede390ec4a1044e081234387f58df6b346"
+      },
+      "parsed_test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "kind": "msrv",
+      "name": "msrv-default",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--lib"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "msrv-default-16.log",
+        "bytes": 8482,
+        "sha256": "363a86cd0b7af0f924f8ed507844ac1a28ae3a67bf6af6d66d207cdd3254d255"
+      },
+      "parsed_test_totals": [
+        111,
+        0,
+        0
+      ],
+      "test_summaries": 1
+    },
+    {
+      "kind": "msrv",
+      "name": "msrv-core",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "msrv-core-16.log",
+        "bytes": 31546,
+        "sha256": "b853432f0bf95f7ab3e1f8dd0beddea4f9d3028350f9d83d6c28e6138158c3c6"
+      },
+      "parsed_test_totals": [
+        314,
+        0,
+        0
+      ],
+      "test_summaries": 23
+    },
+    {
+      "kind": "msrv",
+      "name": "msrv-native",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "msrv-native-16.log",
+        "bytes": 17878,
+        "sha256": "2e6bb52a2524fe898dfce38374bda3b2e866cf02d4211a7a667d7a10f1629f4a"
+      },
+      "parsed_test_totals": [
+        143,
+        0,
+        0
+      ],
+      "test_summaries": 1
+    },
+    {
+      "kind": "msrv",
+      "name": "msrv-public",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "msrv-public-16.log",
+        "bytes": 8849,
+        "sha256": "33547171e9f1614c635455c89955c3cc7ec0b9145dcd7e759e13e906f086cd82"
+      },
+      "parsed_test_totals": [
+        80,
+        0,
+        0
+      ],
+      "test_summaries": 4
+    },
+    {
+      "kind": "release",
+      "name": "build",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--bin",
+        "marketfeed-capture",
+        "--bin",
+        "marketfeed-observations"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "build-01.log",
+        "bytes": 191,
+        "sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523"
+      },
+      "parsed_test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "kind": "release",
+      "name": "core",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-engine",
+        "-p",
+        "marketfeed-recording",
+        "-p",
+        "marketfeed-transport",
+        "--all-features"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "core-01.log",
+        "bytes": 31647,
+        "sha256": "98800ecac7f5a1ebd4517902b843e4ddfb04b26ac1a2593f85a98e76c8698dc0"
+      },
+      "parsed_test_totals": [
+        314,
+        0,
+        0
+      ],
+      "test_summaries": 23
+    },
+    {
+      "kind": "release",
+      "name": "native",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "native-01.log",
+        "bytes": 17885,
+        "sha256": "11d2e515dc285cd4ab01f9761277b0cab8f737f8ec1d060727a1aca025691f82"
+      },
+      "parsed_test_totals": [
+        143,
+        0,
+        0
+      ],
+      "test_summaries": 1
+    },
+    {
+      "kind": "release",
+      "name": "public",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--release",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--test",
+        "hyperliquid_causal",
+        "--test",
+        "causal_bootstrap",
+        "--test",
+        "causal_owner",
+        "--test",
+        "capture_cli"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "public-01.log",
+        "bytes": 8871,
+        "sha256": "580bcb5742899d810d2646061289d3872a3a4a167f6f72174687698b76f26343"
+      },
+      "parsed_test_totals": [
+        80,
+        0,
+        0
+      ],
+      "test_summaries": 4
+    }
+  ],
+  "actual_parent_terminal_receipts": {
+    "stable": {
+      "receipt": {
+        "file": "parent-stable-terminal-01.json",
+        "bytes": 335,
+        "sha256": "e34567182401396aceafe8dc1eb9b45f9a0e489ceb414a91bba4eee673638a5d"
+      },
+      "actual": {
+        "actual_session": 34718,
+        "actual_exit": 0,
+        "actual_final_chunk": "fdd731",
+        "results_sha256": "6a08748a0160e1625cdbbc81bcb36b3f23b470ab65951766d32c57930336ab5c",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all6_commands_zero": true,
+        "workspace": [
+          1699,
+          0,
+          56
+        ]
+      },
+      "result": {
+        "file": "stable-16.json",
+        "bytes": 4286,
+        "sha256": "6a08748a0160e1625cdbbc81bcb36b3f23b470ab65951766d32c57930336ab5c"
+      }
+    },
+    "msrv": {
+      "receipt": {
+        "file": "parent-msrv-terminal-01.json",
+        "bytes": 347,
+        "sha256": "c647fae56f11fba53c988e0c0b3087f562dbf8899e866498c2e5c714147a8a8e"
+      },
+      "actual": {
+        "actual_session": 61811,
+        "actual_exit": 0,
+        "actual_final_chunk": "42a187",
+        "results_sha256": "cb8318d0ffc510e11cc0ceb0357b6a7066fb8e6a0e03601c3592531dadebd90b",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all4_commands_zero": true,
+        "test_counts": [
+          111,
+          314,
+          143,
+          80
+        ]
+      },
+      "result": {
+        "file": "msrv-16.json",
+        "bytes": 3398,
+        "sha256": "cb8318d0ffc510e11cc0ceb0357b6a7066fb8e6a0e03601c3592531dadebd90b"
+      }
+    },
+    "release": {
+      "receipt": {
+        "file": "parent-release-terminal-01.json",
+        "bytes": 520,
+        "sha256": "ad51ce7d354b91aadfba416348b30d13225e010fa68dc6c116611eb29d9ac59d"
+      },
+      "actual": {
+        "actual_session": 57370,
+        "actual_exit": 0,
+        "actual_final_chunk": "3deedc",
+        "results_sha256": "35823a97249ec288117d189f916d04668bb15a5684878912caf9b7089ec1d3da",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all4_commands_zero": true,
+        "core_native_public": [
+          314,
+          143,
+          80
+        ],
+        "capture_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+        "bridge_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      },
+      "result": {
+        "file": "results-01.json",
+        "bytes": 1850,
+        "sha256": "35823a97249ec288117d189f916d04668bb15a5684878912caf9b7089ec1d3da"
+      }
+    },
+    "security": {
+      "receipt": {
+        "file": "parent-security-terminal-01.json",
+        "bytes": 331,
+        "sha256": "0ce9c5089b1a1f0917599180014b78c71b7035a6387a9ec02c8e8f7d908df131"
+      },
+      "actual": {
+        "actual_session": 27836,
+        "actual_exit": 0,
+        "actual_final_chunk": "ee9a9b",
+        "results_sha256": "50758b0e08c0d0d40871a54c4bd17be2ed6a9463e0de2b03c5ee848389f4f588",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "all3_commands_zero": true,
+        "original_failed_scan_preserved": true
+      },
+      "result": {
+        "file": "results.json",
+        "bytes": 1293,
+        "sha256": "50758b0e08c0d0d40871a54c4bd17be2ed6a9463e0de2b03c5ee848389f4f588"
+      }
+    }
+  },
+  "security": {
+    "rows": [
+      {
+        "name": "audit",
+        "command": [
+          "private-evidence/primary/.tools/bin/cargo-audit",
+          "audit",
+          "--json"
+        ],
+        "actual_exit": 0,
+        "stdout": {
+          "file": "audit.stdout",
+          "bytes": 375,
+          "sha256": "db302e490b6e02205bdf1017d813db98ea11debc8a4ec9315e24fc707ec0f9d8"
+        },
+        "stderr": {
+          "file": "audit.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "deny",
+        "command": [
+          "private-evidence/hls/target/validation-tools/bin/cargo-deny",
+          "--all-features",
+          "check"
+        ],
+        "actual_exit": 0,
+        "stdout": {
+          "file": "deny.stdout",
+          "bytes": 48,
+          "sha256": "f1a0fca39d4280363937aabd77783990ea6480bd9ca257816de3b68fc8efa845"
+        },
+        "stderr": {
+          "file": "deny.stderr",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      {
+        "name": "gitleaks",
+        "command": [
+          "private-evidence/primary/.tools/bin/gitleaks",
+          "stdin",
+          "--redact"
+        ],
+        "actual_exit": 0,
+        "stdout": {
+          "file": "gitleaks.stdout",
+          "bytes": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "stderr": {
+          "file": "gitleaks.stderr",
+          "bytes": 146,
+          "sha256": "a041ade1dbf09487e8a3de7ffcefa61bda2e7c3d4fa980f3a11d882200ec25a8"
+        }
+      }
+    ],
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "database": {
+      "advisory-count": 1348,
+      "last-commit": "4b587f00996ebe5c05a73eaef105ef241e876414",
+      "last-updated": "2026-10-21T08:20:38+02:00"
+    },
+    "actual_recorded_stdin_bytes": 106431,
+    "stdin_sha256": "6fd2b9df7ccaf4470d28fdecfd8c6962d74e3c9863b8029f95fe83ca93027730",
+    "independent_before_plan_edit_observation": {
+      "tool_chunk": "e1b8bd",
+      "exact_reconstruction_matched": true
+    },
+    "current_scannable_doc_input_sha256": "4ac4fec9473d0f0e5b152c2b76b31ff1796a84abfff29d9db4c8be040a9fcd36",
+    "current_docs_equal_security02_input": false,
+    "post_security_plan_metadata_needs_future_staged_scan": true
+  },
+  "retained_release_artifacts": {
+    "marketfeed-capture": {
+      "retained": {
+        "file": "marketfeed-capture",
+        "bytes": 10906832,
+        "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+      },
+      "mode": "0555",
+      "fresh_build_output": {
+        "file": "marketfeed-capture",
+        "bytes": 10906832,
+        "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+      },
+      "binding": {
+        "artifact_sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458",
+        "artifact_bytes": 10906832,
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+        "binding_kind": "embedded_capture_recipe_and_fresh_cargo_build",
+        "embedded_recipe": true,
+        "build_output": {
+          "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-capture",
+          "bytes": 10906832,
+          "sha256": "19b7fc11931083a304bdcf8415877f0ed6e1a2292a16aaf05cd87e65e8fcf458"
+        }
+      }
+    },
+    "marketfeed-observations": {
+      "retained": {
+        "file": "marketfeed-observations",
+        "bytes": 2310032,
+        "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      },
+      "mode": "0555",
+      "fresh_build_output": {
+        "file": "marketfeed-observations",
+        "bytes": 2310032,
+        "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+      },
+      "binding": {
+        "artifact_sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3",
+        "artifact_bytes": 2310032,
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "profile": "release",
+        "encoded_rustflags": "-Dwarnings",
+        "target": "aarch64-apple-darwin",
+        "build_result_log_sha256": "808655af46640901e481290d3665231d0cfcd7069a1ac20b62cc678116366523",
+        "binding_kind": "fresh_cargo_build_output_and_retained_bytes",
+        "embedded_recipe": false,
+        "build_output": {
+          "path": "private-evidence/producer/.local/target-native-release/release/marketfeed-observations",
+          "bytes": 2310032,
+          "sha256": "05c2b36ca9c107543192705e59dcbcf0c9b698b9c3c57824426901abd034c3f3"
+        }
+      }
+    }
+  },
+  "raw_embedded_capture_recipe": {
+    "sha256": "6d629159b681d5a3531b75b82c91c1fd824a7f0770f49bc43938d9bbb142a05b",
+    "exact_bytes_in_release_image": true,
+    "recipe_locations": [
+      "private-evidence/producer/.local/target-native-release/release/build/marketfeed-daemon-210e4e9c47f91549/out/causal-build.json"
+    ],
+    "compiled_dependency_features_augmented": true
+  },
+  "final_focused_images": [
+    {
+      "name": "stable-history",
+      "image": {
+        "file": "stable-history-actual-test-executable",
+        "bytes": 49880864,
+        "sha256": "c633d22cf9cefa50ea486dd3e7c19e748b32048d76856ba51607cd2fa448648d"
+      },
+      "mode": "0555",
+      "raw_embedded_recipe_parsed": true,
+      "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d"
+    },
+    {
+      "name": "msrv-history",
+      "image": {
+        "file": "msrv-history-actual-test-executable",
+        "bytes": 50214096,
+        "sha256": "47213e6e166a6932a88f12ebb6ab5daffc51a720f6f4ff2564ccc47927fce598"
+      },
+      "mode": "0555",
+      "raw_embedded_recipe_parsed": true,
+      "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d"
+    }
+  ],
+  "original_test_scope": {
+    "original29": true,
+    "only_authorized_delayed_ack_function_adapted": true,
+    "all_other_original_bytes_exact": true,
+    "new12_case_names": [
+      "complete_and_intent_are_both_owned_before_first_receipt_observation",
+      "intent_full_retires_completion_once_and_retries_exact_reserved_record",
+      "failed_intent_suffix_never_rewrites_committed_completion_or_publishes_reserved_hole",
+      "revoke_after_completion_ack_keeps_settlement_and_withholds_preissued_intent",
+      "panic_after_pair_admission_drains_tickets_and_commits_native_once_without_release",
+      "actual_factory_connected_generation_and_every_record_resume_reexecute_identically",
+      "shared_publication_failure_keeps_both_pair_records_unknown_and_drains_tickets",
+      "panic_after_completion_ack_preserves_known_commit_and_joins_remaining_intent",
+      "invalid_prior_fifo_state_prevents_literal_successful_completion_ack_from_committing",
+      "actual_five_second_deadline_after_reservation_never_releases_expired_intent",
+      "unaccepted_intent_after_writer_closure_ends_at_known_completion_without_ordinal_hole",
+      "earlier_queued_ingress_and_reconnection_fence_force_serial_fallback_without_holes"
+    ],
+    "all41_and_old_paused32_pass_in_stable_msrv_release": true,
+    "all_prior566_nonowner_build_inputs_unchanged": true
+  },
+  "independent_static_focused_review": {
+    "file": "completion-intent-final03-independent-01.json",
+    "bytes": 8119,
+    "sha256": "73fb9a886dd709c14ea759f71df8e5325831b3084bf1c562036616c9584320c8"
+  },
+  "prose_correction": {
+    "original_failed_security": {
+      "file": "results.json",
+      "bytes": 1291,
+      "sha256": "98ecf3a8e5f20f1e65347699d8af865d16935ad7ba38e0aa4607c0ed2a8810c0"
+    },
+    "classification": {
+      "file": "completion-intent-gitleaks-prose-independent-01.json",
+      "bytes": 2840,
+      "sha256": "e8660f7e5e8540cde5cfc5728e8d1b776b532093dc02595d048d599a748d7210"
+    },
+    "exact_nonprose_transform": {
+      "file": "completion-intent-public-prose-transform-independent-01.json",
+      "bytes": 3085,
+      "sha256": "13b0170e9d084515e9f808d43c54f0d0ee1e98c605a038b3766425db90be48ca"
+    },
+    "current_public": {
+      "file": "qualification.json",
+      "bytes": 26467,
+      "sha256": "65035ea28e1fdc77f07cb1710a775c7ecbbf919a2111d43e954830c7840b68a1"
+    },
+    "no_scanner_exception": true
+  },
+  "unexecuted_final_release_preflight": {
+    "file": {
+      "file": "release-and-launch-01.py",
+      "bytes": 4768,
+      "sha256": "55e56407d4842a06cc0aa619b1a9820fb9a2f233eb8c98899a0b1c6cb45fda6f"
+    },
+    "scope": "Strict peer/q16/17typedrow checks precede launch; actual all163 preservation/all570+342 source/artifact/Q67 clean/resource release remain mandatory before any identity/children. Not executed by reviewer."
+  },
+  "material_findings": [],
+  "limitations": [
+    "Localstable andfocusedMSRV, notfullreleaseworkspace/MSRV ornewhosted/Razerproof. Artifactscompiledwith66Gitparentbeforepublication; bridgehasnoembeddedrecipe andno loaded-imageattestation.",
+    "NativeBybitConnected+Tradepergeneration/everyprefix fixture qualifies replayequivalence, notuniversalvenue/history/context. Ordinal-exhaustion/pureIntentencodingrefusal branches staticallyreviewed, notclaimedexecuted. Boundsarecanonicalrecord/encodedbytes, notmeasuredRSS.",
+    "Actualjoint13acquisitionend21.916s remainsUNQUALIFIED despite23.9mstail; no freshnessrepair/causality/remoteclock/SLA/availability fromlocalgates. Needmatchingunchanged120snewcapture withbothconsumers andnativeaudit.",
+    "Published66hostedrequiredMac/Linux/MSRVpass withsecondaryWindowswirewatchdogfailure; original480failed/unrerun, QCIexternalblock, strictdatasets/context/longerverification remainopen.",
+    "PASS machine gate qualifies only actual q16 local source/artifact/tests/security evidence, not a capture result or launch by itself.",
+    "Before joint14 identity/workload: actual preparation, hash-bound release preflight, full163 original stats/SHA and explicit resource hold/release remain parent actions.",
+    "Retained bridge has no embedded recipe or loaded-image attestation; honest fresh Cargo output byte equality only.",
+    "No source570 ownhosted/live/freshness/Razer/dataset/economic/full-goal qualification inferred from predecessor66 CI or local gates.",
+    "Parent updated plan-only metadata after actualsecurity02; that later documentation needs future staged scan. Security02 gate refers to actual recorded106431B input and unchanged compiled570 source, not all future currentdocs."
+  ],
+  "reviewer_reran_tests_or_native": false,
+  "helper": {
+    "file": "completion-intent-final-qualification-independent-02.py",
+    "bytes": 15385,
+    "sha256": "675199aa09de45af991a14a518b43a8b32f3957998da70d765519d0a46688267"
+  },
+  "portable_copy": {
+    "original_sha256": "da2b50c3b598e786d530bfd0c7e68ce2f4e2210e8ae5a917a938d571858b378e",
+    "original_bytes": 23406,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

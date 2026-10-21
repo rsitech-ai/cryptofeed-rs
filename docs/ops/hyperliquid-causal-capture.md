@@ -174,6 +174,16 @@ This opt-in physical grouping requires its own source/platform and growing-feed
 consumer qualification. Fewer target transactions in an offline correctness
 fixture do not establish an acquisition-delay or freshness repair.
 
+The source owner may submit a native Completion and its prepared release Intent
+before waiting for their separate acknowledgements. It retains at most three
+distinct owned journal ordinals across prepared, admitted and receipt-cached
+records. Each record still needs its own validated FIFO receipt. A later Intent
+failure cannot erase a known Completion; it prevents release. Ready state,
+snapshots, handoffs and application writes retain their acknowledgement and
+safety barriers. This does not enlarge limits or batch native callbacks. See
+[the qualification](../evidence/completion-intent-pipeline-20261021/README.md)
+for exact tests, capture observations and remaining timing limits.
+
 The projector tails only committed source records and independently reexecutes
 native callbacks. Readers tail `feed/` with independent complete-group ACK pairs.
 Retain the separate `marketfeed-observations` executable and SHA256 pin for the

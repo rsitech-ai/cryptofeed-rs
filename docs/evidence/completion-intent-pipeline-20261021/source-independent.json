@@ -1,0 +1,242 @@
+{
+  "schema_version": 1,
+  "status": "FROZEN_FINAL03_DELTA_STATIC_AND_FOCUSED_EVIDENCE_PASS; BROAD_PENDING",
+  "source_files": 570,
+  "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+  "final_source_manifest": {
+    "file": "source-03.json",
+    "bytes": 92404,
+    "sha256": "446701c1fa0be7ad95bcadda32b8b5322f6462c38af98fe5601853079e1b59c2"
+  },
+  "earlier_full570_source_reconstruction_and_static_review": {
+    "file": "completion-intent-source-independent-01.json",
+    "bytes": 6967,
+    "sha256": "60d222bb76509ebbeb69f46d95f897141a33b5a9371bc065002489ee77ef988e"
+  },
+  "exact_same570_manifest_membership": true,
+  "unchanged568_manifest_entries_from_source01": true,
+  "two_delta_current_bytes_match_manifest": true,
+  "production_delta": "Exact comment replacement only; no executable statement change from source01.",
+  "test_delta": "Only shared failed-publication case; actual bounded wait_result(WAIT), both Attempted, identical failure and adjacent singleton record ranges.",
+  "test_race_reason": "Actor failure status precedes receipt sends; wait_result joins actual typed errors under Registry without Data lock while owner receipt-paused. Cached CommitTicket outcomes remain available to the worker.",
+  "source01_invariants_remain": true,
+  "source01_original_test_preservation_remains": true,
+  "author_final_qualification": {
+    "file": "qualified-focused-02.json",
+    "bytes": 7984,
+    "sha256": "beef334ac22feaa8d3fa6d6dd46f9e5bca2a560d81bce236b87e3bc0f1a90d07"
+  },
+  "actual_author_terminal": {
+    "file": "terminal.json",
+    "bytes": 293,
+    "sha256": "e9b8dcc5532fa559cff439e8893ce6ca26010efbdec3bc7168090896ad9257c2"
+  },
+  "author_actual_session": 53898,
+  "author_actual_chunk": "849a94",
+  "author_actual_exit": 0,
+  "commands": [
+    {
+      "name": "stable-history",
+      "command": [
+        "cargo",
+        "+1.91.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::owner::history::",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "stable-history.log",
+        "bytes": 10512,
+        "sha256": "990cde4b7148d9c733fdf1e315acd233c6f8ad63edbe15d9cce1f5801e65ee09"
+      },
+      "parsed_test_summaries": [
+        [
+          41,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "msrv-history",
+      "command": [
+        "cargo",
+        "+1.85.0",
+        "test",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-features",
+        "--lib",
+        "causal_bootstrap::owner::history::",
+        "--",
+        "--nocapture"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "msrv-history.log",
+        "bytes": 10466,
+        "sha256": "36b3a8ab20135b8582b86fc3e3fb8b22f6222250af44a465b69705f1442634f4"
+      },
+      "parsed_test_summaries": [
+        [
+          41,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "+1.91.0",
+        "clippy",
+        "--locked",
+        "-p",
+        "marketfeed-daemon",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-Dwarnings"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "clippy.log",
+        "bytes": 188,
+        "sha256": "1c3888e92edce43b3a8abdb422b9ae4d36e09226b9e5a20ec9688efd2dbcb7a5"
+      },
+      "parsed_test_summaries": null
+    },
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "fmt.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "parsed_test_summaries": null
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "actual_exit": 0,
+      "log": {
+        "file": "diff.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "parsed_test_summaries": null
+    }
+  ],
+  "stable41_and_msrv41_include_12new_29original": true,
+  "final_retained_artifact_metadata": [
+    {
+      "name": "stable-history",
+      "bytes": 49880864,
+      "mode": "0555",
+      "author_reported_sha256": "c633d22cf9cefa50ea486dd3e7c19e748b32048d76856ba51607cd2fa448648d",
+      "author_reported_embedded_recipe": {
+        "debug": "false",
+        "encoded_rustflags": "-Dwarnings",
+        "git_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+        "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.91.0 (f8297e351 2025-10-28)\nbinary: rustc\ncommit-hash: f8297e351a40c1439a467bbbb6879088047f50b3\ncommit-date: 2025-10-28\nhost: aarch64-apple-darwin\nrelease: 1.91.0\nLLVM version: 21.1.2\n",
+        "schema_version": 1,
+        "source_files": 570,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "target": "aarch64-apple-darwin"
+      },
+      "reviewer_rehashed_or_scanned_final_image": false
+    },
+    {
+      "name": "msrv-history",
+      "bytes": 50214096,
+      "mode": "0555",
+      "author_reported_sha256": "47213e6e166a6932a88f12ebb6ab5daffc51a720f6f4ff2564ccc47927fce598",
+      "author_reported_embedded_recipe": {
+        "debug": "false",
+        "encoded_rustflags": "-Dwarnings",
+        "git_commit": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+        "lock_sha256": "676db8bf5e29e7b3b606c370ba2bd5d5608164cb21190128a10e7145daa1e0b2",
+        "opt_level": "0",
+        "package_features": [
+          {
+            "features": [
+              "causal-journal",
+              "default",
+              "kafka",
+              "nats",
+              "ui",
+              "ui-api"
+            ],
+            "package": "marketfeed-daemon"
+          }
+        ],
+        "package_version": "0.1.0-alpha.1",
+        "profile": "debug",
+        "rustc_verbose": "rustc 1.85.0 (4d91de4e4 2025-02-17)\nbinary: rustc\ncommit-hash: 4d91de4e48198da2e33413efdcd9cd2cc0c46688\ncommit-date: 2025-02-17\nhost: aarch64-apple-darwin\nrelease: 1.85.0\nLLVM version: 19.1.7\n",
+        "schema_version": 1,
+        "source_files": 570,
+        "source_scheme": "sha256-path-length-and-bytes-v1",
+        "source_sha256": "e5cd4371d81a253bccc4cc3d645519726fcfe168e0333a40c944b3fe525ec75d",
+        "target": "aarch64-apple-darwin"
+      },
+      "reviewer_rehashed_or_scanned_final_image": false
+    }
+  ],
+  "material_findings": [],
+  "resource_scope": "Only source manifests, two changed small files, focused logs/receipts and artifact stat metadata read. No large binary/hash scan during parent broad run.",
+  "limits": [
+    "No reviewer Cargo/native/collector/consumer execution.",
+    "Final source03 large executable content hashes/raw embedded recipes are author evidence inspected, not independently rehashed/scanned in this small-read supplement. Source01 retained image was independently hashed/raw-recipe parsed in prior review.",
+    "Final broad workspace/defaultfeature/MSRVcore/release/security and own hosted successor qualification remain separate pending gates.",
+    "Earlier10a source01/old40pass1failure/helper errors preserved, not relabelled as final03 evidence.",
+    "No live/freshness/availability/performance/economic/full-goal claim."
+  ],
+  "helper": {
+    "file": "completion-intent-final03-independent-01.py",
+    "bytes": 6391,
+    "sha256": "1efdd250b0e11b4359b988c5702e6539929b5874c033be21eecd9640b9e6e724"
+  },
+  "portable_copy": {
+    "original_sha256": "73fb9a886dd709c14ea759f71df8e5325831b3084bf1c562036616c9584320c8",
+    "original_bytes": 8119,
+    "scope": "Private absolute paths replaced by distinct opaque roots. Original receipts/logs/archives retained unchanged; no original-result values altered."
+  }
+}

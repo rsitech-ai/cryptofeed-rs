@@ -11,7 +11,9 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+mod pipeline;
 mod wire;
+use pipeline::*;
 use wire::WireRuntime;
 pub use wire::{WireAuthorization, WireSendCompletion, WireSendError};
 
@@ -97,14 +99,18 @@ struct HistoryShared {
     receipt_pause: Mutex<Option<Arc<TextPauseState>>>,
     #[cfg(all(test, feature = "causal-journal"))]
     closing_pause: Mutex<Option<Arc<TextPauseState>>>,
+    #[cfg(all(test, feature = "causal-journal"))]
+    pipeline_hooks: PipelineHooks,
     state: Mutex<Data>,
     // Acceptance cannot be cancelled by a panic or a disappearing waiter. Keep
     // the ticket outside the worker stack until its actual result is known.
     tickets: Mutex<ReceiptRegistry>,
     wake: Condvar,
 }
-// Only non-authorizing Started/Ingress records may wait behind a later
-// submission. Each retains its own one-record ticket and ingress credit.
+// Started/Ingress form the non-authorizing deferred prefix. The separate
+// Completion/Intent pair may also submit before waiting, retaining Completion's
+// own-ACK continuation. At most three distinct owned record ordinals include
+// pending tickets, prepared Intent and cached continuations.
 const MAX_DEFERRED_PREFIX: usize = 2;
 struct PendingReceipt {
     ticket: CommitTicket,
@@ -117,6 +123,9 @@ struct ReceiptRegistry {
     previous_sequence: u64,
     previous_admission: u64,
     previous_ordinal: u64,
+    prefix_valid: bool,
+    completion: Option<CompletionSettlement>,
+    intent: Option<PreissuedIntent>,
 }
 // Per-owner, one-shot fixture barrier. No lock protecting owner admission or
 // source/fence state is held while the actual worker is paused.
@@ -760,12 +769,17 @@ impl BootstrappedSession {
             receipt_pause: Mutex::new(receipt_pause),
             #[cfg(all(test, feature = "causal-journal"))]
             closing_pause: Mutex::new(None),
+            #[cfg(all(test, feature = "causal-journal"))]
+            pipeline_hooks: PipelineHooks::default(),
             tickets: Mutex::new(ReceiptRegistry {
                 bootstrap: self.receipt.clone(),
                 pending: VecDeque::with_capacity(MAX_DEFERRED_PREFIX + 1),
                 previous_sequence: self.receipt.last_sequence,
                 previous_admission: self.receipt.admission,
                 previous_ordinal: 0,
+                prefix_valid: true,
+                completion: None,
+                intent: None,
             }),
             state: Mutex::new(Data {
                 inputs: VecDeque::new(),
@@ -828,6 +842,7 @@ impl BootstrappedSession {
                 }
                 // The panic path retains its accepted ticket in Shared too.
                 settle_outstanding(&worker_shared);
+                finish_completion(&worker_shared);
                 let mut s = state(&worker_shared);
                 for input in s.inputs.drain(..) {
                     let _ = input
@@ -963,7 +978,8 @@ fn settle_front(shared: &HistoryShared) -> Option<CommitReceipt> {
             Ok(receipt) => {
                 // Other owners may interleave admissions and source sequences;
                 // a physical publication can cover several individual ACKs.
-                if receipt.admission != admission
+                if !registry.prefix_valid
+                    || receipt.admission != admission
                     || receipt.admission <= registry.previous_admission
                     || receipt.first_sequence != receipt.last_sequence
                     || receipt.first_sequence <= registry.previous_sequence
@@ -982,16 +998,25 @@ fn settle_front(shared: &HistoryShared) -> Option<CommitReceipt> {
                             .checked_sub(1)
                             .zip(s.ingress_observation_bytes.checked_sub(ingress_bytes))
                     };
-                    match (credit, s.journal_records.checked_add(1)) {
-                        (Some((count, bytes)), Some(records)) => {
+                    let native_credit = completion_credit(&registry, &s, ordinal);
+                    match (credit, s.journal_records.checked_add(1), native_credit) {
+                        (
+                            Some((count, bytes)),
+                            Some(records),
+                            Some((native_count, native_bytes, durable)),
+                        ) => {
                             s.ingress_observations = count;
                             s.ingress_observation_bytes = bytes;
                             s.journal_records = records;
+                            s.status.pending_operations = native_count;
+                            s.status.pending_bytes = native_bytes;
+                            s.status.durable = durable;
                             registry.previous_sequence = receipt.last_sequence;
                             registry.previous_admission = receipt.admission;
                             registry.previous_ordinal = ordinal;
                             s.status.last_settlement =
                                 Some(CommitSettlement::Committed(receipt.clone()));
+                            completion_acked(&mut registry, ordinal, &receipt);
                             Some(receipt)
                         }
                         _ => {
@@ -1007,7 +1032,32 @@ fn settle_front(shared: &HistoryShared) -> Option<CommitReceipt> {
                 None
             }
         };
+        if result.is_none() {
+            registry.prefix_valid = false;
+        }
+        if let Some(intent) = registry.intent.as_mut().filter(|i| i.ordinal == ordinal) {
+            intent.result = Some(result.clone());
+        }
+        let completed = registry
+            .completion
+            .as_ref()
+            .is_some_and(|c| c.ordinal == ordinal && c.receipt.is_some());
         registry.pending.pop_front();
+        drop(s);
+        drop(registry);
+        #[cfg(all(test, feature = "causal-journal"))]
+        if completed {
+            pause_owner_worker(&shared.pipeline_hooks.after_completion);
+            if shared
+                .pipeline_hooks
+                .panic_after_completion
+                .swap(false, std::sync::atomic::Ordering::Relaxed)
+            {
+                panic!("test-only panic after Completion own ACK accounting");
+            }
+        }
+        #[cfg(not(all(test, feature = "causal-journal")))]
+        let _ = completed;
         return result;
     }
 }
@@ -1028,6 +1078,16 @@ fn submit_record(
     // Two deferred records are the strict prefix bound. Settle before admitting
     // another prefix; a following authority may occupy the one extra slot.
     loop {
+        {
+            let registry = tickets(shared);
+            let count = descriptor_count(&registry);
+            if count > MAX_DEFERRED_PREFIX + 1
+                || (count == MAX_DEFERRED_PREFIX + 1 && !has_descriptor(&registry, ordinal))
+            {
+                revoke_history(shared, &mut state(shared), OwnerFailure::InvalidReceipt);
+                return false;
+            }
+        }
         {
             let mut s = state(shared);
             refresh(shared, &mut s);
@@ -1199,14 +1259,20 @@ fn drive_history(mut capture: CaptureSession, _bootstrap: CommitReceipt, shared:
                     observed_ns,
                     event,
                 };
-                let envelope = encode_owner_history(
-                    &dto,
-                    &shared.identity,
-                    shared.history.max_record_bytes as usize,
-                )
-                .map_err(|e| e.to_string())?;
-                let tx = PreparedFeedTransaction::new(vec![FeedRecord::Causal(envelope)])
+                let tx = if is_preissued(shared, ordinal) {
+                    None
+                } else {
+                    let envelope = encode_owner_history(
+                        &dto,
+                        &shared.identity,
+                        shared.history.max_record_bytes as usize,
+                    )
                     .map_err(|e| e.to_string())?;
+                    Some(
+                        PreparedFeedTransaction::new(vec![FeedRecord::Causal(envelope)])
+                            .map_err(|e| e.to_string())?,
+                    )
+                };
                 Ok((dto, tx))
             })();
             let (dto, tx) = match encoded {
@@ -1246,21 +1312,23 @@ fn drive_history(mut capture: CaptureSession, _bootstrap: CommitReceipt, shared:
                         return;
                     };
                     revoke_history(shared, &mut state(shared), OwnerFailure::Encoding(error));
-                    (dto, tx)
+                    (dto, Some(tx))
                 }
             };
             let defer = matches!(
                 dto.event,
                 OwnerEventDto::Started { .. } | OwnerEventDto::Ingress { .. }
             );
-            let Some(receipt) = commit(
-                shared,
-                tx,
-                ordinal,
-                ingress_bytes,
-                matches!(dto.event, OwnerEventDto::ExecutionCompleted { .. }),
-                defer,
-            ) else {
+            let receipt = if matches!(dto.event, OwnerEventDto::ExecutionCompleted { .. }) {
+                register_completion(shared, ordinal, current.as_ref().expect("completed input"));
+                reserve_intent(shared, &dto, physical_active);
+                commit_completion(shared, tx.expect("encoded Completion"), ordinal)
+            } else if let Some(tx) = tx {
+                commit(shared, tx, ordinal, ingress_bytes, false, defer)
+            } else {
+                consume_intent(shared, ordinal)
+            };
+            let Some(receipt) = receipt else {
                 return;
             };
             if defer {
@@ -1425,16 +1493,11 @@ fn drive_history(mut capture: CaptureSession, _bootstrap: CommitReceipt, shared:
                     native_ordinal = operation.route.ordinal;
                     generation = operation.route.generation;
                     let deadline = current.as_ref().expect("completed input").deadline;
-                    retire_native(
-                        shared,
-                        &mut current,
-                        InputSettlement::Committed {
-                            id: input_id,
-                            receipt: receipt.clone(),
-                        },
-                    );
+                    let preissued = consume_completion(shared, input_id, ordinal);
+                    // The Shared own-ACK settlement already retired credits and
+                    // notified the caller. Keep deadline/active processing here.
+                    current.take().expect("completed input");
                     let mut s = state(shared);
-                    s.status.durable += 1;
                     if let Err(error) = &operation.outcome {
                         revoke_history(shared, &mut s, OwnerFailure::Native(error.clone()));
                     }
@@ -1474,7 +1537,7 @@ fn drive_history(mut capture: CaptureSession, _bootstrap: CommitReceipt, shared:
                     }
                     if s.status.failure.is_some() || input_id < s.visibility_fence {
                         withhold_active(shared, &mut s);
-                    } else {
+                    } else if !preissued {
                         push(
                             shared,
                             &mut s,

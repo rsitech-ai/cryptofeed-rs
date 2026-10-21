@@ -877,41 +877,76 @@ fn delayed_operation_and_intent_ack_never_expose_new_state_and_dropped_waiter_do
     // Losing this caller cannot cancel accepted ingress or native execution.
     drop(admission);
     entered.recv_timeout(WAIT).unwrap();
+    let first = owner.ingress().pause_next_receipt_for_test();
+    let after = Arc::new(TextPauseState::default());
+    *owner
+        .ingress
+        .shared
+        .pipeline_hooks
+        .after_completion
+        .lock()
+        .unwrap() = Some(after.clone());
+    let after = HistoryTextPause(after);
     resume.send(()).unwrap();
-    wait(|| {
-        let s = owner.status().owner;
-        s.executed == 2 && s.durable == 1 && s.phase == OwnerPhase::AwaitingCommit
-    });
-    assert!(owner.try_next().is_none());
-    assert_eq!(owner.committed_snapshot().unwrap().route.ordinal, 1);
-    let (prefix, events, _) = inspect(&path);
-    assert_eq!(prefix.native_ordinal(), 1);
-    assert!(!events.iter().any(|e| matches!(
-        e.event,
-        OwnerEventDto::ExecutionCompleted { input_id: 2, .. }
-    )));
-    wait(|| {
-        let s = owner.status().owner;
-        s.durable == 2 && s.phase == OwnerPhase::AwaitingCommit
-    });
-    assert!(owner.try_next().is_none());
-    assert_eq!(owner.committed_snapshot().unwrap().route.ordinal, 1);
-    let (prefix, events, _) = inspect(&path);
-    assert_eq!(prefix.native_ordinal(), 2);
-    assert!(
-        !events
-            .iter()
-            .any(|e| matches!(e.event, OwnerEventDto::ReleaseIntent { input_id: 2, .. }))
-    );
+    wait(|| first.entered());
+    let before_completion = owner.status();
+    let first_no_ready = owner.try_next().is_none();
+    let first_snapshot = owner.committed_snapshot().map(|s| s.route.ordinal);
+    let first_pending = {
+        let registry = tickets(&owner.ingress.shared);
+        let completion = registry.completion.as_ref().unwrap();
+        let intent = registry.intent.as_ref().unwrap();
+        completion.receipt.is_none()
+            && registry
+                .pending
+                .iter()
+                .any(|p| p.ordinal == completion.ordinal)
+            && registry.pending.iter().any(|p| p.ordinal == intent.ordinal)
+    };
+    // A physical publication may already contain both records. Owner visibility
+    // still waits for each validated own ACK; physical presence is not release.
+    let (first_prefix, _, first_handoffs) = inspect(&path);
+    first.release();
+    wait(|| after.entered());
+    let after_completion = owner.status();
+    let second_no_ready = owner.try_next().is_none();
+    let second_snapshot = owner.committed_snapshot().map(|s| s.route.ordinal);
+    let (cached_completion, unobserved_intent) = {
+        let registry = tickets(&owner.ingress.shared);
+        (
+            registry.completion.as_ref().and_then(|c| c.receipt.clone()),
+            registry.intent.as_ref().is_some_and(|i| i.result.is_none()),
+        )
+    };
+    let (second_prefix, _, second_handoffs) = inspect(&path);
+    after.release();
     let output = release(&owner);
+    let status = finish(owner);
+    actor.shutdown().unwrap();
+    // All fixture barriers and workers are joined before assertions, including
+    // the intentional dropped ingress waiter.
+    assert_eq!(before_completion.owner.executed, 2);
+    assert_eq!(before_completion.owner.durable, 1);
+    assert_eq!(before_completion.owner.phase, OwnerPhase::AwaitingCommit);
+    assert!(first_no_ready);
+    assert!(first_pending);
+    assert_eq!(first_snapshot, Some(1));
+    assert!(matches!(first_prefix.native_ordinal(), 1 | 2));
+    assert_eq!(first_handoffs.len(), 1);
+    assert_eq!(after_completion.owner.durable, 2);
+    assert_eq!(after_completion.owner.phase, OwnerPhase::AwaitingCommit);
+    assert!(cached_completion.is_some());
+    assert!(unobserved_intent);
+    assert!(second_no_ready);
+    assert_eq!(second_snapshot, Some(1));
+    assert_eq!(second_prefix.native_ordinal(), 2);
+    assert_eq!(second_handoffs.len(), 1);
     assert_eq!(output.input_id(), 2);
     assert!(
         output
             .released_items()
             .any(|i| matches!(i, ItemDto::Write(_)))
     );
-    let status = finish(owner);
-    actor.shutdown().unwrap();
     assert!(status.owner.failure.is_none());
     assert_eq!(calls.load(Ordering::SeqCst), 1);
     let (history, _, handoffs) = inspect(&path);
@@ -2008,3 +2043,6 @@ fn stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revoc
     assert!(final_status.owner.failure.is_none());
     assert_eq!(after.owner.accepted, 0);
 }
+
+#[path = "pipeline_tests.rs"]
+mod pipeline_tests;

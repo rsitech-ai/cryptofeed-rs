@@ -17,6 +17,15 @@ the Rust observation bridge SHA is
 Capture identity includes an embedded recipe; bridge provenance is the fresh
 Cargo build/output and retained bytes. Neither is loaded-image attestation.
 
+Published diagnostic66ed95e also passes its own required hosted Mac checks
+(1687/0/56), Linux x86_64 and aarch64 checks (1688/0/56 each), and MSRV checks
+(829/0/0). [hosted66.json](hosted66.json) binds all568 Git inputs and the full
+tested-merge tree to that author commit. The workflow is terminal with16 successes
+and one secondary Windows failure, zero cancellations. Windows fails the
+wire-owner exactly-once/replay watchdog, distinct from the earlier paused32
+failure. Both are retained without an inferred cause. This proof does not
+qualify later pipeline code.
+
 The unchanged 120-second joint13 request ran producer, HLS1338b01, Quants67a9e1d
 and native verification; all four exited zero. Strict CRC/sequence/cursor and
 eligible-handoff reconciliation finds 7684 source and target records and 1613

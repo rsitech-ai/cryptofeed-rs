@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "status": "OWN_HEAD_REQUIRED_MAC_LINUX_ARM_MSRV_SUCCESS; OVERALL_CI_FAILURE_SECONDARY_WINDOWS_WATCHDOG",
+  "run": 39586842402,
+  "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39586842402",
+  "head": "66ed95ef61b66a517948d40aee3363e07fb9cc81",
+  "tested_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+  "whole_merge_tree": "6c69821eae8a769be2046b9ff9b4b1c6ece0bce3",
+  "whole_merge_tree_equals_author": true,
+  "compiled_source_files": 568,
+  "compiled_source_sha256": "347481b92b568c3bd57a1f971121ab216573c8f8092740be9dc62f2a4df7b4e4",
+  "all568_committed_inputs_match_retained_qualified_recipe": true,
+  "future_owner_pipeline_excluded": true,
+  "run_conclusion": "failure",
+  "jobs_by_conclusion": {
+    "success": 16,
+    "failure": 1
+  },
+  "cancelled_jobs": 0,
+  "jobs": [
+    {
+      "id": 119177745962,
+      "name": "rustfmt",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177745962-01.log",
+        "bytes": 13778,
+        "sha256": "33a9e87d7aa809087c1e6acb22457b426762e1bb128ca51c7348c2f63ac6d792"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "id": 119177746152,
+      "name": "C header and ABI exports",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746152-01.log",
+        "bytes": 15623,
+        "sha256": "653d04f5f7db56ff4165f83b992100d40d3439d4d2f859b31530396ea316187b"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "id": 119177746225,
+      "name": "sbom",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746225-01.log",
+        "bytes": 51819,
+        "sha256": "a1f7c57bc60a23428e8ae91aee5355dde46a532e0c6322f4944734e55d336ea2"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "id": 119177746285,
+      "name": "docs",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746285-01.log",
+        "bytes": 53934,
+        "sha256": "35e103c00c91aef5e3d6ceee64aaf9235140f788286978647f1c0a0bf8fcadbb"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "id": 119177746307,
+      "name": "clippy",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746307-01.log",
+        "bytes": 50599,
+        "sha256": "16f57ff7376e3c3f9141a6bb406b98b6eef36f2cf2b8c2c66404dafd502d6291"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "id": 119177746310,
+      "name": "Windows directory durability",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746310-01.log",
+        "bytes": 67215,
+        "sha256": "c48c615a28d86a89f2c3b3653f2f758456d9fb7b6aa9d4f94250275f0a764645"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        137,
+        0,
+        0
+      ],
+      "test_summaries": 12
+    },
+    {
+      "id": 119177746312,
+      "name": "test (ubuntu-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746312-01.log",
+        "bytes": 304794,
+        "sha256": "6a803a30d35f94289159af8bf0182a6a1967fd15b4565b05415c9d337912a6f9"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        1688,
+        0,
+        56
+      ],
+      "test_summaries": 162,
+      "critical_new6_and_old_regressions_passed": [
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation"
+      ]
+    },
+    {
+      "id": 119177746378,
+      "name": "test (windows-latest)",
+      "conclusion": "failure",
+      "raw_log": {
+        "file": "job-119177746378-01.log",
+        "bytes": 187148,
+        "sha256": "19ff07695802d1e81389848f928df194c80c2e5a9c261677001ae691e010c20a"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        857,
+        1,
+        46
+      ],
+      "test_summaries": 90,
+      "failure": {
+        "case": "wire_owner_tests::wire_actual_spot_perps_send_exactly_once_and_replay_projection_every_prefix",
+        "location": "crates/daemon/tests/support/wire_owner.rs:285:9",
+        "diagnostic": "Hyperliquid causal watchdog",
+        "failing_target_totals": [
+          22,
+          1,
+          0
+        ],
+        "failing_target_duration_seconds": 43.83,
+        "scope": "Secondary Windows partial workspace execution; not a new Mac/Linux failure or proven root cause"
+      }
+    },
+    {
+      "id": 119177746419,
+      "name": "test (ubuntu-24.04-arm)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746419-01.log",
+        "bytes": 305416,
+        "sha256": "021ee1e03b97342b7190d370ff52a92988e8a225b0353c92e2a20a2efecc0a09"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        1688,
+        0,
+        56
+      ],
+      "test_summaries": 162,
+      "critical_new6_and_old_regressions_passed": [
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation"
+      ]
+    },
+    {
+      "id": 119177746463,
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746463-01.log",
+        "bytes": 44947,
+        "sha256": "0ea4236a0575305cc30fa9e377d9b5cb7de54ffc56ce1cb7a2f7ca6072fd0e58"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        59,
+        0,
+        6
+      ],
+      "test_summaries": 9
+    },
+    {
+      "id": 119177746486,
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746486-01.log",
+        "bytes": 51458,
+        "sha256": "f57e135f959c16f1a1bcd459479c8ee555b57bcb923933ed3bba137392eb0c6b"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        89,
+        0,
+        4
+      ],
+      "test_summaries": 12
+    },
+    {
+      "id": 119177746490,
+      "name": "msrv (1.85)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746490-01.log",
+        "bytes": 173174,
+        "sha256": "f4f7c9ddd43f04929d1cc64bcc2397a790ea8952727ca1be7e6a7f40b3f6b024"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        829,
+        0,
+        0
+      ],
+      "test_summaries": 40,
+      "critical_new6_and_old_regressions_passed": [
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation"
+      ]
+    },
+    {
+      "id": 119177746491,
+      "name": "cargo-deny",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746491-01.log",
+        "bytes": 35151,
+        "sha256": "bf8ea4da763ddc5ede324040f35bf8fc153712d794a2d3654ac75dba2987ae80"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": null,
+      "test_summaries": 0
+    },
+    {
+      "id": 119177746521,
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746521-01.log",
+        "bytes": 41218,
+        "sha256": "426cbe2431317a4034b90ad5fe47313347e52b4c520edf552494749d7339e872"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        29,
+        0,
+        3
+      ],
+      "test_summaries": 8
+    },
+    {
+      "id": 119177746537,
+      "name": "test (macos-latest)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746537-01.log",
+        "bytes": 304388,
+        "sha256": "2d5595bd6917f0c76cfe224f0efe294ce173de660627366dbf110736fc7aac62"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        1687,
+        0,
+        56
+      ],
+      "test_summaries": 162,
+      "critical_new6_and_old_regressions_passed": [
+        "constructing_an_unpolled_read_is_not_a_diagnostic_attempt",
+        "exact_duration_accumulation_partition_and_saturation",
+        "observed_gate_run_closes_once_including_terminal_partial_run",
+        "inner_read_unwind_is_one_dropped_polled_future_without_a_return_outcome",
+        "read_diagnostics_count_first_poll_drop_and_returned_outcomes_exactly_once",
+        "buffered_frames_wait_for_actual_owner_and_report_application_read_timing",
+        "paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly",
+        "finalization_expiry_does_not_cancel_an_accepted_late_completion_ticket_or_revive_output",
+        "closing_drive_return_is_already_stopped_and_late_revoke_cannot_change_status_without_journal",
+        "stopped_wire_http_rejection_preserves_stopped_state_without_unjournaled_revocation"
+      ]
+    },
+    {
+      "id": 119177746592,
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746592-01.log",
+        "bytes": 45865,
+        "sha256": "519341f34ee667bfe2bb961461eec5a89cd00de75339da10785180b510066d22"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        59,
+        0,
+        6
+      ],
+      "test_summaries": 7
+    },
+    {
+      "id": 119177746607,
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "conclusion": "success",
+      "raw_log": {
+        "file": "job-119177746607-01.log",
+        "bytes": 65734,
+        "sha256": "ba30b1f69ac4b794ff50c41d05cce49b39c689981108c8c08187ae4ecb8d5667"
+      },
+      "checkout_merge": "5ef11bd751d492bcdeb12401d1db2a6aca43740e",
+      "test_totals": [
+        90,
+        0,
+        7
+      ],
+      "test_summaries": 14
+    }
+  ],
+  "own_run_json": {
+    "file": "run-04.json",
+    "bytes": 13212,
+    "sha256": "7da4a24eef20f57492f40281a41aa94e0940e8f5f1298c08cafd3716969f1d61"
+  },
+  "own_jobs_json": {
+    "file": "jobs-04.json",
+    "bytes": 36575,
+    "sha256": "b797f8615b74639e45a2a138205fd6df269ca392b85a4a4d9d66459386c19b9f"
+  },
+  "immutable_source_proof": {
+    "file": "source-proof-01.json",
+    "bytes": 794,
+    "sha256": "9755ca2ed158146ee17fdd6a04aaaa3400f73f9a44e026cc25a5f33bfac3491e"
+  },
+  "raw_merge_api": {
+    "file": "tested-merge-01.json",
+    "bytes": 2663,
+    "sha256": "68b516223bd131ab22b56e556526c1937f80801d61ab44558e0733da4f759d03"
+  },
+  "actual_readonly_watch": {
+    "actual_session": 14844,
+    "actual_terminal_tool_result": {
+      "chunk_id": "dbab7f",
+      "wall_time_seconds": 1.175e-05,
+      "exit_code": 1,
+      "original_token_count": 0,
+      "output": ""
+    },
+    "command": [
+      "gh",
+      "run",
+      "watch",
+      "39586842402",
+      "--repo",
+      "rsitech-ai/cryptofeed-rs",
+      "--interval",
+      "120",
+      "--exit-status"
+    ],
+    "log": {
+      "file": "watch-01.log",
+      "bytes": 93432,
+      "sha256": "b41ec8b0f440550fcc671d583608a8172aa78a48c1fe94dfc95d29809fe68613"
+    }
+  },
+  "reviewer_execution": "Read-only Git/GitHub/Python audit only; official hosted tests inspected, no local Rust/native/collector/consumer invocation",
+  "limits": [
+    "Exact66 diagnostics source3474 only; new570 owner pipeline and future source need their own checks/publication/hosted proof.",
+    "Windows watchdog failure is retained; no unproven filesystem/runtime/CI contention root-cause inference. No retry/cancel/ignore.",
+    "Mac/Linux whole workspace test counts differ by platform-specific tests; MSRV command totals cover40 summaries with overlapping tests, not829 unique cases.",
+    "No hosted capture/live exchange/network collector, freshness/availability/synchronized clock/Razer/native financial authentication/economic/extended soak or full-goal qualification."
+  ],
+  "helper": {
+    "file": "close-ci-02.py",
+    "bytes": 5429,
+    "sha256": "7d5697bee7e4c7aaa9239a452c529755f7780509af3302e0145d947c664c9044"
+  },
+  "private_receipt": {
+    "file": "hosted-independent-final-01.json",
+    "bytes": 14558,
+    "sha256": "4edcbe31eeafc19a2d792f1e593e960ac7bd99d242d2c14e683ead55a991dbbc"
+  }
+}
