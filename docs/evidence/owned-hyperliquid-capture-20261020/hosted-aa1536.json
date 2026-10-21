@@ -1,0 +1,128 @@
+{
+  "head": "aa1536c0e24aa3390c87ae7698be5ac122d050f1",
+  "merge": "ffe73adb9e154eb9cd09bc686dd3dcbba4ca86fc",
+  "whole_tree": "8b32b771951e1e27bb63a613c76fde3509ccffb8",
+  "merge_tree_exact_head": true,
+  "source_sha256": "c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1",
+  "run": 39568644466,
+  "conclusion": "failure",
+  "jobs": [
+    {
+      "name": "clippy",
+      "id": 119117022286,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022286"
+    },
+    {
+      "name": "docs",
+      "id": 119117022493,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022493"
+    },
+    {
+      "name": "test (macos-latest)",
+      "id": 119117022530,
+      "conclusion": "failure",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022530"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-kraken)",
+      "id": 119117022551,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022551"
+    },
+    {
+      "name": "Windows directory durability",
+      "id": 119117022639,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022639"
+    },
+    {
+      "name": "test (ubuntu-latest)",
+      "id": 119117022668,
+      "conclusion": "failure",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022668"
+    },
+    {
+      "name": "msrv (1.85)",
+      "id": 119117022683,
+      "conclusion": "failure",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022683"
+    },
+    {
+      "name": "test (windows-latest)",
+      "id": 119117022702,
+      "conclusion": "failure",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022702"
+    },
+    {
+      "name": "sbom",
+      "id": 119117022718,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022718"
+    },
+    {
+      "name": "rustfmt",
+      "id": 119117022778,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022778"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-binance)",
+      "id": 119117022840,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022840"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-okx)",
+      "id": 119117022874,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022874"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-bybit)",
+      "id": 119117022883,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022883"
+    },
+    {
+      "name": "cargo-deny",
+      "id": 119117022888,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117022888"
+    },
+    {
+      "name": "simd-json (marketfeed-adapter-deribit)",
+      "id": 119117023081,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117023081"
+    },
+    {
+      "name": "test (ubuntu-24.04-arm)",
+      "id": 119117023187,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117023187"
+    },
+    {
+      "name": "C header and ABI exports",
+      "id": 119117023238,
+      "conclusion": "success",
+      "url": "https://github.com/rsitech-ai/cryptofeed-rs/actions/runs/39568644466/job/119117023238"
+    }
+  ],
+  "successes": 13,
+  "failures": 4,
+  "cancellations": 0,
+  "arm_test_totals": [
+    1669,
+    0,
+    56
+  ],
+  "mac_linux_failure": "finalization pending-ticket timing assertion; paused32 passed on both",
+  "msrv_failure": "same pending-ticket assertion",
+  "windows_failures": [
+    "same pending-ticket assertion",
+    "original paused32 watchdog"
+  ],
+  "scope": "Current published aa1536 own run only. All raw downloaded failure logs retained. No rerun, workflow change or cancellation. Successor local candidate has not been qualified by this run."
+}

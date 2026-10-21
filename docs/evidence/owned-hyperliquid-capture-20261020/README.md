@@ -6,7 +6,55 @@ reexecutes committed history into the shared MFOP feed. See the
 [capture runbook](../../ops/hyperliquid-causal-capture.md) and
 [wire contract](../../plan/causal_application_wire_owner.md).
 
-The receipt-wake plus bounded-overlap successor, source recipe
+The current source recipe `0f332bdf` passes the full macOS workspace:
+**1,681 passed, zero failed, 56 ignored**, including the unchanged paused32
+ten-second watchdog and default test concurrency. [Exact local validation](closing-boundary-validation.json)
+and its [566-input inventory](closing-boundary-source.json) also bind Rust1.85
+default108/core314/native125/public80, the release build/core314/native125/public80,
+denied-warning checks and fresh audit/deny/gitleaks passes. The finalization
+regression now pauses ACK observation deterministically; no production timeout
+or test threshold changed.
+
+This source defers at most two Started/Ingress receipt observations, then validates
+each actual receipt before native/release/wire effects. It also fixes two
+reproduced closing bugs: normal closing marks Stopped and clears public views
+atomically, and late revocations cannot mutate a stopped owner without a record.
+Both [old-runtime failures and their fully joined workers](closing-regressions.json),
+and the successful successor checks remain retained. [Independent static review](closing-boundary-review.json)
+covers the exact final source. Full refusal while owned predecessor tickets are
+pending still lacks a deterministic regression; existing Full and failure tests
+cover separate paths.
+
+[Joint run11](joint11.json) passes the unchanged two-second final-file-mtime gate
+at **0.025683136 seconds**. All four children exit0; 7,708 CRC-valid source/target
+records, 1,509 projected items and 1,699 released native events reconcile. The
+[independent audit](joint11-independent.json) verifies both final cursor pairs and
+seals, a positive growing-feed witness and all 147 protected archive files.
+The run uses the qualified predecessor HLS5b9/dbad pinned to238 and published
+Quantsa1d; final current-pin HLS qualification remains separate.
+
+Native acquisition freshness remains **UNQUALIFIED**: perps timestamp/receipt
+differences reach 8.286 seconds for BBO, 8.313 seconds for books and 8.193 seconds
+for subsequent trades. Historical initial trade snapshots are counted separately.
+Neither this sample nor comparison with earlier uncontrolled samples establishes
+a synchronized clock, a latency SLA or a filesystem cause. Further Completion/Intent
+co-admission is deferred pending per-record settlement design and failure tests;
+the existing authority barriers remain. The original480 ingress failure remains
+failed/unrerun: its [exact rerun contract](original480-rerun-contract.json) identifies
+legacy MFSF1 wiring that must be migrated before it can qualify the causal owner.
+Final source-specific hosted Mac/Linux checks, HLS pin qualification, latest Quants
+checkpoint restart and extended Razer verification remain separate gates.
+
+The earlier bounded source-prefix intermediate `d1a34e17` has its own
+[local checks](source-prefix-intermediate-validation.json): full Mac 1,679/0/56,
+MSRV108/314/123/80, release build/core314/native123/public80 and fresh security
+checks pass. It is held from final handoff: the audit found a late closing/status
+journal discrepancy. Two genuine old-runtime regressions reproduce late revoke
+and unsupported wire-HTTP status mutations with no corresponding journal record.
+The atomic closing/Stopped-guard successor is qualified above; this historical
+intermediate is preserved without being relabeled as fixed.
+
+The earlier receipt-wake plus bounded-overlap successor, source recipe
 `c576bfa5892daba8815f8bee2c7f07acedeb650b567a3b9ed5d68a59ece73ce1`,
 passes two consecutive full macOS workspace runs: **1,668 passed, zero failed,
 56 ignored** in each. The entire existing paused32 test file, its ten-second
@@ -21,6 +69,16 @@ public80, the release build/core314/native112/public80, denied-warning checks,
 and fresh audit/deny/gitleaks passes. Earlier failures remain retained below.
 Live timing and the final coordinated consumer pins require their own evidence;
 these local tests do not establish native availability or a delivery SLA.
+
+Its own published `aa1536c0` [hosted run](hosted-aa1536.json) is terminal:
+13 successful jobs, four failed and zero cancelled. The tested merge tree exactly
+matches the publication. Linux ARM passes 1,669/0/56; Mac, Linux x64 and MSRV fail
+the finalization test's timing-sensitive pending-ticket assertion. The original
+paused32 case passes on Mac/Linux; Windows also retains its paused32 failure.
+A subsequent local test-only receipt-observation barrier removes that timing
+assumption while preserving all original thresholds and assertions. The subsequent
+source-prefix and closing repair has its own local qualification above. A new
+hosted run must qualify its publication independently.
 
 The new [joint run10](joint10.json) passes the unchanged two-second final-file
 mtime gate at **0.024975966 seconds**. All four producer/consumer/verifier children

@@ -78,6 +78,26 @@ before creating each persistent native owner/transport. Both markets share one
 collector budget. Application writes require durable one-use wire authorization;
 connect/read/automatic Pong/close remain explicitly managed, unjournaled controls.
 
+The source owner may defer ACK observation for at most two non-authorizing
+`Started`/`Ingress` records, each still a separate one-record transaction. One
+following authority record may be admitted before that prefix is drained. Native
+execution, completion processing, releases and application writes wait for every
+predecessor's own validated receipt; a covering publication cursor alone cannot
+substitute for an ACK. Ingress credits remain charged until their validated
+receipt. Full retries retain the identical transaction, and normal idle/closing
+and panic cleanup drain accepted tickets. Actor capacities and batch age are
+unchanged. Source `0f332bdf` passes its [local qualification](../evidence/owned-hyperliquid-capture-20261020/closing-boundary-validation.json)
+and [joint11 feed-tail gate](../evidence/owned-hyperliquid-capture-20261020/joint11.json).
+Acquisition freshness remains unqualified: this sample's perps timestamp/receipt
+differences exceed eight seconds. Preserve that diagnostic separately from the
+25.7ms source-to-target final-file tail; neither is a per-event latency SLA.
+
+`Stopped` is the logical closing boundary: accepted tickets are drained, queues
+are empty, and snapshot/release views are cleared under the admission lock.
+Late revocation or rejected input cannot add unrecordable terminal state after
+that boundary. `shutdown` still joins physical capture destruction and worker
+cleanup; callers must join when they need physical completion.
+
 The output contains `request.json`, `build.json`, the retained exact
 `capture-executable`, `source/`, `feed/` and a terminal `report.json` after driver
 settlement. macOS/Linux auxiliary files and directory entries are synced; source

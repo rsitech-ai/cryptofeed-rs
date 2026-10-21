@@ -2431,7 +2431,7 @@
         }
       }
     },
-    "limits": "Same002a source with existing release profile; no source/config/cap change. Separate artifact/profile qualification, not retrospective repair or isolated cause proof for debug06/07 failures."
+    "limits": "Sourcec576 receipt-wake plus bounded overlap, built with23859663 as Gitparent using the existing release profile and unchanged request/caps. Exact source/artifact/build-output bindings are in the receipt; it is not source002a. No retrospective repair or isolated-cause proof for earlier failed debug/release timing samples."
   },
   "source_event_kinds": {
     "started": 2,
@@ -2477,5 +2477,14 @@
     },
     "receipt_sha256": "e7edc3ea6caffc53844dafbfe2e1aed9c8ba04c84ae11aaf3abc2472bbcddb5c"
   },
-  "original_private_audit_sha256": "e018745de9ad006ea040b0cc46cf525905f009688257d5d67b54f1da93c4cb1b"
+  "original_private_audit_sha256": "e018745de9ad006ea040b0cc46cf525905f009688257d5d67b54f1da93c4cb1b",
+  "metadata_corrections": [
+    {
+      "scope": "Correct inherited narrative source label in release_build_binding.limits only; raw source/artifact identities and all capture/audit results unchanged",
+      "previous_public_sha256": "98f5deb8434457a7df861205e9a7cccfa24860722aaaa468747d3155bee08706",
+      "previous_narrative": "Same002a source with existing release profile; no source/config/cap change. Separate artifact/profile qualification, not retrospective repair or isolated cause proof for debug06/07 failures.",
+      "original_private_audit_preserved": true,
+      "new_native_or_consumer_execution": false
+    }
+  ]
 }
