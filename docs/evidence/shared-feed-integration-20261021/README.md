@@ -29,6 +29,17 @@ package verification, not live-market or extended-operation qualification.
 - [Producer hosted proof](producer-hosted.json)
 - [HLS hosted proof](hls-hosted.json) and [second review](hls-hosted-peer.json)
 
+Later documentation head `b3da14730be3dc88287fd81429829779efb1a488` has its own
+[terminal CI proof](doc-head-b3da-hosted.json): 16 successful jobs, one secondary
+Windows failure and zero cancellations. Mac, both Linux hosts, MSRV and security
+pass with the platform counts above. Windows failed
+`paused_native_source_backpressures_more_than_owner_capacity_and_resumes_exactly`
+while awaiting a durable commit; its partial corpus is 836 passed / 1 failed /
+46 ignored. All 570 compiled inputs are unchanged. The earlier20f5 Windows pass
+remains historical evidence; no Windows root cause or repair is inferred. The
+required user platforms are Mac and Linux, and this failure remains explicit.
+
+
 ## Actual growing feed and recovery
 
 Joint15 ran the byte-exact [120-second request](request-120s.json): spot `@107`
@@ -88,7 +99,11 @@ RESEARCH_V1/perps context, economics and the longer user-run Razer verification
 remain open. The rsibot root gitlinks are unchanged. No orders, activation,
 deployment, merge or release occurred.
 
-See the [Mac/Linux handoff](../../plan/razer_shared_feed_verification.md).
+See the [Mac/Linux handoff](../../plan/razer_shared_feed_verification.md). Its
+reference request is extracted from immutable documentation commit B3 with an
+explicit hash guard and create-only output; it is absent from runtime20f5. The
+original missing-path instructions and bounded review are preserved in B3, with
+the correction verified separately before this successor.
 Portable proofs retain exact bytes where already public, except one explicitly
 recorded HLS limitation sentence reworded after a secret scanner matched English
 prose. Its original hash and failed scan are preserved; every other HLS value is

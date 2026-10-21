@@ -62,14 +62,43 @@ and retain fresh Linux executables and actual SHA-256 pins; the saved Mac archiv
 cannot provide executable-bound native replay on Linux. Never claim a new build
 can replay an old executable-bound source because its Git source matches.
 
-First run the byte-exact [reference request](../evidence/shared-feed-integration-20261021/request-120s.json)
-with a new output root. It uses native spot `@107` and perps `BTC`,120000ms,
-64MiB source/target ceilings and projection batch8. Verify selected native names
-still exist; a changed selection needs a separately registered request.
+The byte-exact [reference request](../evidence/shared-feed-integration-20261021/request-120s.json)
+was added in documentation commit `b3da14730be3dc88287fd81429829779efb1a488`;
+it is absent from the runtime20f5 checkout. Keep that runtime checkout and fetch
+the documentation branch, then extract the request from the immutable commit.
+This checks its exact hash and creates a new file outside the capture directory;
+an existing file is refused. Use an existing writable data parent in these
+example paths.
+
+```sh
+git fetch origin codex/native-observations
+python3.12 - <<'PYREQUEST'
+import hashlib
+from pathlib import Path
+import subprocess
+
+request = subprocess.check_output([
+    "git", "show",
+    "b3da14730be3dc88287fd81429829779efb1a488:"
+    "docs/evidence/shared-feed-integration-20261021/request-120s.json",
+])
+if hashlib.sha256(request).hexdigest() != (
+    "3c099a18482fc18deb3b83fbe781f9860ee8fd19e5bda4a245b05acacc6f6294"
+):
+    raise SystemExit("Reference request checksum mismatch")
+with Path("/data/reference-request-120s-01.json").open("xb") as output:
+    output.write(request)
+PYREQUEST
+```
+
+First run that unchanged120-second request with a new output root. It uses native
+spot `@107` and perps `BTC`,120000ms,64MiB source/target ceilings and projection
+batch8. Verify selected native names still exist; a changed selection needs a
+separately registered request.
 
 ```sh
 "$CARGO_TARGET_DIR/release/marketfeed-capture" run \
-  --request docs/evidence/shared-feed-integration-20261021/request-120s.json \
+  --request /data/reference-request-120s-01.json \
   --output /data/new-reference-01
 ```
 
